@@ -123,9 +123,10 @@ const countsOf = (cards: string[]): DeckEntry[] => [...cards.reduce((m, id) => m
  * Collection tab below it (Favorite decks). The deck picked is switched in with whichever option is taken, battle or not.
  * On a big screen it's always two columns: the encounters on the left (battles, then the other stops, headed Encounters), the deck choice
  * on the right. On a phone (useIsPhone) they're stacked, and the other stops are headed Event.
- * `side` (a phone's side panel tabs, PanelTabs) goes at the bottom of the panel, under the deck choice.
+ * `side` (a phone's side panel tabs, PanelTabs) goes at the bottom of the panel, under the deck choice. `deckId` and
+ * `onDeck` (the run screen's, shared with the map's encounter cards, MapOption) make the deck choice the page's.
  */
-export function RouteChoice({ view, run, side }: { view: RunViewData; run: RunControl; side?: ReactNode }) {
+export function RouteChoice({ view, run, side, deckId: shared, onDeck }: { view: RunViewData; run: RunControl; side?: ReactNode; deckId?: string | null; onDeck?: (deckId: string | null) => void }) {
   const trpc = useTRPC();
   const debug = useDebugEnabled();
   const options = (view.steps[view.position]?.options ?? []).map((option, index) => ({ option, index }));
@@ -135,7 +136,9 @@ export function RouteChoice({ view, run, side }: { view: RunViewData; run: RunCo
   const decks = useQuery(trpc.decks.list.queryOptions());
   const byId = useContext(CatalogContext) ?? new Map();
   /** null: keep the run's deck. */
-  const [deckId, setDeckId] = useState<string | null>(null);
+  const [ownDeck, setOwnDeck] = useState<string | null>(null);
+  const deckId = shared !== undefined ? shared : ownDeck;
+  const setDeckId = onDeck ?? setOwnDeck;
   const traded = view.deck.length !== view.startingDeck.length || view.deck.some((id, i) => id !== view.startingDeck[i]);
   const runDeck = useMemo(() => countsOf(view.deck), [view.deck]);
   // The automatic run deck is the run's deck itself, already first.
@@ -338,7 +341,93 @@ function Option({
   );
 }
 
-/** A trainer battle's reward lean (battleReward): Big Payout, Extra EXP or Rarer Cards, each on one line, the same size wherever it's shown. */
+/**
+ * The deck choice as a corner of the run map (the user's experiment, RouteView's `corners`): the deck picked for the
+ * step's encounter, a drop-down of the run's and the account's decks (DeckMenu, opening upward), and the warning that
+ * another deck replaces the run's.
+ */
+export function MapDeck({ view, deckId, onDeck }: { view: RunViewData; deckId: string | null; onDeck: (deckId: string | null) => void }) {
+  const trpc = useTRPC();
+  const decks = useQuery(trpc.decks.list.queryOptions());
+  const phone = useIsPhone();
+  const traded = view.deck.length !== view.startingDeck.length || view.deck.some((id, i) => id !== view.startingDeck[i]);
+  const runDeck = useMemo(() => countsOf(view.deck), [view.deck]);
+  const otherDecks = (decks.data ?? []).filter((d) => !d.runDeck);
+  return (
+    <div className={`${phone ? 'w-64' : 'w-80'} space-y-1.5`}>
+      <div className="flex items-baseline justify-between rounded bg-slate-900/75 px-2 py-0.5">
+        <h4 className="text-sm font-semibold">Current deck</h4>
+        <Link to="/decks" className="text-xs text-yellow-300 hover:underline">
+          Build or edit decks
+        </Link>
+      </div>
+      <DeckMenu
+        selected={deckId}
+        onPick={onDeck}
+        up
+        decks={[
+          { id: null, name: 'Current run', note: view.deckName ? `${view.deckName}${traded ? ', with its trades' : ''}` : traded ? 'With its trades' : undefined, entries: runDeck },
+          ...otherDecks.map((d) => ({ id: d.id, name: d.name, note: d.problems[0], entries: d.cards, disabled: d.problems.length > 0, locked: d.locked })),
+        ]}
+        compact={phone}
+      />
+      {deckId !== null && <p className="rounded bg-slate-900/75 px-2 py-0.5 text-xs text-amber-300">This deck replaces your run deck for the rest of the run{traded ? ', and the cards you traded for leave it' : ''}.</p>}
+    </div>
+  );
+}
+
+/**
+ * An option of the step as a card on the map, beside its figure (RouteView's `optionCard`, the user's experiment): its
+ * badge, title and reward lean, a battle's favoured types and what it leads to, compact. A click takes it with the deck
+ * picked (`deckId`, MapDeck). In debug, a battle's Skip battle under it.
+ */
+export function MapOption({ view, run, index, deckId }: { view: RunViewData; run: RunControl; index: number; deckId: string | null }) {
+  const byId = useContext(CatalogContext) ?? new Map();
+  const phone = useIsPhone();
+  const debug = useDebugEnabled();
+  const option = view.steps[view.position]?.options[index];
+  if (!option) return null;
+  const cardName = (id: string) => view.cards[id]?.name ?? id;
+  const battle = isBattleKind(option.kind);
+  const title = battle ? encounterLabel(option) : optionTitle(option, cardName);
+  const action = !battle ? 'Go to' : isBossKind(option.kind) || option.kind === 'gymTrainer' ? 'Challenge' : 'Battle';
+  const card = (
+    <button
+      disabled={run.busy}
+      onClick={() => run.choose(index, deckId ?? undefined)}
+      aria-label={`${action} ${title}`}
+      className={`group block ${phone ? 'w-44' : 'w-60'} space-y-0.5 rounded-lg bg-slate-900/75 px-2 py-1.5 text-left shadow-lg shadow-black/50 ring-1 ring-slate-600 transition hover:bg-slate-900 hover:ring-yellow-300 active:scale-[0.98] disabled:opacity-60`}
+    >
+      <span className="flex items-center gap-1.5">
+        <EncounterBadge kind={option.kind} size={20} />
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold">{title}</span>
+      </span>
+      {!phone && <ClassTypes option={option} catalog={byId} />}
+      {describe(option, cardName).map((l, i) => (
+        <span key={i} className="block text-xs leading-4 text-slate-300">
+          {l}
+        </span>
+      ))}
+      {/* The reward lean in the bottom left, the action in the bottom right. */}
+      <span className="flex items-center justify-between gap-2 pt-0.5">
+        {option.focus ? <FocusTag option={option} /> : <span />}
+        <span className="text-xs font-semibold text-yellow-300 group-hover:underline">{action}</span>
+      </span>
+    </button>
+  );
+  // Debug: win it without playing. DEBUG_BUILD first: a production build drops the button altogether.
+  if (!(DEBUG_BUILD && debug && battle)) return card;
+  return (
+    <div className="space-y-1">
+      {card}
+      <button className={`${skipButton} block w-full`} disabled={run.busy} onClick={() => run.skipBattle(index, deckId ?? undefined)} title="Debug: win this battle without playing it">
+        Skip battle
+      </button>
+    </div>
+  );
+}
+
+/** A trainer battle's reward lean (battleReward): Big Payout, Extra EXP or Rare Cards, each on one line, the same size wherever it's shown. */
 export function FocusTag({ option }: { option: MapEncounter }) {
   if (!option.focus) return null;
   return <span className="inline-block shrink-0 whitespace-nowrap rounded bg-amber-500/20 px-1.5 text-xs font-semibold leading-5 text-amber-300 ring-1 ring-amber-500/40">{REWARD_FOCUS_LABELS[option.focus]}</span>;

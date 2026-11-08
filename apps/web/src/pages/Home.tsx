@@ -1,14 +1,14 @@
 import { runType } from '@poke-tcg/campaign';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PanelTabs } from '../components/LogDrawer';
 import { PageHeader } from '../components/PageHeader';
 import { PreviewProvider } from '../components/PreviewProvider';
-import { RunDeckPanel } from '../components/run/RunDeckPanel';
+import { MapBag, RunDeckPanel } from '../components/run/RunDeckPanel';
 import { EncounterPanel } from '../components/run/EncounterPanel';
 import { NewRunPicker } from '../components/run/NewRunPicker';
 import { RunHeader } from '../components/run/RunHeader';
 import { ConcedeRun } from '../components/run/ConcedeRun';
-import { RouteChoice } from '../components/run/RouteChoice';
+import { MapDeck, MapOption, RouteChoice } from '../components/run/RouteChoice';
 import { RunMap } from '../components/run/RunMap';
 import { RouteView } from '../components/run/RouteView';
 import { RunOver } from '../components/run/RunOver';
@@ -18,6 +18,7 @@ import { useRun } from '../hooks/useRun';
 import { ReturnToPlay } from '../components/ReturnToPlay';
 import { useRunMusic } from '../hooks/useRunMusic';
 import { useWindowFill } from '../hooks/useWindowFill';
+import { useMapEncounters } from '../hooks/useMapEncounters';
 import { PAGE_WIDTH } from '../utils/layout';
 
 /**
@@ -54,6 +55,13 @@ export function HomePage() {
   useEffect(() => {
     if (phone && run.spotted) toTop();
   }, [run.spotted, phone]);
+  // The deck picked for the step's encounter (null: the run's), shared by the panel's choice and the map's encounter cards;
+  // picked again at each step.
+  const [deckId, setDeckId] = useState<string | null>(null);
+  // Encounters on the route map (Settings; off: the panels under it).
+  const [mapEncounters] = useMapEncounters();
+  const position = overview.data?.run?.view.position;
+  useEffect(() => setDeckId(null), [position]);
   // A failed refetch keeps the run screen (and the map's walk) up with what it has.
   if (overview.error && !overview.data) return <p className={`${PAGE_WIDTH} text-red-400`}>{overview.error.message}</p>;
   if (!overview.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
@@ -71,21 +79,30 @@ export function HomePage() {
   // under the deck choice, or under the encounter.
   const inline = !!routes && !!view && view.phase !== 'won' && view.phase !== 'lost';
   const tabs = inline && phone && <PanelTabs {...sidePanel} collapsible />;
+  // The encounter under way: on a route map, drawn over the map's bottom (RouteView's `overlay`, the user's experiment);
+  // below it otherwise.
+  const overMap = mapEncounters && !!routes && view?.phase === 'encounter' && !!view.encounter;
+  const encounter = view && <EncounterPanel view={view} run={run} />;
+  const below = overMap ? null : encounter;
+  // On a route map, everything else is on the map too (the user's experiment): Concede in its top left, the Bag in its
+  // bottom left and the deck in its bottom right while choosing; below it only a phone's side panel tabs.
+  const choosing = view?.phase === 'map';
+  const corners = view && choosing ? { topLeft: <ConcedeRun view={view} run={run} />, bottomLeft: <MapBag view={view} run={run} />, bottomRight: <MapDeck view={view} deckId={deckId} onDeck={setDeckId} /> } : undefined;
   // The next encounter (or the one under way), the cards unlocked this run, and Concede below them, out of the way.
   const panels = view && (
     <div className="min-w-0 space-y-6">
       {view.phase === 'map' ? (
         // A new step starts with the run's deck picked again.
-        <RouteChoice key={view.position} view={view} run={run} side={tabs || undefined} />
+        <RouteChoice key={view.position} view={view} run={run} side={tabs || undefined} deckId={deckId} onDeck={setDeckId} />
       ) : tabs && phone ? (
         <>
-          <EncounterPanel view={view} run={run} />
+          {below}
           {tabs}
         </>
       ) : tabs ? (
         <div className="grid gap-5 md:grid-cols-2">
           <div className="min-w-0">
-            <EncounterPanel view={view} run={run} />
+            {below}
           </div>
           {/* As tall as the encounter (at least 24rem), never taller: the log scrolls inside it. */}
           <div className="relative min-h-96">
@@ -93,7 +110,7 @@ export function HomePage() {
           </div>
         </div>
       ) : (
-        <EncounterPanel view={view} run={run} />
+        below
       )}
       <RunDeckPanel view={view} run={run} />
       {view.phase === 'map' && <ConcedeRun view={view} run={run} />}
@@ -119,8 +136,15 @@ export function HomePage() {
                 <RunOver current={current} overview={overview.data} run={run} />
               ) : routes ? (
                 <>
-                  <RouteView routes={routes} gym={runType(view.type).gym} view={view} spotted={run.spotted} gender={overview.data.playerGender} />
-                  {panels}
+                  <RouteView
+                    routes={routes}
+                    gym={runType(view.type).gym}
+                    view={view}
+                    spotted={run.spotted}
+                    gender={overview.data.playerGender}
+                    {...(mapEncounters && { optionCard: (index: number) => <MapOption view={view} run={run} index={index} deckId={deckId} />, overlay: overMap ? encounter : undefined, corners })}
+                  />
+                  {mapEncounters ? tabs : panels}
                 </>
               ) : (
                 <div className="grid items-start gap-6 lg:grid-cols-[23rem_1fr]">

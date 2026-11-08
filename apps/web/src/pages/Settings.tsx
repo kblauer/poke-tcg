@@ -11,6 +11,7 @@ import { useFontStyle, type FontStyle } from '../hooks/useFontStyle';
 import { useExpTheme, usePokedollarTheme } from '../hooks/useThemedFigures';
 import { useSkipFlips } from '../hooks/useSkipFlips';
 import { useTextStatus } from '../hooks/useTextStatus';
+import { useMapEncounters } from '../hooks/useMapEncounters';
 import { PAGE_WIDTH } from '../utils/layout';
 import { BUTTON } from '../utils/styles';
 
@@ -35,6 +36,7 @@ export function SettingsPage() {
   const [expTheme, setExpTheme] = useExpTheme();
   const [pokedollarTheme, setPokedollarTheme] = usePokedollarTheme();
   const [textStatus, setTextStatus] = useTextStatus();
+  const [mapEncounters, setMapEncounters] = useMapEncounters();
   const music = useMusicSettings();
   return (
     <div className={`space-y-4 ${PAGE_WIDTH}`}>
@@ -42,6 +44,12 @@ export function SettingsPage() {
       <div className="grid max-w-3xl gap-4">
         <Section title="Account">
           <AccountNameField label="Name" />
+        </Section>
+        <Section title="UI Options">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300" title="The Badge Challenge's route map: on, the encounters, your deck, the Bag and Concede on the map; off, in the panels under it">
+            <input type="checkbox" checked={mapEncounters} onChange={(e) => setMapEncounters(e.target.checked)} />
+            Toggle ON to use the new all-in-one play area. Toggle OFF for the OG UI where the map is only a map
+          </label>
         </Section>
         <Section title="Battles">
           <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">

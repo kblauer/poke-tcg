@@ -5,13 +5,14 @@ import LockOpenIcon from '@mui/icons-material/LockOpen';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import { dropAt, flowAt, inGrass, inLongGrass, isBattleKind, LIFT_MS, LIFT_PAUSE_MS, liftEnd, onLongGrassEdge, onPath, onWater, routePath, snowSink, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import type { PlayerGender } from '@poke-tcg/shared';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useCrackedIce } from '../../hooks/useCrackedIce';
 import { useSnowballs } from '../../hooks/useSnowballs';
 import { useGears } from '../../hooks/useGears';
 import { TRACK_FADE_STEPS, TRACK_SHOW_STEPS, useSnowTracks } from '../../hooks/useSnowTracks';
 import { useIsPhone } from '../../hooks/useIsPhone';
-import { mapScale, usePan, ZOOM } from '../../hooks/usePan';
+import { clampView, usePan, ZOOM } from '../../hooks/usePan';
+import { onDevicePixel } from '../idle/GameScreen';
 import type { RunViewData } from '../../hooks/useRun';
 import { FADE_MS, GRASS_PACE, pace, slowGrass, stepPace, THROUGH_MS, useWalk, type MapSection, type Walker } from '../../hooks/useWalk';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
@@ -52,6 +53,21 @@ function saveSpeed(speed: number) {
 /** localStorage key for the phone's map lock (the lock button), on until it's turned off (agreed): while it's on, the map doesn't pan, so a swipe over it scrolls the page. */
 const LOCK_KEY = 'poke-tcg.route-lock';
 
+/**
+ * The zoom while a step's encounters are chosen (the user's experiment: the encounters' cards on the map, `optionCard`),
+ * and how long the zoom in and out takes (the user's: slow), on the player both ways: in, the cards showing once it's
+ * there; out, before he walks on.
+ */
+const CHOOSE_ZOOM = 4;
+/** An element's width inside its padding (what a child as wide as it can be gets), or undefined without one. */
+const contentWidth = (el: HTMLElement | null | undefined) => {
+  if (!el) return undefined;
+  const style = getComputedStyle(el);
+  return el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+};
+const PHONE_CHOOSE_ZOOM = 3;
+const ZOOM_MS = 1200;
+
 function loadLocked(): boolean {
   try {
     return localStorage.getItem(LOCK_KEY) !== '0';
@@ -88,7 +104,28 @@ function saveLocked(locked: boolean) {
  * than it). Its height is the player's: drag the handle along its bottom edge (from MIN_HEIGHT to the whole map's height,
  * or 85% of the window), remembered in localStorage (`poke-tcg.route-map`); a double-click on the handle resets it.
  */
-export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { routes: Route[]; gym?: Route; view: RunViewData; spotted?: { option: number | null } | null; gender?: PlayerGender }) {
+export function RouteView({
+  routes,
+  gym,
+  view,
+  spotted,
+  gender = 'male',
+  optionCard,
+  overlay,
+  corners,
+}: {
+  routes: Route[];
+  gym?: Route;
+  view: RunViewData;
+  spotted?: { option: number | null } | null;
+  gender?: PlayerGender;
+  /** The step's option as a card on the map, beside its figure (MapOption): with it, the map zooms in on the step while it's chosen. */
+  optionCard?: (option: number) => ReactNode;
+  /** The encounter under way (EncounterPanel), drawn over the bottom of the view, the player and the figures above it (the user's experiment). */
+  overlay?: ReactNode;
+  /** What sits in the view's corners (the user's experiment): Concede (top left), the Bag (bottom left, the view's height to open in), the deck (bottom right). */
+  corners?: { topLeft?: ReactNode; bottomLeft?: ReactNode; bottomRight?: ReactNode };
+}) {
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => void preloadSprites(), []);
   // Debug only: the walkable tiles overlay (TileOverlay).
@@ -103,7 +140,8 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   const [speed, setSpeed] = useState(loadSpeed);
   const ms = { step: STEP_MS / speed, frame: WALK_FRAME_MS / speed, fade: FADE_MS / speed, through: THROUGH_MS / speed, glide: 700 / speed, lift: LIFT_MS / speed, liftPause: LIFT_PAUSE_MS / speed };
 
-  const position = view.position;
+  // The step the map shows: the run's, but the last one's while the view zooms back out from it (the walk on waits for that).
+  const [position, setPosition] = useState(view.position);
   const total = view.steps.length;
   // The maps in order (the routes, then the gym), each holding the steps from `first` up to `upto`. The gym's steps are the
   // run's last ones (counted from the end, so a run made before its route had 10 spots still works); the last route holds
@@ -147,7 +185,12 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   // The view: its height, its size, and where the map sits in it (panned, or moved by the walk). `mapEl` is the map, moved
   // directly while it's dragged.
   const mapEl = useRef<HTMLDivElement>(null);
-  const pan = usePan({ box, mapEl, map: shown, mapHeight: Math.max(...routes.map((r) => r.height), gym?.height ?? 0), panLocked });
+  // Zoomed in on the step (CHOOSE_ZOOM) while the player stands on its spot, its encounters chosen or under way; 2× while
+  // he walks on (the user's experiment, with `optionCard`).
+  const atSpot = walker.section === targetSection && walker.tile.x === targetSpot.x && walker.tile.y === targetSpot.y && !walker.walking && !walker.hidden;
+  const zoomedIn = !!optionCard && atSpot && view.position === position && (view.phase === 'map' || view.phase === 'encounter');
+  const zoom = zoomedIn ? (phone ? PHONE_CHOOSE_ZOOM : CHOOSE_ZOOM) : ZOOM;
+  const pan = usePan({ box, mapEl, map: shown, mapHeight: Math.max(...routes.map((r) => r.height), gym?.height ?? 0), panLocked, zoom, pastEdges: !!optionCard });
   const { size, setOffset, setGlide, centreOn, centreOnMap } = pan;
   // The figures as last drawn, for the walk to go around them.
   const placedRef = useRef<PlacedFigure[]>([]);
@@ -254,14 +297,6 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
     [position],
   );
 
-  // Centred on the player when the view first has a size, or changes size.
-  useEffect(() => {
-    if (!size.w) return;
-    setGlide(null);
-    setOffset(centreOn(walkerRef.current.tile));
-    // Only when the view's size changes; walking and panning move it otherwise.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [size.w, size.h]);
 
   // When the run moves on, Red walks (or fades) to the new spot, the view following him.
   // Who stands on another map, as it'll be drawn once he's there (placeFigures), for his walk into it to go round them.
@@ -287,6 +322,97 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
     !!approaching && p.spot === spot && !p.faded && (view.phase === 'encounter' || p.figure.option === chosenOption);
   // Red faces the way he walks, and once there the encounter if there's just one at his spot; otherwise the way the map's encounters go (its flow).
   const mine = placed.filter((p) => p.spot === spot && !p.faded);
+  // The step's figures with an option (a card each), while it's chosen.
+  const carded = optionCard && view.phase === 'map' && !spotted ? mine.filter((p) => p.figure.option !== undefined) : [];
+  // The step's options with no figure on the map (an encounter with no one to stand for it): their cards above the player.
+  const uncarded = optionCard && view.phase === 'map' && !spotted ? (view.steps[position]?.options ?? []).map((_, i) => i).filter((i) => !carded.some((p) => p.figure.option === i)) : [];
+  // Zooming in or out (`zoom` changing): the scale and the view's offset together, a frame at a time, so the point zoomed
+  // on stays put: the player, in and out. The map is drawn at `shownZoom` once it's done (and the offset handed back to usePan), the cards
+  // showing once it's in (`settled`: at its zoomed-in scale, nothing moving); the run's next step is taken up once it's out (below).
+  const [shownZoom, setShownZoom] = useState(zoom);
+  const zoomAt = useRef<{ zoom: number; offset: { x: number; y: number } } | null>(null);
+  // The cards showing (the view zoomed in on the step, nothing moving); their figures' speech bubbles hidden meanwhile, the card showing the same icon.
+  const cardsShown = zoomedIn && shownZoom === zoom && !zoomAt.current;
+  const figureOf = (p: PlacedFigure) => (cardsShown && carded.includes(p) ? { ...p.figure, bubble: undefined } : p.figure);
+  // The figure (as wide as the page, but no wider than the map at its zoom: its whole width shown), widened or narrowed
+  // with the zoom's frames.
+  const figure = useRef<HTMLElement>(null);
+  // (Without the map's cards, as wide as the widest of its maps at 2×, as before.)
+  const viewWidth = (z: number) => (optionCard ? Math.max(768, shown.width * z) : Math.max(768, ...sections.map((s) => s.map.width * ZOOM)));
+  // With the encounter's panel over the bottom of the view, what it centres on is a third of the way down instead.
+  const focusY = overlay ? 0.3 : 0.5;
+  /** The offset that puts a tile at the view's focus (its middle, or higher with the panel up) at a zoom, kept inside the map. */
+  const centreAt = (t: { x: number; y: number }, z: number, view: { w: number; h: number }) => clampView(shown, { x: view.w / 2 - (t.x * 16 + 8) * z, y: view.h * focusY - (t.y * 16 + 8) * z }, view, z, !!optionCard);
+  /** What the view centres on, zoomed in or out: the player (the user's: never anywhere else, so a zoom never swings the view). */
+  const focusTile = () => walkerRef.current.tile;
+  // Centred when the view first has a size, or changes size (not while a zoom moves it).
+  useEffect(() => {
+    if (!size.w || zoomAt.current) return;
+    setGlide(null);
+    setOffset(centreAt(focusTile(), zoom, size));
+    // Only when the view's size changes; walking and panning move it otherwise.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [size.w, size.h]);
+  // The encounter's panel coming up or going: the view glides to put the focus above it, or back in the middle.
+  const overlaid = !!overlay;
+  useEffect(() => {
+    // Not while a zoom moves the view (it puts him there itself).
+    if (!size.w || zoomAt.current || zoom !== shownZoom) return;
+    setGlide({ ms: 500, ease: 'ease-in-out' });
+    setOffset(centreAt(focusTile(), shownZoom, size));
+    // When the panel comes up or goes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overlaid]);
+  useEffect(() => {
+    const el = mapEl.current;
+    // Not measured yet (or no map): at the new zoom at once.
+    if (!size.w || !el) return void setShownZoom(zoom);
+    // From where the map is drawn now (a glide may be half done: the DOM's, not the offset it's heading for), any glide
+    // stopped there, so nothing else moves the map while the zoom does.
+    const from = zoomAt.current ?? { zoom: shownZoom, offset: { x: parseFloat(el.style.left) || pan.offset.x, y: parseFloat(el.style.top) || pan.offset.y } };
+    setGlide(null);
+    setOffset(from.offset);
+    const t = focusTile();
+    const red = { x: t.x * 16 + 8, y: t.y * 16 + 8 };
+    // The page's width, which the view widens to (or the map's at the zoom); the view stays centred in it.
+    const page = contentWidth(figure.current?.parentElement) ?? size.w;
+    const w0 = Math.min(page, viewWidth(from.zoom));
+    // Where the player is on the page (across from the view's middle, which stays put as it widens; down from its top),
+    // moving only from where he is to where he rests (the middle, or above the encounter's panel): no swing.
+    const across0 = from.offset.x + red.x * from.zoom - w0 / 2;
+    const down0 = from.offset.y + red.y * from.zoom;
+    const at = (k: number) => {
+      // Evenly in scale (each frame the same ratio).
+      const z = from.zoom * (zoom / from.zoom) ** k;
+      const view = { w: Math.min(page, viewWidth(z)), h: size.h };
+      const across = across0 * (1 - k);
+      const down = down0 + (view.h * focusY - down0) * k;
+      return { zoom: z, width: viewWidth(z), offset: clampView(shown, { x: view.w / 2 + across - red.x * z, y: down - red.y * z }, view, z, !!optionCard) };
+    };
+    const start = performance.now();
+    const ease = (k: number) => (k < 0.5 ? 2 * k * k : 1 - (2 - 2 * k) ** 2 / 2);
+    let frame = requestAnimationFrame(function step(now) {
+      const k = Math.min(1, (now - start) / ZOOM_MS);
+      const v = at(ease(k));
+      zoomAt.current = v;
+      el.style.transform = `scale(${v.zoom})`;
+      el.style.left = `${onDevicePixel(v.offset.x)}px`;
+      el.style.top = `${onDevicePixel(v.offset.y)}px`;
+      if (figure.current) figure.current.style.maxWidth = `${v.width}px`;
+      if (k < 1) return void (frame = requestAnimationFrame(step));
+      zoomAt.current = null;
+      setGlide(null);
+      setOffset(v.offset);
+      setShownZoom(zoom);
+    });
+    return () => cancelAnimationFrame(frame);
+    // When the zoom changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoom]);
+  // The run's next step taken up (the walk on starting) once the view is back out.
+  useEffect(() => {
+    if (view.position !== position && zoom === shownZoom && !zoomAt.current) setPosition(view.position);
+  }, [view.position, position, zoom, shownZoom]);
   // The trainer who just spotted the player (the battle chosen, or the Ace Trainer accepted): the step's option while the
   // battle is being set up, then the encounter's figure once it's in.
   const spottedFigure = spotted ? mine.find((p) => !p.figure.bubble && (view.phase === 'encounter' ? true : p.figure.option === spotted.option)) : undefined;
@@ -305,7 +431,8 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
 
   return (
     // As wide as the widest of its maps at 2× (at least 48rem), up to the page's width: no wider than the maps can fill.
-    <figure className="mx-auto w-full space-y-1" style={{ maxWidth: Math.max(768, ...sections.map((s) => s.map.width * ZOOM)) }}>
+    // As wide as the page, up to the map's whole width at its zoom (at least 48rem).
+    <figure ref={figure} className="mx-auto w-full space-y-1" style={{ maxWidth: viewWidth(shownZoom) }}>
       <div
         ref={box}
         className={`relative overflow-hidden rounded-lg bg-slate-950 ring-1 ring-slate-600 ${panLocked ? 'touch-pan-y' : 'cursor-grab touch-none active:cursor-grabbing'}`}
@@ -322,7 +449,7 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
             className="absolute origin-top-left"
             // Placed and glided by usePan (usePanTo).
             // Only the part shown where the map has one (its `view`: a gym's leader's room).
-            style={{ width: shown.width, height: shown.height, transform: mapScale, ...(shown.view && { clipPath: `inset(${shown.view.y * 16}px ${shown.width - (shown.view.x + shown.view.width) * 16}px ${shown.height - (shown.view.y + shown.view.height) * 16}px ${shown.view.x * 16}px)` }) }}
+            style={{ width: shown.width, height: shown.height, transform: `scale(${shownZoom})`, ...(shown.view && { clipPath: `inset(${shown.view.y * 16}px ${shown.width - (shown.view.x + shown.view.width) * 16}px ${shown.height - (shown.view.y + shown.view.height) * 16}px ${shown.view.x * 16}px)` }) }}
           >
             <img src={shown.image} alt="" draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
             {/* The gears (Sunyshore Gym's), the frame of their turning they're at, over the part of the map they change. */}
@@ -377,7 +504,7 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
                   sink={sink(approaching!.tile)}
                 />
               ) : (
-                <Figure key={`${key(p.spot)}|${p.figure.option ?? ''}|${p.figure.title}`} figure={p.figure} tile={p.tile} spot={p.spot} faded={p.faded} wet={onWater(shown, p.tile)} grass={masked(p.tile)} longGrass={long(p.tile)} drop={drop(p.tile)} sink={sink(p.tile)} />
+                <Figure key={`${key(p.spot)}|${p.figure.option ?? ''}|${p.figure.title}`} figure={figureOf(p)} tile={p.tile} spot={p.spot} faded={p.faded} wet={onWater(shown, p.tile)} grass={masked(p.tile)} longGrass={long(p.tile)} drop={drop(p.tile)} sink={sink(p.tile)} />
               ),
             )}
             {/* A ledge jump's shadow on the ground under him, and the dust where he lands (FireRed's). */}
@@ -429,7 +556,54 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
             {/* A bridge walked over and under (the route's `bridges`): its deck over him only while he's under it. */}
             {shown.bridgeOverhead && walker.under && <img src={shown.bridgeOverhead} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none [image-rendering:pixelated]" style={{ zIndex: 899 }} />}
             {spottedFigure && <Exclamation tile={spottedFigure.tile} drop={drop(spottedFigure.tile)} />}
+            {/* The step's encounters as cards beside their figures (above one standing above the player, below the others),
+                drawn at the page's own size (scaled back from the zoom) so they're crisp; once the zoom has settled. */}
+            {cardsShown &&
+              carded.map((p) => {
+                const above = p.tile.y < walker.tile.y;
+                return (
+                  <div
+                    key={`card${p.figure.option}`}
+                    className="absolute origin-top-left animate-[idle-fade-in_200ms_ease-out]"
+                    style={{ left: p.tile.x * 16 + 8, top: above ? p.tile.y * 16 - 14 + drop(p.tile) : p.tile.y * 16 + 18 + drop(p.tile), zIndex: 950, transform: `scale(${1 / zoom}) translate(-50%, ${above ? '-100%' : '0'})` }}
+                  >
+                    {optionCard?.(p.figure.option!)}
+                  </div>
+                );
+              })}
+            {cardsShown && uncarded.length > 0 && (
+              <div
+                className="absolute flex origin-top-left animate-[idle-fade-in_200ms_ease-out] flex-col gap-1"
+                style={{ left: walker.tile.x * 16 + 8, top: walker.tile.y * 16 - 14 + drop(walker.tile), zIndex: 950, transform: `scale(${1 / zoom}) translate(-50%, -100%)` }}
+              >
+                {uncarded.map((i) => (
+                  <div key={i}>{optionCard?.(i)}</div>
+                ))}
+              </div>
+            )}
             {DEBUG_BUILD && debug && showTiles && <TileOverlay route={shown} />}
+          </div>
+        )}
+        {/* The encounter under way, over the bottom of the view: its own scrolling, never panning the map (data-no-pan). */}
+        {overlay && (
+          <div data-no-pan className="absolute inset-x-2 bottom-2 z-[999] max-h-[70%] cursor-auto overflow-y-auto rounded-lg shadow-xl shadow-black/60 animate-[idle-fade-in_200ms_ease-out]">
+            {overlay}
+          </div>
+        )}
+        {/* The corners: never panning the map (data-no-pan). */}
+        {corners?.topLeft && (
+          <div data-no-pan className="absolute left-2 top-2 z-[1000] max-w-sm cursor-auto">
+            {corners.topLeft}
+          </div>
+        )}
+        {corners?.bottomLeft && (
+          <div data-no-pan className="pointer-events-none absolute inset-2 z-[1000] cursor-auto">
+            {corners.bottomLeft}
+          </div>
+        )}
+        {corners?.bottomRight && (
+          <div data-no-pan className="absolute bottom-2 right-2 z-[1000] cursor-auto">
+            {corners.bottomRight}
           </div>
         )}
         <div className="absolute right-2 top-2 z-[1000] flex flex-col gap-1">

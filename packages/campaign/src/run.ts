@@ -199,7 +199,7 @@ const REWARDS: Record<BattleKind, BattleReward> = {
  * on the map before choosing. The amounts are placeholders, to balance later (agreed with the user).
  */
 export type RewardFocus = 'pokedollars' | 'exp' | 'cards';
-export const REWARD_FOCUS_LABELS: Record<RewardFocus, string> = { pokedollars: 'Big Payout', exp: 'Extra EXP', cards: 'Rarer Cards' };
+export const REWARD_FOCUS_LABELS: Record<RewardFocus, string> = { pokedollars: 'Big Payout', exp: 'Extra EXP', cards: 'Rare Cards' };
 /** How often a trainer battle leans each way (null: an ordinary reward). */
 const FOCUS_WEIGHTS: [RewardFocus | null, number][] = [
   [null, 4],
