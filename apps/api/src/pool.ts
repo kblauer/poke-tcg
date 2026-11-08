@@ -1,7 +1,7 @@
-import { cardRarity, generation, runType, type PoolCard } from '@poke-tcg/campaign';
+import { cardRarity, generation, runType, type PoolCard, type RunState } from '@poke-tcg/campaign';
 import { cardImplemented, type CardDef } from '@poke-tcg/game-engine';
 import { toCardDef } from './cards.js';
-import { catalogInIdOrder } from './catalog.js';
+import { catalogCards, catalogInIdOrder } from './catalog.js';
 
 /** A catalog card's rarity, holos apart (the campaign's card-fixes.ts, shared with its test pool). */
 export { cardRarity };
@@ -50,3 +50,23 @@ export function cardPool(gen = 1): Promise<PoolCard[]> {
 
 /** The pool of a run's generation (by its run type). */
 export const runPool = (type: string) => cardPool(runType(type).generation);
+
+/**
+ * The cards a run's view can show: its pool, and the catalog's for the cards the run holds that its pool lacks (a deck of
+ * another generation's cards, which any playable deck may be: a trade's card to give showed as unknown otherwise).
+ */
+export async function runViewPool(state: RunState): Promise<PoolCard[]> {
+  const pool = await runPool(state.type);
+  const have = new Set(pool.map((c) => c.def.id));
+  const e = state.encounter;
+  const missing = new Set([...state.deck, ...state.gained, ...(e?.kind === 'trade' ? [e.give, e.get] : [])].filter((id) => !have.has(id)));
+  if (!missing.size) return pool;
+  const extra = (await catalogCards(missing)).flatMap((row) => {
+    try {
+      return [{ def: toCardDef(row), rarity: cardRarity(row) }];
+    } catch {
+      return [];
+    }
+  });
+  return [...pool, ...extra];
+}

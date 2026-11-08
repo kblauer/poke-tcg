@@ -4,7 +4,7 @@ import { DECK_NAME_LENGTH } from '@poke-tcg/shared';
 import { buyItemInput, DEFAULT_TRAINER_SPRITE, equipInput, playerGenderInput, runActInput, runChooseInput, runIdInput, saveRunDeckInput, startRunInput, trainerSpriteInput, useConsumableInput, useItemInput, type PlayerGender } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { debugWinGame } from '../games.js';
-import { runPool } from '../pool.js';
+import { runViewPool } from '../pool.js';
 import { towerUnderway } from '../towers.js';
 import { runTypeProgress } from '../progress.js';
 import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, lockUser, needsStarter, settleBattle, startRun, syncRunDeck, takeItem, type LoadedRun } from '../runs.js';
@@ -63,7 +63,7 @@ const runDeckCosmetics = (userId: string, cosmetics: DeckCosmetics) => prisma.de
 
 /** What the client gets for a run: its view (no RNG or opponents' deck seeds) and the battle under way. */
 export async function clientRun(run: LoadedRun) {
-  return { id: run.id, status: run.status, version: run.version, gameId: currentGameId(run.state), view: runView(run.state, await runPool(run.state.type)) };
+  return { id: run.id, status: run.status, version: run.version, gameId: currentGameId(run.state), view: runView(run.state, await runViewPool(run.state)) };
 }
 
 export const runRouter = router({
