@@ -32,6 +32,54 @@ export interface IdleMap {
   top?: string;
   /** Its Town Map section (MAPSEC_, lower case: TownMapPlace.section): the Town Map offers a place its own maps' grinds. */
   section: string;
+  /** Its walking heights (HGSS's maps that aren't flat: data/gen2/heights.ts), the sprites raised by them (mapLift). None on a flat map or FireRed's. */
+  heights?: MapHeights;
+}
+
+/**
+ * A HeartGold map's walking heights (tools/idle/hgss_render.py's heights.ts, README: Idle Adventure, Johto's heights):
+ * its picture is drawn from the 3D map tilted, the ground at `ground` on the tile grid and anything higher or lower
+ * HGSS_TILT game pixels further up or down a model unit (16 a tile), so a sprite stands raised by its tile's height above
+ * it, as HGSS stands people at their 3D height. In model units above `ground`: each tile's (`rows`, a letter each, its
+ * index in `levels` (LEVEL_CHARS), in runs: 'a12b3' 12 tiles of the first, 3 of the second) and a tile's others (`also`:
+ * [x, y, height], a bridge's and the path's under it).
+ */
+export interface MapHeights {
+  ground: number;
+  levels: number[];
+  rows: string[];
+  also?: [number, number, number][];
+}
+
+/** How far up the HGSS pictures draw a model unit higher, in game pixels (tools/routes/hgss/render_hgss.py's tilt). */
+export const HGSS_TILT = 0.6;
+const LEVEL_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+/** Each map's rows of tile heights, their runs read out once (by its MapHeights). */
+const unpacked = new WeakMap<MapHeights, number[][]>();
+
+function tileHeights(heights: MapHeights): number[][] {
+  let rows = unpacked.get(heights);
+  if (!rows) {
+    rows = heights.rows.map((row) => [...row.matchAll(/([a-zA-Z])(\d*)/g)].flatMap(([, c, n]) => Array<number>(n ? Number(n) : 1).fill(heights.levels[LEVEL_CHARS.indexOf(c!)]!)));
+    unpacked.set(heights, rows);
+  }
+  return rows;
+}
+
+/**
+ * How far up a sprite standing on tile (x, y) is drawn, in whole game pixels (16 a tile): its height above the map's
+ * picture's ground (MapHeights), 0 on a flat map or off it. On a tile with several heights (a bridge over a path), the
+ * one nearest `from` (the lift of the tile it came from), as HGSS takes the nearest to a person's own height.
+ */
+export function mapLift(heights: MapHeights | undefined, x: number, y: number, from?: number): number {
+  if (!heights) return 0;
+  const height = tileHeights(heights)[y]?.[x];
+  if (height === undefined) return 0;
+  const lift = (h: number) => Math.round(h * HGSS_TILT);
+  const own = lift(height);
+  if (from === undefined || !heights.also) return own;
+  return heights.also.filter(([ax, ay]) => ax === x && ay === y).reduce((best, [, , h]) => (Math.abs(lift(h) - from) < Math.abs(best - from) ? lift(h) : best), own);
 }
 
 /**

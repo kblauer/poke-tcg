@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { TownArea, WalkArea } from './areas.js';
+import { mapLift, type TownArea, type WalkArea } from './areas.js';
 import { ABILITY_NAMES } from './data/gen2/abilities.js';
 import { JOHTO_AREAS } from './data/gen2/areas.js';
 import { ENCOUNTERS } from './data/gen2/encounters.js';
+import { JOHTO_HEIGHTS } from './data/gen2/heights.js';
 import { ITEMS } from './data/gen2/items.js';
 import { JOHTO_MAPS } from './data/gen2/maps.js';
+import { KANTO_MAPS } from './data/gen1/maps.js';
 import { MART_CLERKS, MARTS } from './data/gen2/marts.js';
 import { MOVES } from './data/gen2/moves.js';
 import { SPECIES } from './data/gen2/species.js';
@@ -144,5 +146,27 @@ describe("Johto's data", () => {
       if (t.gym) expect(JOHTO_AREAS.some((a) => a.id === t.gym)).toBe(true);
     }
     for (const m of Object.values(JOHTO_MAPS)) if (m.encounters) expect(ENCOUNTERS[m.encounters], m.name).toBeDefined();
+  });
+
+  it("raises the sprites by the maps' walking heights over their pictures' ground (heights.ts)", () => {
+    for (const [name, h] of Object.entries(JOHTO_HEIGHTS)) {
+      const m = JOHTO_MAPS[name]!;
+      expect(m, name).toBeDefined();
+      expect(h.rows, name).toHaveLength(m.height);
+      // Every row's runs make the map's width; every tile has a height (no lift off the map).
+      h.rows.forEach((r, y) => expect([...r.matchAll(/([a-zA-Z])(\d*)/g)].reduce((n, [, , k]) => n + (k ? Number(k) : 1), 0), `${name} row ${y}`).toBe(m.width));
+    }
+    // Route 30's picture is drawn at 32 units (its first cell's ground): its north end's high ground 16 higher, its south end 16 lower.
+    expect(JOHTO_HEIGHTS.Route30!.ground).toBe(32);
+    expect(mapLift(JOHTO_HEIGHTS.Route30, 12, 90)).toBe(-10);
+    expect(mapLift(JOHTO_HEIGHTS.Route30, 10, 10)).toBe(10);
+    // A flat map, and every FireRed map, has none.
+    expect(JOHTO_HEIGHTS.Route29).toBeUndefined();
+    expect(mapLift(undefined, 3, 3)).toBe(0);
+    expect(Object.values(KANTO_MAPS).some((m) => m.heights)).toBe(false);
+    // Goldenrod Gym's bridge over the path under it: the nearer to the tile walked from.
+    const gym = JOHTO_HEIGHTS.GoldenrodGym!;
+    expect(mapLift(gym, 19, 11, 0)).toBe(0);
+    expect(mapLift(gym, 19, 11, 31)).toBe(31);
   });
 });

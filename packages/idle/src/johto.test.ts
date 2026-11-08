@@ -55,6 +55,10 @@ describe("Johto's battle timing", () => {
 });
 
 describe("Johto's run", () => {
+  it('sets off from New Bark Town', () => {
+    expect(createIdleRun({ species: 152 }, 1, 2).log[0]).toBe('Set off from New Bark Town with Chikorita.');
+  });
+
   it("sells by the badges (HGSS's Poké Mart tiers) and TMs from Goldenrod City on", () => {
     johto(() => {
       const run = createIdleRun({ species: 152 }, 1, 2);
@@ -85,8 +89,8 @@ describe("Johto's run", () => {
     expect(s.badges).toEqual(['Zephyr', 'Hive', 'Plain', 'Fog', 'Storm', 'Mineral', 'Glacier', 'Rising']);
     // Only Kanto's 8th badge gives a Master Ball.
     expect(s.bag['master-ball']).toBeUndefined();
-    // HGSS's prize: Joey's Rattata at level 4, ₱4 a level, × 4.
-    expect(prizes[0]).toBe(4 * 4 * 4);
+    // The prize: Joey's Rattata at level 4, ₱4 a level (a quarter of HGSS's, as Kanto's are of FireRed's).
+    expect(prizes[0]).toBe(4 * 4);
     // Each battle has its hour on the run's clock (its background's palette), and the day goes round.
     expect([...hours].every((h) => h >= 0 && h < 24)).toBe(true);
     expect(hours.size).toBe(24);

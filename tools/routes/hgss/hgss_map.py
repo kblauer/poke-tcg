@@ -61,6 +61,19 @@ def main():
     print('rendered', consts, cw * CHUNK, 'x', ch * CHUNK, 'tiles')
 
 
+def ground_of(glb):
+    """The ground's height a picture is drawn with (render's `ground`, on the tile grid): the commonest height of the
+    first cell's terrain vertices (its GLB, apicula's; most of it is flat ground). tools/idle/hgss_render.py records it
+    for the sprites standing on the pictures."""
+    from render_hgss import _load_glb, _primitives, _accessor
+    ys = collections.Counter()
+    gj, bin_ = _load_glb(glb)
+    for m, p in _primitives(gj):
+        for y in _accessor(gj, bin_, p['attributes']['POSITION'])[:, 1]:
+            ys[round(y)] += 1
+    return ys.most_common(1)[0][0] if ys else 0
+
+
 def render(out, mine, header, room, apicula, cache, tilt=0.6, overhead=(), px=16, heights=None):
     """Draws matrix cells `mine` (their terrain chunks and buildings) to <out>.png (and <out>-overhead.png with
     `overhead`'s materials; `heights`, a .npy of each pixel's model height: Scene.render's): the picture's top left the
@@ -78,7 +91,7 @@ def render(out, mine, header, room, apicula, cache, tilt=0.6, overhead=(), px=16
     rows = [['#'] * (cw * CHUNK) for _ in range(ch * CHUNK)]
     grass = [['.'] * (cw * CHUNK) for _ in range(ch * CHUNK)]
     ice = [['.'] * (cw * CHUNK) for _ in range(ch * CHUNK)]
-    parts, ys = [], collections.Counter()
+    parts = []
     for c in mine:
         chunk = hd.land_chunk(land[c['land']])
         ox, oz = (c['x'] - x0) * CHUNK, (c['y'] - y0) * CHUNK
@@ -103,14 +116,7 @@ def render(out, mine, header, room, apicula, cache, tilt=0.6, overhead=(), px=16
             bglb = convert(apicula, [bm, tex_path], os.path.join(work, f"bm{b['model']}"))
             parts.append((bglb, (centre[0] + b['pos'][0], b['pos'][1], centre[2] + b['pos'][2]), hd.texture_matrices(buildings[b['model']])))
 
-    # The ground's height: the commonest height of the terrain's vertices (most of it is flat ground).
-    from render_hgss import _load_glb, _primitives, _accessor
-    for glb, _, _ in parts[:1]:
-        gj, bin_ = _load_glb(glb)
-        for m, p in _primitives(gj):
-            for y in _accessor(gj, bin_, p['attributes']['POSITION'])[:, 1]:
-                ys[round(y)] += 1
-    ground = ys.most_common(1)[0][0] if ys else 0
+    ground = ground_of(parts[0][0]) if parts else 0
     scene = Scene(cw * CHUNK * px, ch * CHUNK * px, tilt=tilt, ground=ground, px=px)
     for glb, origin, texmtx in parts:
         scene.glb(glb, origin, texmtx)

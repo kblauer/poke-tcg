@@ -23,6 +23,7 @@ import { ABILITY_NAMES as JOHTO_ABILITY_NAMES } from './data/gen2/abilities.js';
 import { JOHTO_AREAS } from './data/gen2/areas.js';
 import { ENCOUNTERS as JOHTO_ENCOUNTERS } from './data/gen2/encounters.js';
 import { ITEMS as JOHTO_ITEMS } from './data/gen2/items.js';
+import { JOHTO_HEIGHTS } from './data/gen2/heights.js';
 import { JOHTO_MAPS } from './data/gen2/maps.js';
 import { JOHTO_TOWN_MAP_GRID, JOHTO_TOWN_MAP_PLACES } from './data/gen2/town-map.js';
 import { MARTS as JOHTO_MARTS } from './data/gen2/marts.js';
@@ -68,6 +69,8 @@ export interface Generation {
   townMapGrid: TownMapGrid;
   /** The first run's starters. */
   starters: readonly number[];
+  /** The town a run sets off from (its log's first line): Pallet Town, New Bark Town. */
+  home: string;
   /** Whose battle rules its battles play by (battle.ts): FireRed's (3) or HeartGold's (4: the physical/special split, Gen 4's damage, effects, abilities and items; and its wild encounters, encounters4.ts). */
   battleRules: 3 | 4;
   /** The town from which every store sells TMs and HMs (Buy TMs, the user's: Kanto's Celadon City, Johto's Goldenrod City, their department stores'). */
@@ -103,6 +106,7 @@ const KANTO: Generation = {
   // region_map.c has it: 22x15 cells of 8px, from (32, 32) on the screen, (16, 16) in the picture.
   townMapGrid: { image: '/idle/gen1/town-map/kanto.png', imageWidth: 208, imageHeight: 144, x: 16, y: 16, cell: 8, width: 22, height: 15 },
   starters: [1, 4, 7],
+  home: 'Pallet Town',
   battleRules: 3,
   tmShop: 'celadon-city',
   champion: 'champion',
@@ -129,12 +133,14 @@ const JOHTO: Generation = {
   tmMoves: JOHTO_TM_MOVES,
   tmLearners: JOHTO_TM_LEARNERS,
   areas: JOHTO_AREAS,
-  maps: JOHTO_MAPS,
+  // Each with its walking heights where it isn't flat (heights.ts, tools/idle/hgss_render.py: the sprites raised by them).
+  maps: Object.fromEntries(Object.entries(JOHTO_MAPS).map(([k, m]) => [k, JOHTO_HEIGHTS[k] ? { ...m, heights: JOHTO_HEIGHTS[k] } : m])),
   townMapPlaces: JOHTO_TOWN_MAP_PLACES,
   // A placeholder until Johto's Pokégear map (step 5).
   // public/idle/gen2/town-map/johto.png: the Pokégear's map, cells 1–29 across and 1–18 down of its 8px grid (tools/idle/johto_town_map.py).
   townMapGrid: JOHTO_TOWN_MAP_GRID,
   starters: [152, 155, 158],
+  home: 'New Bark Town',
   battleRules: 4,
   tmShop: 'goldenrod-city',
   champion: 'lance',

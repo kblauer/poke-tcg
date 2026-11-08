@@ -75,8 +75,9 @@ def area(cache, bank, room=False):
 
 
 def land_chunk(data):
-    """A land data chunk: its 32x32 tile permissions (2 bytes each), its buildings and its terrain model (NSBMD)."""
-    perm, objs, model, _bdhc = struct.unpack_from('<4I', data, 0)
+    """A land data chunk: its 32x32 tile permissions (2 bytes each), its buildings, its terrain model (NSBMD) and its
+    walking heights (BDHC: bdhc_heights reads them)."""
+    perm, objs, model, bdhc = struct.unpack_from('<4I', data, 0)
     # Then 0x1234 and the size of an extra block (map prop animations) before the permissions.
     o = 20 + struct.unpack_from('<H', data, 18)[0]
     p = data[o:o + perm]; o += perm
@@ -86,7 +87,39 @@ def land_chunk(data):
         mid = struct.unpack_from('<I', b, k)[0]
         x, y, z = (v / 4096 for v in struct.unpack_from('<3i', b, k + 4))
         buildings.append({'model': mid, 'pos': (x, y, z)})
-    return {'perm': p, 'buildings': buildings, 'model': data[o:o + model]}
+    return {'perm': p, 'buildings': buildings, 'model': data[o:o + model], 'bdhc': data[o + model:o + model + bdhc]}
+
+
+def bdhc_heights(bdhc):
+    """A chunk's walking heights (its BDHC block: land_chunk's `bdhc`), as the game reads them (pokeplatinum's
+    src/overlay005/bdhc.c, CalculateObjectHeight: each plate whose bounding box holds the point, the height of its plane
+    there): {(x, y): [heights]} at each of its 32x32 tiles' centres (where the game stands people, map_object.c's
+    x * 16 + 8), in model units (16 a tile), the chunk's centre its origin as its model's. A tile no plate holds isn't
+    there (the game keeps a person's height there); one with several has them all (the game takes the nearest to the
+    person's own)."""
+    out = {}
+    if bdhc[:4] != b'BDHC':
+        return out
+    n_points, n_normals, n_constants, n_plates = struct.unpack_from('<4H', bdhc, 4)
+    o = 16
+    points = [struct.unpack_from('<2i', bdhc, o + 8 * i) for i in range(n_points)]
+    o += 8 * n_points
+    normals = [struct.unpack_from('<3i', bdhc, o + 12 * i) for i in range(n_normals)]
+    o += 12 * n_normals
+    constants = [struct.unpack_from('<i', bdhc, o + 4 * i)[0] for i in range(n_constants)]
+    o += 4 * n_constants
+    for k in range(n_plates):
+        a, b, n, c = struct.unpack_from('<4H', bdhc, o + 8 * k)
+        (x1, z1), (x2, z2) = points[a], points[b]
+        nx, ny, nz = (v / 4096 for v in normals[n])
+        if abs(ny) < 1e-6:
+            continue
+        for ty in range(32):
+            for tx in range(32):
+                x, z = (tx - 16) * 16 + 8, (ty - 16) * 16 + 8
+                if min(x1, x2) / 4096 <= x <= max(x1, x2) / 4096 and min(z1, z2) / 4096 <= z <= max(z1, z2) / 4096:
+                    out.setdefault((tx, ty), []).append(-(nx * x + nz * z + constants[c] / 4096) / ny)
+    return out
 
 
 def _dict(d, o):

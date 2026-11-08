@@ -374,7 +374,7 @@ function newRun(choice: StarterChoice, seed: number): IdleState {
     phase: 'walking',
     rivalStarter: rivalStarterFor(rng, choice.species),
     totals: { battles: 0, wild: 0, trainers: 0, caught: 0, whiteOuts: 0, steps: 0 },
-    log: [`Set off from Pallet Town with ${species(choice.species).name}.`],
+    log: [`Set off from ${generation().home} with ${species(choice.species).name}.`],
   };
   state.rngState = rng.state;
   return state;
@@ -1282,8 +1282,9 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
   }
   if (result.result === 'won' && t && o.trainer) {
     // The full prize the first time a trainer is beaten in a run, a quarter after that (the user's: grinding them).
-    // HGSS's: level × 4 × the class's, twice for a double battle (BattleSystem_CalcPrizeMoney).
-    const full = generation().battleRules === 4 ? t.money * 4 * o.foes.at(-1)!.level * (t.double ? 2 : 1) : t.money * o.foes.at(-1)!.level;
+    // The class's × the last Pokémon's level, twice for an HGSS double battle: a quarter of the games' (both FireRed's
+    // Cmd_getmoneyreward and HGSS's BattleSystem_CalcPrizeMoney multiply by 4 too; the user's, 2026-11-08: Gen 2 paid 4x Gen 1).
+    const full = t.money * o.foes.at(-1)!.level * (generation().battleRules === 4 && t.double ? 2 : 1);
     const rematch = (state.paid ?? []).includes(o.trainer);
     const prize = rematch ? Math.floor(full * REMATCH_PRIZE) : full;
     if (!rematch) (state.paid ??= []).push(o.trainer);
