@@ -279,7 +279,7 @@ export const RSE_ROOM: TowerRoom = {
   points: { entrance: { x: 4, y: 8 }, player: { x: 4, y: 5 }, opponentEntrance: { x: 5, y: 1 }, opponent: { x: 5, y: 5 }, attendant: { x: 1, y: 7 }, attendantSpot: { x: 4, y: 6 } },
   walkable: [
     '##########',
-    '####.#####',
+    '####..####',
     '#........#',
     '..........',
     '..........',

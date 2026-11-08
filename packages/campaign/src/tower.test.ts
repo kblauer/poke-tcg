@@ -199,6 +199,8 @@ describe('Battle Tower rooms', () => {
       if (corridor) expect(routePath(corridor, corridor.points.entrance!, corridor.points.door!), corridor.name).not.toBeNull();
       expect(routePath(room, room.points.entrance!, room.points.player!), room.name).not.toBeNull();
       expect(routePath(room, room.points.opponentEntrance!, room.points.opponent!), room.name).not.toBeNull();
+      // And back out by their door after the battle.
+      expect(routePath(room, room.points.opponent!, room.points.opponentEntrance!), room.name).not.toBeNull();
       // Gen 1's attendant speaks from his counter; the others walk up to the player.
       if (room.points.attendantSpot) expect(routePath(room, room.points.attendant!, room.points.attendantSpot), room.name).not.toBeNull();
       // Up to a new generation's floors, the attendant (Gen 1's stays at his counter) and then the player walk out of the battle room by its door.

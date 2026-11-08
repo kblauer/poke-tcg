@@ -226,6 +226,20 @@ describe('moves and cooldowns', () => {
     expect([tick(), tick(), tick(), tick(), tick(), tick()]).toEqual(['flamethrower', 'slash', 'ember', 'scratch', 'ember', 'flamethrower']);
   });
 
+  it("doesn't cool a move down, nor take it off the openers, on a tick the Pokémon couldn't use it", () => {
+    const b = new Battle(setup([mon(5, 40, { moves: ['scratch', 'smokescreen', 'flamethrower'], slots: ['flamethrower', 'smokescreen'], autoSlots: false })], [mon(1, 40)], { kind: 'trainer' }), rngFrom(1));
+    const me = b.active[0];
+    Object.assign(me, { status: 'sleep', sleepTurns: 3 });
+    b['turn']();
+    expect(me.cooldowns).toEqual({});
+    expect(me.openers).toEqual(['smokescreen']);
+    // Awake: used, and cooling down.
+    Object.assign(me, { status: null, sleepTurns: 0 });
+    b['turn']();
+    expect(me.cooldowns.smokescreen).toBeGreaterThan(0);
+    expect(me.openers).toEqual([]);
+  });
+
   it('opens with a status move set by hand against each foe Pokémon, then uses it by power; on the automatic pick by power', () => {
     const moves = ['scratch', 'smokescreen', 'flamethrower'];
     const battle = (autoSlots: boolean) => new Battle(setup([mon(5, 40, { moves, slots: ['flamethrower', 'smokescreen'], autoSlots })], [mon(1, 40), mon(4, 40)], { kind: 'trainer' }), rngFrom(1));
