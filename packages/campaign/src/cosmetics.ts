@@ -41,7 +41,7 @@ const BASE_COSMETICS: CosmeticDef[] = [
     id: 'mat-frlg',
     kind: 'mat',
     name: 'FireRed & LeafGreen',
-    description: "Takes on your Active Pokémon's type, in FireRed and LeafGreen's tiles: a sandy island in the sea for Water, a rocky island in lava for Fire, a field ringed by flowers for Grass.",
+    description: "Takes on your Active Pokémon's type, in FireRed and LeafGreen's tiles: a sandy island in the sea for Water, a rocky island in lava for Fire, a field ringed by flowers for Grass, a stormy mountain for Lightning, Mt. Pyre for Psychic, Victory Road for Fighting, Unown ruins for Darkness, a cycling bridge for Metal, a department store for Colorless and the Sky Pillar for Dragon.",
     unlock: { type: 'buy', price: 3000 },
   },
   {

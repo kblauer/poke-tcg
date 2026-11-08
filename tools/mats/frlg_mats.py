@@ -16,7 +16,11 @@ middle clear for the cards, with its surround on every side (`ARENAS`):
   top and bottom;
 - psychic: Mt. Pyre's summit (Emerald's tiles): its plateau walled round by its cliffs, with gaps, the orb shrine in the
   middle, grass, tall grass and graves outside the walls, Emerald's horizontal fog drifting over it all (`fog_overlay`,
-  its only animation: 16 frames).
+  its only animation: 16 frames);
+- darkness, metal, colorless and dragon: drawn by their own files beside this one (`OWN_FILES`, tools/mats/frlg_<type>.py,
+  each with its own docstring): Crystal's Ruins of Alph wall with an Unown message, faintly lit round the cards; Emerald's
+  Seaside Cycling Road bridge looping round the sea, FireRed's Bikers riding round it; Celadon Department Store's lobby;
+  Emerald's Sky Pillar summit with its clouds drifting by.
 They're laid out by hand (no collapse); their tile animations play (the lava's bubbles, the sea's and shore's, the
 flowers').
 
@@ -2044,10 +2048,19 @@ def frames(ts, grid):
     return out
 
 
+SHEET_HEIGHT = 30000  # px: the tallest a sheet's column gets
+
+
 def save(kind, shots, out_dir, order=None, lights=()):
     """The frames stacked into one PNG (indexed where it can be), and <kind>.json: {width, height, frames: [{y, ms}]}, in the sheet's
-    order or `order`'s (indices into it, a frame showing any number of times)."""
-    sheet = np.concatenate([s for s, _ in shots])
+    order or `order`'s (indices into it, a frame showing any number of times). A sheet over SHEET_HEIGHT px tall is laid
+    out in columns side by side, each frame's {x, y} (browsers won't draw from an image much over 32,000 px tall)."""
+    h, w = shots[0][0].shape[:2]
+    per = max(1, SHEET_HEIGHT // h)
+    cols = -(-len(shots) // per)
+    blank = np.zeros_like(shots[0][0])
+    frames_ = [s for s, _ in shots] + [blank] * (cols * per - len(shots) if cols > 1 else 0)
+    sheet = np.concatenate([np.concatenate(frames_[c * per:(c + 1) * per]) for c in range(cols)], axis=1) if cols > 1 else np.concatenate(frames_)
     colours, inverse = np.unique(sheet.reshape(-1, 3), axis=0, return_inverse=True)
     if len(colours) <= 256:
         im = Image.fromarray(inverse.reshape(sheet.shape[:2]).astype(np.uint8), 'P')
@@ -2056,9 +2069,8 @@ def save(kind, shots, out_dir, order=None, lights=()):
         im = Image.fromarray(sheet).quantize(256, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)  # sheet at once)
     os.makedirs(out_dir, exist_ok=True)
     im.save(os.path.join(out_dir, kind + '.png'), optimize=True)
-    h, w = shots[0][0].shape[:2]
     order = range(len(shots)) if order is None else order
-    meta = {'width': w, 'height': h, 'frames': [{'y': i * h, 'ms': round(shots[i][1])} for i in order]}
+    meta = {'width': w, 'height': h, 'frames': [{**({'x': i // per * w} if cols > 1 else {}), 'y': i % per * h if cols > 1 else i * h, 'ms': round(shots[i][1])} for i in order]}
     if lights:
         meta['lights'] = list(lights)
     json.dump(meta, open(os.path.join(out_dir, kind + '.json'), 'w'))
@@ -2079,6 +2091,28 @@ def preview(kind, shots, out_dir):
         Image.fromarray(first[:, x:x + width]).resize((width * 2, H * 32), Image.NEAREST).save(os.path.join(out_dir, kind + '-' + name + '.png'))
 
 
+OWN_FILES = ('darkness', 'metal', 'colorless', 'dragon')  # the mats drawn by their own files beside this one, tools/mats/frlg_<type>.py
+
+
+def own_file(kind, seed):
+    """A mat drawn by its own file (`OWN_FILES`): its frames and their order, as that file's own run draws them (each
+    imports this file as frlg_mats, so the caches set here are passed on to it)."""
+    import frlg_mats
+    frlg_mats.FRLG.cache, frlg_mats.EMERALD.cache = FRLG.cache, EMERALD.cache
+    if kind == 'darkness':
+        import frlg_darkness
+        return frlg_darkness.darkness_shots(np.random.default_rng(seed))
+    if kind == 'metal':
+        import frlg_metal
+        return frlg_metal.ride(*frlg_metal.metal_arena(np.random.default_rng(seed)), np.random.default_rng(seed))
+    if kind == 'colorless':
+        import frlg_colorless
+        return frlg_colorless.strolling(*frlg_colorless.colorless_arena(np.random.default_rng(seed)), np.random.default_rng(seed))
+    import frlg_dragon
+    rng = np.random.default_rng(seed)
+    return frlg_dragon.cloud_frames(*frlg_dragon.dragon_arena(rng), rng), None
+
+
 def main():
     ap = argparse.ArgumentParser(description="Draws the battle table's FireRed/LeafGreen type mats.")
     ap.add_argument('--seed', type=int, default=1)
@@ -2092,8 +2126,15 @@ def main():
     args = ap.parse_args()
     FRLG.cache, EMERALD.cache = args.cache, args.emerald_cache
     out_dir = args.out or os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'apps', 'web', 'public', 'mats', 'frlg')
-    for kind in args.types or list(ARENAS if args.layout == 'arena' else SCENES):
+    for kind in args.types or list((*ARENAS, *OWN_FILES) if args.layout == 'arena' else SCENES):
         name, objects = kind, []
+        if args.layout == 'arena' and kind in OWN_FILES:
+            shots, order = own_file(kind, args.seed)
+            save(name, shots, out_dir, order)
+            if args.preview:
+                preview(name, shots, args.preview)
+            print(name, len(shots), 'frames of', round(shots[0][1]), 'ms')
+            continue
         if args.layout == 'arena':
             ts, grid = ARENAS[kind](np.random.default_rng(args.seed))
             if kind == 'water':

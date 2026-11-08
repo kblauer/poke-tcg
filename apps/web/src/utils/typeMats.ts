@@ -2,10 +2,11 @@
 // taking on the type of the player's Active Pokémon (TypeMat.tsx), each a game's picture (`pictureScene`); a change of
 // type is a burst from the arriving Active Pokémon (`drawTransition`), the new scene sweeping out over the old within
 // a ragged ring in the new type's style (Water a foam ring, Fire a burning edge, Grass a ring of leaves, Lightning a
-// crackling edge throwing bolts, Psychic a shimmering wave, Fighting a shockwave of dust).
+// crackling edge throwing bolts, Psychic a shimmering wave, Fighting a shockwave of dust, Darkness a creeping shadow,
+// Metal a steel ring with sparks, Colorless a gust of wind, Dragon a ring of drifting cloud).
 
-/** The types a mat can have a scene for (the user's: Grass, Fire and Water first, then Lightning, Psychic and Fighting). */
-export const MAT_TYPES = ['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting'] as const;
+/** The types a mat can have a scene for (the user's: Grass, Fire and Water first, then Lightning, Psychic and Fighting, then Darkness, Metal, Colorless and Dragon). */
+export const MAT_TYPES = ['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal', 'colorless', 'dragon'] as const;
 export type MatType = (typeof MAT_TYPES)[number];
 export const isMatType = (t: string | null | undefined): t is MatType => (MAT_TYPES as readonly string[]).includes(t ?? '');
 
@@ -83,12 +84,15 @@ export interface Scene {
   moving?: boolean;
 }
 
-/** A picture set's scene sheet: its frames stacked downwards, each `width` by `height`, shown for `ms` in turn. */
+/**
+ * A picture set's scene sheet: its frames stacked downwards, each `width` by `height`, shown for `ms` in turn; a long
+ * one in columns side by side (each frame's `x`: browsers won't draw from an image much over 32,000 px tall).
+ */
 interface Sheet {
   img: HTMLImageElement;
   width: number;
   height: number;
-  frames: { y: number; ms: number }[];
+  frames: { x?: number; y: number; ms: number }[];
   /** Glows drawn over the frames (the Lightning mat's lighthouses' lamps): their middle and reach in the frame's pixels, their colour. */
   lights?: { x: number; y: number; r: number; rgb: [number, number, number] }[];
 }
@@ -133,20 +137,21 @@ function pictureScene(key: string, { w, h }: MatSize): Scene | null {
   const [big, bg] = Math.abs(k - Math.round(k)) < 0.02 ? [null, null] : layer(sheet.width * up, sheet.height * up);
   const total = sheet.frames.reduce((s, f) => s + f.ms, 0) || 1;
   const [still, ctx] = layer(w, h);
-  const frameAt = (g: CanvasRenderingContext2D, y: number) => {
+  const frameAt = (g: CanvasRenderingContext2D, { x = 0, y }: Sheet['frames'][number]) => {
     if (big && bg) {
       bg.imageSmoothingEnabled = false;
-      bg.drawImage(sheet.img, 0, y, sheet.width, sheet.height, 0, 0, big.width, big.height);
+      bg.drawImage(sheet.img, x, y, sheet.width, sheet.height, 0, 0, big.width, big.height);
       g.imageSmoothingEnabled = true;
       g.imageSmoothingQuality = 'high';
       g.drawImage(big, dx, dy, sw, sh);
     } else {
       g.imageSmoothingEnabled = false;
-      g.drawImage(sheet.img, 0, y, sheet.width, sheet.height, dx, dy, sw, sh);
+      g.drawImage(sheet.img, x, y, sheet.width, sheet.height, dx, dy, sw, sh);
     }
   };
   // The frame on the still layer, drawn there once each time it changes.
-  let drawn = sheet.frames[0]?.y ?? 0;
+  const first = sheet.frames[0] ?? { y: 0, ms: 0 };
+  let drawn = first;
   frameAt(ctx, drawn);
   return {
     still,
@@ -154,8 +159,8 @@ function pictureScene(key: string, { w, h }: MatSize): Scene | null {
     moving: sheet.frames.length > 1,
     animate(g, t) {
       let at = t % total;
-      const y = (sheet.frames.find((x) => (at -= x.ms) < 0) ?? sheet.frames[0])?.y ?? 0;
-      if (y !== drawn) frameAt(ctx, (drawn = y));
+      const f = sheet.frames.find((x) => (at -= x.ms) < 0) ?? first;
+      if (f.x !== drawn.x || f.y !== drawn.y) frameAt(ctx, (drawn = f));
       g.drawImage(still, 0, 0);
       sheet.lights?.forEach((l, i) => glow(g, dx + l.x * (sw / sheet.width), dy + l.y * (sh / sheet.height), l.r * (sw / sheet.width), l.rgb, t, i));
     },
@@ -216,7 +221,7 @@ const BURST = 0.12;
 const ease = (p: number) => (p < BURST ? 0.07 * (p / BURST) : 0.07 + 0.93 * (1 - (1 - (p - BURST) / (1 - BURST)) ** 2));
 
 /** The burst's glow at the card, by the arriving type (and the bare table's, slate). */
-const GLOW: Record<MatType | 'bare', string> = { water: '150, 220, 255', fire: '255, 150, 50', grass: '170, 240, 120', lightning: '255, 235, 90', psychic: '230, 130, 255', fighting: '235, 160, 90', bare: '148, 163, 184' };
+const GLOW: Record<MatType | 'bare', string> = { water: '150, 220, 255', fire: '255, 150, 50', grass: '170, 240, 120', lightning: '255, 235, 90', psychic: '230, 130, 255', fighting: '235, 160, 90', darkness: '120, 90, 170', metal: '210, 225, 240', colorless: '245, 245, 235', dragon: '200, 170, 90', bare: '148, 163, 184' };
 
 /** The burst's ring's ragged edge, its wobble by type. */
 const ringEdges: Record<MatType | 'bare', (a: number, t: number) => number> = {
@@ -226,6 +231,10 @@ const ringEdges: Record<MatType | 'bare', (a: number, t: number) => number> = {
   lightning: wobble(45, [11, 19, 31, 47]),
   psychic: wobble(46, [3, 5]),
   fighting: wobble(47, [6, 9, 15]),
+  darkness: wobble(48, [2, 4, 7]),
+  metal: wobble(49, [4, 6]),
+  colorless: wobble(50, [3, 7, 12]),
+  dragon: wobble(56, [3, 5, 9]),
   bare: wobble(44, [3, 6]),
 };
 
@@ -368,6 +377,82 @@ export function drawTransition(g: CanvasRenderingContext2D, size: MatSize, from:
       g.fillStyle = `rgba(${150 + Math.round(rnd() * 60)}, ${110 + Math.round(rnd() * 40)}, 80, ${0.4 + rnd() * 0.5})`;
       g.fillRect(origin.x + Math.cos(ang) * d - s, origin.y + Math.sin(ang) * d - s, s * 2, s * 2);
     }
+  } else if (style === 'darkness') {
+    // Darkness: a shadow creeping out, its edge a deep violet haze, wisps of dark curling ahead of it.
+    for (const [grow, width, alpha] of [[-30, 60, 0.25], [-10, 30, 0.45], [0, 8, 0.7]] as const) {
+      g.strokeStyle = `rgba(30, 15, 50, ${alpha})`;
+      g.lineWidth = width * px;
+      g.stroke(ring(grow * px));
+    }
+    g.strokeStyle = 'rgba(150, 110, 210, 0.5)';
+    g.lineWidth = 2 * px;
+    g.stroke(ring(2 * px));
+    const rnd = random(57);
+    for (let i = 0; i < 40; i++) {
+      const ang = rnd() * Math.PI * 2;
+      const d = r + (4 + rnd() * 40 * p) * px;
+      g.fillStyle = `rgba(25, 10, 45, ${0.25 + rnd() * 0.35})`;
+      g.beginPath();
+      g.arc(origin.x + Math.cos(ang) * d, origin.y + Math.sin(ang) * d, (3 + rnd() * 7) * px, 0, Math.PI * 2);
+      g.fill();
+    }
+  } else if (style === 'metal') {
+    // Metal: a hard steel ring, a bright sheen along it, and sparks struck off it.
+    g.strokeStyle = 'rgba(110, 125, 140, 0.6)';
+    g.lineWidth = 16 * px;
+    g.stroke(ring(-6 * px));
+    g.strokeStyle = 'rgba(235, 242, 250, 0.95)';
+    g.lineWidth = 4 * px;
+    g.stroke(ring(0));
+    g.globalCompositeOperation = 'lighter';
+    const rnd = random(58 + Math.floor(t / 90));
+    for (let i = 0; i < 30; i++) {
+      const ang = rnd() * Math.PI * 2;
+      const d = r + rnd() * 6 * px;
+      const len = (6 + rnd() * 16) * px;
+      const a = ang + (rnd() - 0.5) * 0.8;
+      g.strokeStyle = `rgba(255, ${220 + Math.round(rnd() * 35)}, 170, ${0.5 + rnd() * 0.5})`;
+      g.lineWidth = (1 + rnd()) * px;
+      g.beginPath();
+      g.moveTo(origin.x + Math.cos(ang) * d, origin.y + Math.sin(ang) * d);
+      g.lineTo(origin.x + Math.cos(ang) * d + Math.cos(a) * len, origin.y + Math.sin(ang) * d + Math.sin(a) * len);
+      g.stroke();
+    }
+  } else if (style === 'colorless') {
+    // Colorless: a gust, a soft white edge with streaks of wind swept round ahead of it.
+    g.strokeStyle = 'rgba(255, 255, 250, 0.35)';
+    g.lineWidth = 18 * px;
+    g.stroke(ring(-6 * px));
+    g.strokeStyle = 'rgba(255, 255, 250, 0.85)';
+    g.lineWidth = 3 * px;
+    g.stroke(ring(0));
+    const rnd = random(59);
+    g.lineCap = 'round';
+    for (let i = 0; i < 18; i++) {
+      const ang = rnd() * Math.PI * 2;
+      const d = r + (8 + rnd() * 30 * p) * px;
+      const sweep = 0.12 + rnd() * 0.2;
+      g.strokeStyle = `rgba(255, 255, 250, ${0.35 + rnd() * 0.4})`;
+      g.lineWidth = (1.5 + rnd() * 2) * px;
+      g.beginPath();
+      g.arc(origin.x, origin.y, d, ang, ang + sweep);
+      g.stroke();
+    }
+  } else if (style === 'dragon') {
+    // Dragon: a ring of cloud rolling out, puffs along its edge, a warm gold line inside it.
+    const rnd = random(60);
+    const n = Math.round(30 + r / (12 * px));
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * Math.PI * 2 + rnd() * 0.08;
+      const d = r + edge(ang, t * 3) * ragged + (rnd() - 0.4) * 10 * px;
+      g.fillStyle = `rgba(250, 250, 255, ${0.55 + rnd() * 0.35})`;
+      g.beginPath();
+      g.arc(origin.x + Math.cos(ang) * d, origin.y + Math.sin(ang) * d, (8 + rnd() * 10) * px, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.strokeStyle = 'rgba(230, 190, 90, 0.6)';
+    g.lineWidth = 3 * px;
+    g.stroke(ring(-14 * px));
   } else {
     // Grass: leaves along the ring, turning as they're carried out, and a soft green glow behind them.
     g.strokeStyle = 'rgba(160, 230, 120, 0.4)';
