@@ -35,11 +35,23 @@ They move as the game's own map textures do: Diamond swaps a texture's picture f
 fld_anime<n>.bin: an NSBTX of frames, each shown for some of the field's 30 frames a second), so each scene is drawn
 once a step of its textures' animation, a looping sequence: the sea and its shore 8 steps, the flowers 4. The magma
 isn't swapped but scrolled (its prop's texture SRT animation, prop_animation_082.nsbta: one repeat along both its axes
-every 60 field frames), drawn a texel further each step: 16 steps of 125 ms (its prop's other animation, a slight bob
+every 60 field frames), drawn a texel further each step: 16 steps of 250 ms (half Platinum's speed, MAGMA_SLOW) (its prop's other animation, a slight bob
 and stretch of its plane, prop_animation_081.nsbca, is left out: the mat's magma is one plane under everything).
 
+Lightning, Psychic and Fighting are drawn by their own files beside this one (`OWN_FILES`, tools/mats/dp_<type>.py, each
+with its own docstring, runnable alone), made to match the FireRed/LeafGreen set's (the user's, 2026-11-08): Lightning
+FireRed's mountain built of Routes 209-211's grass, ledges and cliffs in Route 209's pond at Diamond's midnight, Route
+210's trees and tall grass, Sunyshore's lighthouse (small, a shadow at its foot) at FireRed's six spots, Diamond's heavy
+rain and its lightning flashes; Psychic Celestic Town's shrine on its sunken floor, Celestic's cliffs round it and its
+grass stairs in the gaps, the Lost Tower's graves on the high ground, the battle fog drifting over it; Fighting Victory
+Road's plateau with its bridges flush to its edges, stairs, water, rocks and rock knobs; Darkness a wall of the Solaceon
+Ruins' stone with FireRed's four sayings in Diamond's Unown font, its breathing light, pilasters and cracks; Metal
+Route 206's Cycling Road looping over the sea as FireRed's bridge, two Cyclists riding round it; Colorless Veilstone
+Department Store's lobby, its shoppers turning and strolling as FireRed's.
+
 Usage: python tools/mats/dp_mats.py [--apicula <exe>] [--cache <dir>] [--pt-cache <dir>] [--layout app|arena|scene]
-       [type ...]   (types: water fire grass; all by default)
+       [type ...]   (types: water fire grass, and with --layout app lightning psychic fighting darkness metal colorless;
+       all by default)
 Writes apps/web/public/mats/dp/<type>.png, a vertical sheet of the scene's frames (768 by 448 each), and <type>.json
 ({width, height, frames: [{y, ms}]}). The decompilations' files are cached in <cache> and <pt-cache> (the system's temp
 folder's pokediamond/ and pokeplatinum/ by default, as the Sinnoh maps'). Needs numpy, Pillow and apicula (the Nintendo
@@ -68,6 +80,7 @@ MEADOW = (414, 8)  # MAP_FLOAROMA_MEADOW's top left chunk
 PT_STARK = (pd.LAND_DATA.format(172), pd.MAP_TEXTURES.format(17))
 PT_MAGMA = 'res/field/props/models/prop_model_584.nsbmd'
 PT_MAGMA_SCROLL = 'res/field/props/animations/prop_animation_082.nsbta'
+MAGMA_SLOW = 2  # the magma's scroll at half Platinum's speed (the user's, 2026-11-08: the mats' animations as slow as FireRed's)
 MAGMA_SIZE = (22.4, 21.33)  # model units a repeat of the magma's texture, as the prop lays it (5 across 112, 6 down 128)
 # fld_anime's entries: the sea, the shore and the meadow's red, blue, yellow and pink flowers.
 SEA, SHORE, FLOWERS = 0, 3, {'t3_fl_b': 5, 't3_fl_p': 6, 't3_fl_r': 7, 't3_fl_y': 8}
@@ -474,6 +487,7 @@ def fire(a, rng):
     outcrops and boulders in the magma, boulders and small rocks on the floor."""
     tex = a.pt_textures(*PT_STARK)
     frames, steps = scrolled(a.pt_prop_texture(PT_MAGMA), *a.pt_scroll(PT_MAGMA_SCROLL))
+    steps = [(k, t * MAGMA_SLOW) for k, t in steps]
     m = Mat(tex, {'magma': frames})
     land, _ = arena_mask(rng, cut=2, islands=False)
     magma(m, 'magma')
@@ -595,6 +609,7 @@ def fire_arena(a, rng):
     and raised outcrops of its rock in the magma where FireRed's stand, a boulder or a rock on each."""
     tex = a.pt_textures(*PT_STARK)
     frames, steps = scrolled(a.pt_prop_texture(PT_MAGMA), *a.pt_scroll(PT_MAGMA_SCROLL))
+    steps = [(k, t * MAGMA_SLOW) for k, t in steps]
     m = Mat(tex, {'magma': frames})
     y0, y1, x0, x1 = ARENA
     # The floor a column in from the outline at the sides (the walls take it), its last two rows the cliff face's (it
@@ -683,7 +698,7 @@ def water_arena(a, rng):
 # ngrass, on most of a patch's tiles, a thin broken rim of ngrass left round it: the chunk's rim is a full tile, the
 # user's), boulders and small rocks. Placed by hand on this
 # island (rough's, seeded 'water'), each clear of the middle (a desktop's middle 360 x 250 px) and on sand all round.
-BEACH_RIDGES = [(10, 11, 11, 15), (37, 9, 37, 13), (29, 23, 30, 23)]  # tops (x0, z0, x1, z1, inclusive), a face round each
+BEACH_RIDGES = [(10, 13, 11, 17), (37, 9, 37, 13), (29, 23, 30, 23)]  # tops (x0, z0, x1, z1, inclusive), a face round each
 # Its grass patches: rows of tiles (z, x0, x1, inclusive), uneven: two near the top edge, one at the bottom right.
 BEACH_GRASS = [((7, 11, 13), (8, 10, 13), (9, 10, 12)), ((5, 25, 26), (6, 23, 28), (7, 24, 27)), ((19, 32, 34), (20, 31, 34), (21, 31, 33))]
 BEACH_ROCKS = [(boulder, 8, 8), (boulder, 36, 19), (stone, 33, 5), (stone, 13, 22), (stone, 39, 17)]
@@ -811,9 +826,43 @@ def main():
     layout = opt('--layout', 'app')
     scenes = {'app': APP, 'arena': ARENAS, 'scene': SCENES}[layout]
     a = Assets(apicula, cache, pt_cache)
-    for name in args or list(scenes):
+    for name in args or list(scenes) + (list(OWN_FILES) if layout == 'app' else []):
+        if name in OWN_FILES and name not in scenes:
+            own_file(name, a)
+            continue
         m, steps, *scale = scenes[name](a, random.Random(name))
         write(name, m, steps, *scale)
+
+
+OWN_FILES = ('lightning', 'psychic', 'fighting', 'darkness', 'metal', 'colorless')  # the mats drawn by their own files beside this one, tools/mats/dp_<type>.py
+
+
+def own_file(name, a):
+    """A mat drawn by its own file (`OWN_FILES`), written as that file's own run writes it."""
+    import random
+    import frlg_mats as fm
+    if name == 'lightning':
+        import dp_lightning
+        shots, order, lights = dp_lightning.lightning_frames(a, np.random.default_rng(1))
+        fm.save('lightning', shots, OUT, order, lights)
+    elif name == 'psychic':
+        import dp_psychic
+        fm.save('psychic', dp_psychic.psychic_frames(a), OUT)
+    elif name == 'fighting':
+        import dp_fighting
+        write('fighting', *dp_fighting.fighting_scene(a, random.Random('fighting')))
+    elif name == 'darkness':
+        import dp_darkness
+        shots, order = dp_darkness.darkness_frames(a, 1)
+        fm.save('darkness', shots, OUT, order)
+    elif name == 'metal':
+        import dp_metal
+        shots, order = dp_metal.ride(*dp_metal.metal_scene(a))
+        fm.save('metal', shots, OUT, order)
+    else:
+        import dp_colorless
+        shots, order = dp_colorless.strolling(dp_colorless.lobby(dp_colorless.Store(a.apicula, a.cache)), np.random.default_rng(1))
+        fm.save('colorless', shots, OUT, order)
 
 
 if __name__ == '__main__':

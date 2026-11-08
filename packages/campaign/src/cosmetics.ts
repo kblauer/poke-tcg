@@ -41,14 +41,14 @@ const BASE_COSMETICS: CosmeticDef[] = [
     id: 'mat-frlg',
     kind: 'mat',
     name: 'FireRed & LeafGreen',
-    description: "Takes on your Active Pokémon's type, in FireRed and LeafGreen's tiles: a sandy island in the sea for Water, a rocky island in lava for Fire, a field ringed by flowers for Grass, a stormy mountain for Lightning, Mt. Pyre for Psychic, Victory Road for Fighting, Unown ruins for Darkness, a cycling bridge for Metal, a department store for Colorless and the Sky Pillar for Dragon.",
+    description: "Takes on your Active Pokémon's type, in FireRed and LeafGreen's tiles: a sandy island in the sea for Water, a rocky island in lava for Fire, a field ringed by flowers for Grass, a stormy mountain for Lightning, Mt. Pyre for Psychic, Victory Road for Fighting, Unown ruins for Darkness, a cycling bridge for Metal, a department store for Colorless.",
     unlock: { type: 'buy', price: 3000 },
   },
   {
     id: 'mat-dp',
     kind: 'mat',
     name: 'Diamond & Pearl',
-    description: "Takes on your Active Pokémon's type, in Diamond and Pearl's look: Route 222's sand in the sea for Water, Stark Mountain's rock in its magma for Fire, a field in Floaroma's flowers for Grass.",
+    description: "Takes on your Active Pokémon's type, in Diamond and Pearl's look: Route 222's sand in the sea for Water, Stark Mountain's rock in its magma for Fire, a field in Floaroma's flowers for Grass, a stormy mountain with Sunyshore's lighthouses for Lightning, Celestic Town's shrine for Psychic, Victory Road for Fighting, the Solaceon Ruins for Darkness, the Cycling Road for Metal, Veilstone Department Store for Colorless.",
     unlock: { type: 'buy', price: 3000 },
   },
   // Places (the user's, 2026-11-07): each a mat of its own, a real place as the games draw it, the same scene whatever the

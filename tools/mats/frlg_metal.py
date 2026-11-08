@@ -56,7 +56,8 @@ TURNS = dict(  # (and the last column of the horizontal bridge the piece holds, 
 LOOP = [(2, 6, 'down_right'), (2, 43, 'down_left'), (12, 43, 'up_left'), (12, 36, 'down_right'),
         (22, 36, 'up_left'), (22, -1, 'up_right'), (14, -1, 'down_right'), (14, 6, 'up_left')]
 NORTH = 27  # a way off north: Route 110's bridge from the north coming into the top one (map rows 27-29, columns 25-30)
-SOUTH = 14  # and south: the bottom rail opening (map row 88, columns 26-30), the vertical bridge's rows below it (the user's, 2026-11-07)
+SOUTH = 14  # and south: Route 110's bridge leaving one downward (map rows 32-34, columns 10-15: the bottom rail opening onto the
+# 5-wide bridge, its rails and faces; row 88's opening was the narrow path's and didn't line up, the user's, 2026-11-08), the vertical bridge's rows below it
 SPAN = (29, 36), 16  # a horizontal bridge's straight run: a column of it (rail, deck, deck, rail, face, shadow, shadow)
 PILLAR = 18  # and its column with a pillar under it
 PILLARS = {2: range(13, 43, 6), 22: (8, 22, 29)}  # the straight runs' pillars, by row (the bottom one's clear of the way south)
@@ -101,7 +102,7 @@ def metal_arena(rng):
             y0, y1 = sorted((ra, rb))
             for y in range(y0 + 6, y1):
                 put(y, ca, [UPRIGHT])
-    for y in range(BOTTOM + 4, H):
+    for y in range(BOTTOM + 6, H):
         put(y, SOUTH, [UPRIGHT])
     for r, c, turn in LOOP:
         (a0, a1), (b0, b1), dy, dx, _ = TURNS[turn]
@@ -109,7 +110,7 @@ def metal_arena(rng):
         if turn == 'down_left':
             put(r + 6, c, [LEAVING])
     put(TOP - 2, NORTH, m[27:30, 25:31])
-    put(BOTTOM + 3, SOUTH, m[88:89, 26:31])
+    put(BOTTOM + 3, SOUTH, m[32:35, 10:16])
     for y, x in SHADED_ROCKS:
         put(y, x, ROCK)
     return ts, grid
