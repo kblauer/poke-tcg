@@ -240,7 +240,7 @@ export function OverworldSprite({
   longGrass?: boolean;
   /** Jumping a ledge: it rises and falls along JUMP_Y over the jump's time (as it slides to the landing tile, `moveMs`). */
   jump?: Jump;
-  /** How far below its tile it's drawn, in pixels: on a lower floor of the map (dropAt: Snowpoint Gym's pit). */
+  /** How far below its tile it's drawn, in pixels: on a lower floor of the map (dropAt: Snowpoint Gym's pit); negative, above it (the Idle Adventure's HGSS maps' higher ground: mapLift). */
   drop?: number;
   /**
    * How far it's sunk into deep snow, in pixels (snowSink): drawn that much lower, its bottom that much hidden under the
@@ -303,15 +303,16 @@ export function OverworldSprite({
 
 /**
  * The shadow under a sprite jumping a ledge (FireRed's, `shadow.png`: 16x8, its bottom at the sprite's feet), on the ground
- * while the sprite rises over it; there only while it jumps (`shown`), following the sprite's tile (`moveMs`).
+ * while the sprite rises over it; there only while it jumps (`shown`), following the sprite's tile (`moveMs`); `drop`,
+ * OverworldSprite's (negative: raised, on the Idle Adventure's HGSS maps' higher ground).
  */
-export function JumpShadow({ tile, shown, moveMs }: { tile: RouteSpot; shown: boolean; moveMs: number }) {
+export function JumpShadow({ tile, shown, moveMs, drop = 0 }: { tile: RouteSpot; shown: boolean; moveMs: number; drop?: number }) {
   return (
     <div
       className="pointer-events-none absolute [image-rendering:pixelated]"
       style={{
         left: tile.x * 16,
-        top: tile.y * 16 + 8,
+        top: tile.y * 16 + 8 + drop,
         width: 16,
         height: 8,
         backgroundImage: 'url(/overworld/shadow.png)',
@@ -330,9 +331,9 @@ const DUST_FRAME_MS = 133;
 /**
  * The dust where a ledge jump lands (FireRed's ground impact dust, `jump_dust.png`: 3 frames of 16x8, stacked), played once;
  * `grass`, landing in tall grass, the grass thrown up instead (FLDEFF_JUMP_TALL_GRASS, `jump_tall_grass.png`: 4 frames; on
- * Emerald's maps, `set` 'rse', its own).
+ * Emerald's maps, `set` 'rse', its own); `drop`, OverworldSprite's.
  */
-export function JumpDust({ tile, grass = false, set = 'frlg' }: { tile: RouteSpot; grass?: boolean; set?: SpriteSet }) {
+export function JumpDust({ tile, grass = false, set = 'frlg', drop = 0 }: { tile: RouteSpot; grass?: boolean; set?: SpriteSet; drop?: number }) {
   const frames = grass ? 4 : 3;
   const [frame, setFrame] = useState(0);
   useEffect(() => {
@@ -343,7 +344,7 @@ export function JumpDust({ tile, grass = false, set = 'frlg' }: { tile: RouteSpo
   return (
     <div
       className="pointer-events-none absolute [image-rendering:pixelated]"
-      style={{ left: tile.x * 16, top: tile.y * 16 + 8, width: 16, height: 8, backgroundImage: `url(/overworld/${grass ? `${grassDir(set)}jump_tall_grass` : 'jump_dust'}.png)`, backgroundPosition: `0 ${-frame * 8}px`, zIndex: tile.y + 1 }}
+      style={{ left: tile.x * 16, top: tile.y * 16 + 8 + drop, width: 16, height: 8, backgroundImage: `url(/overworld/${grass ? `${grassDir(set)}jump_tall_grass` : 'jump_dust'}.png)`, backgroundPosition: `0 ${-frame * 8}px`, zIndex: tile.y + 1 }}
     />
   );
 }
