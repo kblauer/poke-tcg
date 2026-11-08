@@ -49,7 +49,7 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
             </button>
           ))}
         {/* "You may switch" (Pull In, Spiral Aura, Snatch, Teleport Blast): the Active Pokémon is highlighted too, and clicking it is -1, skipping (Board's pokemonPick). */}
-        {spec.kind === 'opponentBench' && <p className={pickHint}>{spec.optional ? "Click one of the CPU's highlighted Pokémon (its Active: skip)." : "Click one of the CPU's highlighted Benched Pokémon."}</p>}
+        {spec.kind === 'opponentBench' && <p className={pickHint}>{spec.optional ? "Click one of the CPU's highlighted Pokémon: a Benched one, or its Active Pokémon to keep it as the target." : "Click one of the CPU's highlighted Benched Pokémon."}</p>}
         {spec.kind === 'ownBench' && <p className={pickHint}>{spec.optional ? "Click one of your highlighted Pokémon (your Active: skip)." : 'Click one of your highlighted Benched Pokémon.'}</p>}
         {(spec.kind === 'opponentPokemon' || spec.kind === 'opponentPokemonTo') && <p className={pickHint}>Click one of the CPU's highlighted Pokémon.</p>}
         {(spec.kind === 'ownPokemon' || spec.kind === 'ownPokemonTo') && <p className={pickHint}>Click one of your highlighted Pokémon.</p>}

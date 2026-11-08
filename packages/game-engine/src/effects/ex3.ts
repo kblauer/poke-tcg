@@ -375,7 +375,7 @@ export const EX3: Record<string, Record<string, AttackEffect>> = {
     'Luring Flame': {
       choices: (s) => opponentBenchChoice(s, "Choose one of your opponent's Benched Pokémon to switch in"),
       run(ctx) {
-        if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot);
+        if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot, { protectedToo: true });
         ctx.inflict('burned');
       },
     },

@@ -103,7 +103,7 @@ export const EX2: Record<string, Record<string, AttackEffect>> = {
       choices: (s) => maySwitchDefender(s, "You may choose one of your opponent's Benched Pokémon to switch in first"),
       run(ctx) {
         const slot = ctx.choices.benchSlot;
-        if (slot !== undefined && slot >= 0) ctx.switchDefender(slot);
+        if (slot !== undefined && slot >= 0) ctx.switchDefender(slot, { protectedToo: true });
         ctx.inflict('poisoned');
       },
     },
@@ -151,7 +151,7 @@ export const EX2: Record<string, Record<string, AttackEffect>> = {
       choices: (s) => maySwitchDefender(s, "You may choose one of your opponent's Benched Pokémon to switch in before the damage"),
       run(ctx) {
         const slot = ctx.choices.benchSlot;
-        if (slot !== undefined && slot >= 0) ctx.switchDefender(slot);
+        if (slot !== undefined && slot >= 0) ctx.switchDefender(slot, { protectedToo: true });
         ctx.hit(20);
       },
     },

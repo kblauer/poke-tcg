@@ -158,7 +158,7 @@ export const PL3: Record<string, Record<string, AttackEffect>> = {
       choices: (s): ChoiceSpec[] => (benchedSlots(s.opponentBench).length ? [{ kind: 'opponentBench', options: [-1, ...benchedSlots(s.opponentBench)], optional: true, prompt: "Drag Off: you may switch in one of your opponent's Benched Pokémon first" }] : []),
       run(ctx) {
         const slot = ctx.choices.benchSlot;
-        if (slot !== undefined && slot >= 0 && ctx.opp.bench[slot]) ctx.switchDefender(slot);
+        if (slot !== undefined && slot >= 0 && ctx.opp.bench[slot]) ctx.switchDefender(slot, { protectedToo: true });
         ctx.hit(30);
       },
     },

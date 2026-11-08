@@ -341,7 +341,7 @@ export const ROCKET: Record<string, Record<string, AttackEffect>> = {
       blocked: needsOpponentBench,
       choices: (s) => opponentBenchChoice(s, "Choose one of your opponent's benched Pokémon to drag in (it takes the damage)"),
       run(ctx) {
-        if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot);
+        if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot, { protectedToo: true });
         ctx.hit(20);
       },
     },
@@ -360,7 +360,7 @@ export const ROCKET: Record<string, Record<string, AttackEffect>> = {
       blocked: needsOpponentBench,
       choices: (s) => opponentBenchChoice(s, "Choose one of your opponent's benched Pokémon to switch in (on heads)"),
       run(ctx) {
-        if (ctx.flip() && ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot);
+        if (ctx.flip() && ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot, { protectedToo: true });
         else ctx.log('Fascinate did nothing.');
       },
     },

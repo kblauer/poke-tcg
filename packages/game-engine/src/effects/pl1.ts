@@ -45,7 +45,7 @@ const switchThen = (prompt: string, then: (ctx: AttackContext) => void): AttackE
   choices: (s) => opponentBenchChoice(s, prompt),
   run(ctx) {
     const slot = ctx.choices.benchSlot;
-    if (slot !== undefined && ctx.opp.bench[slot]) ctx.switchDefender(slot);
+    if (slot !== undefined && ctx.opp.bench[slot]) ctx.switchDefender(slot, { protectedToo: true });
     if (ctx.opp.active) then(ctx);
   },
 });

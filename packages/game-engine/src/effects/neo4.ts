@@ -7,7 +7,8 @@
 // Rulings (from the text): questions whose answer depends on a flip are asked before it (Crushing Blow, Bubble Jump, Ball
 // of Flame, Wash Away, Healing Water…), as in Neo Genesis. "Your opponent may…, either way you may do the same" attacks ask the
 // opponent first (Flipper Stroke, Fish Out, Mysterious Wing, Evolution Song); Searchlight asks the attacking player first.
-// Pull In's switch is a Benched Pokémon or none (-1, the Defending Pokémon clicked). Call Back can't be used while the opponent's Bench is full
+// Pull In's switch is a Benched Pokémon or none (-1, the Defending Pokémon clicked), and happens even when the Defending Pokémon
+// is protected from the attack's effects (the user's, 2026-11-07: the new Defending Pokémon takes the damage and Sleep). Call Back can't be used while the opponent's Bench is full
 // (the card's "your Bench" means theirs). Bubble Jump's heads moves 2 Energy cards and returns Light Azumarill; tails does
 // only the damage. Rushing Flames may discard Fire Energy cards from any of the attacking player's Pokémon. Reflect Shield's
 // 20 damage gets Weakness and Resistance, as Fire Wall's does. Charm lowers every attack damage the Defending Pokémon does.
@@ -141,7 +142,7 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
       },
       run(ctx) {
         const slot = ctx.choices.benchSlot;
-        if (slot !== undefined && slot >= 0) ctx.switchDefender(slot);
+        if (slot !== undefined && slot >= 0) ctx.switchDefender(slot, { protectedToo: true });
         ctx.hit(30);
         ctx.inflict('asleep');
       },
@@ -283,7 +284,7 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         const slot = ctx.choices.benchSlot;
         if (slot === undefined || !ctx.opp.bench[slot]) return ctx.log('Entangle did nothing.');
-        ctx.switchDefender(slot);
+        ctx.switchDefender(slot, { protectedToo: true });
         if (ctx.flip()) ctx.inflict('paralyzed');
       },
     },

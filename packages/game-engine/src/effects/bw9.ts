@@ -171,7 +171,7 @@ export const BW9: Record<string, Record<string, AttackEffect>> = {
         if (!ctx.flip()) return;
         // With no Benched Pokémon to switch in, the Active Pokémon is Poisoned (the user's, 2026-10-26).
         const slot = ctx.choices.benchSlot;
-        if (slot !== undefined && ctx.opp.bench[slot]) ctx.switchDefender(slot);
+        if (slot !== undefined && ctx.opp.bench[slot]) ctx.switchDefender(slot, { protectedToo: true });
         ctx.inflict('poisoned');
       },
     },
@@ -243,7 +243,7 @@ export const BW9: Record<string, Record<string, AttackEffect>> = {
     Tractorbeam: {
       choices: (s) => opponentBenchChoice(s, "Tractorbeam: choose one of your opponent's Benched Pokémon to switch in"),
       run(ctx) {
-        if (ctx.choices.benchSlot !== undefined && ctx.opp.bench[ctx.choices.benchSlot]) ctx.switchDefender(ctx.choices.benchSlot);
+        if (ctx.choices.benchSlot !== undefined && ctx.opp.bench[ctx.choices.benchSlot]) ctx.switchDefender(ctx.choices.benchSlot, { protectedToo: true });
         ctx.hit(40);
       },
     },

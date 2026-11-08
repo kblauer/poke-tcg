@@ -56,7 +56,7 @@ const maySwitchIn = (s: Parameters<NonNullable<AttackEffect['choices']>>[0]): Ch
 };
 const switchedIn = (ctx: AttackContext) => {
   const slot = ctx.choices.benchSlot;
-  if (slot !== undefined && slot >= 0 && ctx.opp.bench[slot]) ctx.switchDefender(slot);
+  if (slot !== undefined && slot >= 0 && ctx.opp.bench[slot]) ctx.switchDefender(slot, { protectedToo: true });
 };
 /** "Choose up to 2 basic [type] Energy cards from your hand and attach them to 1 of your Pokémon" (Drought, Drizzle). */
 const rain = (type: 'water' | 'fighting', source: string): AttackEffect => ({

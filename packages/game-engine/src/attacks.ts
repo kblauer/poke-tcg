@@ -376,8 +376,13 @@ export interface AttackContext {
   /** Runs `fn` on the Defending Pokémon's effects, unless its effects are prevented. */
   affectDefender: (fn: (effects: PokemonEffects) => void) => void;
   discardDefenderEnergy: (uid: string) => void;
-  /** Switches the Defending Pokémon with the opponent's benched Pokémon in `slot`. */
-  switchDefender: (slot: number) => void;
+  /**
+   * Switches the Defending Pokémon with the opponent's benched Pokémon in `slot`. `protectedToo`: even when the Defending
+   * Pokémon is protected from the attack's effects, for every attack that switches in a Benched Pokémon the attacking player
+   * picks before it does anything else (Pull In, Drag Off, Lure…; the user's, 2026-11-07: the new Defending Pokémon then
+   * takes the rest). A switch after the attack's damage (Dragon Tornado, Sludge Grip) or the opponent's (Whirlwind) doesn't.
+   */
+  switchDefender: (slot: number, opts?: { protectedToo?: boolean }) => void;
   /** Runs another attack's effect (Metronome), as if this Pokémon used it. */
   useAttack: (attack: Attack, sourceDefId: string) => void;
   /** The attacking player draws up to `n` cards. */
@@ -2279,8 +2284,8 @@ function createContext(
       log(`Discarded ${lookupCard(state.cards, energy.defId).name} from ${ctx.defenderDef.name}.`, opp.id);
       discardTheirEnergy(state, opp, [energy]);
     },
-    switchDefender(slot) {
-      if (untouchable()) return;
+    switchDefender(slot, opts) {
+      if (!opts?.protectedToo && untouchable()) return;
       const locked = activeLocked(state, opp.id);
       if (locked) return log(`${locked}.`, opp.id);
       const benched = opp.bench[slot];

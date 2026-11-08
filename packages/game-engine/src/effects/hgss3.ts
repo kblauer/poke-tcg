@@ -195,7 +195,7 @@ export const HGSS3: Record<string, Record<string, AttackEffect>> = {
         const slot = ctx.choices.benchSlot;
         if (slot === undefined || !ctx.opp.bench[slot]) return ctx.log('Sludge Drag did nothing.');
         const before = ctx.opp.active;
-        ctx.switchDefender(slot);
+        ctx.switchDefender(slot, { protectedToo: true });
         if (ctx.opp.active === before) return;
         ctx.inflict('confused');
         ctx.inflict('poisoned');
@@ -253,7 +253,7 @@ export const HGSS3: Record<string, Record<string, AttackEffect>> = {
     Pull: {
       choices: (s) => opponentBenchChoice(s, "Choose one of your opponent's Benched Pokémon to switch in (if heads)"),
       run(ctx) {
-        if (ctx.flip() && ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot);
+        if (ctx.flip() && ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot, { protectedToo: true });
       },
     },
   },

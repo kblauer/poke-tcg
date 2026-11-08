@@ -36,7 +36,7 @@ const stadiumName = (ctx: AttackContext) => (ctx.state.stadium ? lookupCard(ctx.
 const lureIn = (prompt: string, then: (ctx: AttackContext) => void): AttackEffect => ({
   choices: (s) => opponentBenchChoice(s, prompt),
   run(ctx) {
-    if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot);
+    if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot, { protectedToo: true });
     then(ctx);
   },
 });
@@ -494,7 +494,7 @@ export const EX5: Record<string, Record<string, AttackEffect>> = {
       },
       run(ctx) {
         const slot = ctx.choices.benchSlot;
-        if (slot !== undefined && slot >= 0) ctx.switchDefender(slot);
+        if (slot !== undefined && slot >= 0) ctx.switchDefender(slot, { protectedToo: true });
         ctx.hit(40);
       },
     },
