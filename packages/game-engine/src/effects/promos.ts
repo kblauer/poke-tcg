@@ -317,7 +317,7 @@ export const PROMOS: Record<string, Record<string, AttackEffect>> = {
       choices: (s) => opponentBenchChoice(s, "Choose one of your opponent's benched Pokémon to switch in (on heads)"),
       run(ctx) {
         if (ctx.choices.benchSlot === undefined) return ctx.log('Your opponent has no benched Pokémon.');
-        if (ctx.flip()) ctx.switchDefender(ctx.choices.benchSlot);
+        if (ctx.flip()) ctx.switchDefender(ctx.choices.benchSlot, { protectedToo: true });
         else ctx.log('Tempt did nothing.');
       },
     },

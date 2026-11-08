@@ -95,7 +95,7 @@ export const EX10: Record<string, Record<string, AttackEffect>> = {
     'Spider Trap': {
       choices: (s): ChoiceSpec[] => opponentBenchChoice(s, "You may choose one of your opponent's Benched Pokémon to switch in first").map((c) => ({ ...c, optional: true }) as ChoiceSpec),
       run(ctx) {
-        if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot);
+        if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot, { protectedToo: true });
         ctx.inflict('asleep');
         ctx.inflict('poisoned');
       },

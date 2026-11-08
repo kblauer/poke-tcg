@@ -252,7 +252,7 @@ export const ECARD3: Record<string, Record<string, AttackEffect>> = {
     'Drag Off': {
       choices: (s) => opponentBenchChoice(s, "Choose one of your opponent's Benched Pokémon to switch in (it takes the damage)"),
       run(ctx) {
-        if (ctx.choices.benchSlot !== undefined && ctx.opp.bench[ctx.choices.benchSlot]) ctx.switchDefender(ctx.choices.benchSlot);
+        if (ctx.choices.benchSlot !== undefined && ctx.opp.bench[ctx.choices.benchSlot]) ctx.switchDefender(ctx.choices.benchSlot, { protectedToo: true });
         ctx.hit(20);
       },
     },
@@ -489,7 +489,7 @@ export const ECARD3: Record<string, Record<string, AttackEffect>> = {
       },
       run(ctx) {
         const slot = ctx.choices.benchSlot;
-        if (slot !== undefined && slot >= 0 && ctx.opp.bench[slot]) ctx.switchDefender(slot);
+        if (slot !== undefined && slot >= 0 && ctx.opp.bench[slot]) ctx.switchDefender(slot, { protectedToo: true });
         ctx.hit(20);
       },
     },

@@ -493,7 +493,7 @@ export const GYM1: Record<string, Record<string, AttackEffect>> = {
       blocked: needsOpponentBench,
       choices: (s) => opponentBenchChoice(s, "Choose one of your opponent's benched Pokémon to switch in (it takes the damage)"),
       run(ctx) {
-        if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot);
+        if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot, { protectedToo: true });
         ctx.hit(20);
       },
     },

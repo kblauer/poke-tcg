@@ -413,7 +413,7 @@ export const DP1: Record<string, Record<string, AttackEffect>> = {
       },
       run(ctx) {
         const slot = ctx.choices.benchSlot;
-        if (slot !== undefined && slot >= 0 && ctx.opp.bench[slot]) ctx.switchDefender(slot);
+        if (slot !== undefined && slot >= 0 && ctx.opp.bench[slot]) ctx.switchDefender(slot, { protectedToo: true });
         ctx.hit(40);
       },
     },
@@ -497,7 +497,7 @@ export const DP1: Record<string, Record<string, AttackEffect>> = {
         const slot = ctx.choices.benchSlot;
         if (slot === undefined || !ctx.opp.bench[slot]) return ctx.log('Soliciting Nectar did nothing.');
         const before = ctx.opp.active;
-        ctx.switchDefender(slot);
+        ctx.switchDefender(slot, { protectedToo: true });
         if (ctx.opp.active !== before) ctx.inflict('asleep');
       },
     },

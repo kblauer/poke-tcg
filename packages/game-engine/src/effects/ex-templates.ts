@@ -1102,7 +1102,7 @@ const DP_TEMPLATES_3: Record<string, AttackTemplate> = {
       choices: (s) => lure.choices!(s, {}),
       run(ctx) {
         const before = ctx.opp.active;
-        if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot);
+        if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot, { protectedToo: true });
         if (d) ctx.hit(d);
         if (ctx.opp.active !== before) ctx.inflict(word(c));
       },

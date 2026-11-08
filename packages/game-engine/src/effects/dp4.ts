@@ -39,7 +39,7 @@ const boosted = (ctx: AttackContext, name: string) => ctx.attacker.effects?.boos
 const lureThen = (then: (ctx: AttackContext) => void): AttackEffect => ({
   choices: (s) => opponentBenchChoice(s, "Choose one of your opponent's Benched Pokémon to switch in"),
   run(ctx) {
-    if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot);
+    if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot, { protectedToo: true });
     then(ctx);
   },
 });

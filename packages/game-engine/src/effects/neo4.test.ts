@@ -25,6 +25,13 @@ describe('Neo Destiny attacks', () => {
     expect([misty(s).active!.card.defId, misty(s).active!.damage, misty(s).active!.condition]).toEqual([id('squirtle'), 30, 'asleep']);
   });
 
+  it('Pull In: switches in a Benched Pokémon even when the Defending Pokémon is protected from attacks, which then takes the damage and Sleep', () => {
+    const start = flips(duel('darkGengar', 'machoke', { energy: ['psychic', 'psychic', 'psychic'], oppBench: ['squirtle'] }), false);
+    misty(start).active!.effects = { preventAll: start.turn + 1 };
+    const s = attack(start, 0, { benchSlot: 0 });
+    expect([misty(s).active!.card.defId, misty(s).active!.damage, misty(s).active!.condition, misty(s).bench[0]!.damage]).toEqual([id('squirtle'), 30, 'asleep', 0]);
+  });
+
   it("Pull In: -1 doesn't switch", () => {
     const s = attack(flips(duel('darkGengar', 'machoke', { energy: ['psychic', 'psychic', 'psychic'], oppBench: ['squirtle'] }), false), 0, { benchSlot: -1 });
     expect([misty(s).active!.card.defId, misty(s).active!.damage, misty(s).active!.condition]).toEqual([id('machoke'), 30, 'asleep']);

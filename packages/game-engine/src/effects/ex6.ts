@@ -106,7 +106,7 @@ export function lookForFriends(ctx: AttackContext) {
 export const lureIn = (prompt: string, then?: (ctx: AttackContext) => void): AttackEffect => ({
   choices: (s) => opponentBenchChoice(s, prompt),
   run(ctx) {
-    if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot);
+    if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot, { protectedToo: true });
     then?.(ctx);
   },
 });

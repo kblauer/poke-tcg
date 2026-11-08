@@ -96,7 +96,7 @@ export const BW8: Record<string, Record<string, AttackEffect>> = {
         const slot = ctx.choices.benchSlot;
         if (slot === undefined || !ctx.opp.bench[slot]) return ctx.log('Luring Flame did nothing.');
         const was = ctx.opp.active;
-        ctx.switchDefender(slot);
+        ctx.switchDefender(slot, { protectedToo: true });
         if (ctx.opp.active !== was) ctx.inflict('burned');
       },
     },

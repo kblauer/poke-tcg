@@ -212,7 +212,7 @@ export const DP3: Record<string, Record<string, AttackEffect>> = {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon (a Benched one is switched in first)"),
       run(ctx) {
         const t = ctx.choices.oppTarget ?? 'active';
-        if (typeof t === 'number' && ctx.opp.bench[t]) ctx.switchDefender(t);
+        if (typeof t === 'number' && ctx.opp.bench[t]) ctx.switchDefender(t, { protectedToo: true });
         ctx.hit(20);
         if (ctx.flip()) ctx.inflict('paralyzed');
       },
@@ -462,7 +462,7 @@ export const DP3: Record<string, Record<string, AttackEffect>> = {
       },
       run(ctx) {
         const slot = ctx.choices.benchSlot;
-        if (slot !== undefined && slot >= 0 && ctx.opp.bench[slot]) ctx.switchDefender(slot);
+        if (slot !== undefined && slot >= 0 && ctx.opp.bench[slot]) ctx.switchDefender(slot, { protectedToo: true });
         ctx.hit(20);
         ctx.inflict('poisoned');
       },

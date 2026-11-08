@@ -622,7 +622,7 @@ export const EX7: Record<string, Record<string, AttackEffect>> = {
       },
       run(ctx) {
         const slot = ctx.choices.benchSlot;
-        if (slot !== undefined && slot >= 0) ctx.switchDefender(slot);
+        if (slot !== undefined && slot >= 0) ctx.switchDefender(slot, { protectedToo: true });
         ctx.hit(10);
       },
     },

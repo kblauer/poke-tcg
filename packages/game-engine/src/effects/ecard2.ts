@@ -68,7 +68,7 @@ const mayChooseBench = (s: AttackSituation, prompt: string, fits: (p: InPlayPoke
 /** The chosen Benched Pokémon (`benchSlot`, -1 for none), switched with the Defending Pokémon. */
 function switchChosen(ctx: AttackContext) {
   const slot = ctx.choices.benchSlot;
-  if (slot !== undefined && slot >= 0 && ctx.opp.bench[slot]) ctx.switchDefender(slot);
+  if (slot !== undefined && slot >= 0 && ctx.opp.bench[slot]) ctx.switchDefender(slot, { protectedToo: true });
 }
 
 /**
@@ -352,7 +352,7 @@ export const ECARD2: Record<string, Record<string, AttackEffect>> = {
       choices: lure.choices,
       run(ctx) {
         if (ctx.choices.benchSlot === undefined) return;
-        ctx.switchDefender(ctx.choices.benchSlot);
+        ctx.switchDefender(ctx.choices.benchSlot, { protectedToo: true });
         ctx.inflict('asleep');
       },
     },
