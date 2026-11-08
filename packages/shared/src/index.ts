@@ -22,7 +22,8 @@ const energyType = z.enum(['grass', 'fire', 'water', 'lightning', 'psychic', 'fi
 /** Answers to an attack's questions (see AttackChoices in the engine). */
 const attackChoicesSchema = z.object({
   energyUids: z.array(z.string()).max(60).optional(),
-  benchSlot: benchSlot.optional(),
+  // -1: not switching, the Defending Pokémon clicked, for a "you may switch first" (Pull In; the engine checks it's one of the attack's options).
+  benchSlot: z.number().int().min(-1).max(MAX_BENCH - 1).optional(),
   defenderEnergyUid: z.string().optional(),
   attackIndex: z.number().int().min(0).optional(),
   copyIndex: z.number().int().min(0).optional(),
