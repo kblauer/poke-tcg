@@ -20,8 +20,8 @@ type Board = 'average' | 'fastest' | 'daily';
 
 const primary = 'rounded bg-blue-600 px-4 py-2 font-semibold transition hover:bg-blue-500 active:scale-95 disabled:opacity-40';
 const panel = 'space-y-4 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600';
-// A panel filling its column's height, its screens sharing what the other rows leave (Fit).
-const fillPanel = 'flex min-h-0 flex-1 flex-col gap-4 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600';
+// A panel filling its column's height, its screens sharing what the other rows leave (Fit); its width the screens' cap (cqw).
+const fillPanel = 'flex min-h-0 flex-1 flex-col gap-4 [container-type:inline-size] rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600';
 
 /** A Pokémon done in the game under way: its name, and its time (or passed). */
 interface Done {
@@ -103,6 +103,18 @@ export function WhosThat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reveal, revealing]);
 
+  // The system keyboard coming up (a phone, NamingScreen's field): the round's bottom, its Skip, just above it, so the
+  // screen, the naming screen and Skip are all in view (the user's).
+  const playing = round !== null;
+  const skipRow = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const view = window.visualViewport;
+    if (!playing || !view) return;
+    const onResize = () => skipRow.current?.scrollIntoView({ block: 'end' });
+    view.addEventListener('resize', onResize);
+    return () => view.removeEventListener('resize', onResize);
+  }, [playing]);
+
   // Not named in WHOS_THAT_PASS_MS: passed (the server counts any later guess as a pass too).
   useEffect(() => {
     if (!round || revealing || reveal?.results || pass.isPending || now - shownAt < WHOS_THAT_PASS_MS) return;
@@ -145,7 +157,7 @@ export function WhosThat() {
             <Fit ratio={3 / 2} grow={11}>
               <NamingScreen round={`${round.gameId}:${round.index}`} onSubmit={send} disabled={revealing} />
             </Fit>
-            <div className="flex items-start justify-between gap-3">
+            <div ref={skipRow} className="flex items-start justify-between gap-3">
               <DoneList done={done} />
               <div className="ml-auto flex shrink-0 items-center gap-2">
                 <span className="text-xs text-slate-400">Type SKIP to pass</span>
@@ -221,7 +233,9 @@ export function WhosThat() {
  */
 function Fit({ ratio, grow, children }: { ratio: number; grow: number; children: ReactNode }) {
   return (
-    <div className="min-h-0 [container-type:size]" style={{ flex: `${grow} 1 0` }}>
+    // Never taller than its picture at the panel's width (100cqw, the panel's): on a narrow screen the pictures sit
+    // together, the room left under the round rather than between them.
+    <div className="min-h-0 [container-type:size]" style={{ flex: `${grow} 1 0`, maxHeight: `calc(100cqw / ${ratio})` }}>
       <div className="mx-auto" style={{ width: `min(100cqw, ${ratio} * 100cqh)` }}>
         {children}
       </div>
