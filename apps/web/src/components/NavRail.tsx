@@ -81,7 +81,7 @@ export function PhoneNavRun() {
   const { run, data } = useRunUnderWay();
   if (!data) return null;
   return (
-    <div className="mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto border-t border-slate-700 pt-3">
+    <div className="mt-3 space-y-3 border-t border-slate-700 pt-3">
       <RunStats view={data.view} account={data.account} run={run} />
       <div className="flex h-64 flex-col rounded-lg bg-slate-950/60 ring-1 ring-slate-800">
         <GameLog log={data.view.log.map((text) => ({ text, player: null }))} you="player" header={<h3 className="mb-2 text-sm text-slate-400">Run log</h3>} />

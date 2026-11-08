@@ -9,7 +9,7 @@ import { useTRPC } from '../../lib/trpc';
 import { BUTTON, PANEL_HEADING } from '../../utils/styles';
 import { seconds } from '../../utils/whosThat';
 import { Toasts } from '../Toasts';
-import { NamingScreen } from '../whos-that/NamingScreen';
+import { NamingScreen, primeKeyboard } from '../whos-that/NamingScreen';
 import { WhosThatScreen } from '../whos-that/WhosThatScreen';
 
 type Outputs = inferRouterOutputs<AppRouter>['whosThat'];
@@ -164,7 +164,10 @@ export function WhosThat() {
             </div>
             <DoneList done={done} />
             <div className="flex gap-2">
-              <button className={primary} disabled={start.isPending} onClick={() => start.mutate({ daily: false })}>
+              <button className={primary} disabled={start.isPending} onClick={() => {
+                primeKeyboard();
+                start.mutate({ daily: false });
+              }}>
                 Play again
               </button>
               <button className={BUTTON} onClick={() => setResults(null)}>
@@ -182,10 +185,16 @@ export function WhosThat() {
               average times go on the leaderboards.
             </p>
             <div className="flex flex-wrap gap-2">
-              <button className={primary} disabled={start.isPending} onClick={() => start.mutate({ daily: false })}>
+              <button className={primary} disabled={start.isPending} onClick={() => {
+                primeKeyboard();
+                start.mutate({ daily: false });
+              }}>
                 Play
               </button>
-              <button className={primary} disabled={start.isPending || !!daily?.finished} onClick={() => start.mutate({ daily: true })}>
+              <button className={primary} disabled={start.isPending || !!daily?.finished} onClick={() => {
+                primeKeyboard();
+                start.mutate({ daily: true });
+              }}>
                 {daily?.finished ? "Today's playlist: played" : daily ? "Continue today's playlist" : "Today's playlist"}
               </button>
             </div>

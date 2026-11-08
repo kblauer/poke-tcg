@@ -150,9 +150,11 @@ function RootLayout() {
       </header>
       {session && phone && panel && (
         <SidePanel side="left" title={<span className={LOGO}>PoKé TcG</span>} onClose={closePanel}>
-          <PageMenu onPick={closePanel} />
-          {/* During a run, its numbers and log, as in the big screen's menu. */}
-          <PhoneNavRun />
+          {/* The pages, then during a run its numbers and log (as in the big screen's menu), scrolling as one: Play's modes opened never under the run's numbers. */}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <PageMenu onPick={closePanel} />
+            <PhoneNavRun />
+          </div>
           <div className="mt-3 shrink-0 border-t border-slate-700 pt-3">
             <MusicControls onOpen={closePanel} />
           </div>

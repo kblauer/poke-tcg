@@ -7,7 +7,9 @@ import { useEffect, useRef, useState, type PointerEvent } from 'react';
  * user's). The keyboard is captured while it's shown: letters, digits and the game's symbols fill the spaces, Backspace
  * deletes, Enter sends the name (`onSubmit`, true when it was right, which clears it; a wrong one shakes the screen).
  * Its keys, page button, BACK and OK can be clicked (or tapped) too, as the game's are pressed. `round` changes for each
- * Pokémon, clearing the name.
+ * Pokémon, clearing the name. On a touch screen a hidden text field takes the typing instead (the user's: the system
+ * keyboard comes up as the game starts), focused as the screen shows and on any tap on it; `primeKeyboard` in the tap that
+ * starts the game opens the keyboard (iOS opens it only for a focus made during a tap, not after the game's request).
  */
 
 const W = 240;
@@ -79,6 +81,28 @@ function loadAssets() {
   return assets;
 }
 
+/** Whether the screen is typed on with the system keyboard (a touch screen). */
+const touchScreen = () => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+
+let stand: HTMLInputElement | null = null;
+/**
+ * On a touch screen, called in the tap that starts a game: focuses a stand-in text field so the system keyboard opens
+ * then, the naming screen's own field taking the focus over (and the keyboard with it) once it shows. Gone on its own
+ * if the naming screen never shows.
+ */
+export function primeKeyboard() {
+  if (!touchScreen()) return;
+  stand?.remove();
+  const field = document.createElement('input');
+  field.setAttribute('aria-hidden', 'true');
+  field.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;font-size:16px;';
+  document.body.appendChild(field);
+  field.focus({ preventScroll: true });
+  field.addEventListener('blur', () => field.remove());
+  window.setTimeout(() => field.remove(), 10000);
+  stand = field;
+}
+
 /** Text with the game's shadow (a pixel right and down). */
 function shadowText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, colour: { text: string; shadow: string }, align: CanvasTextAlign = 'left') {
   ctx.textAlign = align;
@@ -97,6 +121,8 @@ export function NamingScreen({ round, onSubmit, disabled }: { round: string | nu
   const [wrong, setWrong] = useState(false);
   const [frame, setFrame] = useState(0);
   const sending = useRef(false);
+  const field = useRef<HTMLInputElement>(null);
+  const [touch] = useState(touchScreen);
   // The latest of everything, for the key listener (added once).
   const state = useRef({ name, disabled, onSubmit });
   state.current = { name, disabled, onSubmit };
@@ -114,6 +140,14 @@ export function NamingScreen({ round, onSubmit, disabled }: { round: string | nu
     setPage('upper');
     setCursor({ col: 0, row: 0 });
   }, [round]);
+
+  // On a touch screen, the hidden field focused for the system keyboard as the screen shows and for each Pokémon.
+  useEffect(() => {
+    if (!touch || disabled) return;
+    field.current?.focus({ preventScroll: true });
+    stand?.remove();
+    stand = null;
+  }, [touch, round, disabled]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setFrame((f) => f + 1), FRAME_MS);
@@ -166,10 +200,23 @@ export function NamingScreen({ round, onSubmit, disabled }: { round: string | nu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /** What the hidden field holds (the system keyboard's typing): the characters the screen takes, the cursor on the last one typed. */
+  const onField = (value: string) => {
+    if (state.current.disabled) return;
+    const next = [...value].map(typed).filter((c) => CHARS.has(c)).slice(0, MAX_CHARS).join('');
+    const key = next.length > name.length ? keyOf(next[next.length - 1]!) : null;
+    setName(next);
+    if (key) {
+      setPage(key.page);
+      setCursor({ col: key.col, row: key.row });
+    }
+  };
+
   /** A click or tap on the screen: a key types it, the buttons do what the game's do. */
   const onPointerDown = (e: PointerEvent<HTMLCanvasElement>) => {
     if (disabled) return;
     e.preventDefault();
+    if (touch) field.current?.focus({ preventScroll: true });
     const rect = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * W;
     const y = ((e.clientY - rect.top) / rect.height) * H;
@@ -235,13 +282,35 @@ export function NamingScreen({ round, onSubmit, disabled }: { round: string | nu
   }, [loaded, name, page, cursor, frame]);
 
   return (
-    <canvas
-      ref={canvas}
-      width={W * SCALE}
-      height={H * SCALE}
-      onPointerDown={onPointerDown}
-      aria-label={`The Pokémon's name: ${name || 'empty'}. Type it and press Enter.`}
-      className={`mx-auto block aspect-[3/2] w-full touch-none rounded-lg ring-1 ring-slate-600 select-none [image-rendering:pixelated] ${disabled ? 'opacity-60' : ''} ${wrong ? 'animate-[shake_0.3s]' : ''}`}
-    />
+    <div className="relative">
+      {touch && (
+        <input
+          ref={field}
+          type="text"
+          value={name}
+          onChange={(e) => onField(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            void submit();
+          }}
+          autoCapitalize="words"
+          autoCorrect="off"
+          autoComplete="off"
+          spellCheck={false}
+          enterKeyHint="send"
+          aria-label="The Pokémon's name"
+          className="absolute left-0 top-0 h-px w-px text-base opacity-0"
+        />
+      )}
+      <canvas
+        ref={canvas}
+        width={W * SCALE}
+        height={H * SCALE}
+        onPointerDown={onPointerDown}
+        aria-label={`The Pokémon's name: ${name || 'empty'}. Type it and press Enter.`}
+        className={`mx-auto block aspect-[3/2] w-full touch-none rounded-lg ring-1 ring-slate-600 select-none [image-rendering:pixelated] ${disabled ? 'opacity-60' : ''} ${wrong ? 'animate-[shake_0.3s]' : ''}`}
+      />
+    </div>
   );
 }

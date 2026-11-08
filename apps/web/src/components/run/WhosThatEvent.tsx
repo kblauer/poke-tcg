@@ -5,7 +5,7 @@ import type { RunControl, RunViewData } from '../../hooks/useRun';
 import { useToasts } from '../../hooks/useToasts';
 import { useTRPC } from '../../lib/trpc';
 import { Toasts } from '../Toasts';
-import { NamingScreen } from '../whos-that/NamingScreen';
+import { NamingScreen, primeKeyboard } from '../whos-that/NamingScreen';
 import { WhosThatScreen } from '../whos-that/WhosThatScreen';
 import { EncounterBadge } from './encounterIcons';
 
@@ -93,7 +93,11 @@ export function WhosThatEvent({ view, run }: { view: RunViewData; run: RunContro
         <>
           <p className="text-sm text-slate-300">{view.event?.text}</p>
           <div className="flex gap-2">
-            <button className={primary} disabled={run.busy || start.isPending} onClick={() => runId && run.run && start.mutate({ runId, expectedVersion: run.run.version })}>
+            <button className={primary} disabled={run.busy || start.isPending} onClick={() => {
+                if (!runId || !run.run) return;
+                primeKeyboard();
+                start.mutate({ runId, expectedVersion: run.run.version });
+              }}>
               {view.event?.accept}
             </button>
             <button className={button} disabled={run.busy || start.isPending} onClick={() => run.send({ type: 'LEAVE' })}>
