@@ -261,7 +261,7 @@ The Super Contests' screens (see [Super Contests](#super-contests)), drawn as Pl
 | File | Description |
 |---|---|
 | `WhosThatScreen.tsx` | The Who's That Pokémon? screen: the template with the silhouette in its burst, or the reveal ("It's …!") |
-| `NamingScreen.tsx` | Where the Pokémon's name is typed: Pokémon Emerald's naming screen (the user's), drawn on a canvas at the GBA's 240×160 (4×) from `public/whos-that/naming/` with the game's text (the box titled "WHO'S THAT POKéMON?", 12 spaces: the longest name is 11, the user's; the current space's underscore bobbing and the arrow swaying as the game's); the keyboard captured while it's shown (letters, digits and the game's symbols, Backspace, Enter sends), and its keys, page button (upper → lower → others), BACK and OK clickable; a wrong name shakes it |
+| `NamingScreen.tsx` | Where the Pokémon's name is typed: Pokémon Emerald's naming screen (the user's), drawn on a canvas at the GBA's 240×160 (4×) from `public/whos-that/naming/` with the game's text (the box titled "WHO'S THAT POKéMON?", 12 spaces: the longest name is 11, the user's; the current space's underscore bobbing and the arrow swaying as the game's); the keyboard captured while it's shown (letters, digits and the game's symbols, Backspace, Enter sends), and its keys, page button (upper → lower → others), BACK and OK clickable; a wrong name shakes it; on a touch screen a hidden text field brings up the system keyboard as the game starts (`primeKeyboard`, called in the Start tap, as iOS opens it only then; the user's) |
 
 ### `src/components/tower/`
 
