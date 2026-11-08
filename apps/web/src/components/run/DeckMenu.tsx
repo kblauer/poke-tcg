@@ -28,13 +28,18 @@ export function DeckMenu({
   selected,
   onPick,
   compact,
+  up = false,
 }: {
   decks: MenuDeck[];
   selected: string | null;
   onPick: (id: string | null) => void;
   /** A phone: the list opens in place, below the deck picked. */
   compact: boolean;
+  /** The list always floats above the menu, and the tiles are see-through, 75% (whole under the pointer; the user's): the run map's corner, over the map. */
+  up?: boolean;
 }) {
+  // Over the run map, the tiles let it show through.
+  const tileBg = up ? 'bg-slate-900/75 hover:bg-slate-900' : 'bg-slate-900';
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -48,7 +53,7 @@ export function DeckMenu({
   const [below, setBelow] = useState(false);
   const toggle = () => {
     const box = ref.current?.getBoundingClientRect();
-    if (box) setBelow(window.innerHeight - box.bottom >= LIST_HEIGHT + 16 || window.innerHeight - box.bottom >= box.top);
+    if (box) setBelow(!up && (window.innerHeight - box.bottom >= LIST_HEIGHT + 16 || window.innerHeight - box.bottom >= box.top));
     setOpen(!open);
   };
   const picked = decks.find((d) => d.id === selected) ?? decks[0]!;
@@ -69,9 +74,9 @@ export function DeckMenu({
     />
   );
   return (
-    <div ref={ref} className={compact ? 'space-y-2' : 'relative'}>
+    <div ref={ref} className={compact && !up ? 'space-y-2' : 'relative'}>
       <button
-        className="flex w-full items-center gap-2 rounded-lg bg-slate-900 p-2 text-left text-sm ring-1 ring-yellow-300"
+        className={`flex w-full items-center gap-2 rounded-lg ${tileBg} p-2 text-left text-sm ring-1 ring-yellow-300 transition`}
         onClick={toggle}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -85,11 +90,11 @@ export function DeckMenu({
           role="listbox"
           aria-label="Decks"
           className={
-            compact
+            compact && !up
               ? 'space-y-2'
-              : `absolute inset-x-0 z-30 space-y-2 overflow-y-auto rounded-lg bg-slate-800 p-2 shadow-xl shadow-black/60 ring-1 ring-slate-600 ${below ? 'top-full mt-2' : 'bottom-full mb-2'}`
+              : `absolute inset-x-0 z-30 space-y-2 overflow-y-auto rounded-lg ${up ? '' : 'bg-slate-800 p-2 shadow-xl shadow-black/60 ring-1 ring-slate-600'} ${below ? 'top-full mt-2' : 'bottom-full mb-2'}`
           }
-          style={compact ? undefined : { maxHeight: LIST_HEIGHT }}
+          style={compact && !up ? undefined : { maxHeight: LIST_HEIGHT }}
         >
           {/* The other decks: the one picked is the menu's button. */}
           {decks
@@ -104,7 +109,7 @@ export function DeckMenu({
                     onPick(d.id);
                     setOpen(false);
                   }}
-                  className={`w-full space-y-1 rounded-lg bg-slate-900 p-2 text-left text-sm ring-1 transition hover:bg-slate-700 active:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-slate-900 ring-slate-700`}
+                  className={`w-full space-y-1 rounded-lg p-2 text-left text-sm ring-1 transition disabled:cursor-not-allowed disabled:opacity-60 ring-slate-700 ${up ? 'bg-slate-900/75 hover:bg-slate-900 disabled:hover:bg-slate-900/75' : 'bg-slate-900 hover:bg-slate-700 active:bg-slate-800 disabled:hover:bg-slate-900'}`}
                 >
                   {tile(d)}
                 </button>

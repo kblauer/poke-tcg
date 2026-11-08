@@ -3,12 +3,12 @@ import { useEffect, useRef, useState } from 'react';
 import { PanelTabs } from '../components/LogDrawer';
 import { PageHeader } from '../components/PageHeader';
 import { PreviewProvider } from '../components/PreviewProvider';
-import { RunDeckPanel } from '../components/run/RunDeckPanel';
+import { MapBag, RunDeckPanel } from '../components/run/RunDeckPanel';
 import { EncounterPanel } from '../components/run/EncounterPanel';
 import { NewRunPicker } from '../components/run/NewRunPicker';
 import { RunHeader } from '../components/run/RunHeader';
 import { ConcedeRun } from '../components/run/ConcedeRun';
-import { MapOption, RouteChoice } from '../components/run/RouteChoice';
+import { MapDeck, MapOption, RouteChoice } from '../components/run/RouteChoice';
 import { RunMap } from '../components/run/RunMap';
 import { RouteView } from '../components/run/RouteView';
 import { RunOver } from '../components/run/RunOver';
@@ -18,6 +18,7 @@ import { useRun } from '../hooks/useRun';
 import { ReturnToPlay } from '../components/ReturnToPlay';
 import { useRunMusic } from '../hooks/useRunMusic';
 import { useWindowFill } from '../hooks/useWindowFill';
+import { useMapEncounters } from '../hooks/useMapEncounters';
 import { PAGE_WIDTH } from '../utils/layout';
 
 /**
@@ -57,6 +58,8 @@ export function HomePage() {
   // The deck picked for the step's encounter (null: the run's), shared by the panel's choice and the map's encounter cards;
   // picked again at each step.
   const [deckId, setDeckId] = useState<string | null>(null);
+  // Encounters on the route map (Settings; off: the panels under it).
+  const [mapEncounters] = useMapEncounters();
   const position = overview.data?.run?.view.position;
   useEffect(() => setDeckId(null), [position]);
   // A failed refetch keeps the run screen (and the map's walk) up with what it has.
@@ -78,9 +81,13 @@ export function HomePage() {
   const tabs = inline && phone && <PanelTabs {...sidePanel} collapsible />;
   // The encounter under way: on a route map, drawn over the map's bottom (RouteView's `overlay`, the user's experiment);
   // below it otherwise.
-  const overMap = !!routes && view?.phase === 'encounter' && !!view.encounter;
+  const overMap = mapEncounters && !!routes && view?.phase === 'encounter' && !!view.encounter;
   const encounter = view && <EncounterPanel view={view} run={run} />;
   const below = overMap ? null : encounter;
+  // On a route map, everything else is on the map too (the user's experiment): Concede in its top left, the Bag in its
+  // bottom left and the deck in its bottom right while choosing; below it only a phone's side panel tabs.
+  const choosing = view?.phase === 'map';
+  const corners = view && choosing ? { topLeft: <ConcedeRun view={view} run={run} />, bottomLeft: <MapBag view={view} run={run} />, bottomRight: <MapDeck view={view} deckId={deckId} onDeck={setDeckId} /> } : undefined;
   // The next encounter (or the one under way), the cards unlocked this run, and Concede below them, out of the way.
   const panels = view && (
     <div className="min-w-0 space-y-6">
@@ -129,8 +136,15 @@ export function HomePage() {
                 <RunOver current={current} overview={overview.data} run={run} />
               ) : routes ? (
                 <>
-                  <RouteView routes={routes} gym={runType(view.type).gym} view={view} spotted={run.spotted} gender={overview.data.playerGender} optionCard={(index) => <MapOption view={view} run={run} index={index} deckId={deckId} />} overlay={overMap ? encounter : undefined} />
-                  {panels}
+                  <RouteView
+                    routes={routes}
+                    gym={runType(view.type).gym}
+                    view={view}
+                    spotted={run.spotted}
+                    gender={overview.data.playerGender}
+                    {...(mapEncounters && { optionCard: (index: number) => <MapOption view={view} run={run} index={index} deckId={deckId} />, overlay: overMap ? encounter : undefined, corners })}
+                  />
+                  {mapEncounters ? tabs : panels}
                 </>
               ) : (
                 <div className="grid items-start gap-6 lg:grid-cols-[23rem_1fr]">
