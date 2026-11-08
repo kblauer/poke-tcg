@@ -30,7 +30,8 @@ export const MAT_SETS: Record<string, MatSet> = {
 export const isPlace = (set: MatSet) => set.startsWith('places/');
 
 /** The types each set has a scene for so far (issue #175: every type, each set in turn); a place has its one scene. */
-const SET_TYPES: Record<'frlg' | 'dp', readonly MatType[]> = { frlg: MAT_TYPES, dp: ['grass', 'fire', 'water'] };
+/** (FireRed & LeafGreen's Dragon, the Sky Pillar, taken out of its set, the user's, 2026-11-08: its sheet and generator kept, tools/mats/frlg_dragon.py.) */
+const SET_TYPES: Record<'frlg' | 'dp', readonly MatType[]> = { frlg: MAT_TYPES.filter((t) => t !== 'dragon'), dp: ['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal', 'colorless'] };
 
 /** The types `set` shows a scene for, in order (a place: every type, its one scene). */
 export const setTypes = (set: MatSet): readonly MatType[] => (isPlace(set) ? MAT_TYPES : SET_TYPES[set as 'frlg' | 'dp']);

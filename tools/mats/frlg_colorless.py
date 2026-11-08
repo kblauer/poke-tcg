@@ -58,7 +58,10 @@ def hall():
     src[4, 11], src[5, 11] = PARTITION[1], PARTITION[2]
     plain = [WALL[0], WALL[1], WALL[2], 641, 649, FLOOR]
     left_board = [BOARD[0][0], BOARD[1][0], BOARD[2][0], 641, 649, FLOOR]
-    cols = [src[:, 1], src[:, 2], src[:, 3], plain, plain, left_board, src[:, 5], src[:, 6], src[:, 7], src[:, 8],
+    # The 3F's stairs up (its columns 1-3, rows 0-3) left out: here they climbed into the back wall (the user's,
+    # 2026-11-08); plain wall and carpet there, the partition under them kept. The stairwell down on the right stays.
+    no_stairs = [np.concatenate([plain[:4], src[4:, c]]) for c in (1, 2, 3)]
+    cols = [*no_stairs, plain, plain, left_board, src[:, 5], src[:, 6], src[:, 7], src[:, 8],
             plain, plain, plain, src[:, 9], src[:, 10], src[:, 11]]
     return np.stack(cols, axis=1)
 
