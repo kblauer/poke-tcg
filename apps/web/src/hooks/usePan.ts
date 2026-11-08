@@ -1,9 +1,9 @@
-import type { Route, RouteSpot } from '@poke-tcg/campaign';
+import type { Route } from '@poke-tcg/campaign';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { onDevicePixel } from '../components/idle/GameScreen';
 import type { Glide } from './useWalk';
 
-/** How much the route's pixel map is enlarged in the view (2×: 16px tiles show 32px). */
+/** How much the route's pixel map is enlarged in the view (2×: 16px tiles show 32px); a view can zoom in further (`zoom`). */
 export const ZOOM = 2;
 
 /** localStorage key for the view's height, which its bottom edge can be dragged to change; and its default and least, in px. */
@@ -35,12 +35,15 @@ function saveHeight(height: number) {
  * drawn at, kept inside the map (`centreOn`, `centreOnMap` for a map it's about to switch to), and the `glide` it moves
  * with when it moves on its own. Dragging and the mouse wheel pan it (up and down; sideways with a trackpad or Shift),
  * unless `panLocked` (a phone's lock button): then they scroll the page. While dragging, the map (`mapEl`, the element
- * drawn at `offset`) is moved directly, and `offset` catches up when the drag ends: no render per pointer move.
+ * drawn at `offset`) is moved directly, and `offset` catches up when the drag ends: no render per pointer move. `zoom`
+ * (ZOOM unless given: the run map zooms in on a step's encounters) is the scale every offset is worked out at. With
+ * `pastEdges` (the run map, the user's) the view goes past the map's edges, black beyond them, so the player can always be
+ * centred (clampView).
  */
-export function usePan({ box, mapEl, map, mapHeight, panLocked }: { box: RefObject<HTMLDivElement | null>; mapEl: RefObject<HTMLDivElement | null>; map: Route; mapHeight: number; panLocked: boolean }) {
+export function usePan({ box, mapEl, map, mapHeight, panLocked, zoom = ZOOM, pastEdges = false }: { box: RefObject<HTMLDivElement | null>; mapEl: RefObject<HTMLDivElement | null>; map: Route; mapHeight: number; panLocked: boolean; zoom?: number; pastEdges?: boolean }) {
   const [height, setHeight] = useState(loadHeight);
   const resize = useRef<{ y: number; height: number } | null>(null);
-  const maxHeight = () => Math.max(MIN_HEIGHT, Math.min(mapHeight * ZOOM, Math.round(window.innerHeight * 0.85)));
+  const maxHeight = () => Math.max(MIN_HEIGHT, Math.min(mapHeight * zoom, Math.round(window.innerHeight * 0.85)));
   const onResizeDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId);
     resize.current = { y: e.clientY, height };
@@ -80,21 +83,13 @@ export function usePan({ box, mapEl, map, mapHeight, panLocked }: { box: RefObje
   }, []);
 
   /** An offset kept inside a map, or the part of it shown (its `view`), centred along any side where it's smaller than the view. */
-  const clampOn = useCallback(
-    (on: Route, o: { x: number; y: number }) => {
-      const fit = (v: number, inView: number, start: number, size: number) => (size <= inView ? (inView - size) / 2 - start : Math.min(-start, Math.max(inView - size - start, v)));
-      const { w, h } = sizeRef.current;
-      const b = on.view ? { x: on.view.x * 16, y: on.view.y * 16, w: on.view.width * 16, h: on.view.height * 16 } : { x: 0, y: 0, w: on.width, h: on.height };
-      return { x: fit(o.x, w, b.x * ZOOM, b.w * ZOOM), y: fit(o.y, h, b.y * ZOOM, b.h * ZOOM) };
-    },
-    [size],
-  );
+  const clampOn = useCallback((on: Route, o: { x: number; y: number }) => clampView(on, o, sizeRef.current, zoom, pastEdges), [size, zoom, pastEdges]);
   const clamp = useCallback((o: { x: number; y: number }) => clampOn(map, o), [clampOn, map]);
   const centreOnMap = useCallback(
-    (on: Route, t: RouteSpot) => clampOn(on, { x: sizeRef.current.w / 2 - (t.x * 16 + 8) * ZOOM, y: sizeRef.current.h / 2 - (t.y * 16 + 8) * ZOOM }),
-    [clampOn],
+    (on: Route, t: { x: number; y: number }) => clampOn(on, { x: sizeRef.current.w / 2 - (t.x * 16 + 8) * zoom, y: sizeRef.current.h / 2 - (t.y * 16 + 8) * zoom }),
+    [clampOn, zoom],
   );
-  const centreOn = useCallback((t: RouteSpot) => centreOnMap(map, t), [centreOnMap, map]);
+  const centreOn = useCallback((t: { x: number; y: number }) => centreOnMap(map, t), [centreOnMap, map]);
 
   // The wheel pans the map (a native listener, so it can stop the page scrolling): up and down, and sideways with a
   // trackpad's sideways scroll or Shift.
@@ -102,8 +97,8 @@ export function usePan({ box, mapEl, map, mapHeight, panLocked }: { box: RefObje
     const el = box.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
-      // Locked, the wheel scrolls the page.
-      if (panLocked) return;
+      // Locked, the wheel scrolls the page; over something drawn on the view (`data-no-pan`: the encounter's panel), it scrolls that.
+      if (panLocked || (e.target as HTMLElement).closest('[data-no-pan]')) return;
       e.preventDefault();
       // Lines (some mice) are about 16px each.
       const unit = e.deltaMode === 1 ? 16 : 1;
@@ -117,7 +112,7 @@ export function usePan({ box, mapEl, map, mapHeight, panLocked }: { box: RefObje
   }, [panLocked, clamp]);
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (panLocked || (e.target as HTMLElement).closest('button')) return;
+    if (panLocked || (e.target as HTMLElement).closest('button, [data-no-pan]')) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     drag.current = { x: e.clientX, y: e.clientY, ox: offset.x, oy: offset.y };
     setGlide(null);
@@ -140,6 +135,19 @@ export function usePan({ box, mapEl, map, mapHeight, panLocked }: { box: RefObje
   usePanTo(mapEl, offset, glide, String(size.w > 0));
 
   return { height, onResizeDown, onResizeMove, onResizeUp, resetHeight, size, offset, setOffset, glide, setGlide, centreOn, centreOnMap, onPointerDown, onPointerMove, endDrag };
+}
+
+/**
+ * An offset (`o`, where a map is drawn in a view of `view`'s size at `zoom`) kept inside the map, or the part of it shown
+ * (its `view`), centred along any side where it's smaller than the view (usePan's; a zoom's frames too, RouteView). With
+ * `pastEdges`, it only keeps the map in view: its far edge no further in than the view's near one, so any point of it can
+ * be centred, the view black beyond its edges.
+ */
+export function clampView(on: Route, o: { x: number; y: number }, view: { w: number; h: number }, zoom: number, pastEdges = false) {
+  const fit = (v: number, inView: number, start: number, size: number) =>
+    pastEdges ? Math.min(inView - start, Math.max(-start - size, v)) : size <= inView ? (inView - size) / 2 - start : Math.min(-start, Math.max(inView - size - start, v));
+  const b = on.view ? { x: on.view.x * 16, y: on.view.y * 16, w: on.view.width * 16, h: on.view.height * 16 } : { x: 0, y: 0, w: on.width, h: on.height };
+  return { x: fit(o.x, view.w, b.x * zoom, b.w * zoom), y: fit(o.y, view.h, b.y * zoom, b.h * zoom) };
 }
 
 /** The map's CSS transform: drawn at ZOOM (usePanTo places it). */
