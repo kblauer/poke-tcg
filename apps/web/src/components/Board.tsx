@@ -403,7 +403,7 @@ export function Board({
               (opensMoves
                 ? () => {
                     // Open (by itself or clicked): closed until the game moves on; closed: open.
-                    const open = menuShown === 'active';
+                    const open = panelShown('active');
                     setCardMenu(open ? null : 'active');
                     closeMenu('active', open);
                   }
@@ -476,13 +476,17 @@ export function Board({
   const autoActive = autoMoves && !!self.active && !closedMenus.has('active');
   /** A benched Pokémon's power panel open by itself: the power can be used now (autoMoves), and it wasn't clicked closed. */
   const autoBench = (target: Target) => autoMoves && typeof target === 'number' && !closedMenus.has(target) && power.powers.some((p) => p.source === target && p.error === null);
-  /** Whether a Pokémon's panel shows: the one open (menuShown), or a benched one's by itself (autoBench), any number of them. */
-  const panelShown = (target: Target) => menuShown === target || autoBench(target);
   /**
-   * The open card panel: as cardMenu (or the Active's, by itself: autoActive), but while an attack or power asks something
-   * it's that one's, and hidden while one of your Pokémon is to be clicked.
+   * Whether a Pokémon's panel shows: each on its own (the user's: a benched Pokémon's clicked open no longer hides the
+   * Active's), the Active's by itself (autoActive) or clicked open, a benched one's by itself (autoBench) or clicked open
+   * (cardMenu); while an attack or power asks something only that one's, and none while one of your Pokémon is to be clicked.
    */
-  const menuShown: Target | null = pokemonPick?.side === 'own' ? null : attack.spec ? 'active' : power.spec ? power.usingSource : (cardMenu ?? (autoActive ? 'active' : null));
+  const panelShown = (target: Target) => {
+    if (pokemonPick?.side === 'own') return false;
+    if (attack.spec) return target === 'active';
+    if (power.spec) return target === power.usingSource;
+    return target === 'active' ? cardMenu === 'active' || autoActive : cardMenu === target || autoBench(target);
+  };
   /** An attack's or power's question answered by clicking one of your Pokémon: its card panel is hidden, so it's a prompt. */
   const moveSpec = pokemonPick?.side === 'own' ? (attack.spec ?? power.spec) : null;
   const movePrompt = prompt ?? (moveSpec ? `${moveSpec.prompt}: ${phone ? 'tap' : 'click'} one of your highlighted Pokémon` : null);
@@ -493,12 +497,10 @@ export function Board({
    */
   const cardPanel = (target: Target) => {
     const benched = typeof target === 'number' ? power.powers.find((p) => p.source === target) : undefined;
-    // On a phone the panel is wider than a benched card: at either end of the Bench it lines up with the card's outer edge, so it stays on the screen.
-    const across = phone && target === 0 ? 'left-0' : phone && typeof target === 'number' && target === self.bench.length - 1 ? 'right-0' : 'left-1/2 -translate-x-1/2';
     return (
       // No window behind the moves (the user's, 2026-11-08): each button stands on the card by itself (MOVE_BUTTON), centred
-      // a little below the card's middle (the user's).
-      <div data-keep-action className={`absolute ${across} top-[60%] z-40 flex w-max min-w-36 max-w-60 -translate-y-1/2 flex-col gap-1 text-xs`}>
+      // a little below the card's middle, a little narrower than the card, inside its edges (the user's: a long name wraps).
+      <div data-keep-action className="absolute inset-x-[8%] top-[60%] z-40 flex -translate-y-1/2 flex-col gap-1 text-xs">
         {target === 'active' ? (
           <>
             {attackPanels}
@@ -522,7 +524,7 @@ export function Board({
                   power.start(target);
                 }}
               >
-                Use {benched.name}
+                {benched.name}
               </button>
               {benched.error && <p className={MOVE_NOTE}>{benched.error}</p>}
             </>
@@ -654,7 +656,7 @@ export function Board({
             send({ type: 'USE_CARD_POWER', cardUid: card.uid });
           }}
         >
-          Use {ability.name}
+          {ability.name}
         </button>
         {ability.error && <p className={MOVE_NOTE}>{ability.error}</p>}
       </div>

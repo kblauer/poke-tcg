@@ -74,7 +74,7 @@ export function DiscardPane({
                       abilities!.use(c);
                     }}
                   >
-                    Use {ability.name}
+                    {ability.name}
                   </button>
                   {ability.error && <p className="max-w-[8.5rem] text-center text-[11px] text-amber-300">{ability.error}</p>}
                 </div>
