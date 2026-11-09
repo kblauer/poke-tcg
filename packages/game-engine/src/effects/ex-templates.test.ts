@@ -133,6 +133,15 @@ describe('EX shared wordings', () => {
     expect(after.pendingChoice).toMatchObject({ kind: 'pickFromDeck', filter: 'basic', toBench: true });
   });
 
+  it("Call for Family with a full Bench asks nothing (the CPU picked a card anyway, was refused and conceded: Minun's)", () => {
+    const s = duel('charmander', 'onix', { bench: ['charmander', 'charmander', 'charmander', 'charmander', 'charmander'] });
+    put(s, 'ash', 'active', mon('hgss2-34', 'Minun', 'lightning', 60, [['Call for Family', [C], 0]]), ['fire']);
+    ash(s).deck.push({ uid: 'sq', defId: id('squirtle') });
+    const after = attack(s, 0);
+    expect(after.pendingChoice).toBeUndefined();
+    expect(after.winner).toBeNull();
+  });
+
   it('Fighting Pokémon: the templates read the type from the wording (Super Slash, Zangoose: 30 more against an Evolved Pokémon)', () => {
     const s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('ex2-14', 'Zangoose', C, 80, [['Super Slash', [C, C], 30]]), ['fire', 'fire']);
