@@ -499,8 +499,8 @@ export function Board({
     const benched = typeof target === 'number' ? power.powers.find((p) => p.source === target) : undefined;
     return (
       // No window behind the moves (the user's, 2026-11-08): each button stands on the card by itself (MOVE_BUTTON), centred
-      // a little below the card's middle, never wider than the card (the user's: a long name wraps).
-      <div data-keep-action className="absolute inset-x-1 top-[60%] z-40 flex -translate-y-1/2 flex-col gap-1 text-xs">
+      // a little below the card's middle, a little narrower than the card, inside its edges (the user's: a long name wraps).
+      <div data-keep-action className="absolute inset-x-[8%] top-[60%] z-40 flex -translate-y-1/2 flex-col gap-1 text-xs">
         {target === 'active' ? (
           <>
             {attackPanels}
@@ -524,7 +524,7 @@ export function Board({
                   power.start(target);
                 }}
               >
-                Use {benched.name}
+                {benched.name}
               </button>
               {benched.error && <p className={MOVE_NOTE}>{benched.error}</p>}
             </>
@@ -656,7 +656,7 @@ export function Board({
             send({ type: 'USE_CARD_POWER', cardUid: card.uid });
           }}
         >
-          Use {ability.name}
+          {ability.name}
         </button>
         {ability.error && <p className={MOVE_NOTE}>{ability.error}</p>}
       </div>
