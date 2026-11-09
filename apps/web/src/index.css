@@ -256,16 +256,21 @@ html[data-font="emerald"] {
 /*
  * The phone board (components/phone/PhoneTable.tsx) stacks both sides in one column, TCG Pocket style: per side a
  * bench row and an active row, plus the bar between them. Its width fits five benched Pokémon; its height two
- * benches (1.4 card widths tall each) and two actives, both the same size (agreed), at least 1.36× as big, plus 2.25rem
+ * benches (1.4 card widths tall each) and two actives, both the same size, half as big again as --card-lg (at least
+ * 1.36× a benched card: --card-lg-own, the user's, 2026-11-09, room for their buttons), plus 2.25rem
  * of gaps, the strip at the top for the CPU's hand (half a card width and a 0.75rem gap), 1.25rem above the hand and
  * 0.5rem more above your Bench, and the bar between the sides: 3.5rem, or the Stadium's height (1.126 card widths) when
  * that's more. It's kept free even with no Stadium in play, so playing one never pushes your Bench under the hand. Tall
  * phones (19.5:9, 2340×1080) have height to spare, so the actives grow into what the benches and bars leave, up to 1.68×.
- * --card-pile is the Prize, deck and discard stacks beside the actives.
+ * --card-pile is the Prize, deck and discard stacks beside the actives. (Heights: the benches 3.294 card widths with
+ * their gaps; the actives 1.397 × 1.5 × 2 = 4.191 × --card-lg; at the least, --card-lg 1.36 × --card-sm, 8.994 of
+ * them, and 10.12 with a Stadium's bar.)
  */
 .phone-cards {
-  --card-sm: max(2.5rem, min(calc((100cqw - 2.5rem) / 5.4), calc((100cqh - 8.25rem) / 7.09), calc((100cqh - 4.75rem) / 8.22)));
-  --card-lg: max(calc(var(--card-sm) * 1.36), min(calc(var(--card-sm) * 1.68), calc((100cqh - 4.75rem - max(3.5rem, 1.126 * var(--card-sm)) - 3.294 * var(--card-sm)) / 2.794)));
+  --card-sm: max(2.5rem, min(calc((100cqw - 2.5rem) / 5.4), calc((100cqh - 8.25rem) / 8.994), calc((100cqh - 4.75rem) / 10.12)));
+  --card-lg: max(calc(var(--card-sm) * 1.36), min(calc(var(--card-sm) * 1.68), calc((100cqh - 4.75rem - max(3.5rem, 1.126 * var(--card-sm)) - 3.294 * var(--card-sm)) / 4.191)));
+  /* Both Active Pokémon: half as big again (PhoneTable sets it as --card-lg around each). */
+  --card-lg-own: calc(var(--card-lg) * 1.5);
   --card-pile: calc(var(--card-sm) * 0.62);
   /* The CPU's hand's cards, in the strip above its Bench (PhoneOppHand). */
   --card-opp-hand: calc(var(--card-sm) * 0.8);

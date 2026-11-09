@@ -26,10 +26,15 @@ export function RetreatPanel({
       <button
         disabled={blocked !== null || pending !== null}
         title={blocked ?? `Discard ${costText} to switch with a benched Pokémon`}
+        aria-label={`Retreat (${costText})`}
         onClick={retreat.start}
         className={`${MOVE_BUTTON} ${pending?.type === 'RETREAT' ? 'animate-pulse ring-2 ring-yellow-300' : ''}`}
       >
-        Retreat ({costText})
+        {/* Its cost as the card prints it, a Colorless Energy symbol each (the user's: shorter, so a card's buttons fit on it). */}
+        <span className="flex flex-wrap items-center gap-0.5">
+          Retreat:{' '}
+          {cost === 0 ? 'free' : Array.from({ length: cost }, (_, i) => <EnergyIcon key={i} type="colorless" size="xs" />)}
+        </span>
       </button>
     );
   }

@@ -34,8 +34,8 @@ const RAINBOW = 'bg-[conic-gradient(#ef4444,#f59e0b,#22c55e,#3b82f6,#a855f7,#ef4
 /** Colorless and Metal are light, so their symbol is dark. */
 const DARK_SYMBOL: Partial<Record<EnergyType, boolean>> = { colorless: true, metal: true };
 
-/** Sizes in px: on a small (benched) card, a large (active) card, and in panels. */
-const SIZES = { sm: 18, lg: 22, panel: 22 } as const;
+/** Sizes in px: in a line of small text (the Retreat button's cost), on a small (benched) card, a large (active) card, and in panels. */
+const SIZES = { xs: 13, sm: 18, lg: 22, panel: 22 } as const;
 
 /**
  * One energy: a coloured disc with its type's symbol. `count` marks a card that provides more than one
