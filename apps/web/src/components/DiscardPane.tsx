@@ -3,7 +3,7 @@ import { lookupCard, type CardInstance, type CardLibrary } from '@poke-tcg/game-
 import { useContext, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useEscape } from '../hooks/useEscape';
-import { DIALOG, DIALOG_BACKDROP } from '../utils/styles';
+import { DIALOG, DIALOG_BACKDROP, MOVE_BUTTON } from '../utils/styles';
 import { Card } from './Card';
 import { PreviewContext } from './PreviewContext';
 
@@ -67,7 +67,7 @@ export function DiscardPane({
                 <div key={c.uid} className="flex flex-col items-center gap-1">
                   <Card def={lookupCard(cards, c.defId)} highRes />
                   <button
-                    className="w-full rounded bg-violet-700 px-2 py-1 text-xs transition hover:bg-violet-600 active:scale-95 disabled:opacity-40 disabled:hover:bg-violet-700"
+                    className={`${MOVE_BUTTON} w-full text-center`}
                     disabled={ability.error !== null}
                     onClick={() => {
                       onClose();

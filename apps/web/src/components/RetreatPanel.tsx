@@ -1,6 +1,7 @@
 import { energyProvided, lookupCard, type CardLibrary, type GameAction, type InPlayPokemon } from '@poke-tcg/game-engine';
 import type { Retreat } from '../hooks/useRetreat';
 import { EnergyIcon } from './EnergyIcon';
+import { MOVE_BUTTON } from '../utils/styles';
 
 /**
  * Retreat button under the attacks. While retreating it asks which energy to discard (when
@@ -26,9 +27,7 @@ export function RetreatPanel({
         disabled={blocked !== null || pending !== null}
         title={blocked ?? `Discard ${costText} to switch with a benched Pokémon`}
         onClick={retreat.start}
-        className={`rounded bg-slate-700 px-2 py-1 text-left text-xs transition hover:bg-slate-600 active:scale-95 disabled:opacity-40 disabled:hover:bg-slate-700 ${
-          pending?.type === 'RETREAT' ? 'animate-pulse ring-2 ring-yellow-300' : ''
-        }`}
+        className={`${MOVE_BUTTON} ${pending?.type === 'RETREAT' ? 'animate-pulse ring-2 ring-yellow-300' : ''}`}
       >
         Retreat ({costText})
       </button>
