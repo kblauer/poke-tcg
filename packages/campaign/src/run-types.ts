@@ -56,14 +56,15 @@ export interface RunType {
  */
 const gymRun = (id: BossId, city: string, generation: number, place: string, maps: { routes: Route[]; gym?: Route; along?: string }) => {
   const b = boss(id);
-  const leader = `${b.title} ${b.name} with the ${b.deckName} deck`;
   const encounters = maps.routes.reduce((n, r) => n + r.spots.length, 0);
-  // Where the encounters are: the maps' names, or `along` for several of one place (the Pokémon Tower's floors).
-  const along = maps.along ?? maps.routes.map((r) => r.name).join(' and ');
+  // Where the encounters are: the maps' names (a map's two areas once: "Route 42 (upper)"), or `along` for several of one
+  // place (the Pokémon Tower's floors).
+  const along = maps.along ?? [...new Set(maps.routes.map((r) => r.name.replace(/ \(.*\)$/, '')))].join(', ');
   return {
     id: city.toLowerCase(),
     name: `${city} ${place}`,
-    description: `Along ${along}: ${encounters} encounters, then ${maps.gym?.name ?? 'the gym'}: a Gym Trainer, and ${leader}.`,
+    // Pared down and the same for every gym (the user's): the maps, the gym, the leader's deck.
+    description: `${along}, ${maps.gym?.name ?? `${city} Gym`}. ${b.name}'s "${b.deckName}" Deck.`,
     segments: [{ steps: encounters, bosses: [id] }],
     generation,
     routes: maps.routes,
@@ -99,7 +100,7 @@ export const RUN_TYPES = {
   vermilion: gymRun('surge', 'Vermilion', 1, 'City', { routes: [ROUTE_5, ROUTE_6], gym: VERMILION_GYM }),
   celadon: gymRun('erika', 'Celadon', 1, 'City', { routes: [ROUTE_8], gym: CELADON_GYM }),
   // Saffron before Fuchsia (agreed with the user): Pokémon Tower 1F to 5F, 2 encounters a floor, then the gym.
-  saffron: gymRun('sabrina', 'Saffron', 1, 'City', { routes: [POKEMON_TOWER_1F, POKEMON_TOWER_2F, POKEMON_TOWER_3F, POKEMON_TOWER_4F, POKEMON_TOWER_5F], gym: SAFFRON_GYM, along: 'the Pokémon Tower, 1F to 5F' }),
+  saffron: gymRun('sabrina', 'Saffron', 1, 'City', { routes: [POKEMON_TOWER_1F, POKEMON_TOWER_2F, POKEMON_TOWER_3F, POKEMON_TOWER_4F, POKEMON_TOWER_5F], gym: SAFFRON_GYM, along: 'Pokémon Tower' }),
   // The Cycling Road on a bike, most trainers Bikers (agreed with the user).
   fuchsia: gymRun('koga', 'Fuchsia', 1, 'City', { routes: [ROUTE_17], gym: FUCHSIA_GYM }),
   // Surfing Route 20, Swimmers in the water and one trainer on land by the Seafoam Islands (agreed with the user).
@@ -109,7 +110,7 @@ export const RUN_TYPES = {
   kantoGyms: bossRun({
     id: 'kantoGyms',
     name: 'Kanto Gym Challenge',
-    description: 'All eight Kanto gym leaders back to back, Brock to Giovanni, with a Pokémon Center after the fourth.',
+    description: 'All 8 gym leaders in a row!',
     segments: gymChallenge(KANTO_GYMS),
     generation: 1,
     requires: 'badges',
@@ -117,7 +118,7 @@ export const RUN_TYPES = {
   kantoChampion: bossRun({
     id: 'kantoChampion',
     name: 'Kanto Champion',
-    description: 'All eight Kanto gym leaders, the Elite Four and Champion Blue, back to back.',
+    description: 'All 8 gym leaders, the Elite Four, and the Champion!',
     segments: [{ steps: 0, bosses: [...KANTO_GYMS, ...ELITE_FOUR, 'blue'], gymTrainers: false }],
     generation: 1,
     requires: 'gymChallenge',
@@ -135,7 +136,7 @@ export const RUN_TYPES = {
   johtoGyms: bossRun({
     id: 'johtoGyms',
     name: 'Johto Gym Challenge',
-    description: 'All eight Johto gym leaders back to back, Falkner to Clair, with a Pokémon Center after the fourth.',
+    description: 'All 8 gym leaders in a row!',
     segments: gymChallenge(JOHTO_GYMS),
     generation: 2,
     requires: 'badges',
@@ -143,7 +144,7 @@ export const RUN_TYPES = {
   johtoChampion: bossRun({
     id: 'johtoChampion',
     name: 'Johto Champion',
-    description: 'All eight Johto gym leaders, the Elite Four and Champion Lance, back to back.',
+    description: 'All 8 gym leaders, the Elite Four, and the Champion!',
     segments: [{ steps: 0, bosses: [...JOHTO_GYMS, ...JOHTO_ELITE_FOUR, 'johto-lance'], gymTrainers: false }],
     generation: 2,
     requires: 'gymChallenge',
@@ -161,7 +162,7 @@ export const RUN_TYPES = {
   hoennGyms: bossRun({
     id: 'hoennGyms',
     name: 'Hoenn Gym Challenge',
-    description: 'All eight Hoenn gym leaders back to back, Roxanne to Juan, with a Pokémon Center after the fourth.',
+    description: 'All 8 gym leaders in a row!',
     segments: gymChallenge(HOENN_GYMS),
     generation: 3,
     requires: 'badges',
@@ -169,7 +170,7 @@ export const RUN_TYPES = {
   hoennChampion: bossRun({
     id: 'hoennChampion',
     name: 'Hoenn Champion',
-    description: 'All eight Hoenn gym leaders, the Elite Four and Champion Wallace, back to back.',
+    description: 'All 8 gym leaders, the Elite Four, and the Champion!',
     segments: [{ steps: 0, bosses: [...HOENN_GYMS, ...HOENN_ELITE_FOUR, 'wallace'], gymTrainers: false }],
     generation: 3,
     requires: 'gymChallenge',
@@ -181,13 +182,13 @@ export const RUN_TYPES = {
   veilstone: gymRun('maylene', 'Veilstone', 4, 'City', { routes: [ROUTE_215], gym: VEILSTONE_GYM }),
   pastoria: gymRun('crasher-wake', 'Pastoria', 4, 'City', { routes: [VALOR_LAKEFRONT, ROUTE_213], gym: PASTORIA_GYM }),
   hearthome: gymRun('fantina', 'Hearthome', 4, 'City', { routes: [ROUTE_212], gym: HEARTHOME_GYM }),
-  canalave: gymRun('byron', 'Canalave', 4, 'City', { routes: [IRON_ISLAND_B1F, IRON_ISLAND_B2F, IRON_ISLAND_B3F], gym: CANALAVE_GYM, along: 'Iron Island, B1F to B3F' }),
+  canalave: gymRun('byron', 'Canalave', 4, 'City', { routes: [IRON_ISLAND_B1F, IRON_ISLAND_B2F, IRON_ISLAND_B3F], gym: CANALAVE_GYM, along: 'Iron Island' }),
   snowpoint: gymRun('candice', 'Snowpoint', 4, 'City', { routes: [ROUTE_217, ACUITY_LAKEFRONT], gym: SNOWPOINT_GYM }),
   sunyshore: gymRun('volkner', 'Sunyshore', 4, 'City', { routes: [HOTEL_GRAND_LAKE, ROUTE_222], gym: SUNYSHORE_GYM }),
   sinnohGyms: bossRun({
     id: 'sinnohGyms',
     name: 'Sinnoh Gym Challenge',
-    description: 'All eight Sinnoh gym leaders back to back, Roark to Volkner, with a Pokémon Center after the fourth.',
+    description: 'All 8 gym leaders in a row!',
     segments: gymChallenge(SINNOH_GYMS),
     generation: 4,
     requires: 'badges',
@@ -195,7 +196,7 @@ export const RUN_TYPES = {
   sinnohChampion: bossRun({
     id: 'sinnohChampion',
     name: 'Sinnoh Champion',
-    description: 'All eight Sinnoh gym leaders, the Elite Four and Champion Cynthia, back to back.',
+    description: 'All 8 gym leaders, the Elite Four, and the Champion!',
     segments: [{ steps: 0, bosses: [...SINNOH_GYMS, ...SINNOH_ELITE_FOUR, 'cynthia'], gymTrainers: false }],
     generation: 4,
     requires: 'gymChallenge',
@@ -233,13 +234,12 @@ export const runBosses = (type: RunType): Boss[] => type.segments.flatMap((s) =>
 /** The boss that ends the run. */
 export const finalBoss = (type: RunType): Boss => runBosses(type).at(-1)!;
 
-/** For the picker: who the run's bosses are, e.g. "Gym Leader Brock" or "8 gym leaders, the Elite Four and Champion Blue". */
+/** For the picker: who the run's bosses are, e.g. "Gym Leader Brock", "8 gym leaders", or "Gym leaders, Elite Four & Champion" (short, the user's). */
 export function bossSummary(type: RunType): string {
   const bosses = runBosses(type);
   if (bosses.length === 1) return `${bosses[0]!.title} ${bosses[0]!.name}`;
-  const gyms = bosses.filter((b) => b.kind === 'gymLeader').length;
-  const champion = bosses.find((b) => b.kind === 'champion');
-  return `${gyms} gym leaders${champion ? `, the Elite Four and Champion ${champion.name}` : ''}`;
+  if (bosses.some((b) => b.kind === 'champion')) return 'Gym leaders, Elite Four & Champion';
+  return `${bosses.filter((b) => b.kind === 'gymLeader').length} gym leaders`;
 }
 
 /**
