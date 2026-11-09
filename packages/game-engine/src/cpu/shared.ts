@@ -664,6 +664,8 @@ export function resolveSearch(t: Turn): GameAction {
   }
   // Time Capsule: as many as it can, Pokémon first (agreed; the options come in that order).
   if (choice.kind === 'timeCapsule') return view.options[0] ? { type: 'RESOLVE_CHOICE', cardUid: view.options[0].uid } : { type: 'RESOLVE_CHOICE' };
+  // A search onto a full Bench finds nothing (a card picked would be refused, and the CPU would be stuck).
+  if (choice.kind === 'pickFromDeck' && choice.toBench && openBenchSlot(t.me, t.state.cards, t.state.stadium?.card) < 0) return { type: 'RESOLVE_CHOICE' };
   const helpsEnergy = (c: CardInstance) => t.def(c).kind === 'energy' && inPlay(t.me).some(([, p]) => closeness(t.state.cards, p, [...p.energy, c]) < closeness(t.state.cards, p));
   const pick =
     wantedCards(t.state, t.me, view.options)[0] ??

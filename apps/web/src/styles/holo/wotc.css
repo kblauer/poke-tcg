@@ -98,7 +98,7 @@
 
   - Diamond & Pearl layout (Diamond & Pearl to Stormfront, Platinum to Arceus, the DP promos; measured on Diamond & Pearl
     Dialga, Electivire and Double Full Heal, Platinum Dialga G, Turtwig DP01, Beginning Door DP54): art window x 40–562,
-    y 72–405, the BASIC banner over its top-left corner down to y 100 (x 40–98). Stage 1/2 cards have the stage banner
+    y 72–412 (its foot measured again on a dozen holos, Supreme Victors Zapdos among them: 405 left a gap), the BASIC banner over its top-left corner down to y 100 (x 40–98). Stage 1/2 cards have the stage banner
     across the top down to y 100 (to x 360) and the evolution picture's circle down to y 128 (x 40–90). Trainers:
     x 50–555, y 118–460. Pokémon LV.X: the art fills the card's top, x 15–580, y 15–450.
   - HeartGold & SoulSilver layout (HeartGold & SoulSilver to Triumphant, Call of Legends, the HGSS promos; measured on
@@ -111,10 +111,10 @@
 */
 
 .card[data-era="dp"] {
-  --clip: polygon(6.7% 49.1%, 93.7% 49.1%, 93.7% 8.7%, 16.3% 8.7%, 16.3% 12.1%, 6.7% 12.1%);
-  --clip-invert: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 49.1%, 6.7% 49.1%, 93.7% 49.1%, 93.7% 8.7%, 16.3% 8.7%, 16.3% 12.1%, 6.7% 12.1%, 6.7% 49.1%, 0% 49.1%);
-  --clip-stage: polygon(6.7% 49.1%, 93.7% 49.1%, 93.7% 8.7%, 60% 8.7%, 60% 12.1%, 15% 12.1%, 15% 15.5%, 6.7% 15.5%);
-  --clip-stage-invert: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 49.1%, 6.7% 49.1%, 93.7% 49.1%, 93.7% 8.7%, 60% 8.7%, 60% 12.1%, 15% 12.1%, 15% 15.5%, 6.7% 15.5%, 6.7% 49.1%, 0% 49.1%);
+  --clip: polygon(6.7% 49.9%, 93.7% 49.9%, 93.7% 8.7%, 16.3% 8.7%, 16.3% 12.1%, 6.7% 12.1%);
+  --clip-invert: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 49.9%, 6.7% 49.9%, 93.7% 49.9%, 93.7% 8.7%, 16.3% 8.7%, 16.3% 12.1%, 6.7% 12.1%, 6.7% 49.9%, 0% 49.9%);
+  --clip-stage: polygon(6.7% 49.9%, 93.7% 49.9%, 93.7% 8.7%, 60% 8.7%, 60% 12.1%, 15% 12.1%, 15% 15.5%, 6.7% 15.5%);
+  --clip-stage-invert: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 49.9%, 6.7% 49.9%, 93.7% 49.9%, 93.7% 8.7%, 60% 8.7%, 60% 12.1%, 15% 12.1%, 15% 15.5%, 6.7% 15.5%, 6.7% 49.9%, 0% 49.9%);
   --clip-trainer: polygon(8.3% 55.8%, 92.5% 55.8%, 92.5% 14.3%, 8.3% 14.3%);
   --clip-trainer-invert: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 55.8%, 8.3% 55.8%, 92.5% 55.8%, 92.5% 14.3%, 8.3% 14.3%, 8.3% 55.8%, 0% 55.8%);
 }
