@@ -10,7 +10,7 @@ import { hasType, isBasicEnergy, lookupCard, namesMatch, typesOf, type CardLibra
 import type { PendingChoice } from '../trainers.js';
 import { counts, discardTool, energyPool, isEnergyCardOf, isSpecialEnergy, PRIZE_COUNT, retreatCost, type Affliction, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { nextRandom, shuffle } from '../rng.js';
-import { clearSpecialConditions, devolvable, evolvedFromName, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
+import { clearSpecialConditions, devolvable, evolvedFromName, hasSpecialCondition, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { benchedSlots, benchSearch, benchTarget, charmFor, discardToUse, energyCanMove, extraEnergy, flipToInflict, flipToProtect, guardNext, headsUntilTails, inflicts, inPlay, lure, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
 import { copyAttack, discardDefenderTrainers } from './ecard2.js';
 import { discardStadium } from './gym2.js';
@@ -437,8 +437,9 @@ export const ATTACK_TEMPLATES: Record<string, AttackTemplate> = {
   benchSearch: {
     pattern: re('search your deck for (?:a basic pokemon and put it|up to (\\d+) basic pokemon and put them) onto your bench\\. shuffle your deck afterward'),
     make: (d, [n], attack) =>
+      // Nothing to search for with the Bench full (the attack can still be used, for its damage).
       thenDo(d, (ctx) => {
-        if (ctx.me.deck.length) ctx.pend({ kind: 'pickFromDeck', source: attack, filter: 'basic', toBench: true, optional: true, count: n === undefined ? 1 : num(n) });
+        if (ctx.me.deck.length && openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card) >= 0) ctx.pend({ kind: 'pickFromDeck', source: attack, filter: 'basic', toBench: true, optional: true, count: n === undefined ? 1 : num(n) });
       }),
   },
 
