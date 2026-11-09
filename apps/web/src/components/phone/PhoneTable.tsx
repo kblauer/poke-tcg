@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
 /**
  * One player's Active Pokémon row: the Active Pokémon in the middle, the piles (discard, Prize cards and deck) on its
@@ -9,7 +9,8 @@ function ActiveRow({ active, piles, side }: { active: ReactNode; piles: ReactNod
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
       <div data-coin-spot={side} className="self-stretch" />
-      {active}
+      {/* Half as big again (--card-lg-own, index.css; the user's: room for its buttons), both players' the same. */}
+      <div style={{ '--card-lg': 'var(--card-lg-own)' } as CSSProperties}>{active}</div>
       <div className="justify-self-end">{piles}</div>
     </div>
   );
