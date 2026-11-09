@@ -102,6 +102,15 @@ async function startGame(user: AuthUser, playerDeck: string[], { difficulty, opp
   });
 }
 
+/**
+ * The images of every card in a game, both decks' (the library createGame keeps holds only the cards it uses), each once,
+ * for the game page to load the large pictures ahead. The opponent's too (the user's: no one will read their network
+ * tab for an edge).
+ */
+function cardImages(state: GameState): string[] {
+  return [...new Set(Object.values(state.cards).flatMap((d) => d.imageUrl ?? []))];
+}
+
 export const gameRouter = router({
   /**
    * Starts a single battle with one of the player's decks, which must follow the deck rules and hold only unlocked
@@ -118,14 +127,15 @@ export const gameRouter = router({
   /**
    * The player's filtered view of the game – never the raw state – the opponent's name, for a run's battle the run (a
    * Battle Tower battle's challenge), and
-   * its deck's cosmetics (each null, or the whole thing, for the account's).
+   * its deck's cosmetics (each null, or the whole thing, for the account's); and `cardImages`, the images of both decks'
+   * cards, for the page to load ahead.
    */
   view: protectedProcedure.input(gameIdInput).query(async ({ ctx, input }) => {
     const game = await loadOwnGame(input.gameId, ctx.user.id);
     const encounter = game.runId ? (await loadOwnRun(game.runId, ctx.user.id)).state.encounter : null;
     const runOpponent = encounter && 'trainer' in encounter && 'gameId' in encounter && encounter.gameId === game.id ? encounter.trainer : null;
     const opponent = runOpponent ?? game.state.opponentName ?? null;
-    return { id: game.id, status: game.status, runId: game.runId, towerId: game.towerId, opponent, cosmetics: game.cosmetics as DeckCosmetics | null, view: getPlayerView(game.state, HUMAN_ID) };
+    return { id: game.id, status: game.status, runId: game.runId, towerId: game.towerId, opponent, cosmetics: game.cosmetics as DeckCosmetics | null, view: getPlayerView(game.state, HUMAN_ID), cardImages: cardImages(game.state) };
   }),
 
   /**
