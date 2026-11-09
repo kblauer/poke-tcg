@@ -391,25 +391,25 @@ export function MapOption({ view, run, index, deckId }: { view: RunViewData; run
   const battle = isBattleKind(option.kind);
   const title = battle ? encounterLabel(option) : optionTitle(option, cardName);
   const action = !battle ? 'Go to' : isBossKind(option.kind) || option.kind === 'gymTrainer' ? 'Challenge' : 'Battle';
+  // A trainer's favoured types (not on a phone, where the card is narrower).
+  const types = !phone && option.kind === 'battle' && option.trainer && trainerFavorites(option.trainer) ? <ClassTypes option={option} catalog={byId} /> : null;
   const card = (
     <button
       disabled={run.busy}
       onClick={() => run.choose(index, deckId ?? undefined)}
       aria-label={`${action} ${title}`}
-      className={`group block ${phone ? 'w-44' : 'w-60'} space-y-0.5 rounded-lg bg-slate-900/75 px-2 py-1.5 text-left shadow-lg shadow-black/50 ring-1 ring-slate-600 transition hover:bg-slate-900 hover:ring-yellow-300 active:scale-[0.98] disabled:opacity-60`}
+      // Every card one size (the user's: uniform): the title, then what it leads to (cut to the lines left), and the
+      // reward lean and action always along the bottom.
+      className={`group flex ${phone ? 'w-44' : 'w-60'} h-[6.75rem] flex-col gap-0.5 rounded-lg bg-slate-900/75 px-2 py-1.5 text-left shadow-lg shadow-black/50 ring-1 ring-slate-600 transition hover:bg-slate-900 hover:ring-yellow-300 active:scale-[0.98] disabled:opacity-60`}
     >
-      <span className="flex items-center gap-1.5">
+      <span className="flex shrink-0 items-center gap-1.5">
         <EncounterBadge kind={option.kind} size={20} />
         <span className="min-w-0 flex-1 truncate text-sm font-semibold">{title}</span>
       </span>
-      {!phone && <ClassTypes option={option} catalog={byId} />}
-      {describe(option, cardName).map((l, i) => (
-        <span key={i} className="block text-xs leading-4 text-slate-300">
-          {l}
-        </span>
-      ))}
+      {types}
+      <span className={`block min-h-0 overflow-hidden text-xs leading-4 text-slate-300 ${types ? 'line-clamp-2' : 'line-clamp-3'}`}>{describe(option, cardName).join(' · ')}</span>
       {/* The reward lean in the bottom left, the action in the bottom right. */}
-      <span className="flex items-center justify-between gap-2 pt-0.5">
+      <span className="mt-auto flex shrink-0 items-center justify-between gap-2">
         {option.focus ? <FocusTag option={option} /> : <span />}
         <span className="text-xs font-semibold text-yellow-300 group-hover:underline">{action}</span>
       </span>
