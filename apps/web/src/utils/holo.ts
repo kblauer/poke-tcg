@@ -29,9 +29,11 @@ export interface HoloAttributes {
   set: string;
   number: string;
   /** Card layout the tuning in wotc.css applies to: classic (Base–Neo), e-Card, or EX (Generation 3). */
-  era: 'wotc' | 'ecard' | 'ex';
+  era: 'wotc' | 'ecard' | 'ex' | 'dp' | 'hgss' | 'bw';
   /** A Pokémon-ex (data-pokemon-ex): its foil covers the art and the border around the card (wotc.css). */
   pokemonEx: boolean;
+  /** A Black & White Pokémon-EX ("Shaymin-EX"): foil across the whole card (wotc.css). */
+  pokemonEX: boolean;
   /** The Trainer Gallery styles (data-trainer-gallery). */
   trainerGallery: boolean;
   /** A holo Energy (data-holo-energy): its style covers the whole card, nothing masked out (wotc.css). */
@@ -45,8 +47,13 @@ export interface HoloAttributes {
   mask: string | null;
 }
 
-/** A set's card layout (wotc.css, flair-border.css): classic (Base–Neo), e-Card, or EX (Generation 3). */
-export const setEra = (set: string): HoloAttributes['era'] => (set.startsWith('ecard') ? 'ecard' : /^ex\d/.test(set) ? 'ex' : 'wotc');
+/**
+ * A set's card layout (wotc.css, flair-border.css): classic (Base–Neo), e-Card, EX (Generation 3), Diamond & Pearl
+ * (with Platinum and the DP promos), HeartGold & SoulSilver (with Call of Legends and the HGSS promos), or Black & White
+ * (with Dragon Vault).
+ */
+export const setEra = (set: string): HoloAttributes['era'] =>
+  set.startsWith('ecard') ? 'ecard' : /^ex\d/.test(set) ? 'ex' : /^(dp|pl)/.test(set) ? 'dp' : /^(hgss|col)/.test(set) ? 'hgss' : /^(bw|dv)/.test(set) ? 'bw' : 'wotc';
 
 const SUBTYPES: Record<string, string> = { basic: 'basic', baby: 'basic', stage1: 'stage 1', stage2: 'stage 2', 'level-up': 'level-up' };
 
@@ -73,6 +80,7 @@ export function holoAttributes(card: HoloSource, pattern?: HoloPattern | null): 
     number: id.slice(split + 1).toLowerCase(),
     era: setEra(set),
     pokemonEx: kind === 'pokemon' && / ex$/.test(card.name ?? ''),
+    pokemonEX: kind === 'pokemon' && /-EX$/.test(card.name ?? ''),
     trainerGallery: style?.trainerGallery ?? false,
     holoEnergy: !!card.holoEnergy,
     galaxyArt,

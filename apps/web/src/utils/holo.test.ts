@@ -32,5 +32,8 @@ describe('holoAttributes', () => {
     expect(holoAttributes({ ...card, id: 'neo1-12', stage: 'Baby' }).subtypes).toBe('basic');
     expect(holoAttributes({ ...card, id: 'ex1-100', name: 'Charizard ex' })).toMatchObject({ pokemonEx: true, era: 'ex' });
     expect(holoAttributes({ ...card, id: 'ecard2-1' }).era).toBe('ecard');
+    // Generation 4's and 5's layouts (wotc.css).
+    expect(['dp1-1', 'pl2-5', 'dpp-DP54', 'hgss1-5', 'col1-2', 'hgssp-HGSS01', 'bw1-12', 'dv1-1', 'base1-4'].map((id) => holoAttributes({ ...card, id }).era)).toEqual(['dp', 'dp', 'dp', 'hgss', 'hgss', 'hgss', 'bw', 'bw', 'wotc']);
+    expect(holoAttributes({ ...card, id: 'bw4-5', name: 'Shaymin-EX' }).pokemonEX).toBe(true);
   });
 });
