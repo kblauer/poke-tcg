@@ -188,3 +188,101 @@ export function placeFigures(route: Route, view: RunViewData, first: number, upt
 
 /** A figure as placeFigures places it: on its tile, near its spot, faded once its step is passed. */
 export type PlacedFigure = ReturnType<typeof placeFigures>[number];
+
+/** A step's encounter card to place on the map (RouteView's `optionCard`): its figure's tile from the player's, how far the figure is drawn below its tile (`dropAt`, map pixels) and the card's height (a debug Skip battle under it makes it taller). */
+export interface CardFigure {
+  option: number;
+  dx: number;
+  dy: number;
+  drop: number;
+  h: number;
+}
+
+/** Where a step's cards go (layOutCards): the zoom, how far down the view the player's centre rests, and each card's top left corner, in the page's pixels from the player's centre. */
+export interface CardLayout {
+  zoom: number;
+  restY: number;
+  cards: { option: number; x: number; y: number }[];
+  /** The options with no figure, stacked above the player: their column's top left corner. */
+  others: { x: number; y: number } | null;
+}
+
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Above the player (pushed up when there's no room beside), or below (pushed down). */
+  up: boolean;
+  fixed: boolean;
+}
+
+const overlapX = (a: Box, b: Box, gap: number) => Math.min(a.x + a.w, b.x + b.w) + gap - Math.max(a.x, b.x);
+const overlapY = (a: Box, b: Box, gap: number) => Math.min(a.y + a.h, b.y + b.h) + gap - Math.max(a.y, b.y);
+
+/**
+ * The step's encounter cards laid out on the map (the user's: never over each other, nor under the view's corners): each
+ * above its figure if it stands above the player, otherwise below it, centred on it; cards that would overlap pushed apart
+ * sideways (inside the view), or up or down, away from the player, when there's no room. The player rests in the view's
+ * middle, or higher to keep the cards below clear of the bottom corners (`bottom`: their height), as far as the cards
+ * above allow; and the zoom (`zoom`, at most) eases out in quarter steps (down to `minZoom`) until they all fit the view's
+ * height. `others` cards (no figure) stand stacked above the player, as one card that never moves.
+ */
+export function layOutCards(
+  figures: CardFigure[],
+  others: number[],
+  o: { zoom: number; minZoom: number; card: { w: number; h: number }; view: { w: number; h: number }; top: number; bottom: number; gap: number; redDrop: number },
+): CardLayout {
+  const { card, view, gap } = o;
+  const at = (z: number) => {
+    const boxes: (Box & { option?: number })[] = figures.map((f) => {
+      const up = f.dy < 0;
+      const x = f.dx * 16 * z - card.w / 2;
+      return { option: f.option, x, y: up ? (f.dy * 16 - 22 + f.drop) * z - f.h : (f.dy * 16 + 10 + f.drop) * z, w: card.w, h: f.h, up, fixed: false };
+    });
+    const othersH = others.length * card.h + Math.max(0, others.length - 1) * 4;
+    const stack: Box | null = others.length ? { x: -card.w / 2, y: (-22 + o.redDrop) * z - othersH, w: card.w, h: othersH, up: true, fixed: true } : null;
+    const all = stack ? [...boxes, stack] : boxes;
+    const minX = 8 - view.w / 2;
+    const maxX = view.w / 2 - 8 - card.w;
+    for (let round = 0; round < 50; round++) {
+      let moved = false;
+      for (let i = 0; i < all.length; i++) {
+        for (let j = i + 1; j < all.length; j++) {
+          const a = all[i]!;
+          const b = all[j]!;
+          if (overlapX(a, b, gap) <= 0 || overlapY(a, b, gap) <= 0 || (a.fixed && b.fixed)) continue;
+          moved = true;
+          // Sideways first: the left one (the first, if they're level) left, the other right; a fixed one stays.
+          const [l, r] = a.x + a.w / 2 <= b.x + b.w / 2 ? [a, b] : [b, a];
+          const push = overlapX(l, r, gap);
+          const lx = l.fixed ? l.x : r.fixed ? l.x - push : l.x - push / 2;
+          const rx = r.fixed ? r.x : l.fixed ? r.x + push : r.x + push / 2;
+          if (!l.fixed) l.x = Math.min(maxX, Math.max(minX, lx));
+          if (!r.fixed) r.x = Math.min(maxX, Math.max(minX, rx));
+          if (overlapX(l, r, gap) <= 0) continue;
+          // No room beside: the one further from the player (the one that can move) up or down, away from him.
+          const far = a.fixed ? b : b.fixed ? a : Math.abs(a.y + a.h / 2) >= Math.abs(b.y + b.h / 2) ? a : b;
+          const near = far === a ? b : a;
+          far.y = far.up ? near.y - gap - far.h : near.y + near.h + gap;
+        }
+      }
+      if (!moved) break;
+    }
+    const top = Math.min(0, ...all.map((b) => b.y));
+    const bottom = Math.max(0, ...all.map((b) => b.y + b.h));
+    const below = all.some((b) => !b.up);
+    return { boxes, stack, top, bottom, reserve: below ? o.bottom : 8 };
+  };
+  let z = o.zoom;
+  let laid = at(z);
+  while (z - 0.25 >= o.minZoom && laid.bottom - laid.top > view.h - o.top - laid.reserve) laid = at((z -= 0.25));
+  const lowest = o.top - laid.top;
+  const highest = view.h - laid.reserve - laid.bottom;
+  return {
+    zoom: z,
+    restY: figures.length || others.length ? Math.max(lowest, Math.min(view.h / 2, highest)) : view.h / 2,
+    cards: laid.boxes.map((b) => ({ option: b.option!, x: b.x, y: b.y })),
+    others: laid.stack && { x: laid.stack.x, y: laid.stack.y },
+  };
+}

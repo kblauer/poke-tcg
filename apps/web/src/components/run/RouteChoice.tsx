@@ -16,6 +16,7 @@ import { CatalogContext } from '../InspectContext';
 import { DeckMenu, DeckOption } from './DeckMenu';
 import { ENCOUNTER_STYLE, EncounterBadge, encounterLabel } from './encounterIcons';
 import { commas } from '../../utils/math';
+import { MAP_CARD, MAP_CARD_PHONE } from '../../utils/layout';
 import { PANEL_HEADING } from '../../utils/styles';
 
 /** Debug's Skip battle, under a battle's button. */
@@ -354,13 +355,9 @@ export function MapDeck({ view, deckId, onDeck }: { view: RunViewData; deckId: s
   const runDeck = useMemo(() => countsOf(view.deck), [view.deck]);
   const otherDecks = (decks.data ?? []).filter((d) => !d.runDeck);
   return (
-    <div className={`${phone ? 'w-64' : 'w-80'} space-y-1.5`}>
-      <div className="flex items-baseline justify-between rounded bg-slate-900/75 px-2 py-0.5">
-        <h4 className="text-sm font-semibold">Current deck</h4>
-        <Link to="/decks" className="text-xs text-yellow-300 hover:underline">
-          Build or edit decks
-        </Link>
-      </div>
+    // On a phone only as wide as the deck's three cards (the tile's names don't fit; the user's: no empty space beside them).
+    <div className={`${phone ? 'w-[12.5rem]' : 'w-80'} space-y-1.5`}>
+      <h4 className="w-fit rounded-lg bg-slate-900/45 px-2 py-0.5 text-sm font-semibold">Deck selection</h4>
       <DeckMenu
         selected={deckId}
         onPick={onDeck}
@@ -392,6 +389,7 @@ export function MapOption({ view, run, index, deckId }: { view: RunViewData; run
   const title = battle ? encounterLabel(option) : optionTitle(option, cardName);
   const action = !battle ? 'Go to' : isBossKind(option.kind) || option.kind === 'gymTrainer' ? 'Challenge' : 'Battle';
   // A trainer's favoured types (not on a phone, where the card is narrower).
+  const size = phone ? MAP_CARD_PHONE : MAP_CARD;
   const types = !phone && option.kind === 'battle' && option.trainer && trainerFavorites(option.trainer) ? <ClassTypes option={option} catalog={byId} /> : null;
   const card = (
     <button
@@ -400,7 +398,8 @@ export function MapOption({ view, run, index, deckId }: { view: RunViewData; run
       aria-label={`${action} ${title}`}
       // Every card one size (the user's: uniform): the title, then what it leads to (cut to the lines left), and the
       // reward lean and action always along the bottom.
-      className={`group flex ${phone ? 'w-44' : 'w-60'} h-[6.75rem] flex-col gap-0.5 rounded-lg bg-slate-900/75 px-2 py-1.5 text-left shadow-lg shadow-black/50 ring-1 ring-slate-600 transition hover:bg-slate-900 hover:ring-yellow-300 active:scale-[0.98] disabled:opacity-60`}
+      style={{ width: size.w, height: size.h }}
+      className={`group flex flex-col gap-0.5 rounded-lg bg-slate-900/75 px-2 py-1.5 text-left shadow-lg shadow-black/50 ring-1 ring-slate-600 transition hover:bg-slate-900 hover:ring-yellow-300 active:scale-[0.98] disabled:opacity-60`}
     >
       <span className="flex shrink-0 items-center gap-1.5">
         <EncounterBadge kind={option.kind} size={20} />

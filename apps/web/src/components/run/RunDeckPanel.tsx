@@ -91,8 +91,18 @@ function Gained({ entries }: { entries: ReturnType<typeof gainedEntries> }) {
  * The Bag as a corner of the run map (the user's experiment, RouteView's `corners`): a bag button that opens a panel
  * above it with the Bag (BagGrid) and the cards unlocked this run; the button again, a click outside or Escape closes it.
  */
+/** The bag's picture's size (public/nav/bag.png). */
+const BAG = { w: 42, h: 57 };
+
+/**
+ * The bag's scale on a phone (the user's: the next size down from 2× with every pixel drawn whole): the most whole screen
+ * pixels per picture pixel short of 2×'s, in CSS pixels (5 on a 3× screen: 5/3).
+ */
+export const bagScale = (dpr: number) => (Math.ceil(2 * dpr) - 1) / dpr;
+
 export function MapBag({ view, run }: { view: RunViewData; run: RunControl }) {
   const phone = useIsPhone();
+  const scale = phone ? bagScale(window.devicePixelRatio || 1) : 2;
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -106,7 +116,11 @@ export function MapBag({ view, run }: { view: RunViewData; run: RunControl }) {
     // As tall as the map's view (RouteView's corner layer), so the panel can take its height above the button.
     <div ref={ref} className="pointer-events-none relative h-full">
       {open && (
-        <div className={`pointer-events-auto absolute bottom-32 left-0 ${phone ? 'w-72' : 'w-96'} max-h-[calc(100%-8rem)] space-y-4 overflow-y-auto rounded-lg bg-slate-800 p-3 shadow-xl shadow-black/60 ring-1 ring-slate-600`}>
+        <div
+          className={`pointer-events-auto absolute left-0 ${phone ? 'w-72' : 'w-96'} space-y-4 overflow-y-auto rounded-lg bg-slate-800 p-3 shadow-xl shadow-black/60 ring-1 ring-slate-600`}
+          // Above the bag, as much of the view's height as is left.
+          style={{ bottom: BAG.h * scale + 14, maxHeight: `calc(100% - ${BAG.h * scale + 14}px)` }}
+        >
           <BagGrid view={view} run={run} />
           <div className="space-y-3">
             <h3 className={PANEL_HEADING}>
@@ -116,15 +130,17 @@ export function MapBag({ view, run }: { view: RunViewData; run: RunControl }) {
           </div>
         </div>
       )}
-      {/* FireRed's bag, open on its Key Items pocket (tools/icons/bag.py), at twice its size (the user's: whole pixels); a glow while it's open. */}
+      {/* FireRed's bag, open on its Key Items pocket (tools/icons/bag.py), at twice its size (the user's: whole pixels); a glow while it's open.
+          On a phone a little smaller (bagScale). Its height is the corner's (data-corner: RouteView keeps the cards clear of it). */}
       <button
+        data-corner
         className={`pointer-events-auto absolute bottom-0 left-0 transition hover:-translate-y-0.5 hover:brightness-110 active:scale-95 ${open ? 'drop-shadow-[0_0_6px_var(--color-yellow-300)]' : 'drop-shadow-[0_2px_3px_rgba(0,0,0,0.6)]'}`}
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-label="Bag"
         title="Bag and cards unlocked this run"
       >
-        <img src="/nav/bag.png" alt="" width={84} height={114} draggable={false} className="block select-none [image-rendering:pixelated]" />
+        <img src="/nav/bag.png" alt="" width={BAG.w * scale} height={BAG.h * scale} draggable={false} className="block select-none [image-rendering:pixelated]" />
       </button>
     </div>
   );

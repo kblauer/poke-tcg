@@ -46,3 +46,8 @@ export const RUN_CARD_FLUID = 'w-full max-w-28';
 export const PACK_REVEAL = 'w-[min(85vw,34rem,calc((100dvh_-_15rem)*0.716))]';
 export const PACK_COMMON = 'w-36 sm:w-44 2xl:w-52';
 export const PACK_SUMMARY = 'w-32 sm:w-40 2xl:w-44';
+
+/** An encounter's card on the run map (MapOption), in pixels: every card one size (the user's), narrower on a phone; RouteView lays them out by it (layOutCards). The debug Skip battle under a battle's adds MAP_CARD_SKIP. */
+export const MAP_CARD = { w: 240, h: 108 };
+export const MAP_CARD_PHONE = { w: 176, h: 108 };
+export const MAP_CARD_SKIP = 28;
