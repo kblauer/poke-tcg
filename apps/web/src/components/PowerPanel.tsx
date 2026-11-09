@@ -1,7 +1,7 @@
 import { lookupCard, typeName, type PeekTarget, type PlayerView } from '@poke-tcg/game-engine';
 import { Card } from './Card';
 import type { PowerControl } from '../hooks/usePower';
-import { MOVE_BUTTON, OPTION_BUTTON as option } from '../utils/styles';
+import { ABILITY_BUTTON, OPTION_BUTTON as option } from '../utils/styles';
 import { pickHint } from './AttackChoicePanel';
 
 /**
@@ -99,4 +99,4 @@ export function PeekCard({ view }: { view: PlayerView }) {
   );
 }
 
-const powerButton = MOVE_BUTTON;
+const powerButton = ABILITY_BUTTON;
