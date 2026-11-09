@@ -1,5 +1,6 @@
 import { applyWeaknessResistance, attackDamage, attackEffect, inPlayDef, typesOf, usableAttacks, weaknessLabel, type CardInstance, type CardLibrary, type DamageRange, type GameAction, type InPlayPokemon } from '@poke-tcg/game-engine';
 import type { AttackControl } from '../hooks/useAttack';
+import { MOVE_BUTTON } from '../utils/styles';
 
 /** A change to the damage, signed: +10, −20. */
 const signed = (n: number) => (n < 0 ? `−${-n}` : `+${n}`);
@@ -78,9 +79,7 @@ export function AttackList({
             disabled={!usable}
             title={[error, ...steps, unimplemented && '(Card text not implemented yet.)'].filter(Boolean).join('\n') || undefined}
             onClick={() => attack.start(i)}
-            className={`rounded bg-red-600 px-2 py-1 text-left text-xs transition hover:bg-red-500 active:scale-95 disabled:hover:bg-red-600 ${
-              active ? 'animate-pulse ring-2 ring-yellow-300' : usable ? '' : 'disabled:opacity-40'
-            }`}
+            className={`${MOVE_BUTTON} ${active ? 'animate-pulse ring-2 ring-yellow-300' : ''}`}
           >
             {from && <span className="text-yellow-200">{from}: </span>}
             {a.name} (<span className={tone}>{shown}</span>){unimplemented && ' *'}
