@@ -95,6 +95,7 @@ export function HoloCard({
       data-trainer-gallery={attrs.trainerGallery ? "true" : "false"}
       data-holo-energy={attrs.holoEnergy ? 'true' : 'false'}
       data-pokemon-ex={attrs.pokemonEx ? 'true' : 'false'}
+      data-pokemon-ex-bw={attrs.pokemonEX ? 'true' : 'false'}
       data-galaxy-art={attrs.galaxyArt ? 'true' : 'false'}
       style={still ? STILL : undefined}
     >
