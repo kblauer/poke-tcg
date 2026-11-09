@@ -23,37 +23,43 @@ function BossSprite({ id, scale = 3 }: { id: BossId; scale?: number }) {
 }
 
 /**
- * One run type to pick: its final boss's sprite, its name, and who it ends with. A single-gym run shows its gym leader
- * and the types their deck is built around (bossTypes); a longer run a row of all its bosses. Beaten runs are ticked (Badge),
+ * One run type to pick: its final boss's sprite, its name, and who it ends with. A single-gym run shows its gym leader's
+ * name and the types their deck is built around (bossTypes) on one line; a longer run a row of all its bosses. Beaten runs are ticked (Badge),
  * locked ones say what unlocks them and can't be picked.
  */
-function RunTypeOption({ info, selected, onPick }: { info: RunTypeInfo; selected: boolean; onPick: () => void }) {
+function RunTypeOption({ info, selected, onPick, start }: { info: RunTypeInfo; selected: boolean; onPick: () => void; start?: { disabled: boolean; onStart: () => void } }) {
   const ids = RUN_TYPES[info.id].segments.flatMap((s) => s.bosses);
   const last = boss(ids.at(-1)!);
   const locked = info.locked !== null;
   return (
-    <li>
+    // min-w-0: a long name is cut short, never widening its column past the list.
+    <li className="relative min-w-0">
       <button
         role="radio"
         aria-checked={selected}
         disabled={locked}
         onClick={onPick}
-        className={`flex h-full w-full items-center gap-3 rounded-lg px-3 py-2 text-left ring-1 transition ${
+        className={`flex h-full w-full items-center gap-1.5 rounded-lg py-2 pl-1.5 pr-3 text-left ring-1 transition ${
           selected ? 'bg-slate-700 ring-yellow-300' : 'bg-slate-900 ring-slate-700 hover:ring-slate-500'
         } disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:ring-slate-700`}
       >
-        <span className={`flex w-12 justify-center ${locked ? 'brightness-50 grayscale' : ''}`}>
-          <BossSprite id={ids.at(-1)!} />
+        {/* The sprite at its own width, close to the tile's left edge and to the text (the user's: room for a Start button), and
+            under it, once beaten, a tick and how many times (the user's); the two centred together, the sprite moving up for it. */}
+        <span className="flex shrink-0 flex-col items-center">
+          <span className={`flex ${locked ? 'brightness-50 grayscale' : ''}`}>
+            <BossSprite id={ids.at(-1)!} />
+          </span>
+          {info.beaten > 0 && (
+            <span className="flex items-center gap-0.5 text-xs font-semibold leading-4 text-emerald-300" title={`Beaten ${info.beaten} time${info.beaten === 1 ? '' : 's'}`} aria-label={`Beaten ${info.beaten} time${info.beaten === 1 ? '' : 's'}`}>
+              <CheckCircleIcon sx={{ fontSize: 14 }} />
+              {info.beaten > 1 && `×${info.beaten}`}
+            </span>
+          )}
         </span>
         <span className="min-w-0 flex-1 space-y-0.5">
-          <span className="flex items-center gap-2">
+          {/* Room for Start run on the name's line only (the lines under it keep the tile's width; the user's). */}
+          <span className={`flex items-center gap-2 ${selected && start ? 'pr-[5.5rem]' : ''}`}>
             <span className="truncate font-medium">{info.name}</span>
-            {info.beaten > 0 && (
-              <span className="flex shrink-0 items-center gap-0.5 text-xs font-semibold text-emerald-300" title={`Beaten ${info.beaten} time${info.beaten === 1 ? '' : 's'}`}>
-                <CheckCircleIcon sx={{ fontSize: 14 }} />
-                {info.beaten > 1 ? `Badge ×${info.beaten}` : 'Badge'}
-              </span>
-            )}
           </span>
           {locked ? (
             <span className="flex items-center gap-1 text-xs text-amber-300">
@@ -61,18 +67,21 @@ function RunTypeOption({ info, selected, onPick }: { info: RunTypeInfo; selected
               {info.locked}
             </span>
           ) : ids.length === 1 ? (
+            // The leader's name and their types on one line (the user's: no "Gym Leader", which every gym run's is), the run's
+            // description under them.
             <>
-              <span className="block truncate text-xs text-slate-300">
-                {bossLabel(last)}
-              </span>
-              <span className="flex flex-wrap items-center gap-x-2 text-xs text-sky-300">
+              <span className="flex min-w-0 items-center gap-x-2 text-xs">
+                <span className="truncate text-slate-300" title={bossLabel(last)}>
+                  {last.name}
+                </span>
                 {bossTypes(last).map((t) => (
-                  <span key={t} className="flex items-center gap-1">
+                  <span key={t} className="flex shrink-0 items-center gap-1 text-sky-300">
                     <EnergyIcon type={t} size="sm" />
                     {typeName(t)}
                   </span>
                 ))}
               </span>
+              <span className="block text-xs text-slate-400">{info.description}</span>
             </>
           ) : (
             <>
@@ -86,6 +95,17 @@ function RunTypeOption({ info, selected, onPick }: { info: RunTypeInfo; selected
           )}
         </span>
       </button>
+      {/* The selected run's Start, in its top right corner (the user's): a button of its own beside the tile's. */}
+      {selected && start && (
+        <button
+          className="absolute right-1 top-1 rounded bg-blue-600 px-3 py-1 text-sm font-semibold transition hover:bg-blue-500 active:scale-95 disabled:opacity-40"
+          disabled={start.disabled}
+          onClick={start.onStart}
+          aria-label={`Start run: ${info.name}`}
+        >
+          Start run
+        </button>
+      )}
     </li>
   );
 }
@@ -136,36 +156,46 @@ export function NewRunPicker({ overview: given, run, title, defaultType, extra }
   const tower = towerUnderway(useTowerOverview().data?.challenge);
   const phone = useIsPhone();
   const chosen = overview.runTypes.find((t) => t.id === type);
+  // Starting the picked run (the selected tile's Start run) with the deck picked (or the starter).
+  const canStart = !run.busy && !tower && (overview.needsStarter || !!deckId) && chosen?.locked === null;
+  const start = () => {
+    if (overview.needsStarter) run.start(type, { starter }, debugLocked.has(type));
+    else if (deckId) run.start(type, { deckId }, debugLocked.has(type));
+  };
+  // The first generation still locked, to say what opens it.
+  const nextLocked = generations.find((g) => genLock(g) !== null);
   return (
     <section className="space-y-4 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600">
-      <h3 className="text-lg font-semibold">{title}</h3>
+      {/* The heading and the generation on one line (no "Run" or "Generation" labels, the user's). */}
+      <div className="flex items-center gap-3">
+        <h3 className="text-lg font-semibold">{title}</h3>
+        <select
+          aria-label="Generation"
+          className="ml-auto min-w-0 max-w-full rounded bg-slate-900 px-2 py-1 text-sm text-slate-100 ring-1 ring-slate-600 focus:outline-none focus:ring-slate-400"
+          value={gen}
+          onChange={(e) => pickGeneration(Number(e.target.value))}
+        >
+          {generations.map((g) => (
+            // A locked generation is listed but can't be picked; short, so the list fits a phone (what opens it is said under the row).
+            <option key={g} value={g} disabled={genLock(g) !== null} title={genLock(g) ?? undefined}>
+              Gen {g} · {generation(g).region}
+              {genLock(g) && ' (locked)'}
+            </option>
+          ))}
+        </select>
+      </div>
       <div className="@container space-y-2 text-sm">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="text-slate-400">Run</span>
-          <label className="ml-auto flex items-center gap-2 text-xs text-slate-400">
-            Generation
-            <select
-              className="rounded bg-slate-900 px-2 py-1 text-sm text-slate-100 ring-1 ring-slate-600 focus:outline-none focus:ring-slate-400"
-              value={gen}
-              onChange={(e) => pickGeneration(Number(e.target.value))}
-            >
-              {generations.map((g) => (
-                // A locked generation is listed, with what opens it, but can't be picked.
-                <option key={g} value={g} disabled={genLock(g) !== null} title={genLock(g) ?? undefined}>
-                  Gen {g} · {generation(g).region}
-                  {genLock(g) && ` (locked: ${genLock(g)!.replace(/^Beat/, 'beat')})`}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+        {nextLocked !== undefined && (
+          <p className="text-xs text-slate-500">
+            Gen {nextLocked} opens once you {genLock(nextLocked)!.replace(/^Beat/, 'beat').replace(/ first$/, '')}.
+          </p>
+        )}
         <ul role="radiogroup" aria-label={`${generation(gen).region} runs`} className="grid gap-2 @lg:grid-cols-2 @3xl:grid-cols-3">
           {shown.map((t) => (
-            <RunTypeOption key={t.id} info={t} selected={t.id === type} onPick={() => setType(t.id)} />
+            <RunTypeOption key={t.id} info={t} selected={t.id === type} onPick={() => setType(t.id)} start={{ disabled: !canStart, onStart: start }} />
           ))}
         </ul>
       </div>
-      {chosen && <p className="text-sm text-slate-400">{chosen.description}</p>}
 
       {overview.needsStarter ? (
         // The account's first run: a starter deck to pick, its tile showing what it holds; it's then the account's own deck.
@@ -224,19 +254,8 @@ export function NewRunPicker({ overview: given, run, title, defaultType, extra }
 
       <p className="text-xs text-slate-500">The new run starts with ₱500 and 3 HP.</p>
       {tower && <p className="text-xs text-amber-300">Save or finish your Battle Tower challenge first.</p>}
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          className="rounded bg-blue-600 px-5 py-2 font-semibold transition hover:bg-blue-500 active:scale-95 disabled:opacity-40"
-          disabled={run.busy || tower || (!overview.needsStarter && !deckId) || chosen?.locked !== null}
-          onClick={() => {
-            if (overview.needsStarter) run.start(type, { starter }, debugLocked.has(type));
-            else if (deckId) run.start(type, { deckId }, debugLocked.has(type));
-          }}
-        >
-          Start new run
-        </button>
-        {extra}
-      </div>
+      {/* Start is on the selected run's tile (RunTypeOption). */}
+      {extra && <div className="flex flex-wrap items-center gap-3">{extra}</div>}
     </section>
   );
 }

@@ -144,7 +144,7 @@ export function HomePage() {
             </>
           ) : (
             <>
-              <RunHeader view={view} actions={view.phase !== 'won' && view.phase !== 'lost' && <ReturnToPlay small={phone} />} />
+              <RunHeader view={view} actions={<ReturnToPlay small={phone} />} />
               {view.phase === 'won' || view.phase === 'lost' ? (
                 <RunOver current={current} overview={overview.data} run={run} />
               ) : routes ? (

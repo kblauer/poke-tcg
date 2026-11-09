@@ -17,15 +17,14 @@ export function RunHeader({ view, actions }: { view: RunViewData; actions?: Reac
   return (
     <PageHeader
       title={RUN_TYPES[view.type].name}
-      // The map the step is on beside the run's name (the user's); on a phone only that, all on one line with Return to Play.
+      // The map the step is on beside the run's name (the user's; the step is in the map's caption), on a phone all on one
+      // line with Return to Play; a run with no route maps says how far along it is instead.
       info={
         over ? (
-          view.phase === 'won' ? 'Beaten!' : view.conceded ? 'Conceded' : 'Lost'
+          view.phase === 'won' ? 'Victory!' : view.conceded ? 'Conceded' : 'Lost'
         ) : (
           <>
-            {map && <span className="font-semibold text-slate-200">{map}</span>}
-            {map && !phone && ' · '}
-            {(!phone || !map) && progress}
+            {map ? <span className="font-semibold text-slate-200">{map}</span> : progress}
           </>
         )
       }
