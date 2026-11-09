@@ -19,6 +19,7 @@ import { ReturnToPlay } from '../components/ReturnToPlay';
 import { useRunMusic } from '../hooks/useRunMusic';
 import { useWindowFill } from '../hooks/useWindowFill';
 import { useMapEncounters } from '../hooks/useMapEncounters';
+import { preloadCardImages } from '../utils/cardPreload';
 import { PAGE_WIDTH } from '../utils/layout';
 
 /**
@@ -58,6 +59,15 @@ export function HomePage() {
   // The deck picked for the step's encounter (null: the run's), shared by the panel's choice and the map's encounter cards;
   // picked again at each step.
   const [deckId, setDeckId] = useState<string | null>(null);
+  // The run's deck's pictures loaded ahead on the run screen, before its battles open (preloadCardImages; the battle page
+  // loads the opponent's then).
+  const runView = overview.data?.run?.view;
+  const deckKey = runView?.deck.join(',');
+  useEffect(() => {
+    if (runView) preloadCardImages(runView.deck.flatMap((id) => runView.cards[id]?.imageUrl ?? []));
+    // When the deck changes (a trade, a switch), not on every run update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deckKey]);
   // Encounters on the route map (Settings; off: the panels under it).
   const [mapEncounters] = useMapEncounters();
   const position = overview.data?.run?.view.position;

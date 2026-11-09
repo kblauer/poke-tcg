@@ -3,6 +3,8 @@ import MenuIcon from '@mui/icons-material/Menu';
 import { QueryClientProvider } from '@tanstack/react-query';
 import {
   createRootRoute,
+  ErrorComponent,
+  type ErrorComponentProps,
   createRoute,
   createRouter,
   lazyRouteComponent,
@@ -11,7 +13,7 @@ import {
   RouterProvider,
   useRouterState,
 } from '@tanstack/react-router';
-import { StrictMode, useCallback, useState } from 'react';
+import { StrictMode, useCallback, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 // Puts the saved colour theme on before the first render.
@@ -28,6 +30,7 @@ import { PageMenu } from './components/PageNav';
 import { TopBarAccount, TopBarStats } from './components/TopBarStats';
 import { SidePanel } from './components/SidePanel';
 import { useIsPhone } from './hooks/useIsPhone';
+import { isStaleBuildError, reloadForNewBuild } from './utils/staleBuild';
 import { useSession } from './lib/auth';
 import { signInWithGoogle, signOut } from './lib/supabase';
 import { queryClient, TRPCProvider, trpcClient } from './lib/trpc';
@@ -228,7 +231,23 @@ const gameCornerRoute = createRoute({ getParentRoute: () => rootRoute, path: '/e
 const voltorbFlipRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/voltorb-flip', component: VoltorbFlipPage });
 const whosThatRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/whos-that', component: WhosThatPage });
 
+// A file of an older build that's gone (a deploy while the tab was open): reload onto the new one (utils/staleBuild.ts).
+window.addEventListener('vite:preloadError', (e) => {
+  if (reloadForNewBuild()) e.preventDefault();
+});
+
+/** The router's error screen: for a file of an older build that's gone, a reload onto the new build instead (staleBuild.ts). */
+function RouteError(props: ErrorComponentProps) {
+  const stale = isStaleBuildError(props.error);
+  const [reloading, setReloading] = useState(false);
+  useEffect(() => {
+    if (stale) setReloading(reloadForNewBuild());
+  }, [stale]);
+  return reloading ? <p className="p-6 text-sm text-slate-400">Loading the new version of the site…</p> : <ErrorComponent {...props} />;
+}
+
 const router = createRouter({
+  defaultErrorComponent: RouteError,
   routeTree: rootRoute.addChildren([playRoute, homeRoute, towerRoute, idleRoute, battleRoute, gameRoute, decksRoute, communityRoute, inventoryRoute, cosmeticsRoute, packsRoute, settingsRoute, extrasRoute, berryFarmRoute, berryBlenderRoute, poffinCookingRoute, superContestRoute, gameCornerRoute, voltorbFlipRoute, whosThatRoute]),
 });
 

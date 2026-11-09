@@ -14,10 +14,18 @@ export const OPTION_BUTTON = 'rounded bg-slate-600 px-2 py-1 text-left text-xs t
 /**
  * A card's move, on the card itself (the user's, 2026-11-08: no window behind them): an attack, an Ability or Pokémon
  * Power, Retreat, and the other moves on a Pokémon in play, in the hand or in the discard pile; each the slate of the old
- * window behind them, with its edge.
+ * window behind them, with its edge. Attacks and Abilities have their own colours (ATTACK_BUTTON, ABILITY_BUTTON).
  */
 export const MOVE_BUTTON =
   'rounded bg-slate-800/95 px-2 py-1 text-left text-xs shadow-lg shadow-black/50 ring-1 ring-slate-600 transition hover:bg-slate-700 active:scale-95 disabled:opacity-40 disabled:hover:bg-slate-800/95';
+
+/** A card's attack (MOVE_BUTTON's shape): the red the attacks had, darker (the user's: less bright). */
+export const ATTACK_BUTTON =
+  'rounded bg-red-800/95 px-2 py-1 text-left text-xs shadow-lg shadow-black/50 ring-1 ring-red-950 transition hover:bg-red-700 active:scale-95 disabled:opacity-40 disabled:hover:bg-red-800/95';
+
+/** A card's Ability or Pokémon Power (MOVE_BUTTON's shape): the violet they had, darker (the user's: less bright). */
+export const ABILITY_BUTTON =
+  'rounded bg-violet-800/95 px-2 py-1 text-left text-xs shadow-lg shadow-black/50 ring-1 ring-violet-950 transition hover:bg-violet-700 active:scale-95 disabled:opacity-40 disabled:hover:bg-violet-800/95';
 
 /** Why a move on a card can't be used now, under its button (MOVE_BUTTON), on the same slate so it reads over the card. */
 export const MOVE_NOTE = 'max-w-60 rounded bg-slate-800/95 px-2 py-1 text-[11px] text-amber-300 ring-1 ring-slate-600';

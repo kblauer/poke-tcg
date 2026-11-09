@@ -121,10 +121,15 @@ export function placeFigures(route: Route, view: RunViewData, first: number, upt
   const spots = route.spots;
   const taken = new Set(spots.map(key));
   const placed: { figure: RouteFigure; tile: RouteSpot; spot: RouteSpot; faded: boolean }[] = [];
-  const place = (figures: RouteFigure[], index: number, faded: boolean) => {
+  /**
+   * `among`: the step's option figures while it was chosen, and which of them `figures` (the one taken) was, so it keeps the
+   * tile it stood on rather than the best one (the user's: a second option's trainer jumped onto the first's tile).
+   */
+  const place = (figures: RouteFigure[], index: number, faded: boolean, among?: { figures: RouteFigure[]; at: number }) => {
     const spot = spots[index]!;
     const stand = route.stands?.[index];
-    let tiles = stand ? [stand] : nearbyTiles(route, index, figures.map((f) => !!f.sprite && swims(f.sprite)), taken);
+    const wet = (fs: RouteFigure[]) => fs.map((f) => !!f.sprite && swims(f.sprite));
+    let tiles = stand ? [stand] : among ? nearbyTiles(route, index, wet(among.figures), taken).slice(among.at, among.at + 1) : nearbyTiles(route, index, wet(figures), taken);
     // A passed non-battle encounter's NPC (not an item ball) walked up to the player: it stays (faded) where it went
     // (`moved`), or, not seen walking (a reload), on the free tile beside the spot nearest where it stood.
     const f = figures[0];
@@ -142,32 +147,41 @@ export function placeFigures(route: Route, view: RunViewData, first: number, upt
       placed.push({ figure: figures[i]!, tile, spot, faded: faded && !stand });
     });
   };
-  const stepFigures = (i: number): { figures: RouteFigure[]; faded: boolean } => {
+  /** A step's options' figures, as they stand while it's chosen (each with its option). */
+  const optionFigures = (i: number) => (view.steps[i]?.options ?? []).flatMap((o, option) => { const f = optionFigure(o, setOf(route)); return f ? [{ ...f, option }] : []; });
+  /** Where the step's chosen option stood among its figures while it was chosen (`among`, for place), if it had one. */
+  const chosenAmong = (i: number) => {
+    const chosen = view.steps[i]?.chosen;
+    const figures = optionFigures(i);
+    const at = figures.findIndex((f) => f.option === chosen);
+    return at < 0 ? undefined : { figures, at };
+  };
+  const stepFigures = (i: number): { figures: RouteFigure[]; faded: boolean; among?: { figures: RouteFigure[]; at: number } } => {
     const step = view.steps[i];
     if (!step) return { figures: [], faded: false };
     if (i < view.position) {
       const chosen = step.chosen !== undefined ? step.options[step.chosen] : undefined;
       const figure = chosen && optionFigure(chosen, setOf(route));
-      return { figures: figure ? [figure] : [], faded: true };
+      return { figures: figure ? [figure] : [], faded: true, among: chosenAmong(i) };
     }
     if (i === view.position && view.phase === 'encounter') {
       // Choosing a battle's reward, its trainer stays (at full opacity) until the player walks on.
       const chosen = view.encounter?.kind === 'reward' && step.chosen !== undefined ? step.options[step.chosen] : undefined;
       const figure = chosen ? optionFigure(chosen, setOf(route)) : encounterFigure(view, setOf(route));
-      return { figures: figure ? [figure] : [], faded: false };
+      return { figures: figure ? [figure] : [], faded: false, among: chosenAmong(i) };
     }
-    return { figures: step.options.flatMap((o, option) => { const f = optionFigure(o, setOf(route)); return f ? [{ ...f, option }] : []; }), faded: false };
+    return { figures: optionFigures(i), faded: false };
   };
   const local = view.position - first;
   const onMap = local >= 0 && view.position < upto;
   if (onMap) {
     const current = stepFigures(view.position);
-    place(current.figures, Math.min(local, spots.length - 1), current.faded);
+    place(current.figures, Math.min(local, spots.length - 1), current.faded, current.among);
   }
   spots.forEach((_, i) => {
     if ((onMap && i === local) || first + i >= upto) return;
-    const { figures, faded } = stepFigures(first + i);
-    place(figures, i, faded);
+    const { figures, faded, among } = stepFigures(first + i);
+    place(figures, i, faded, among);
   });
   return placed;
 }
