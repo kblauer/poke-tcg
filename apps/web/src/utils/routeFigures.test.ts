@@ -47,6 +47,16 @@ describe('placeFigures', () => {
     expect(placed.find((p) => p.figure.title === 'Lass Haley')!.figure.bubble).toBeUndefined();
   });
 
+  it('a chosen encounter keeps the tile it stood on while it was chosen, not the best one (the second of two included)', () => {
+    const steps = [[battle('Lass Haley'), battle('Youngster Joey')], [battle('Hiker Marcos')]];
+    // Choosing: Lass on the left (3,8), Joey on the right (7,8).
+    expect(placeFigures(route, view(steps), 0, 2).filter((p) => p.spot === route.spots[0]).map((p) => [p.figure.title, key(p.tile)])).toEqual([['Lass Haley', '3,8'], ['Youngster Joey', '7,8']]);
+    // Joey chosen: still on the right once his battle is under way, and once passed.
+    const underWay = { ...view(steps, 0, [1]), phase: 'encounter', encounter: { kind: 'battle', trainer: 'Youngster Joey' } } as unknown as RunViewData;
+    expect(placeFigures(route, underWay, 0, 2).find((p) => p.figure.title === 'Youngster Joey')!.tile).toEqual({ x: 7, y: 8 });
+    expect(placeFigures(route, view(steps, 1, [1]), 0, 2).find((p) => p.figure.title === 'Youngster Joey')!.tile).toEqual({ x: 7, y: 8 });
+  });
+
   it("a map holding only some of the run's steps places only those", () => {
     const placed = placeFigures(route, view([[battle('Lass Haley')], [battle('Hiker Marcos')], [battle('Camper Liam')]]), 0, 2);
     expect(placed.map((p) => p.figure.title).sort()).toEqual(['Hiker Marcos', 'Lass Haley']);

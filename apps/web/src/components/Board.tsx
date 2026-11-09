@@ -278,10 +278,17 @@ export function Board({
     return () => window.removeEventListener('click', onClick, true);
   }, [cardMenu]);
   useEscape(() => setCardMenu(null), cardMenu !== null);
-  // The Active's moves are open by themselves on your turn (the user's: no click to show them, autoActive below); a click
-  // on the Active closes them until the game moves on.
-  const [activeClosed, setActiveClosed] = useState(false);
-  useEffect(() => setActiveClosed(false), [view.version]);
+  // The Active's moves, and a benched Pokémon's power that can be used, are open by themselves on your turn (the user's: no
+  // click to show them, autoShown below); a click on the Pokémon closes its panel until the game moves on.
+  const [closedMenus, setClosedMenus] = useState<ReadonlySet<Target>>(new Set());
+  useEffect(() => setClosedMenus(new Set()), [view.version]);
+  const closeMenu = (target: Target, closed: boolean) =>
+    setClosedMenus((all) => {
+      const next = new Set(all);
+      if (closed) next.add(target);
+      else next.delete(target);
+      return next;
+    });
 
   /** A Trainer card is being dragged: the whole play area is its drop target. */
   const draggingTrainer = dragging !== null && heldCard !== undefined && trainer.isTrainer(heldCard);
@@ -398,7 +405,7 @@ export function Board({
                     // Open (by itself or clicked): closed until the game moves on; closed: open.
                     const open = menuShown === 'active';
                     setCardMenu(open ? null : 'active');
-                    setActiveClosed(open);
+                    closeMenu('active', open);
                   }
                 : undefined) ??
               (canPromote ? () => send({ type: 'PROMOTE', slot: target as number }) : undefined) ??
@@ -411,7 +418,10 @@ export function Board({
               (benchPower && !heldCard && !retreat.ready
                 ? () => {
                     cancelAll();
-                    setCardMenu((m) => (m === target ? null : target));
+                    // Open (by itself or clicked): closed until the game moves on; closed: open.
+                    const open = panelShown(target);
+                    setCardMenu(open ? null : target);
+                    closeMenu(target, open);
                   }
                 : undefined) ??
               (toolUsable && !heldCard && !retreat.ready
@@ -433,7 +443,7 @@ export function Board({
     return (
       <div key={id} className="relative" data-card-menu={cardMenu === target ? '' : undefined}>
         {slot}
-        {menuShown === target && pokemon && cardPanel(target)}
+        {panelShown(target) && pokemon && cardPanel(target)}
       </div>
     );
   };
@@ -462,7 +472,12 @@ export function Board({
       : [];
 
   /** The Active's moves open by themselves: your turn, past the setup, nothing held, no retreat or move under way, not clicked closed. */
-  const autoActive = myTurn && phase !== 'setup' && !!self.active && !busy && !heldCard && !retreat.ready && !pokemonPick && !activeClosed;
+  const autoMoves = myTurn && phase !== 'setup' && !busy && !heldCard && !retreat.ready && !pokemonPick && !attack.spec && !power.spec;
+  const autoActive = autoMoves && !!self.active && !closedMenus.has('active');
+  /** A benched Pokémon's power panel open by itself: the power can be used now (autoMoves), and it wasn't clicked closed. */
+  const autoBench = (target: Target) => autoMoves && typeof target === 'number' && !closedMenus.has(target) && power.powers.some((p) => p.source === target && p.error === null);
+  /** Whether a Pokémon's panel shows: the one open (menuShown), or a benched one's by itself (autoBench), any number of them. */
+  const panelShown = (target: Target) => menuShown === target || autoBench(target);
   /**
    * The open card panel: as cardMenu (or the Active's, by itself: autoActive), but while an attack or power asks something
    * it's that one's, and hidden while one of your Pokémon is to be clicked.
