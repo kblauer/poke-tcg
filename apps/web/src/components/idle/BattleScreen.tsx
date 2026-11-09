@@ -1,7 +1,9 @@
 import { generation, catchTextFrame, cooldownTicks, FRAME_MS, introMs, moveData, species, TICK_MS, type BattleEvent, type BattlerView } from '@poke-tcg/idle';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { isReward, type BattleSegment } from '../../hooks/useIdle';
+import { useTRPC } from '../../lib/trpc';
 import { idleSpeed } from '../../utils/idleSpeed';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
 import { BattleScene } from './BattleScene';
@@ -365,8 +367,11 @@ export function BattleScreen({
   }, [ballWait > 0, introWait > 0, line, shown]);
   const name = (id: number) => species(id).name;
   const hgss = isHgss();
-  // HGSS's words where they differ (msg_0197: "A wild X appeared!"), and its player's name.
-  const playerName = hgss ? (gender === 'female' ? 'Lyra' : 'Ethan') : gender === 'female' ? 'Leaf' : 'Red';
+  const trpc = useTRPC();
+  const accountName = useQuery(trpc.community.accountName.queryOptions());
+  // HGSS's words where they differ (msg_0197: "A wild X appeared!"), and the player's name: the account's (the user's),
+  // else the game's hero's.
+  const playerName = accountName.data || (hgss ? (gender === 'female' ? 'Lyra' : 'Ethan') : gender === 'female' ? 'Leaf' : 'Red');
   const said =
     shown === 0
       ? trainer && introWait <= 0
@@ -378,7 +383,10 @@ export function BattleScreen({
           : `${hgss ? 'A wild' : 'Wild'} ${name(latest.mon.species)} appeared!`
         : latest?.t === 'ball' && ballWait > 0
           ? `${playerName} used ${generation().items[latest.item]?.name ?? 'a ball'}!`
-          : text;
+          : // The player's own items (the engine's "You used a Potion!") by name.
+            latest?.t === 'item' && latest.side === 0
+            ? latest.msg.replace(/^You used /, `${playerName} used `)
+            : text;
   return (
     <div ref={ref} className="w-full">
     <div className="mx-auto space-y-2" style={{ width: scale ? (hgss ? DS_WIDTH : GAME_WIDTH) * scale : '100%' }}>

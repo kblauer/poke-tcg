@@ -240,6 +240,14 @@ describe('moves and cooldowns', () => {
     expect(me.openers).toEqual([]);
   });
 
+  it("between two ready moves of the same power, uses the one first in its slots (the user's)", () => {
+    // Ember and Water Gun, both 40 power and ready: whichever is first in the list.
+    for (const slots of [['ember', 'water-gun'], ['water-gun', 'ember']]) {
+      const b = new Battle(setup([mon(4, 40, { moves: ['scratch', 'ember', 'water-gun'], slots, autoSlots: false })], [mon(1, 40)]), rngFrom(1));
+      expect(b.chooseMove(b.active[0])).toBe(slots[0]);
+    }
+  });
+
   it('opens with a status move set by hand against each foe Pokémon, then uses it by power; on the automatic pick by power', () => {
     const moves = ['scratch', 'smokescreen', 'flamethrower'];
     const battle = (autoSlots: boolean) => new Battle(setup([mon(5, 40, { moves, slots: ['flamethrower', 'smokescreen'], autoSlots })], [mon(1, 40), mon(4, 40)], { kind: 'trainer' }), rngFrom(1));

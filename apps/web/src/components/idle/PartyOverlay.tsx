@@ -1,5 +1,8 @@
+import { closestCenter, DndContext, MouseSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { generation, basicFor, calcStats, cooldownTicks, machineMoves, moveData, species, usableStones, type IdleAction, type Mon } from '@poke-tcg/idle';
-import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import { useEscape } from '../../hooks/useEscape';
 import { pokemonPics } from '../../utils/idleLook';
 import { screenPx as px } from './GameScreen';
@@ -351,6 +354,28 @@ function StatHex({ stats, height }: { stats: number[]; height: number }) {
   );
 }
 
+/** A set move slot in the Pokémon's panel (MonPanel): its select, and a handle on its left to drag it into another place. */
+function SlotRow({ id, busy, children }: { id: string; busy: boolean; children: ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div ref={setNodeRef} className="flex items-center" style={{ marginTop: px(1.5), gap: px(1), transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 1 : undefined, position: 'relative', opacity: isDragging ? 0.85 : 1 }}>
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        disabled={busy}
+        className="flex shrink-0 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
+        style={{ ...TEXT, width: px(5), height: px(10), fontSize: px(8) }}
+        aria-label={`Drag ${moveData(id).name} into another place`}
+        title="Drag to change the order: of two moves as strong, the first is used first"
+      >
+        ⠿
+      </button>
+      {children}
+    </div>
+  );
+}
+
 /**
  * The panel a slot opens (in the slots' style), just left of the slots' column and small enough not to scroll (the
  * user's): the Pokémon's name, level and types, its stats as a hexagon, its basic move, its 3 slots to set (or picked
@@ -389,11 +414,25 @@ export function MonPanel({
   // The moves the bag's TMs and HMs give it (those it can learn), after its own.
   const machine = machineMoves(mon, bag).filter((m) => m !== basic);
   const stones = usableStones(mon).filter((st) => bag[st]);
+  // The slots in the order shown: the Pokémon's, or the one just dragged into until it comes back (no snap back meanwhile).
+  const [dragged, setDragged] = useState<string[] | null>(null);
+  const slotsKey = mon.slots.join(',');
+  useEffect(() => setDragged(null), [slotsKey]);
+  const shown = dragged ?? mon.slots;
   const setSlot = (slot: number, key: string) => {
-    const slots = [...mon.slots];
+    const slots = [...shown];
     if (key) slots[slot] = key;
     else slots.splice(slot, 1);
     onAct({ type: 'SET_SLOTS', uid: mon.uid, slots: [...new Set(slots.filter(Boolean))] });
+  };
+  // Its moves dragged into another order (the user's): the order is which goes first among moves of the same power
+  // (chooseMove), and setting it turns the automatic pick off, as setting a slot does.
+  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 4 } }), useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }));
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    const order = arrayMove(shown, shown.indexOf(String(active.id)), shown.indexOf(String(over.id)));
+    setDragged(order);
+    onAct({ type: 'SET_SLOTS', uid: mon.uid, slots: order });
   };
   const small = { fontSize: px(7) } as const;
   return (
@@ -432,33 +471,48 @@ export function MonPanel({
         </div>
       </div>
       <div style={{ ...TEXT, ...small, marginTop: px(2) }}>Basic: {moveData(basic).name}</div>
-      {[0, 1, 2].map((slot) => (
-        <select
-          key={slot}
-          className="block w-full"
-          style={{ fontSize: px(7), height: px(10), marginTop: px(1.5), padding: `0 ${px(1)}`, background: '#ffffff', color: '#303030', border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(2) }}
-          value={mon.slots[slot] ?? ''}
-          disabled={busy}
-          onChange={(e) => setSlot(slot, e.target.value)}
-          aria-label={`Move slot ${slot + 1}`}
-        >
-          <option value="">(empty)</option>
-          {choices.map((k) => (
-            <option key={k} value={k} disabled={mon.slots.includes(k) && mon.slots[slot] !== k}>
-              {moveLabel(k)}
-            </option>
-          ))}
-          {machine.length > 0 && (
-            <optgroup label="TMs and HMs">
-              {machine.map((k) => (
-                <option key={k} value={k} disabled={mon.slots.includes(k) && mon.slots[slot] !== k}>
-                  {moveLabel(k)}
-                </option>
-              ))}
-            </optgroup>
-          )}
-        </select>
-      ))}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={shown} strategy={verticalListSortingStrategy} disabled={busy}>
+          {[0, 1, 2].map((slot) => {
+            const select = (
+              <select
+                className="block min-w-0 flex-1"
+                style={{ fontSize: px(7), height: px(10), padding: `0 ${px(1)}`, background: '#ffffff', color: '#303030', border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(2) }}
+                value={shown[slot] ?? ''}
+                disabled={busy}
+                onChange={(e) => setSlot(slot, e.target.value)}
+                aria-label={`Move slot ${slot + 1}`}
+              >
+                <option value="">(empty)</option>
+                {choices.map((k) => (
+                  <option key={k} value={k} disabled={shown.includes(k) && shown[slot] !== k}>
+                    {moveLabel(k)}
+                  </option>
+                ))}
+                {machine.length > 0 && (
+                  <optgroup label="TMs and HMs">
+                    {machine.map((k) => (
+                      <option key={k} value={k} disabled={shown.includes(k) && shown[slot] !== k}>
+                        {moveLabel(k)}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            );
+            // A set slot is dragged by its handle; an empty one stays put at the end.
+            return shown[slot] ? (
+              <SlotRow key={shown[slot]} id={shown[slot]!} busy={busy}>
+                {select}
+              </SlotRow>
+            ) : (
+              <div key={`empty${slot}`} className="flex items-center" style={{ marginTop: px(1.5), gap: px(1), paddingLeft: px(6) }}>
+                {select}
+              </div>
+            );
+          })}
+        </SortableContext>
+      </DndContext>
       <label className="flex items-center" style={{ ...TEXT, ...small, gap: px(2), marginTop: px(2) }}>
         <input type="checkbox" checked={mon.autoSlots} disabled={busy || mon.autoSlots} onChange={() => onAct({ type: 'SET_SLOTS', uid: mon.uid, slots: [], auto: true })} style={{ width: px(6), height: px(6) }} />
         Pick the 3 strongest
