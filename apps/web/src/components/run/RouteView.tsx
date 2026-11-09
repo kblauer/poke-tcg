@@ -5,7 +5,7 @@ import LockOpenIcon from '@mui/icons-material/LockOpen';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import { dropAt, flowAt, inGrass, inLongGrass, isBattleKind, LIFT_MS, LIFT_PAUSE_MS, liftEnd, onLongGrassEdge, onPath, onWater, routePath, snowSink, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import type { PlayerGender } from '@poke-tcg/shared';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useCrackedIce } from '../../hooks/useCrackedIce';
 import { useSnowballs } from '../../hooks/useSnowballs';
 import { useGears } from '../../hooks/useGears';
@@ -17,7 +17,8 @@ import type { RunViewData } from '../../hooks/useRun';
 import { FADE_MS, GRASS_PACE, pace, slowGrass, stepPace, THROUGH_MS, useWalk, type MapSection, type Walker } from '../../hooks/useWalk';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
 import { bobs, BOB_MS, isItemBall, playerSprite, STEP_MS, WALK_FRAME_MS, type Facing } from '../../utils/overworld';
-import { encounterFigure, facing, key, placeFigures, setOf, type PlacedFigure } from '../../utils/routeFigures';
+import { MAP_CARD, MAP_CARD_PHONE, MAP_CARD_SKIP } from '../../utils/layout';
+import { encounterFigure, facing, key, layOutCards, placeFigures, setOf, type PlacedFigure } from '../../utils/routeFigures';
 import { Exclamation, Figure, GrassTufts, JumpDust, JumpShadow, OverworldSprite, Snowball, SnowTrack, TallGrass, TileOverlay } from './RouteSprites';
 
 /**
@@ -113,6 +114,7 @@ export function RouteView({
   optionCard,
   overlay,
   corners,
+  fill = false,
 }: {
   routes: Route[];
   gym?: Route;
@@ -125,6 +127,8 @@ export function RouteView({
   overlay?: ReactNode;
   /** What sits in the view's corners (the user's experiment): Concede (top left), the Bag (bottom left, the view's height to open in), the deck (bottom right). */
   corners?: { topLeft?: ReactNode; bottomLeft?: ReactNode; bottomRight?: ReactNode };
+  /** As tall as its parent (a flex column) lets it be, the caption at the bottom (the user's: with nothing else on the page); no handle for its height. */
+  fill?: boolean;
 }) {
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => void preloadSprites(), []);
@@ -189,7 +193,10 @@ export function RouteView({
   // he walks on (the user's experiment, with `optionCard`).
   const atSpot = walker.section === targetSection && walker.tile.x === targetSpot.x && walker.tile.y === targetSpot.y && !walker.walking && !walker.hidden;
   const zoomedIn = !!optionCard && atSpot && view.position === position && (view.phase === 'map' || view.phase === 'encounter');
-  const zoom = zoomedIn ? (phone ? PHONE_CHOOSE_ZOOM : CHOOSE_ZOOM) : ZOOM;
+  // Eased out from CHOOSE_ZOOM when the step's cards don't fit the view at it (layOutCards, below), kept for the step.
+  const [fit, setFit] = useState<{ position: number; zoom: number } | null>(null);
+  const chooseZoom = phone ? PHONE_CHOOSE_ZOOM : CHOOSE_ZOOM;
+  const zoom = zoomedIn ? (fit?.position === view.position ? fit.zoom : chooseZoom) : ZOOM;
   const pan = usePan({ box, mapEl, map: shown, mapHeight: Math.max(...routes.map((r) => r.height), gym?.height ?? 0), panLocked, zoom, pastEdges: !!optionCard });
   const { size, setOffset, setGlide, centreOn, centreOnMap } = pan;
   // The figures as last drawn, for the walk to go around them.
@@ -339,10 +346,41 @@ export function RouteView({
   const figure = useRef<HTMLElement>(null);
   // (Without the map's cards, as wide as the widest of its maps at 2×, as before.)
   const viewWidth = (z: number) => (optionCard ? Math.max(768, shown.width * z) : Math.max(768, ...sections.map((s) => s.map.width * ZOOM)));
-  // With the encounter's panel over the bottom of the view, what it centres on is a third of the way down instead.
-  const focusY = overlay ? 0.3 : 0.5;
-  /** The offset that puts a tile at the view's focus (its middle, or higher with the panel up) at a zoom, kept inside the map. */
-  const centreAt = (t: { x: number; y: number }, z: number, view: { w: number; h: number }) => clampView(shown, { x: view.w / 2 - (t.x * 16 + 8) * z, y: view.h * focusY - (t.y * 16 + 8) * z }, view, z, !!optionCard);
+  // The bottom corners' height (the deck's and the Bag's), for the cards below the player to stay clear of.
+  const bottomRight = useRef<HTMLDivElement>(null);
+  const bottomLeft = useRef<HTMLDivElement>(null);
+  const [cornersHeight, setCornersHeight] = useState(0);
+  const cornered = !!corners;
+  useEffect(() => {
+    const els = [bottomRight.current, bottomLeft.current?.querySelector<HTMLElement>('[data-corner]')].filter((e): e is HTMLElement => !!e);
+    if (!els.length) return;
+    const measure = () => setCornersHeight(Math.max(...els.map((e) => e.offsetHeight)));
+    measure();
+    const observer = new ResizeObserver(measure);
+    els.forEach((e) => observer.observe(e));
+    return () => observer.disconnect();
+  }, [cornered]);
+  // The cards laid out (layOutCards: apart, inside the view, clear of the corners), at the zoom they fit at; the player
+  // resting higher than the middle when the cards below him need it.
+  const cardFigures = carded.map((p) => {
+    const kind = view.steps[position]?.options[p.figure.option!]?.kind;
+    const h = (phone ? MAP_CARD_PHONE : MAP_CARD).h + (DEBUG_BUILD && debug && kind && isBattleKind(kind) ? MAP_CARD_SKIP : 0);
+    return { option: p.figure.option!, dx: p.tile.x - walker.tile.x, dy: p.tile.y - walker.tile.y, drop: drop(p.tile), h };
+  });
+  const layout =
+    size.w && (carded.length || uncarded.length)
+      ? layOutCards(cardFigures, uncarded, { zoom: chooseZoom, minZoom: ZOOM, card: phone ? MAP_CARD_PHONE : MAP_CARD, view: size, top: 8, bottom: cornersHeight + 16, gap: 4, redDrop: drop(walker.tile) })
+      : null;
+  useLayoutEffect(() => {
+    if (layout && (fit?.position !== view.position || fit.zoom !== layout.zoom)) setFit({ position: view.position, zoom: layout.zoom });
+  });
+  /**
+   * Where the view's focus rests, down from its top: the middle; higher with the encounter's panel over the bottom of the
+   * view (a third of the way down); where the cards fit while they're chosen.
+   */
+  const restY = (h: number) => (overlay ? h * 0.3 : layout ? layout.restY : h * 0.5);
+  /** The offset that puts a tile at the view's focus (restY) at a zoom, kept inside the map. */
+  const centreAt = (t: { x: number; y: number }, z: number, view: { w: number; h: number }) => clampView(shown, { x: view.w / 2 - (t.x * 16 + 8) * z, y: restY(view.h) - (t.y * 16 + 8) * z }, view, z, !!optionCard);
   /** What the view centres on, zoomed in or out: the player (the user's: never anywhere else, so a zoom never swings the view). */
   const focusTile = () => walkerRef.current.tile;
   // Centred when the view first has a size, or changes size (not while a zoom moves it).
@@ -386,7 +424,7 @@ export function RouteView({
       const z = from.zoom * (zoom / from.zoom) ** k;
       const view = { w: Math.min(page, viewWidth(z)), h: size.h };
       const across = across0 * (1 - k);
-      const down = down0 + (view.h * focusY - down0) * k;
+      const down = down0 + (restY(view.h) - down0) * k;
       return { zoom: z, width: viewWidth(z), offset: clampView(shown, { x: view.w / 2 + across - red.x * z, y: down - red.y * z }, view, z, !!optionCard) };
     };
     const start = performance.now();
@@ -432,11 +470,12 @@ export function RouteView({
   return (
     // As wide as the widest of its maps at 2× (at least 48rem), up to the page's width: no wider than the maps can fill.
     // As wide as the page, up to the map's whole width at its zoom (at least 48rem).
-    <figure ref={figure} className="mx-auto w-full space-y-1" style={{ maxWidth: viewWidth(shownZoom) }}>
+    <figure ref={figure} className={`mx-auto w-full ${fill ? 'flex min-h-0 flex-1 flex-col gap-1' : 'space-y-1'}`} style={{ maxWidth: viewWidth(shownZoom) }}>
       <div
         ref={box}
-        className={`relative overflow-hidden rounded-lg bg-slate-950 ring-1 ring-slate-600 ${panLocked ? 'touch-pan-y' : 'cursor-grab touch-none active:cursor-grabbing'}`}
-        style={{ height: pan.height }}
+        // `isolate`: the layers inside (the corners, the cards, the panel) stack only among themselves, never over the page's (the ☰ menu).
+        className={`relative isolate overflow-hidden rounded-lg bg-slate-950 ring-1 ring-slate-600 ${fill ? 'min-h-50 flex-1' : ''} ${panLocked ? 'touch-pan-y' : 'cursor-grab touch-none active:cursor-grabbing'}`}
+        style={fill ? undefined : { height: pan.height }}
         aria-label={panLocked ? `${shown.name}. The map is locked.` : `${shown.name}. Drag or scroll to look around.`}
         onPointerDown={pan.onPointerDown}
         onPointerMove={pan.onPointerMove}
@@ -556,25 +595,22 @@ export function RouteView({
             {/* A bridge walked over and under (the route's `bridges`): its deck over him only while he's under it. */}
             {shown.bridgeOverhead && walker.under && <img src={shown.bridgeOverhead} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none [image-rendering:pixelated]" style={{ zIndex: 899 }} />}
             {spottedFigure && <Exclamation tile={spottedFigure.tile} drop={drop(spottedFigure.tile)} />}
-            {/* The step's encounters as cards beside their figures (above one standing above the player, below the others),
-                drawn at the page's own size (scaled back from the zoom) so they're crisp; once the zoom has settled. */}
+            {/* The step's encounters as cards beside their figures (above one standing above the player, below the others; laid
+                out by layOutCards), drawn at the page's own size (scaled back from the zoom) so they're crisp; once the zoom has settled. */}
             {cardsShown &&
-              carded.map((p) => {
-                const above = p.tile.y < walker.tile.y;
-                return (
-                  <div
-                    key={`card${p.figure.option}`}
-                    className="absolute origin-top-left animate-[idle-fade-in_200ms_ease-out]"
-                    style={{ left: p.tile.x * 16 + 8, top: above ? p.tile.y * 16 - 14 + drop(p.tile) : p.tile.y * 16 + 18 + drop(p.tile), zIndex: 950, transform: `scale(${1 / zoom}) translate(-50%, ${above ? '-100%' : '0'})` }}
-                  >
-                    {optionCard?.(p.figure.option!)}
-                  </div>
-                );
-              })}
-            {cardsShown && uncarded.length > 0 && (
+              layout?.cards.map((c) => (
+                <div
+                  key={`card${c.option}`}
+                  className="absolute origin-top-left animate-[idle-fade-in_200ms_ease-out]"
+                  style={{ left: walker.tile.x * 16 + 8 + c.x / zoom, top: walker.tile.y * 16 + 8 + c.y / zoom, zIndex: 950, transform: `scale(${1 / zoom})` }}
+                >
+                  {optionCard?.(c.option)}
+                </div>
+              ))}
+            {cardsShown && layout?.others && (
               <div
                 className="absolute flex origin-top-left animate-[idle-fade-in_200ms_ease-out] flex-col gap-1"
-                style={{ left: walker.tile.x * 16 + 8, top: walker.tile.y * 16 - 14 + drop(walker.tile), zIndex: 950, transform: `scale(${1 / zoom}) translate(-50%, -100%)` }}
+                style={{ left: walker.tile.x * 16 + 8 + layout.others.x / zoom, top: walker.tile.y * 16 + 8 + layout.others.y / zoom, zIndex: 950, transform: `scale(${1 / zoom})` }}
               >
                 {uncarded.map((i) => (
                   <div key={i}>{optionCard?.(i)}</div>
@@ -597,12 +633,12 @@ export function RouteView({
           </div>
         )}
         {corners?.bottomLeft && (
-          <div data-no-pan className="pointer-events-none absolute inset-2 z-[1000] cursor-auto">
+          <div ref={bottomLeft} data-no-pan className="pointer-events-none absolute inset-2 z-[1000] cursor-auto">
             {corners.bottomLeft}
           </div>
         )}
         {corners?.bottomRight && (
-          <div data-no-pan className="absolute bottom-2 right-2 z-[1000] cursor-auto">
+          <div ref={bottomRight} data-no-pan className="absolute bottom-2 right-2 z-[1000] cursor-auto">
             {corners.bottomRight}
           </div>
         )}
@@ -666,22 +702,25 @@ export function RouteView({
         </div>
       </div>
       {/* The handle for the view's height: drag it up or down; a double-click resets it. */}
-      <div
-        role="separator"
-        aria-orientation="horizontal"
-        aria-label="Resize the map"
-        title="Drag to resize the map (double-click to reset)"
-        className="group flex h-3 cursor-ns-resize touch-none items-center justify-center"
-        onPointerDown={pan.onResizeDown}
-        onPointerMove={pan.onResizeMove}
-        onPointerUp={pan.onResizeUp}
-        onPointerCancel={pan.onResizeUp}
-        onDoubleClick={pan.resetHeight}
-      >
-        <span className="h-1 w-12 rounded-full bg-slate-600 transition group-hover:bg-slate-400" />
-      </div>
+      {!fill && (
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize the map"
+          title="Drag to resize the map (double-click to reset)"
+          className="group flex h-3 cursor-ns-resize touch-none items-center justify-center"
+          onPointerDown={pan.onResizeDown}
+          onPointerMove={pan.onResizeMove}
+          onPointerUp={pan.onResizeUp}
+          onPointerCancel={pan.onResizeUp}
+          onDoubleClick={pan.resetHeight}
+        >
+          <span className="h-1 w-12 rounded-full bg-slate-600 transition group-hover:bg-slate-400" />
+        </div>
+      )}
       <figcaption className="text-center text-xs text-slate-400">
-        {atGym ? gym.name : target.map.spots.length > 1 ? `${target.map.name} · encounter ${Math.min(position - target.first, target.map.spots.length - 1) + 1} of ${target.map.spots.length}` : target.map.name} · step {Math.min(position + 1, total)} of {total} · {panLocked ? 'map locked' : 'drag or scroll to look around'}
+        {/* The map's name is in the run's heading (RunHeader). */}
+        {!atGym && target.map.spots.length > 1 && `encounter ${Math.min(position - target.first, target.map.spots.length - 1) + 1} of ${target.map.spots.length} · `}step {Math.min(position + 1, total)} of {total} · {panLocked ? 'map locked' : 'drag or scroll to look around'}
       </figcaption>
     </figure>
   );

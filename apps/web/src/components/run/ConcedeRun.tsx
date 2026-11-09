@@ -12,7 +12,7 @@ export function ConcedeRun({ view, run }: { view: RunViewData; run: RunControl }
   if (!asking) {
     return (
       <button className="rounded bg-slate-700 px-3 py-1.5 text-sm text-slate-300 transition hover:bg-slate-600 active:scale-95 disabled:opacity-40" disabled={run.busy} onClick={() => setAsking(true)}>
-        Concede the run
+        End run
       </button>
     );
   }
