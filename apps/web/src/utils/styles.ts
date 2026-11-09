@@ -11,6 +11,17 @@ export const CHOICE_BUTTON = 'rounded bg-slate-600 px-3 py-1 text-sm hover:bg-sl
 export const OPTION_BUTTON = 'rounded bg-slate-600 px-2 py-1 text-left text-xs transition hover:bg-slate-500 active:scale-95';
 
 /** A page toolbar's button (the deck builder's, Community Decks'), its colours given beside it. */
+/**
+ * A card's move, on the card itself (the user's, 2026-11-08: no window behind them): an attack, an Ability or Pokémon
+ * Power, Retreat, and the other moves on a Pokémon in play, in the hand or in the discard pile; each the slate of the old
+ * window behind them, with its edge.
+ */
+export const MOVE_BUTTON =
+  'rounded bg-slate-800/95 px-2 py-1 text-left text-xs shadow-lg shadow-black/50 ring-1 ring-slate-600 transition hover:bg-slate-700 active:scale-95 disabled:opacity-40 disabled:hover:bg-slate-800/95';
+
+/** Why a move on a card can't be used now, under its button (MOVE_BUTTON), on the same slate so it reads over the card. */
+export const MOVE_NOTE = 'max-w-60 rounded bg-slate-800/95 px-2 py-1 text-[11px] text-amber-300 ring-1 ring-slate-600';
+
 export const PAGE_BUTTON = 'rounded px-3 py-1 text-sm disabled:opacity-40';
 
 /** A small square button holding only an icon (the phone panel's and the music player's bars). */

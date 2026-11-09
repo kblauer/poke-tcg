@@ -16,7 +16,7 @@ import { useDebugEnabled } from '../utils/debug';
 import { useCosmetics } from '../hooks/useCosmetics';
 import { useEscape } from '../hooks/useEscape';
 import { PAGE_WIDTH } from '../utils/layout';
-import { CHOICE_BUTTON } from '../utils/styles';
+import { CHOICE_BUTTON, MOVE_BUTTON, MOVE_NOTE } from '../utils/styles';
 import { centerOnPointer } from '../utils/dragOverlay';
 import { isMyTurn, mustPromote, statusText } from '../utils/turn';
 import { AttackChoicePanel } from './AttackChoicePanel';
@@ -278,6 +278,10 @@ export function Board({
     return () => window.removeEventListener('click', onClick, true);
   }, [cardMenu]);
   useEscape(() => setCardMenu(null), cardMenu !== null);
+  // The Active's moves are open by themselves on your turn (the user's: no click to show them, autoActive below); a click
+  // on the Active closes them until the game moves on.
+  const [activeClosed, setActiveClosed] = useState(false);
+  useEffect(() => setActiveClosed(false), [view.version]);
 
   /** A Trainer card is being dragged: the whole play area is its drop target. */
   const draggingTrainer = dragging !== null && heldCard !== undefined && trainer.isTrainer(heldCard);
@@ -389,7 +393,14 @@ export function Board({
                 ? undefined
                 : (slotClick(id) ??
               retreat.slotClick(id) ??
-              (opensMoves ? () => setCardMenu((m) => (m === 'active' ? null : 'active')) : undefined) ??
+              (opensMoves
+                ? () => {
+                    // Open (by itself or clicked): closed until the game moves on; closed: open.
+                    const open = menuShown === 'active';
+                    setCardMenu(open ? null : 'active');
+                    setActiveClosed(open);
+                  }
+                : undefined) ??
               (canPromote ? () => send({ type: 'PROMOTE', slot: target as number }) : undefined) ??
               ((faceDown || shapeshifted) && !heldCard && !retreat.ready
                 ? () => {
@@ -450,8 +461,13 @@ export function Board({
         ]
       : [];
 
-  /** The open card panel: as cardMenu, but while an attack or power asks something it's that one's, and hidden while one of your Pokémon is to be clicked. */
-  const menuShown: Target | null = pokemonPick?.side === 'own' ? null : attack.spec ? 'active' : power.spec ? power.usingSource : cardMenu;
+  /** The Active's moves open by themselves: your turn, past the setup, nothing held, no retreat or move under way, not clicked closed. */
+  const autoActive = myTurn && phase !== 'setup' && !!self.active && !busy && !heldCard && !retreat.ready && !pokemonPick && !activeClosed;
+  /**
+   * The open card panel: as cardMenu (or the Active's, by itself: autoActive), but while an attack or power asks something
+   * it's that one's, and hidden while one of your Pokémon is to be clicked.
+   */
+  const menuShown: Target | null = pokemonPick?.side === 'own' ? null : attack.spec ? 'active' : power.spec ? power.usingSource : (cardMenu ?? (autoActive ? 'active' : null));
   /** An attack's or power's question answered by clicking one of your Pokémon: its card panel is hidden, so it's a prompt. */
   const moveSpec = pokemonPick?.side === 'own' ? (attack.spec ?? power.spec) : null;
   const movePrompt = prompt ?? (moveSpec ? `${moveSpec.prompt}: ${phone ? 'tap' : 'click'} one of your highlighted Pokémon` : null);
@@ -465,12 +481,14 @@ export function Board({
     // On a phone the panel is wider than a benched card: at either end of the Bench it lines up with the card's outer edge, so it stays on the screen.
     const across = phone && target === 0 ? 'left-0' : phone && typeof target === 'number' && target === self.bench.length - 1 ? 'right-0' : 'left-1/2 -translate-x-1/2';
     return (
-      <div data-keep-action className={`absolute ${across} top-1/2 z-40 flex w-max min-w-36 max-w-60 -translate-y-1/2 flex-col gap-1 rounded-lg bg-slate-800/95 p-2 text-xs shadow-xl shadow-black/60 ring-1 ring-slate-600`}>
+      // No window behind the moves (the user's, 2026-11-08): each button stands on the card by itself (MOVE_BUTTON), centred
+      // a little below the card's middle (the user's).
+      <div data-keep-action className={`absolute ${across} top-[60%] z-40 flex w-max min-w-36 max-w-60 -translate-y-1/2 flex-col gap-1 text-xs`}>
         {target === 'active' ? (
           <>
             {attackPanels}
             {activeMoves.map((m) => (
-              <button key={m.label} className="rounded bg-slate-600 px-2 py-1 text-left transition hover:bg-slate-500 active:scale-95" disabled={busy} onClick={m.run}>
+              <button key={m.label} className={MOVE_BUTTON} disabled={busy} onClick={m.run}>
                 {m.label}
               </button>
             ))}
@@ -480,10 +498,9 @@ export function Board({
         ) : (
           benched && (
             <>
-              <p className="font-semibold text-violet-200">{benched.name}</p>
-              {benched.error && <p className="text-[11px] text-amber-300">{benched.error}</p>}
               <button
-                className="rounded bg-violet-700 px-2 py-1 text-left transition hover:bg-violet-600 active:scale-95 disabled:opacity-40 disabled:hover:bg-violet-700"
+                className={MOVE_BUTTON}
+                title={benched.error ?? undefined}
                 disabled={benched.error !== null || busy}
                 onClick={() => {
                   cancelAll();
@@ -492,6 +509,7 @@ export function Board({
               >
                 Use {benched.name}
               </button>
+              {benched.error && <p className={MOVE_NOTE}>{benched.error}</p>}
             </>
           )
         )}
@@ -499,8 +517,23 @@ export function Board({
     );
   };
 
+  // The Active's moves in one order (the user's): its Ability or Pokémon Power, its attacks, Retreat (then activeMoves).
   const attackPanels = self.active && phase !== 'setup' && (
     <>
+      {/* A benched Pokémon's power asks on its own card (cardPanel). */}
+      {myTurn && !attack.spec && (!power.spec || power.usingSource === 'active') && (
+        <PowerPanel
+          view={view}
+          busy={busy}
+          power={{
+            ...power,
+            start: (source) => {
+              cancelAll();
+              power.start(source);
+            },
+          }}
+        />
+      )}
       <AttackList
         pokemon={self.active}
         defender={view.opponent.active}
@@ -535,20 +568,6 @@ export function Board({
             },
           }}
           pending={pending}
-        />
-      )}
-      {/* A benched Pokémon's power asks on its own card (cardPanel). */}
-      {myTurn && !attack.spec && (!power.spec || power.usingSource === 'active') && (
-        <PowerPanel
-          view={view}
-          busy={busy}
-          power={{
-            ...power,
-            start: (source) => {
-              cancelAll();
-              power.start(source);
-            },
-          }}
         />
       )}
     </>
@@ -609,11 +628,10 @@ export function Board({
     const ability = zoneAbility(card, 'hand');
     if (!ability) return null;
     return (
-      <div data-hand-ability data-keep-action className="flex w-max min-w-36 max-w-60 flex-col gap-1 rounded-lg bg-slate-800/95 p-2 text-xs shadow-xl shadow-black/60 ring-1 ring-slate-600">
-        <p className="font-semibold text-violet-200">{ability.name}</p>
-        {ability.error && <p className="text-[11px] text-amber-300">{ability.error}</p>}
+      <div data-hand-ability data-keep-action className="flex w-max min-w-36 max-w-60 flex-col gap-1 text-xs">
         <button
-          className="rounded bg-violet-700 px-2 py-1 text-left transition hover:bg-violet-600 active:scale-95 disabled:opacity-40 disabled:hover:bg-violet-700"
+          className={MOVE_BUTTON}
+          title={ability.error ?? undefined}
           disabled={ability.error !== null || busy}
           onClick={() => {
             cancelAll();
@@ -623,6 +641,7 @@ export function Board({
         >
           Use {ability.name}
         </button>
+        {ability.error && <p className={MOVE_NOTE}>{ability.error}</p>}
       </div>
     );
   }
