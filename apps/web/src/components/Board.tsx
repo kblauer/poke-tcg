@@ -16,7 +16,7 @@ import { useDebugEnabled } from '../utils/debug';
 import { useCosmetics } from '../hooks/useCosmetics';
 import { useEscape } from '../hooks/useEscape';
 import { PAGE_WIDTH } from '../utils/layout';
-import { CHOICE_BUTTON, MOVE_BUTTON, MOVE_NOTE } from '../utils/styles';
+import { ABILITY_BUTTON, CHOICE_BUTTON, MOVE_BUTTON, MOVE_NOTE } from '../utils/styles';
 import { centerOnPointer } from '../utils/dragOverlay';
 import { isMyTurn, mustPromote, statusText } from '../utils/turn';
 import { AttackChoicePanel } from './AttackChoicePanel';
@@ -499,7 +499,7 @@ export function Board({
           benched && (
             <>
               <button
-                className={MOVE_BUTTON}
+                className={ABILITY_BUTTON}
                 title={benched.error ?? undefined}
                 disabled={benched.error !== null || busy}
                 onClick={() => {
@@ -630,7 +630,7 @@ export function Board({
     return (
       <div data-hand-ability data-keep-action className="flex w-max min-w-36 max-w-60 flex-col gap-1 text-xs">
         <button
-          className={MOVE_BUTTON}
+          className={ABILITY_BUTTON}
           title={ability.error ?? undefined}
           disabled={ability.error !== null || busy}
           onClick={() => {
