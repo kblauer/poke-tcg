@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useRouterState } from '@tanstack/react-router';
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { useRun } from '../hooks/useRun';
 import { useIdleMoney } from '../hooks/useIdleMoney';
@@ -114,7 +115,11 @@ export function TopBarStats() {
   const idleMoney = useIdleMoney();
   const data = overview.data;
   const view = data?.run?.view;
-  const inRun = view && view.phase !== 'won' && view.phase !== 'lost';
+  // The run's HP and ₱ only on the Badge Challenge's pages (its screen and its battle), not every page while a run is on:
+  // beside the Idle Adventure's ₱ they read as its (the user's).
+  const path = useRouterState({ select: (s) => s.location.pathname });
+  const onRun = path === '/badge' || (!!data?.run?.gameId && path === `/game/${data.run.gameId}`);
+  const inRun = onRun && view && view.phase !== 'won' && view.phase !== 'lost';
   return (
     <div className="flex min-w-0 items-center gap-2.5">
       {inRun && (
