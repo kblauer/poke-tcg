@@ -1,7 +1,7 @@
 import type { Route } from '@poke-tcg/campaign';
 import { describe, expect, it } from 'vitest';
 import type { RunViewData } from '../hooks/useRun';
-import { facing, key, placeFigures } from './routeFigures';
+import { facing, key, layOutCards, placeFigures } from './routeFigures';
 
 /** A 12×12 map walkable everywhere, its encounters going up, with spots at (5,8) and (5,3). */
 const route = {
@@ -70,5 +70,32 @@ describe('facing', () => {
     expect(facing({ x: 0, y: 0 }, { x: 1, y: 4 })).toBe('down');
     expect(facing({ x: 0, y: 5 }, { x: 0, y: 2 })).toBe('up');
     expect(facing({ x: 0, y: 0 }, { x: 0, y: 0 })).toBe('up');
+  });
+});
+
+describe('layOutCards', () => {
+  const card = { w: 176, h: 108 };
+  const opts = { zoom: 3, minZoom: 2, card, view: { w: 390, h: 650 }, top: 8, bottom: 160, gap: 4, redDrop: 0 };
+  const overlaps = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.abs(a.x - b.x) < card.w && Math.abs(a.y - b.y) < card.h;
+
+  it('pushes apart the cards of figures standing side by side', () => {
+    const laid = layOutCards([{ option: 0, dx: -2, dy: 1, drop: 0, h: 108 }, { option: 1, dx: -1, dy: 1, drop: 0, h: 108 }], [], opts);
+    expect(overlaps(laid.cards[0]!, laid.cards[1]!)).toBe(false);
+    // Inside the view.
+    for (const c of laid.cards) expect(c.x).toBeGreaterThanOrEqual(8 - 195);
+  });
+
+  it('rests the player higher, and zooms out, to keep the cards below clear of the bottom corners', () => {
+    const laid = layOutCards([{ option: 0, dx: 0, dy: -3, drop: 0, h: 108 }, { option: 1, dx: 0, dy: 2, drop: 0, h: 108 }], [], opts);
+    expect(laid.zoom).toBeLessThan(3);
+    const below = laid.cards[1]!;
+    const above = laid.cards[0]!;
+    expect(laid.restY + below.y + 108).toBeLessThanOrEqual(650 - 160);
+    expect(laid.restY + above.y).toBeGreaterThanOrEqual(8);
+  });
+
+  it('keeps the middle and the zoom when everything fits', () => {
+    const laid = layOutCards([{ option: 0, dx: 0, dy: -1, drop: 0, h: 108 }], [], opts);
+    expect(laid).toMatchObject({ zoom: 3, restY: 325 });
   });
 });

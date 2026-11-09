@@ -95,8 +95,10 @@ export function HomePage() {
   const encounter = view && <EncounterPanel view={view} run={run} />;
   const below = overMap ? null : encounter;
   // On a route map, everything else is on the map too (the user's experiment): Concede in its top left, the Bag in its
-  // bottom left and the deck in its bottom right while choosing; below it only a phone's side panel tabs.
+  // bottom left and the deck in its bottom right while choosing; nothing below it.
   const choosing = view?.phase === 'map';
+  // Nothing but the heading and the map on the page: the map fills the window below the heading.
+  const filled = mapEncounters && !!routes && !!view && view.phase !== 'won' && view.phase !== 'lost';
   const corners = view && choosing ? { topLeft: <ConcedeRun view={view} run={run} />, bottomLeft: <MapBag view={view} run={run} />, bottomRight: <MapDeck view={view} deckId={deckId} onDeck={setDeckId} /> } : undefined;
   // The next encounter (or the one under way), the cards unlocked this run, and Concede below them, out of the way.
   const panels = view && (
@@ -132,7 +134,8 @@ export function HomePage() {
     // Cards show the large hover preview; the wheel still scrolls the page.
     <PreviewProvider scrollZoom={false}>
       <div ref={fill.ref} className="-mb-4 -mt-6 flex" style={fill.style}>
-        <div ref={scroller} className={`min-w-0 flex-1 space-y-6 overflow-y-auto pb-4 pt-6 ${PAGE_WIDTH}`}>
+        {/* With everything on the map (filled), a column: the map as tall as the window leaves it, no scrolling. */}
+        <div ref={scroller} className={`min-w-0 flex-1 space-y-6 overflow-y-auto pb-4 pt-6 ${filled ? 'flex flex-col' : ''} ${PAGE_WIDTH}`}>
           {run.error && <p className="rounded bg-red-400 px-3 py-2 text-sm font-medium text-slate-900">{run.error}</p>}
           {!current || !view ? (
             <>
@@ -141,7 +144,7 @@ export function HomePage() {
             </>
           ) : (
             <>
-              <RunHeader view={view} actions={view.phase !== 'won' && view.phase !== 'lost' && <ReturnToPlay />} />
+              <RunHeader view={view} actions={view.phase !== 'won' && view.phase !== 'lost' && <ReturnToPlay small={phone} />} />
               {view.phase === 'won' || view.phase === 'lost' ? (
                 <RunOver current={current} overview={overview.data} run={run} />
               ) : routes ? (
@@ -152,9 +155,11 @@ export function HomePage() {
                     view={view}
                     spotted={run.spotted}
                     gender={overview.data.playerGender}
+                    fill={filled}
                     {...(mapEncounters && { optionCard: (index: number) => <MapOption view={view} run={run} index={index} deckId={deckId} />, overlay: overMap ? encounter : undefined, corners })}
                   />
-                  {mapEncounters ? tabs : panels}
+                  {/* With everything on the map, nothing below it: a phone's run, log and options are in the ☰ menu and on the Settings page. */}
+                  {!mapEncounters && panels}
                 </>
               ) : (
                 <div className="grid items-start gap-6 lg:grid-cols-[23rem_1fr]">
