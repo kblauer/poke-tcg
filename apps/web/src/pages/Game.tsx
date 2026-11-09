@@ -17,6 +17,7 @@ import { useTowerOverview } from '../hooks/useTower';
 import { useSkipFlips } from '../hooks/useSkipFlips';
 import { DeckCosmeticsContext } from '../hooks/useCosmetics';
 import { useTRPC } from '../lib/trpc';
+import { preloadCardImages } from '../utils/cardPreload';
 import { PAGE_WIDTH } from '../utils/layout';
 
 /** How long each move of a reply stays on screen before the next one (a CPU move showing its card: PLAYED_CARD_MS; one that began a turn: TURN_BANNER_MS). */
@@ -28,8 +29,6 @@ type Frame = LastMove & { view: PlayerView; newTurn: boolean; flipsFrom?: number
 
 const lastEntry = (view: PlayerView) => view.log.at(-1)?.n ?? 0;
 
-/** The large card images loaded ahead this session (kept, so the browser holds on to them). */
-const preloaded = new Map<string, HTMLImageElement>();
 
 export function GamePage() {
   const { gameId } = useParams({ from: '/game/$gameId' });
@@ -37,15 +36,10 @@ export function GamePage() {
   const queryClient = useQueryClient();
   const viewQuery = trpc.game.view.queryOptions({ gameId });
   const { data, error } = useQuery(viewQuery);
-  // As the battle opens, the large pictures of both decks' cards (game.view's cardImages), quietly in the background, so
-  // a card drawn into the hand or played shows its face at once (the user's).
+  // As the battle opens, both decks' cards' pictures, small and large (game.view's cardImages), quietly in the background,
+  // so a card drawn into the hand or played shows its face at once (the user's).
   const cardImages = data?.cardImages;
-  useEffect(() => {
-    for (const url of cardImages ?? []) {
-      const src = `${url}/high.webp`;
-      if (!preloaded.has(src)) preloaded.set(src, Object.assign(new Image(), { src, decoding: 'async' as const }));
-    }
-  }, [cardImages]);
+  useEffect(() => preloadCardImages(cardImages ?? []), [cardImages]);
   /** The moves of the last action still to be played back, oldest first; the last is the view in the cache. */
   const [replay, setReplay] = useState<Frame[]>([]);
   /** While they play back: the view on screen (the move before the next one). Null shows the cached view. */

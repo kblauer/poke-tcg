@@ -376,6 +376,7 @@ The Super Contests' screens (see [Super Contests](#super-contests)), drawn as Pl
 | `flairEffects.ts` | Card flair's effects' looks (`LOOKS`: colours, particle shape, drift, glow, one per effect) and particles (`emit`: each moment's choreography, a seeded random; `at`: a particle's place and opacity over time), `MOMENT_MS` |
 | `flairMoments.ts` | Which of the player's Pokémon came into play, evolved, attacked or Knocked Out the opponent's between two views (`findMoments`, `inPlay`), for `useFlairMoments` |
 | `holo.ts` | Maps catalog and engine cards to the attributes the holo styles select on (rarity, supertype, subtypes, era), and a galaxy-art holo's mask (see Holo cards) |
+| `cardPreload.ts` | Loads card pictures ahead (`preloadCardImages`), each once a session: every small one (`low.webp`) first, then every large one (`high.webp`); a battle both decks' as it opens (game.view's `cardImages`), the run screen its deck's ahead of its battles. A picture that still fails to load is tried again by `CardImage` (3 times, waiting longer each time) rather than left on the card back |
 | `holoPreload.ts` | `preloadHolos`: loads the texture images of the holo styles (`TEXTURES`, by rarity) and the holo masks of the account's unlocked holos when the Collection tab opens (`DecksPage`), once a session, so a card's foil is ready when it's first viewed large |
 | `spring.ts` | Spring physics for the holo effect's tilt and glare |
 | `math.ts` | `round`, `clamp` and `adjust` (re-map a value between ranges) |
