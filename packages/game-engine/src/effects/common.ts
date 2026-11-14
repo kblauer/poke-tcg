@@ -42,6 +42,7 @@ export const onlyBenched = (s: PowerSituation, name: string) => (s.source !== 'a
 
 /** Another set's attack, read when used (the effect tables can't be read while the modules load). */
 export const same = (get: () => AttackEffect | undefined): AttackEffect => ({
+  sameAs: get,
   blocked: (s) => get()?.blocked?.(s) ?? null,
   choices: (s, c) => get()?.choices?.(s, c) ?? [],
   run: (ctx) => get()?.run(ctx),
