@@ -39,6 +39,20 @@ describe.each(Object.entries(CPUS))('%s CPU', (_, cpu) => {
       expect(actions[0]).toEqual({ type: 'RESOLVE_CHOICE' });
       expect(state.pendingChoice).toBeUndefined();
     });
+
+    it('a switch it may make (switchIn, optional: Strike and Run) with no Benched Pokémon', () => {
+      const { actions, state } = runCpu(asked({ kind: 'switchIn', optional: true }), 'ash', cpu);
+      expect(actions[0]).toEqual({ type: 'RESOLVE_CHOICE' });
+      expect(state.pendingChoice).toBeUndefined();
+    });
+
+    it('a search onto the Bench (pickFromDeck, toBench: Playground) with no room on it', () => {
+      const s = asked({ kind: 'pickFromDeck', filter: 'basic', toBench: true }, { bench: ['bulbasaur', 'onix', 'charmander', 'squirtle', 'bulbasaur'] });
+      const { actions, state } = runCpu(s, 'ash', cpu);
+      expect(actions[0]).toEqual({ type: 'RESOLVE_CHOICE' });
+      expect(state.pendingChoice).toBeUndefined();
+      expect(state.players.ash!.bench.filter(Boolean)).toHaveLength(5);
+    });
   });
 
   describe('with something to click, it picks one', () => {
@@ -66,5 +80,27 @@ describe.each(Object.entries(CPUS))('%s CPU', (_, cpu) => {
       const { actions } = runCpu(s, 'ash', cpu);
       expect(actions[0]).toEqual({ type: 'RESOLVE_CHOICE', cardUid: potion });
     });
+  });
+});
+
+describe.each(Object.entries(CPUS))("%s CPU: Moon's Invite (as many damage counters as it likes)", (_, cpu) => {
+  it("stops moving the opponent's damage counters, and never moves one back", () => {
+    const s = asked({ kind: 'moveCounters', fromSide: 'opp' }, { oppBench: ['charmander', 'onix'] });
+    s.players.misty!.active!.damage = 20;
+    s.players.misty!.bench[0]!.damage = 30;
+    s.players.misty!.bench[1]!.damage = 10;
+    // (It used to move one counter back and forth until runCpu threw "stuck in a loop".)
+    const { actions, state } = runCpu(s, 'ash', cpu);
+    expect(state.pendingChoice).toBeUndefined();
+    // At most a click for the Pokémon and one for where to, per counter: 6 counters.
+    expect(actions.filter((a) => a.type === 'RESOLVE_CHOICE').length).toBeLessThanOrEqual(13);
+  });
+
+  it('with one Pokémon to move them among, it moves none', () => {
+    const s = asked({ kind: 'moveCounters', fromSide: 'opp' });
+    s.players.misty!.active!.damage = 20;
+    const { actions, state } = runCpu(s, 'ash', cpu);
+    expect(actions[0]).toEqual({ type: 'RESOLVE_CHOICE' });
+    expect(state.pendingChoice).toBeUndefined();
   });
 });

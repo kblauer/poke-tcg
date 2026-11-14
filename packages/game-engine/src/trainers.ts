@@ -3945,7 +3945,8 @@ const unownTargets = (state: Pick<GameState, 'players' | 'cards'>, choice: Extra
   return targetsOf(player).filter((t) => {
     const p = atTarget(player, t)!;
     const name = inPlayDef(state.cards, p).name;
-    return p.card.uid !== choice.except && name.includes('Unown') && name !== 'Unown [V]';
+    // (A held Active Pokémon, by Jaw Clamp or Sticky Nectar, can't go: offered, it could never be picked, and the question never end.)
+    return p.card.uid !== choice.except && name.includes('Unown') && name !== 'Unown [V]' && !(t === 'active' && activeLocked(state, player.id));
   });
 };
 
@@ -5101,8 +5102,9 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     const options = me.deck.filter((c) => deckFilter(state.cards, choice, c, !!state.players[choice.player]?.holonVeil));
     const picked = options.find((c) => c.uid === answer.cardUid);
     // Nothing suitable in the deck: the search finds nothing.
-    if (!picked && options.length > 0 && !choice.optional) return 'Choose a card from your deck';
     const benchSlot = openBenchSlot(me, state.cards, state.stadium?.card);
+    // (Nor is one asked for with no room on the Bench for it: with every card refused, the search could never end.)
+    if (!picked && options.length > 0 && !choice.optional && !(choice.toBench && benchSlot < 0)) return 'Choose a card from your deck';
     if (picked && choice.toBench && benchSlot < 0) return 'Your Bench is full';
     if (picked) {
       me.deck = me.deck.filter((c) => c !== picked);

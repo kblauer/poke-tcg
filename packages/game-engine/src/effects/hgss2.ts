@@ -7,7 +7,7 @@
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { hasType, lookupCard, namesMatch } from '../cards.js';
 import { energyPool, type Target } from '../engine.js';
-import { pokemonPower } from '../powers.js';
+import { hasPowerOrBody, pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { devolvable, inPlayDef, removeTopEvolution } from '../status.js';
 import { benchedSlots, damageChosen, energyCards, headsUntilTails, inPlay, leechSeed, opponentBenchChoice, opponentTargets, same } from './common.js';
@@ -23,7 +23,7 @@ const theirs = (ctx: AttackContext, t: Target) => (t === 'active' ? ctx.opp.acti
 const typedAmount = (ctx: AttackContext, p: Parameters<typeof energyPool>[0], type: 'fighting' | 'water') => energyPool(p, ctx.state.cards).filter((e) => e === type || e === 'any').length;
 /** "This attack does N damage to each Pokémon that has any Poké-Powers (both yours and your opponent's)": printed powers, working or not. */
 function hitPowered(ctx: AttackContext, amount: number) {
-  const powered = (p: Parameters<typeof inPlayDef>[1]) => !!inPlayDef(ctx.state.cards, p).power && !pokemonPower(p)?.body;
+  const powered = (p: Parameters<typeof inPlayDef>[1]) => hasPowerOrBody(ctx.state.cards, p, 'power');
   if (powered(ctx.defender)) ctx.hit(amount, { weakness: false });
   for (const slot of benchedSlots(ctx.opp.bench)) if (powered(ctx.opp.bench[slot]!)) ctx.damageBenched(ctx.opp, slot, amount);
   if (powered(ctx.attacker)) ctx.selfDamage(amount);

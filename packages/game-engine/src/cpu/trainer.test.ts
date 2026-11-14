@@ -117,3 +117,34 @@ describe('CPU attacks that would lose the game', () => {
     expect(moves(s)).toMatchObject([{ type: 'ATTACK', attackIndex: 1 }]);
   });
 });
+
+describe('a Confused CPU, whose tails does 30 damage to itself', () => {
+  const confused = (opts: Parameters<typeof duel>[2] = {}) => {
+    const s = cpuTurn('charmander', 'onix', { energy: ['fire', 'fire'], ...opts });
+    ash(s).active!.condition = 'confused';
+    // 20 HP left: tails Knocks it Out.
+    ash(s).active!.damage = 30;
+    return s;
+  };
+  const attacks = (s: GameState, cpuDifficulty: 'trainer' | 'gymLeader') => runCpu({ ...s, cpuDifficulty }, 'ash').actions.filter((a) => a.type === 'ATTACK');
+
+  it.each(['trainer', 'gymLeader'] as const)('never attacks when that loses the game: no Bench (%s)', (difficulty) => {
+    expect(attacks(confused(), difficulty)).toEqual([]);
+  });
+
+  it.each(['trainer', 'gymLeader'] as const)('never attacks when that gives the player their last Prize card (%s)', (difficulty) => {
+    const s = confused({ bench: ['bulbasaur'] });
+    misty(s).prizes = misty(s).prizes.slice(0, 1);
+    expect(attacks(s, difficulty)).toEqual([]);
+  });
+
+  it('still attacks when the game goes on (the trainer CPU)', () => {
+    expect(attacks(confused({ bench: ['bulbasaur'] }), 'trainer')).toHaveLength(1);
+  });
+
+  it.each(['trainer', 'gymLeader'] as const)('and when tails leaves it standing (%s)', (difficulty) => {
+    const s = confused();
+    ash(s).active!.damage = 0;
+    expect(attacks(s, difficulty)).toHaveLength(1);
+  });
+});

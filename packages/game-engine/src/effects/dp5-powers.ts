@@ -8,7 +8,7 @@
 // cards picked (up to 3); Cursed Alloy counts the printed Poké-Power, working or not, as Cursed Stone does.
 import { lookupCard } from '../cards.js';
 import type { InPlayPokemon } from '../engine.js';
-import { discardsLocked, ownTargets, pokemonAt, pokemonPower, type PowerEffect, type PowerSituation } from '../powers.js';
+import { hasPowerOrBody, discardsLocked, ownTargets, pokemonAt, pokemonPower, type PowerEffect, type PowerSituation } from '../powers.js';
 import { addLog, inPlayDef, pokemonName } from '../status.js';
 import { FOSSIL_NAMES, type PendingChoice } from '../trainers.js';
 import { onlyBenched, POKE_BODY, targetOf } from './common.js';
@@ -139,7 +139,7 @@ export const DP5_POWERS: Record<string, PowerEffect> = {
 
 /** A printed Poké-Power, working or not (Cursed Alloy). */
 function hasPokePower(cards: Parameters<typeof inPlayDef>[0], p: InPlayPokemon) {
-  return !!inPlayDef(cards, p).power && !pokemonPower(p)?.body;
+  return hasPowerOrBody(cards, p, 'power');
 }
 
 /** The player's Pokémon that aren't Unown (PUT). */
