@@ -1,14 +1,12 @@
 import { prisma } from '@poke-tcg/db';
-import { areas, applyIdleAction, areaIndex, BALLS, throwTick, throwable, generation, generationOf, IDLE_GENERATIONS, inGeneration, isBaseForm, isOptional, CATCH_UP_CAP_MS, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, starters, visitStore, withPending, type IdleGen, type IdleSettings, type Stats } from '@poke-tcg/idle';
+import { areas, applyIdleAction, areaIndex, generation, generationOf, IDLE_GENERATIONS, inGeneration, isBaseForm, isOptional, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, starters, visitStore, withPending, type IdleGen, type IdleSettings, type Stats } from '@poke-tcg/idle';
 import { idleActInput, idleDebugCatchInput, idleDebugNextInput, idleHereInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput, type StartIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
-import { caughtSpecies, clientIdleRun, idleSettings, latestIdleRun, loadOwnIdleRun, saveIdleRun, type LoadedIdleRun } from '../idle.js';
+import { catchUpWindow, caughtSpecies, caughtWithDue, clientIdleRun, dueNotes, idleSettings, latestIdleRun, loadOwnIdleRun, nextWait, restartAt, saveIdleRun, splitNotes, throwError, throwPlayedTo, throwTimeError, withoutDueNotes, type LoadedIdleRun } from '../idle.js';
 import { lockUser } from '../runs.js';
 import { debugProcedure, protectedProcedure, router } from '../trpc.js';
 
-/** How far ahead of now a run may be played (the browser asks for the next segment as the last one ends; a little early is fine). */
-const AHEAD_MS = 15_000;
 /** Debug's money button (idle.debugMoney): ₱ added to the run under way. */
 const DEBUG_MONEY = 1_000_000;
 
@@ -109,21 +107,22 @@ export const idleRouter = router({
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
     checkVersion(run, input.expectedVersion);
     const now = Date.now();
-    if (run.simulatedAt.getTime() > now + AHEAD_MS) throw new TRPCError({ code: 'CONFLICT', message: 'Still playing the last part' });
-    // A town waits TOWN_WAIT_MS for the player's choice (the browser takes it then), then goes on by itself.
-    if (run.state.phase === 'town' && now < run.simulatedAt.getTime() + TOWN_WAIT_MS) throw failed('Waiting in town');
+    // (Too far ahead, CONFLICT; a town waits TOWN_WAIT_MS for the player's choice, the browser takes it then, then goes on by itself.)
+    const wait = nextWait(run.state, run.simulatedAt.getTime(), now);
+    if (wait) throw wait === 'Waiting in town' ? failed(wait) : new TRPCError({ code: 'CONFLICT', message: wait });
     const settings = await idleSettings(ctx.user.id);
-    const caughtList = await caughtSpecies(ctx.user.id);
+    const caughtList = caughtWithDue(await caughtSpecies(ctx.user.id), run.state);
     // Watched (`ask`): a catch with the party full waits for the player's choice (IdleState.choosing).
     const next = simulateSegment(run.state, settings, new Set(caughtList), { ask: true });
     if (!next) throw failed(withPending(run.state).stopped ? 'Stopped' : run.state.inStore ? 'In the store' : run.state.choosing ? 'Waiting for your choice' : 'This run is over');
     const from = Math.max(now, run.simulatedAt.getTime());
     const playedTo = new Date(from + next.segment.durationMs);
     // Its start kept, to play it again: from the moment a page opened meanwhile (resume), and its wild battle with a ball
-    // the player asks for (throwBall).
+    // the player asks for (throwBall); its catches for the Pokédex once it's past, the last segment's now (splitNotes).
     const { replay: _, ...prev } = run.state;
-    next.state.replay = { prev, settings, caught: caughtList, from, throws: [], throwable: next.segment.events.some((e) => e.t === 'battle' && e.kind === 'wild') };
-    const saved = await saveIdleRun(run, next.state, { dex: next.segment.dex, simulatedAt: playedTo });
+    const notes = splitNotes(next.segment.dex);
+    next.state.replay = { prev, settings, caught: caughtList, from, throws: [], throwable: next.segment.events.some((e) => e.t === 'battle' && e.kind === 'wild'), dex: notes.later };
+    const saved = await saveIdleRun(run, next.state, { dex: [...dueNotes(run.state), ...notes.now], simulatedAt: playedTo });
     return { run: clientIdleRun(saved), segment: next.segment };
   }),
 
@@ -135,19 +134,18 @@ export const idleRouter = router({
   catchUp: protectedProcedure.input(idleRunInput).mutation(async ({ ctx, input }) => {
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
     checkVersion(run, input.expectedVersion);
-    const now = Date.now();
-    // The cap is on the whole absence, not each call: time before the last 8 hours isn't played.
-    const from = Math.max(run.simulatedAt.getTime(), now - CATCH_UP_CAP_MS);
-    const elapsed = now - from;
+    // The cap is on the whole absence, not each call: time before the last 12 hours isn't played (catchUpWindow).
+    const { from, elapsed } = catchUpWindow(run.simulatedAt.getTime(), Date.now());
     if ((!playing(run.state) && run.state.phase !== 'town' && !run.state.choosing) || elapsed <= 0) return { run: clientIdleRun(run), summary: null, more: false };
     const settings = await idleSettings(ctx.user.id);
-    const caught = new Set(await caughtSpecies(ctx.user.id));
+    const caught = new Set(caughtWithDue(await caughtSpecies(ctx.user.id), run.state));
     const { state, summary, dex } = catchUp(run.state, settings, caught, elapsed);
     if (!summary.segments) return { run: clientIdleRun(run), summary: null, more: false };
     const more = summary.stopped === 'limit';
     // Played up to the time used (the rest, less than a segment, is played next).
     const playedTo = new Date(from + summary.durationMs);
-    const saved = await saveIdleRun(run, state, { dex, simulatedAt: playedTo });
+    // (The last segment watched is past: its catches too. Nothing played offline is shown, so all of its notes at once.)
+    const saved = await saveIdleRun(run, state, { dex: [...dueNotes(run.state), ...dex], simulatedAt: playedTo });
     return { run: clientIdleRun(saved), summary, more };
   }),
 
@@ -157,30 +155,28 @@ export const idleRouter = router({
     checkVersion(run, input.expectedVersion);
     // Stop, Continue run and the Town Map act at once (the user's): the segment playing cut where the player is now (a
     // battle begun dropped, no rewards), then the choice.
-    const cut = cuts(input.action);
-    const result = applyIdleAction(cut ? cutSegment(run.state, Date.now()) : run.state, input.action);
+    const now = Date.now();
+    // As the run stands now; kept whole (`past`: no segment playing, or its catch shown), its catches go to the Pokédex
+    // now, and a cut that drops them drops their notes with them (cutSegment's run has no replay).
+    const atNow = cutSegment(run.state, now);
+    const past = atNow === run.state;
+    const result = applyIdleAction(cuts(input.action) ? atNow : run.state, input.action);
     if (!result.ok) throw failed(result.error);
-    let state = result.state;
+    let state = past ? withoutDueNotes(result.state) : result.state;
     let events: ReturnType<typeof visitStore>['events'] = [];
     if (input.action.type === 'VISIT_STORE') {
       const visited = visitStore(state, await idleSettings(ctx.user.id));
       state = visited.state;
       events = visited.events;
     }
-    // Leaving a town starts the clock again from now (time spent waiting there isn't played).
-    // (Leaving the store too: the town's wait starts again then, the user's.)
-    // (Any action out of a waiting town too: a grind chosen there, the user's.)
-    // (Those that cut the segment playing too: the run goes on from where it is now.)
-    // (A catch with the party full settled by the player too: the run goes on from now, the user's.)
-    const leaving = cut || ['GYM', 'CONTINUE', 'GRIND', 'BACK_ROUTE', 'LEAVE_STORE', 'CAUGHT_CHOICE'].includes(input.action.type) || (run.state.phase === 'town' && state.phase !== 'town');
-    // So does going on after the Stop mode (time stopped isn't played either); a segment still playing ends first.
-    const unstopped = withPending(run.state).stopped && !withPending(state).stopped;
-    // (Only a cut restarts the clock before the segment playing is over: any other choice sent early waits for its end,
-    // or the rest of a gym leader's battle, a white-out or a catch would never be played.)
-    const restart = cut ? new Date() : leaving || unstopped ? new Date(Math.max(Date.now(), run.simulatedAt.getTime())) : null;
-    // A party Pokémon replaced by a catch: its best stats to the dex too, as it leaves.
+    // Leaving a town, the store, a catch's choice, going on after Stop, a cut: the clock restarted (restartAt).
+    const restart = restartAt(run.state, state, input.action, now, run.simulatedAt.getTime());
+    // A party Pokémon replaced by a catch: its best stats to the dex too, as it leaves. (While a segment plays, only the
+    // party it began with: one it caught waits with its notes.)
     const gone = run.state.party.filter((m) => !state.party.some((p) => p.uid === m.uid));
-    const saved = await saveIdleRun(run, state, { dex: partyNotes([...state.party, ...gone]), ...(restart && { simulatedAt: restart }) });
+    const began = past ? null : new Set(run.state.replay!.prev.party.map((m) => m.uid));
+    const party = [...state.party, ...gone].filter((m) => !began || began.has(m.uid));
+    const saved = await saveIdleRun(run, state, { dex: [...(past ? dueNotes(run.state) : []), ...partyNotes(party)], ...(restart && { simulatedAt: restart }) });
     return { run: clientIdleRun(saved), events };
   }),
 
@@ -192,22 +188,23 @@ export const idleRouter = router({
   throwBall: protectedProcedure.input(idleThrowInput).mutation(async ({ ctx, input }) => {
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
     checkVersion(run, input.expectedVersion);
-    const replay = run.state.replay;
-    if (!replay || !throwable(run.state)) throw failed('Too late to throw a ball in this battle');
-    if (replay.throws.some((t) => throwTick(t) >= input.tick)) throw failed('A ball is already on its way');
-    // The ball button throws the best ball but the Master Ball, which has its own button (the user's, 2026-11-04).
-    if (input.master && !(replay.prev.bag['master-ball'] ?? 0)) throw failed('No Master Ball in the bag');
-    if (!input.master && !BALLS.some(([b]) => b !== 'master-ball' && (replay.prev.bag[b] ?? 0) > 0)) throw failed('No Poké Balls in the bag');
+    const refused = throwError(run.state, input.tick, !!input.master);
+    if (refused) throw failed(refused);
+    const replay = run.state.replay!;
     const throws = [...replay.throws, input.master ? { tick: input.tick, ball: 'master-ball' as const } : input.tick];
     const again = simulateSegment(replay.prev, replay.settings, new Set(replay.caught), { throwAt: throws, ask: true });
     const b = again?.segment.events.find((e) => e.t === 'battle');
     if (!again || b?.t !== 'battle' || b.kind !== 'wild') throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'The battle could not be played again' });
-    if (input.tick > b.ticks) throw failed('The battle is over');
+    // Over by then, or that tick played already by the clock (#204: a lost battle played again with a ball on turn 1).
+    const now = Date.now();
+    const late = throwTimeError(replay.from, b, input.tick, now);
+    if (late) throw failed(late);
     again.state.version = run.version + 1;
-    again.state.replay = { ...replay, throws };
+    const notes = splitNotes(again.segment.dex);
+    again.state.replay = { ...replay, throws, dex: notes.later };
     // The party changes queued during this battle (applyIdleAction) still wait for its end.
     if (run.state.pending?.length) again.state.pending = run.state.pending;
-    const saved = await saveIdleRun(run, again.state, { dex: again.segment.dex, simulatedAt: new Date(replay.from + again.segment.durationMs) });
+    const saved = await saveIdleRun(run, again.state, { dex: notes.now, simulatedAt: throwPlayedTo(replay.from, again.segment.durationMs, now) });
     return { run: clientIdleRun(saved), segment: again.segment };
   }),
 
@@ -241,13 +238,14 @@ export const idleRouter = router({
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
     checkVersion(run, input.expectedVersion);
     const settings = await idleSettings(ctx.user.id);
-    const caughtList = await caughtSpecies(ctx.user.id);
+    const caughtList = caughtWithDue(await caughtSpecies(ctx.user.id), run.state);
     const next = simulateSegment(run.state, settings, new Set(caughtList), { ask: true });
     if (!next) throw failed(withPending(run.state).stopped ? 'Stopped' : run.state.inStore ? 'In the store' : run.state.choosing ? 'Waiting for your choice' : 'This run is over');
     const from = Date.now();
     const { replay: _, ...prev } = run.state;
-    next.state.replay = { prev, settings, caught: caughtList, from, throws: [], throwable: next.segment.events.some((e) => e.t === 'battle' && e.kind === 'wild') };
-    const saved = await saveIdleRun(run, next.state, { dex: next.segment.dex, simulatedAt: new Date(from + next.segment.durationMs / input.speed) });
+    const notes = splitNotes(next.segment.dex);
+    next.state.replay = { prev, settings, caught: caughtList, from, throws: [], throwable: next.segment.events.some((e) => e.t === 'battle' && e.kind === 'wild'), dex: notes.later };
+    const saved = await saveIdleRun(run, next.state, { dex: [...dueNotes(run.state), ...notes.now], simulatedAt: new Date(from + next.segment.durationMs / input.speed) });
     return { run: clientIdleRun(saved), segment: next.segment };
   }),
 
@@ -268,7 +266,6 @@ export const idleRouter = router({
     return { ok: count > 0 };
   }),
 
-  /** Debug (refused in production): warps the run to an area's start (a town waits there), its party and bag kept. */
   /** Debug (refused in production): ₱1,000,000 more for the run under way (its segment's start too, so a ball thrown keeps it). */
   debugMoney: debugProcedure.input(idleHereInput).mutation(async ({ ctx, input }) => {
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
@@ -293,6 +290,7 @@ export const idleRouter = router({
     return clientIdleRun(await saveIdleRun(run, state, {}));
   }),
 
+  /** Debug (refused in production): warps the run to an area's start (a town waits there), its party and bag kept. */
   debugWarp: debugProcedure.input(idleWarpInput).mutation(async ({ ctx, input }) => {
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
     // Only a run under way (a finished one is banked: warping it back would make two runs under way).

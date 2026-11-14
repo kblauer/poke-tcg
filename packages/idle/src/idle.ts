@@ -251,6 +251,11 @@ export interface SegmentReplay {
   throws: ThrowAsk[];
   /** Its wild battle can still take a ball (and party changes are queued meanwhile); missing (older runs'), it can. */
   throwable?: boolean;
+  /**
+   * Its Pokédex notes with stats (a catch, the party's), the server's: recorded once the segment is past (the next one, a
+   * catch-up, an action that keeps it whole), dropped with a cut that drops them (#204: a catch Stop undid was kept).
+   */
+  dex?: DexNote[];
 }
 
 /** Whether a run's last segment's wild battle can still take a ball (IdleState.replay). */
@@ -295,6 +300,8 @@ export type SegmentEvent =
       caughtBefore?: true;
       /** The hour on the run's clock as it began (HGSS's: its background's day, evening or night palette); none without a clock. */
       hour?: number;
+      /** When it begins, in ms from the segment's start (the server's clock for a ball asked for: throwBall). */
+      at?: number;
     }
   | { t: 'money'; amount: number; total: number; why: string }
   | { t: 'bought'; item: string; count: number; cost: number }
@@ -1231,6 +1238,7 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
     ticks: result.ticks,
     ...(o.kind === 'wild' && caught.has(o.foes[0]!.species) && { caughtBefore: true as const }),
     ...(hourOf(state, out.durationMs) !== null && { hour: hourOf(state, out.durationMs)! }),
+    at: out.durationMs,
   });
   // FireRed's intro and send-outs (the user's: their animations' time kept), then a tick a turn.
   out.durationMs += BATTLE_MS + openingMs(result.events, o.kind) + result.ticks * TICK_MS;
@@ -2027,13 +2035,6 @@ function simulateIn(from: IdleState, idleSettings: IdleSettings, caught: Set<num
 }
 
 /**
- * The run as it stands at `now` while a segment plays (the user's: Stop, Continue run and the Town Map act at once): the
- * segment's start (IdleState.replay) moved along its events as far as the player has walked, a trainer's "!" or a battle
- * begun dropped (no rewards: the player where it began, the trainer still to fight), a town reached its town; the changes
- * queued and the slots and the party's order set meanwhile kept. The run unchanged when no segment is playing, or once a
- * catch has shown its "Gotcha!" (the user's: the Pokémon is kept; a catch ends its battle, the rest of it played).
- */
-/**
  * When a caught battle's "Gotcha!" shows, from the battle's start (the browser's pacing): the transition in, the opening,
  * the turns before the catching one (TICK_MS each), then the ball's animation, thrown first in its turn (an item goes
  * before a move).
@@ -2042,12 +2043,22 @@ function catchShownMs(b: Extract<SegmentEvent, { t: 'battle' }>): number {
   const i = b.events.findIndex((x) => x.t === 'ball' && x.caught);
   const ball = b.events[i] as Extract<BattleEvent, { t: 'ball' }>;
   const tick = b.events.slice(0, i).reverse().find((x): x is Extract<BattleEvent, { t: 'tick' }> => x.t === 'tick');
-  return BATTLE_MS - BATTLE_HOLD_MS + openingMs(b.events, b.kind) + Math.max(0, (tick?.n ?? 1) - 1) * TICK_MS + catchTextFrame(ball.shakes, true) * FRAME_MS;
+  return tickStartMs(b, tick?.n ?? 1) + catchTextFrame(ball.shakes, true) * FRAME_MS;
 }
+
+/** When a battle's tick `n` begins, from the battle's start (the browser's pacing): the transition in, the opening, the turns before it (TICK_MS each). */
+export const tickStartMs = (b: Extract<SegmentEvent, { t: 'battle' }>, n: number) => BATTLE_MS - BATTLE_HOLD_MS + openingMs(b.events, b.kind) + Math.max(0, n - 1) * TICK_MS;
 
 /** The choices that cut the segment playing (cutSegment) before they're applied: Stop, Continue run and the Town Map's moves (a legendary Pokémon's too). */
 export const cuts = (action: IdleAction) => action.type === 'CONTINUE_RUN' || action.type === 'TRAVEL' || action.type === 'GRIND_AT' || action.type === 'LEGEND' || (action.type === 'SET_MODE' && action.mode === 'stop');
 
+/**
+ * The run as it stands at `now` while a segment plays (the user's: Stop, Continue run and the Town Map act at once): the
+ * segment's start (IdleState.replay) moved along its events as far as the player has walked, a trainer's "!" or a battle
+ * begun dropped (no rewards: the player where it began, the trainer still to fight), a town reached its town; the changes
+ * queued and the slots and the party's order set meanwhile kept. The run unchanged when no segment is playing, or once a
+ * catch has shown its "Gotcha!" (the user's: the Pokémon is kept; a catch ends its battle, the rest of it played).
+ */
 export function cutSegment(saved: IdleState, now: number): IdleState {
   return inGeneration(saved.gen, () => cutIn(saved, now));
 }
@@ -2111,11 +2122,6 @@ function cutIn(saved: IdleState, now: number): IdleState {
 }
 
 /**
- * A town's wait (the user's: no prompt waits on the player): TOWN_WAIT_MS for the player's choice, then the run takes it
- * itself, into the gym (or the League) while it's unbeaten, otherwise on to the next area. The browser counts the wait
- * down and takes the choice with the player's own action; this is the same for a run played offline (catchUp).
- */
-/**
  * A catch waiting for the player's choice (IdleState.choosing) while they're away: TOWN_WAIT_MS, as a town waits, then
  * the settings' choice (replace the lowest-level party Pokémon, or register and release it).
  */
@@ -2130,6 +2136,11 @@ function choiceWait(prev: IdleState, settings: PlaySettings): { state: IdleState
   return { state, segment: out };
 }
 
+/**
+ * A town's wait (the user's: no prompt waits on the player): TOWN_WAIT_MS for the player's choice, then the run takes it
+ * itself, into the gym (or the League) while it's unbeaten, otherwise on to the next area. The browser counts the wait
+ * down and takes the choice with the player's own action; this is the same for a run played offline (catchUp).
+ */
 function townWait(prev: IdleState): { state: IdleState; segment: Segment } {
   const state = structuredClone(prev);
   delete state.replay;

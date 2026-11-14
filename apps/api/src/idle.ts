@@ -1,7 +1,7 @@
 // Idle Adventure runs on the server (README: Idle Adventure), as runs.ts and towers.ts do for theirs: loading and saving
 // a run with its version checked (CONFLICT when stale), the time it's played up to (`simulatedAt`), banking its money
 // when it ends, and the account's Pokédex (IdleDex: each species' best IVs and EVs, merged from a segment's notes).
-import { bankedMoney, DEFAULT_IDLE_SETTINGS, idleView, type DexNote, type IdleSettings, type IdleState } from '@poke-tcg/idle';
+import { BALLS, bankedMoney, CATCH_UP_CAP_MS, cuts, DEFAULT_IDLE_SETTINGS, idleView, throwable, throwTick, tickStartMs, TOWN_WAIT_MS, withPending, type DexNote, type IdleAction, type IdleSettings, type IdleState, type SegmentEvent } from '@poke-tcg/idle';
 import { prisma, type IdleRun, type Prisma } from '@poke-tcg/db';
 import { TRPCError } from '@trpc/server';
 import { asJson } from './games.js';
@@ -60,6 +60,88 @@ export function mergeNotes(notes: DexNote[]) {
   }
   return by;
 }
+
+/**
+ * A segment's notes split (#204: a catch a cut then undid stayed caught): those only seen are recorded at once (`now`),
+ * those with stats (a catch, the party's) once the segment is past (`later`, kept in SegmentReplay.dex: dueNotes).
+ */
+export const splitNotes = (notes: DexNote[]) => ({ now: notes.filter((n) => !n.ivs), later: notes.filter((n) => n.ivs) });
+
+/** The notes a run's last segment holds back until it's past (SegmentReplay.dex). */
+export const dueNotes = (state: IdleState): DexNote[] => state.replay?.dex ?? [];
+
+/** The account's caught species and those its run's last segment caught, not recorded yet (dueNotes): auto-catch's "new" knows them. */
+export const caughtWithDue = (caught: number[], state: IdleState) => [...new Set([...caught, ...dueNotes(state).map((n) => n.species)])];
+
+/** A run with its last segment's held-back notes taken out (recorded now: dueNotes). */
+export function withoutDueNotes(state: IdleState): IdleState {
+  if (!state.replay?.dex) return state;
+  const { dex: _, ...replay } = state.replay;
+  return { ...state, replay };
+}
+
+// ---- The router's time rules (routers/idle.ts), pure ----
+
+/** How far ahead of now a run may be played (the browser asks for the next segment as the last one ends; a little early is fine). */
+export const AHEAD_MS = 15_000;
+
+/** Why idle.next can't play the next segment yet (null: it can): the last still playing, or a town's wait not over (the browser takes the choice then). */
+export function nextWait(state: Pick<IdleState, 'phase'>, simulatedAt: number, now: number): 'Still playing the last part' | 'Waiting in town' | null {
+  if (simulatedAt > now + AHEAD_MS) return 'Still playing the last part';
+  if (state.phase === 'town' && now < simulatedAt + TOWN_WAIT_MS) return 'Waiting in town';
+  return null;
+}
+
+/** The time offline catch-up plays (idle.catchUp): from where the run was played to, the cap on the whole absence (not each call). */
+export function catchUpWindow(simulatedAt: number, now: number) {
+  const from = Math.max(simulatedAt, now - CATCH_UP_CAP_MS);
+  return { from, elapsed: now - from };
+}
+
+/** The choices that move a run on from where it waits (idle.act restarts its clock). */
+const LEAVING: IdleAction['type'][] = ['GYM', 'CONTINUE', 'GRIND', 'BACK_ROUTE', 'LEAVE_STORE', 'CAUGHT_CHOICE'];
+
+/**
+ * When idle.act restarts a run's clock (null: it's left alone). Leaving a town (time spent waiting there isn't played),
+ * the store (the town's wait starts again), a catch's choice settled, any action out of a waiting town (a grind chosen
+ * there), going on after the Stop mode (time stopped isn't played either): from the end of the segment playing, or now
+ * (a choice sent early waits for its end, or the rest of a gym leader's battle, a white-out or a catch would never be
+ * played). Only a cut (Stop, Continue run, the Town Map's) restarts it at now, the segment playing cut there.
+ */
+export function restartAt(before: IdleState, after: IdleState, action: IdleAction, now: number, simulatedAt: number): Date | null {
+  if (cuts(action)) return new Date(now);
+  const leaving = LEAVING.includes(action.type) || (before.phase === 'town' && after.phase !== 'town');
+  const unstopped = !!withPending(before).stopped && !withPending(after).stopped;
+  return leaving || unstopped ? new Date(Math.max(now, simulatedAt)) : null;
+}
+
+/** How late a ball may be asked for after its tick began by the server's clock (the browser's battle waits for its pictures, and the request's way). */
+export const THROW_GRACE_MS = 5000;
+
+/** Why a ball can't be asked for on `tick` of the last segment's wild battle (idle.throwBall), before it's played again; null: it can. */
+export function throwError(state: IdleState, tick: number, master: boolean): string | null {
+  const replay = state.replay;
+  if (!replay || !throwable(state)) return 'Too late to throw a ball in this battle';
+  if (replay.throws.some((t) => throwTick(t) >= tick)) return 'A ball is already on its way';
+  // The ball button throws the best ball but the Master Ball, which has its own button (the user's, 2026-11-04).
+  if (master && !(replay.prev.bag['master-ball'] ?? 0)) return 'No Master Ball in the bag';
+  if (!master && !BALLS.some(([b]) => b !== 'master-ball' && (replay.prev.bag[b] ?? 0) > 0)) return 'No Poké Balls in the bag';
+  return null;
+}
+
+/**
+ * Why the battle played again can't take the ball on `tick` (null: it can): it's over by then, or (#204) that tick has
+ * been played already by the clock, from the segment's start (`from`) as the browser paces it (tickStartMs), beyond
+ * THROW_GRACE_MS: a lost battle or a fled Pokémon can't be played again with a ball on its first turn.
+ */
+export function throwTimeError(from: number, b: Extract<SegmentEvent, { t: 'battle' }>, tick: number, now: number): string | null {
+  if (tick > b.ticks) return 'The battle is over';
+  if (now > from + (b.at ?? 0) + tickStartMs(b, tick) + THROW_GRACE_MS) return 'Too late to throw a ball in this battle';
+  return null;
+}
+
+/** Where a segment played again with a ball is played up to: its new end, never before now (time already played isn't played twice). */
+export const throwPlayedTo = (from: number, durationMs: number, now: number) => new Date(Math.max(now, from + durationMs));
 
 /**
  * Records a segment's notes in the account's Pokédex (agreed with the user): seen and caught only ever turn on, and
