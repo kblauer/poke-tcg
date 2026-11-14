@@ -57,12 +57,6 @@ export function useGameScale() {
   return { ref, scale };
 }
 
-/** A length in CSS pixels on a whole device pixel (the map's pan), so the scaled pixels stay on the device's grid. */
-export const onDevicePixel = (cssPx: number) => {
-  const dpr = window.devicePixelRatio || 1;
-  return Math.round(cssPx * dpr) / dpr;
-};
-
 /**
  * The game screen (the map scenes and the battle screen, one size: the user's): a box of the region's screen (gameSize) at
  * useGameScale's scale, centred in the page's width; `children` drawn for that scale (nothing until it's measured).

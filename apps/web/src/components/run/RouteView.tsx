@@ -12,7 +12,7 @@ import { useGears } from '../../hooks/useGears';
 import { TRACK_FADE_STEPS, TRACK_SHOW_STEPS, useSnowTracks } from '../../hooks/useSnowTracks';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { clampView, usePan, ZOOM } from '../../hooks/usePan';
-import { onDevicePixel } from '../idle/GameScreen';
+import { onDevicePixel } from '../../utils/devicePixel';
 import type { RunViewData } from '../../hooks/useRun';
 import { FADE_MS, GRASS_PACE, pace, slowGrass, stepPace, THROUGH_MS, useWalk, type MapSection, type Walker } from '../../hooks/useWalk';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';

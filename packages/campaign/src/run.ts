@@ -5,6 +5,7 @@
 // reports the result back with BATTLE_OVER. The account's equipped items (`gear`) are passed in with each
 // action, so equipment takes effect from the next encounter; the consumables in effect are in the state.
 import { typeName, type BattleRule, type CardDef, type CpuDifficulty, type EnergyType, type PlayerId } from '@poke-tcg/game-engine';
+import { isBattleKind, isBossKind, type BattleKind, type EncounterKind } from './battle-kinds.js';
 import { boss, bossLabel, type BossId, type BossKind } from './bosses.js';
 import { expandDeck, generateDeck, trainerFavorites } from './decks.js';
 import { activeEffects, battleRules, effectTotal, item, ITEMS, MAX_CONSUMABLES_PER_RUN, type ActiveEffect } from './items.js';
@@ -17,15 +18,7 @@ import { WHOS_THAT_EXP, WHOS_THAT_RUN_MS } from './whos-that.js';
 export const MAX_HP = 3;
 export const STARTING_POKEDOLLARS = 500;
 
-/** Battles: a trainer, an Ace Trainer (elite, can be declined), a gym's Gym Trainer, or a boss. */
-export type BattleKind = 'battle' | 'elite' | 'gymTrainer' | BossKind;
-export type EncounterKind = BattleKind | 'shop' | 'gift' | 'trade' | 'event' | 'center';
-
-const BATTLE_KINDS: readonly string[] = ['battle', 'elite', 'gymTrainer', 'gymLeader', 'eliteFour', 'champion'];
-export const isBattleKind = (kind: string): kind is BattleKind => BATTLE_KINDS.includes(kind);
-const BOSS_KINDS: readonly string[] = ['gymLeader', 'eliteFour', 'champion'];
-/** Bosses are fought again after a loss, and give a better reward. */
-export const isBossKind = (kind: string): kind is BossKind => BOSS_KINDS.includes(kind);
+export { isBattleKind, isBossKind, type BattleKind, type EncounterKind } from './battle-kinds.js';
 
 /** A choice on the map. What's inside (a shop's stock, a gift's cards) is rolled when it's chosen. */
 export interface MapEncounter {
