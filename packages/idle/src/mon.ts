@@ -72,10 +72,14 @@ const basicCandidate = (key: string) => {
   return m.power > 1 && m.pp >= 20 && m.effect !== 'recharge' && m.effect !== 'explosion';
 };
 
-const evolvesFrom = (id: number) => {
-  for (let s = 1; s <= 151; s++) if (species(s).evolutions.some((e) => e.into === id)) return s;
-  return null;
-};
+/** Each species that evolves from another, with the first species that evolves into it: every species of the generation (not Kanto's 151 alone). */
+const evolvedFrom = perGeneration((g) => {
+  const from = new Map<number, number>();
+  g.species.forEach((s, i) => s?.evolutions.forEach((e) => void (from.has(e.into) || from.set(e.into, i + 1))));
+  return from;
+});
+
+const evolvesFrom = (id: number) => evolvedFrom().get(id) ?? null;
 
 /** Whether a species evolves from none: a line's first stage, or a Pokémon that doesn't evolve at all (Tauros). */
 export const isBaseForm = (id: number) => evolvesFrom(id) === null;

@@ -42,7 +42,8 @@ async function startIdle(userId: string, input: StartIdleInput, debug: boolean) 
     if (locked) throw failed(locked);
     const runs = await tx.idleRun.count({ where: { ownerId: userId } });
     const caught = await caughtSpecies(userId, tx);
-    if (!inGeneration(input.gen, () => (runs ? starterOptions(caught) : starters()).includes(input.species))) throw failed("That Pokémon can't be picked");
+    // (Only the region's own species: one caught in another region's run isn't its starter, and createIdleRun doesn't know it.)
+    if (!inGeneration(input.gen, () => (runs ? starterOptions(caught.filter((id) => id <= generation().species.length)) : starters()).includes(input.species))) throw failed("That Pokémon can't be picked");
     // A caught species starts with its record's best IVs and EVs (a starter never caught: random IVs, no EVs).
     const record = caught.includes(input.species) ? await tx.idleDex.findUnique({ where: { userId_species: { userId, species: input.species } } }) : null;
     if (input.shiny && !(runs && record?.shiny)) throw failed('No shiny of that Pokémon has been caught');
@@ -174,7 +175,9 @@ export const idleRouter = router({
     const leaving = cut || ['GYM', 'CONTINUE', 'GRIND', 'BACK_ROUTE', 'LEAVE_STORE', 'CAUGHT_CHOICE'].includes(input.action.type) || (run.state.phase === 'town' && state.phase !== 'town');
     // So does going on after the Stop mode (time stopped isn't played either); a segment still playing ends first.
     const unstopped = withPending(run.state).stopped && !withPending(state).stopped;
-    const restart = leaving ? new Date() : unstopped ? new Date(Math.max(Date.now(), run.simulatedAt.getTime())) : null;
+    // (Only a cut restarts the clock before the segment playing is over: any other choice sent early waits for its end,
+    // or the rest of a gym leader's battle, a white-out or a catch would never be played.)
+    const restart = cut ? new Date() : leaving || unstopped ? new Date(Math.max(Date.now(), run.simulatedAt.getTime())) : null;
     // A party Pokémon replaced by a catch: its best stats to the dex too, as it leaves.
     const gone = run.state.party.filter((m) => !state.party.some((p) => p.uid === m.uid));
     const saved = await saveIdleRun(run, state, { dex: partyNotes([...state.party, ...gone]), ...(restart && { simulatedAt: restart }) });
