@@ -8,7 +8,7 @@
 // turn; Pulse Barrier protects only when it discarded something; Hidden Power (Unown I) turns the Energy card face down
 // until the end of the opponent's next turn.
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
-import { hasType, isBasicEnergy, isBasicPokemon, lookupCard, namesMatch, type CardLibrary } from '../cards.js';
+import { hasType, isBasicEnergy, isBasicInPlay, lookupCard, namesMatch, type CardLibrary } from '../cards.js';
 import { retireStadium, counts, discardTool, energyPool, isEnergyCardOf, isSpecialEnergy, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
@@ -279,7 +279,8 @@ export const DP2: Record<string, Record<string, AttackEffect>> = {
     'Strange Bell': {
       run(ctx) {
         ctx.hit(20);
-        if (isBasicPokemon(ctx.defenderDef)) ctx.inflict('confused');
+        // A Trainer card in play as a Basic Pokémon (Clefairy Doll, the Fossils) is one here (the user's, 2026-11-14).
+        if (isBasicInPlay(ctx.defenderDef)) ctx.inflict('confused');
       },
     },
   },

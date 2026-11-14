@@ -35,7 +35,6 @@ import {
   opponentTargets,
   perHeads,
   same,
-  discardFree,
 } from './common.js';
 import { FOSSIL, smokescreen } from './fossil.js';
 import { discardFromAttacker } from './gym1.js';
@@ -189,8 +188,9 @@ export const NEO1: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         const energy = ctx.me.discard.filter((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy');
         ctx.hit(10 + 10 * energy.length);
-        // Allergic Pollen: the Energy cards are counted, but stay where they are.
-        if (!energy.length || !discardFree(ctx)) return;
+        // No Allergic Pollen check, here only (the user's, 2026-11-14: "Riptide should still shuffle as the energy is targeted by an
+        // attack, not an ability"): the Energy cards are counted and shuffled in whether or not it works.
+        if (!energy.length) return;
         ctx.me.discard = ctx.me.discard.filter((c) => !energy.includes(c));
         ctx.me.deck.push(...energy);
         shuffleOwnDeck(ctx);

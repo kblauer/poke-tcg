@@ -1572,7 +1572,8 @@ const DISCARD_PILE_KINDS: readonly PendingChoice['kind'][] = ['discardToHand', '
  * (stickyHold) is asked after it, never overwritten: an effect that switches and then asks goes through this, never
  * `state.pendingChoice = …`.
  * `pollen`: the question is an attack's or a Pokémon Power's (not a Trainer card's, nor an Ability's), so Allergic Pollen stops
- * one about cards in a discard pile here, said in the log and not asked: the one place the lock is enforced for questions,
+ * one about cards in a discard pile here (an Ability's question about a discard pile is not stopped by Allergic Pollen: the
+ * user's, 2026-11-14, so the powers' `pend` passes `!effect.ability`), said in the log and not asked: the one place the lock is enforced for questions,
  * whatever the effect checked itself. An effect that takes cards from a discard pile with no question still checks
  * `discardsLocked` (attacks: `discardFree`).
  */

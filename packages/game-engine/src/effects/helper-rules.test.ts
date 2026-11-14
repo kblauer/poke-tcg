@@ -2,8 +2,8 @@
 // cards under a Pokémon, switches and Sticky Hold, Bench room, Stadiums leaving play, the discard-pile lock, typed Energy
 // cards, the same-card rule, Evolved Pokémon, Pokémon LEGEND halves, Trainers played as Pokémon, cards leaving play).
 import { describe, expect, it } from 'vitest';
-import type { CardDef, PokemonCardDef } from '../cards.js';
-import { applyAction, type GameState, type InPlayPokemon, type Target } from '../index.js';
+import { isBasicInPlay, type CardDef, type PokemonCardDef } from '../cards.js';
+import { applyAction, inPlayDef, type GameState, type InPlayPokemon, type Target } from '../index.js';
 import { cardsOf, isEvolved, removeTopEvolution, sameCards } from '../status.js';
 import { legendNames, takeLegend } from '../trainers.js';
 import { act, attack, duel, endTurn, flips, give, id, mon, playAuto, settles, C, F, FI, W } from './test-kit.js';
@@ -271,7 +271,6 @@ describe('the discard-pile lock (Allergic Pollen)', () => {
   const TAKERS: [name: string, go: (s: GameState) => GameState][] = [
     ["Rocket's Zapdos (Plasma)", hits('gym2-15', 'Plasma')],
     ["Blaine's Vulpix (Call Will-o'-the-wisp)", hits('gym2-66', "Call Will-o'-the-wisp")],
-    ['Feraligatr (Riptide)', hits('neo1-5', 'Riptide')],
     ['Magby (Energy Catch)', hits('ecard1-17', 'Energy Catch')],
     ['Raticate (Pickup)', hits('ex6-48', 'Pickup')],
     ['Quagsire δ (Dig up)', evolves(mon('ex15-71', 'Wooper δ', W, 50, []), mon('ex15-21', 'Quagsire δ', W, 80, [], { stage: 'stage1', evolvesFrom: 'Wooper δ', power: { name: 'Dig up', text: '' } }))],
@@ -304,6 +303,50 @@ describe('the discard-pile lock (Allergic Pollen)', () => {
     give(s, 'ash', 'squirtle');
     const after = playAuto(s, 'ash', give(s, 'ash', 'energyretrieval')[0]!);
     expect(ash(after).hand.map((c) => c.uid)).toEqual(expect.arrayContaining(['gone-fire', 'gone-water']));
+  });
+
+  it('Riptide still counts and shuffles its Energy cards while Allergic Pollen works (the user\'s, 2026-11-14: this attack only)', () => {
+    for (const pollen of [false, true]) {
+      const s = duel('charmander', 'onix', { bench: ['squirtle'] });
+      put(s, 'misty', 'active', mon('wall', 'Wall', C, 500, []));
+      ash(s).discard = ['fire', 'water', 'lightning', 'potion'].map((name) => ({ uid: `gone-${name}`, defId: id(name) }));
+      if (pollen) put(s, 'misty', 0, mon('neo3-35', 'Parasect', C, 60, [], { stage: 'stage1', power: { name: 'Allergic Pollen', text: '' } }));
+      const after = hits('neo1-5', 'Riptide')(s);
+      expect([after.players.misty!.active!.damage, ash(after).discard.map((c) => c.uid)]).toEqual([40, ['gone-potion']]);
+      expect(ash(after).deck.filter((c) => c.uid.startsWith('gone-')).length).toBe(3);
+    }
+  });
+
+  it("an Ability's question about a discard pile is not stopped: Dynamotor attaches from the discard pile (the user's, 2026-11-14)", () => {
+    const s = duel('charmander', 'onix', { bench: ['squirtle'] });
+    put(s, 'ash', 1, mon('bw3-40', 'Eelektrik', C, 90, [], { stage: 'stage1', power: { name: 'Dynamotor', text: '' } }));
+    put(s, 'misty', 0, mon('neo3-35', 'Parasect', C, 60, [], { stage: 'stage1', power: { name: 'Allergic Pollen', text: '' } }));
+    ash(s).discard = [{ uid: 'gone-lightning', defId: id('lightning') }];
+    const after = act(s, 'ash', { type: 'USE_POWER', source: 1, choices: { cardUid: 'gone-lightning', to: 0 } });
+    expect([ash(after).bench[0]!.energy.map((e) => e.uid), ash(after).discard]).toEqual([['gone-lightning'], []]);
+  });
+});
+
+describe('a Basic Pokémon in play, Trainer cards played as one included (isBasicInPlay: Strange Bell)', () => {
+  const bell = (defender: PokemonCardDef, asBasic = false) => {
+    const s = duel('charmander', 'onix');
+    const p = put(s, 'misty', 'active', defender);
+    if (asBasic) p.asBasic = true;
+    put(s, 'ash', 'active', mon('dp2-22', 'Chimecho', C, 70, [['Call In', [C], 0], ['Strange Bell', [C], 20]]), ['fire']);
+    const after = attack(s, 1);
+    return { basic: isBasicInPlay(inPlayDef(s.cards, p)), confused: after.players.misty!.active?.condition === 'confused' };
+  };
+  it('a Basic Pokémon is Confused; a Pokémon LEGEND, a Restored Pokémon and an Evolved Pokémon are not', () => {
+    expect(bell(mon('basic', 'Snorlax', C, 200, []))).toEqual({ basic: true, confused: true });
+    expect(bell(mon('legend', 'Lugia LEGEND', C, 200, []))).toEqual({ basic: false, confused: false });
+    expect(bell(mon('restored', 'Archen', C, 200, [], { restored: true }))).toEqual({ basic: false, confused: false });
+    expect(bell(mon('stage1', 'Raichu', C, 200, [], { stage: 'stage1' }))).toEqual({ basic: false, confused: false });
+  });
+  it('Clefairy Doll and a Fossil in play count as Basic Pokémon for it; their own text keeps Special Conditions off them (conditionProof)', () => {
+    expect(bell(mon('base1-70', 'Clefairy Doll', C, 200, [], { trainerText: '' }))).toEqual({ basic: true, confused: false });
+    expect(bell(mon('base3-62', 'Mysterious Fossil', C, 200, [], { trainerText: '' }))).toEqual({ basic: true, confused: false });
+    // A Stage 1 Fossil Pokémon put into play as a Basic Pokémon (Strange Cave) has no such text: it is Confused.
+    expect(bell(mon('as-basic', 'Omanyte', C, 200, [], { stage: 'stage1' }), true)).toEqual({ basic: true, confused: true });
   });
 });
 
