@@ -7,7 +7,7 @@ import { debugWinGame } from '../games.js';
 import { runViewPool } from '../pool.js';
 import { towerUnderway } from '../towers.js';
 import { runTypeProgress } from '../progress.js';
-import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, lockUser, needsStarter, settleBattle, startRun, syncRunDeck, takeItem, type LoadedRun } from '../runs.js';
+import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, lockUser, needsStarter, retryError, settleBattle, startRun, syncRunDeck, takeItem, type LoadedRun } from '../runs.js';
 import { holoTwins, lockedProblem, unlockedIds } from '../unlocks.js';
 import { markPlayed, playableDeck, playProblems, type DeckCosmetics } from './decks.js';
 import { debugProcedure, protectedProcedure, router } from '../trpc.js';
@@ -195,6 +195,12 @@ export const runRouter = router({
    */
   retry: protectedProcedure.input(runIdInput).mutation(async ({ ctx, input }) => {
     const run = await loadOwnRun(input.runId, ctx.user.id);
+    const refused = await prisma.$transaction(async (tx) => {
+      await lockUser(tx, ctx.user.id);
+      const runs = await tx.run.findMany({ where: { ownerId: ctx.user.id }, orderBy: { createdAt: 'desc' }, select: { id: true, status: true } });
+      return retryError(run.id, runs[0]?.id ?? null, runs.filter((r) => r.status === 'ACTIVE').map((r) => r.id));
+    });
+    if (refused) throw new TRPCError({ code: 'BAD_REQUEST', message: refused });
     return clientRun(await advanceRun(run, [{ type: 'RESTORE_HP' }]));
   }),
 
