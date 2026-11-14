@@ -106,7 +106,7 @@ describe('the map generator, on every run type', () => {
     }
   });
 
-  it("Johto's and Hoenn's Gym Trainers come from their gym's own list where it has one, like Kanto's", () => {
+  it("Johto's, Hoenn's and Sinnoh's Gym Trainers come from their gym's own list where it has one, like Kanto's", () => {
     for (const id of RUN_TYPE_IDS) {
       for (const seed of SEEDS.slice(0, 8)) {
         for (const st of createRun(id, deck, seed).steps) {
@@ -118,7 +118,7 @@ describe('the map generator, on every run type', () => {
       }
     }
     // Every generation has gyms with their own lists.
-    for (const ids of [['pewter', 'vermilion'], ['violet', 'goldenrod'], ['rustboro', 'mauville']] as const) {
+    for (const ids of [['pewter', 'vermilion'], ['violet', 'goldenrod'], ['rustboro', 'mauville'], ['oreburgh', 'eterna']] as const) {
       expect(ids.some((id) => boss(runType(id).segments[0]!.bosses[0]!).gym?.trainers?.length), ids.join()).toBeTruthy();
     }
   });

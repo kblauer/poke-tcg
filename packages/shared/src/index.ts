@@ -1,7 +1,6 @@
 import { CPU_DIFFICULTIES, DEBUG_CONDITIONS, MAX_BENCH, type AttackChoices, type DebugCommand, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
 import { BERRIES, BOSS_IDS, COSMETIC_IDS, EQUIP_SLOTS, FLAIR_SLOTS, MAX_PACKS_AT_ONCE, PACK_SETS, RUN_TYPE_IDS, STARTER_IDS, TOP_FLOOR, type RunAction, type RunTypeId, type TowerAction } from '@poke-tcg/campaign';
 import { z } from 'zod';
-import { DECK_NAME_LENGTH } from './deck.js';
 import { TRAINER_SPRITES } from './trainer-sprites.js';
 
 export * from './contest.js';
@@ -199,8 +198,7 @@ export const runChooseInput = z.object({
   option: z.number().int().min(0).max(9),
   deckId: z.uuid().optional(),
 });
-/** Saving the automatic run deck once the run is over, under a name of the player's. */
-export const saveRunDeckInput = z.object({ runId: z.uuid(), name: z.string().trim().min(1).max(DECK_NAME_LENGTH) });
+/** A consumable used in the run under way. */
 export const useItemInput = z.object({ runId: z.uuid(), itemId: z.string().min(1).max(64) });
 /** A consumable used from the Inventory: in the run under way, or kept for the next run when there's none. */
 export const useConsumableInput = z.object({ itemId: z.string().min(1).max(64) });

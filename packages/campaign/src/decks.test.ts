@@ -39,11 +39,11 @@ describe('fixed decks', () => {
     expect(deck.filter((id) => !cardImplemented(catalogDef(id)))).toEqual([]);
   });
 
-  // Gen 2's card effects are still to come: its bosses' decks only need to be legal and Gen 2's.
-  it.each([...johto])("%s's deck is a legal 60-card deck of Gen 2 cards, each evolution with its earlier stage", (id) => {
+  it.each([...johto])("%s's deck is a legal 60-card deck of Gen 2 cards the engine fully implements, each evolution with its earlier stage", (id) => {
     const deck = expandDeck(BOSSES[id as keyof typeof BOSSES].deck);
     expect(deckErrors(deck, catalogDef)).toEqual([]);
     expect(deck.filter((c) => !GEN2_SETS.includes(c.split('-')[0]!))).toEqual([]);
+    expect(deck.filter((c) => !cardImplemented(catalogDef(c)))).toEqual([]);
     const names = new Set(deck.map((c) => catalogDef(c).name));
     expect(deck.map(catalogDef).filter((d) => isPokemonCard(d) && d.evolvesFrom && !names.has(d.evolvesFrom)).map((d) => d.name)).toEqual([]);
   });

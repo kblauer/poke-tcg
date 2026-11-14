@@ -35,7 +35,7 @@ const TEAM_PLASMA = new Set([
 export const isAceSpec = (id: string) => ACE_SPEC.has(printId(id));
 
 /** Whether a card is a Team Plasma card. */
-export const isTeamPlasma = (id: string) => TEAM_PLASMA.has(printId(id));
+const isTeamPlasma = (id: string) => TEAM_PLASMA.has(printId(id));
 
 /** Shape of the TCGdex fields kept in Card.data (see packages/db/prisma/tcgdex.ts). */
 export interface CardData {

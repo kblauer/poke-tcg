@@ -13,9 +13,9 @@ import { pick, rngFrom, seed, type Rng } from './random.js';
 import { generation, GENERATIONS } from './run-types.js';
 
 /** Floors a generation's opponents fill (the user's: 1–10 Gen 1, 11–20 Gen 2…). */
-export const FLOORS_PER_GENERATION = 10;
+const FLOORS_PER_GENERATION = 10;
 /** Every this many floors beaten is a checkpoint (the user's). */
-export const CHECKPOINT_EVERY = 5;
+const CHECKPOINT_EVERY = 5;
 /** The last floor: beating it wins the challenge (the user's). */
 export const TOP_FLOOR = 100;
 

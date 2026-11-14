@@ -1,7 +1,6 @@
 import { bossSummary, currentGameId, EQUIP_SLOTS, isBattleKind, fitsSlot, item, ITEMS, MAX_CONSUMABLES_PER_RUN, onlyOne, RUN_TYPE_IDS, RUN_TYPES, runView, shopStock, type EquipSlot, type RunTypeId, type StarterId } from '@poke-tcg/campaign';
 import { Prisma, prisma } from '@poke-tcg/db';
-import { DECK_NAME_LENGTH } from '@poke-tcg/shared';
-import { buyItemInput, DEFAULT_TRAINER_SPRITE, equipInput, playerGenderInput, runActInput, runChooseInput, runIdInput, saveRunDeckInput, startRunInput, trainerSpriteInput, useConsumableInput, useItemInput, type PlayerGender } from '@poke-tcg/shared';
+import { buyItemInput, DEFAULT_TRAINER_SPRITE, equipInput, playerGenderInput, runActInput, runChooseInput, runIdInput, startRunInput, trainerSpriteInput, useConsumableInput, useItemInput, type PlayerGender } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { userRow } from '../auth.js';
 import { debugWinGame } from '../games.js';
@@ -12,12 +11,6 @@ import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, lockUs
 import { holoTwins, lockedProblem, unlockedIds } from '../unlocks.js';
 import { deckCardIds, markPlayed, playableDeck, playProblems, withCatalogCards, type DeckCosmetics } from './decks.js';
 import { debugProcedure, protectedProcedure, router } from '../trpc.js';
-
-/** The default name for saving a run's deck: the run's number among the account's runs and its type, "Run #3 – Celadon City". */
-async function runDeckName(run: LoadedRun) {
-  const number = await prisma.run.count({ where: { ownerId: run.ownerId, createdAt: { lte: run.createdAt } } });
-  return `Run #${number} – ${RUN_TYPES[run.type as keyof typeof RUN_TYPES]?.name ?? run.type}`.slice(0, DECK_NAME_LENGTH);
-}
 
 /** The post-run shop's stock: rolled from the latest run's seed, so it's new after each run and the same until then. */
 async function latestStock(userId: string) {
@@ -89,7 +82,6 @@ export const runRouter = router({
     const [unlocked, limited, progress, starter] = await Promise.all([unlockedIds(ctx.user.id, prisma, { cardIds: deckCardIds(decks) }), holoTwins(), runTypeProgress(ctx.user.id), needsStarter(ctx.user.id)]);
     // A run started before there were automatic run decks gets one now.
     if (run?.status === 'ACTIVE' && !decks.some((d) => d.runId === run.id)) await syncRunDeck(ctx.user.id, run.id, run.state.deck);
-    const runDeck = run && decks.find((d) => d.runId === run.id);
     return {
       account: { exp: user.exp, bank: user.bank },
       // A new account: its first run starts with one of the starter decks (STARTER_DECKS), picked in the run picker.
@@ -99,8 +91,6 @@ export const runRouter = router({
       // The deck played most recently, the new run's deck to start with (the client falls back to the top deck when it's gone).
       lastDeckId: user.lastDeckId,
       run: run && (await clientRun(run)),
-      // The latest run's automatic deck while it's not saved (its name, the default for saving it: "Run #3 – Celadon City").
-      runDeck: run && (runDeck || run.status === 'ACTIVE') ? { saveName: await runDeckName(run) } : null,
       // With why each can't start a run (the deck rules, or cards not unlocked); empty when it can. Not the automatic
       // run deck: a run starts with one of the account's own decks.
       decks: decks.filter((d) => d.runId === null).map((d) => ({ id: d.id, name: d.name, favorite: d.favorite, cardCount: d.cards.reduce((n, c) => n + c.quantity, 0), cards: d.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity })), problems: playProblems(d.cards, unlocked, limited), locked: lockedProblem(d.cards, unlocked, limited) !== null })),
@@ -215,20 +205,6 @@ export const runRouter = router({
 
   /** Debug (a debugProcedure, refused in production): starts a run like `start`, locked run types too. */
   debugStart: debugProcedure.input(startRunInput).mutation(async ({ ctx, input }) => startWithDeck(ctx.user.id, input.type, input)),
-
-  /**
-   * Saves the automatic run deck once its run is over: it becomes one of the account's own decks, under `name`, at the end
-   * of the list. Unsaved, it's taken over by the next run instead.
-   */
-  saveDeck: protectedProcedure.input(saveRunDeckInput).mutation(async ({ ctx, input }) => {
-    const run = await loadOwnRun(input.runId, ctx.user.id);
-    if (run.status === 'ACTIVE') throw new TRPCError({ code: 'BAD_REQUEST', message: 'Save the deck once the run is over' });
-    const deck = await prisma.deck.findUnique({ where: { runId: run.id }, select: { id: true } });
-    if (!deck) throw new TRPCError({ code: 'BAD_REQUEST', message: "This run's deck is already saved" });
-    const last = await prisma.deck.aggregate({ where: { ownerId: ctx.user.id }, _max: { position: true } });
-    await prisma.deck.update({ where: { id: deck.id }, data: { runId: null, name: input.name, position: (last._max.position ?? -1) + 1 } });
-    return { id: deck.id };
-  }),
 
   /**
    * The post-run shop: the items in stock after the latest run (shopStock), for EXP, and how many of each the account
