@@ -8,7 +8,7 @@
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { hasType, isBasicEnergy, isTrainerCard, lookupCard, namesMatch } from '../cards.js';
 import { counts, energyPool, isSpecialEnergy, retreatCost, type InPlayPokemon, type Target } from '../engine.js';
-import { pokemonPower } from '../powers.js';
+import { hasPowerOrBody, pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { evolvedFromName, inPlayDef, pokemonName } from '../status.js';
 import { benchedSlots, damageChosen, energyCards, headsUntilTails, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
@@ -303,7 +303,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
         if (ctx.defender.damage >= inPlayDef(ctx.state.cards, ctx.defender).hp) ctx.protect('preventAll');
       },
     },
-    'Pound Down': { run: (ctx) => void ctx.hit(inPlay(ctx.me).some((p) => inPlayDef(ctx.state.cards, p).power && !body(ctx, p)) ? 40 : 70) },
+    'Pound Down': { run: (ctx) => void ctx.hit(inPlay(ctx.me).some((p) => hasPowerOrBody(ctx.state.cards, p, 'power')) ? 40 : 70) },
   },
   // Staraptor – Strong Breeze: heads, one of the opponent's Benched Pokémon and its cards shuffled into their deck.
   'dp7-27': {

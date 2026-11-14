@@ -1310,9 +1310,27 @@ export function lazied(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides)
   return !!opponent?.active && !!pokemonPower(opponent.active)?.lazy && powerActive(opponent.active, cards, sides);
 }
 
+/**
+ * A Poké-Power (or an older Pokémon Power), as "Poké-Power" text means it: not a Poké-Body, and never an Ability (agreed
+ * 2026-10-26: Abilities are a kind of their own, stopped and seen only by effects naming Abilities). A card with both a
+ * Poké-Body and a Poké-Power (`usePoke`) is one when used.
+ */
+export const isPokePower = (effect: PowerEffect): boolean => !effect.ability && (!effect.body || !!effect.usePoke);
+
+/**
+ * Whether the Pokémon has a printed Poké-Power or Poké-Body (working or not, agreed), as older text asks ("a Pokémon
+ * that has a Poké-Power or Poké-Body"): `kind` for one of the two alone. Never an Ability (the user's, 2026-11-14).
+ */
+export function hasPowerOrBody(cards: CardLibrary, pokemon: InPlayPokemon, kind?: 'power' | 'body'): boolean {
+  const effect = pokemonPower(pokemon);
+  if (!inPlayDef(cards, pokemon).power || effect?.ability) return false;
+  return !kind || !!effect?.body === (kind === 'body');
+}
+
 /** Dark Gaze is stopping the Benched Pokémon `pokemon`'s Poké-Powers: a working Dark Gaze on either Active Pokémon. */
 export function darkGazed(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): boolean {
-  if (sides.some((s) => s.active === pokemon) || pokemonPower(pokemon)?.body) return false;
+  // (Not a Poké-Body's, nor an Ability's.)
+  if (sides.some((s) => s.active === pokemon) || pokemonPower(pokemon)?.body || pokemonPower(pokemon)?.ability) return false;
   return sides.some((s) => !!s.active && !!pokemonPower(s.active)?.darkGaze && powerActive(s.active, cards, sides));
 }
 
@@ -1559,12 +1577,12 @@ export function usePower(state: GameState, me: PlayerState, opp: PlayerState, so
   const def = inPlayDef(state.cards, source);
   const effect = pokemonPower(source)!;
   // Power Cancel: the opponent may stop a Poké-Power (not a Poké-Body) with 2 cards from their hand, before it does anything.
-  if ((!effect.body || effect.usePoke) && !state.powerCancelPassed && opp.hand.length >= 2 && powerCanceller(state, opp, me)) {
+  if (isPokePower(effect) && !state.powerCancelPassed && opp.hand.length >= 2 && powerCanceller(state, opp, me)) {
     state.pendingChoice = { player: opp.id, source: 'Power Cancel', kind: 'powerCancel', target: sourceTarget, choices: resolved.choices, picked: [] };
     return null;
   }
   // Power Spray: the opponent, with 3 or more Pokémon SP in play, may play it from their hand to stop a Poké-Power.
-  if ((!effect.body || effect.usePoke) && !state.powerCancelPassed && powerSprayer(state, opp)) {
+  if (isPokePower(effect) && !state.powerCancelPassed && powerSprayer(state, opp)) {
     state.pendingChoice = { player: opp.id, source: 'Power Spray', kind: 'powerCancel', target: sourceTarget, choices: resolved.choices, picked: [], spray: true };
     return null;
   }
@@ -1572,7 +1590,7 @@ export function usePower(state: GameState, me: PlayerState, opp: PlayerState, so
   addLog(state, `${def.name} used ${powerName}.`, me.id);
   if (effect.oncePerTurn) source.powerUsedTurn = state.turn;
   // Dark Eyes (the opponent's Shiftry ex): after a Poké-Power is used, 2 damage counters on the Pokémon that used it.
-  const darkEyes = (!effect.body || effect.usePoke) && [opp.active, ...opp.bench].some((p) => p && pokemonPower(p)?.darkEyes && powerActive(p, state.cards, [opp, me]));
+  const darkEyes = isPokePower(effect) && [opp.active, ...opp.bench].some((p) => p && pokemonPower(p)?.darkEyes && powerActive(p, state.cards, [opp, me]));
   const uid = source.card.uid;
   effect.use!({
     state,
@@ -1588,7 +1606,7 @@ export function usePower(state: GameState, me: PlayerState, opp: PlayerState, so
     },
   });
   // Darkness Drive: the opponent's working Tyranitar takes a basic Darkness Energy card from their discard pile.
-  if (!effect.body || effect.usePoke) {
+  if (isPokePower(effect)) {
     for (const p of [opp.active, ...opp.bench]) {
       const card = p && pokemonPower(p)?.darknessDrive && powerActive(p, state.cards, [opp, me]) && !discardsLocked([me, opp], state.cards) ? opp.discard.find((c) => isBasicEnergyCard(state.cards, c, 'darkness')) : undefined;
       if (!p || !card) continue;

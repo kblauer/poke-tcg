@@ -25,7 +25,7 @@ import {
   type PokemonEffects,
   type Target,
 } from './engine.js';
-import { greenAroma, stickyHold, conditionBarred, conditionFree, discardsLocked, hasReact, holonWith, reactCount, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy, type Sides, pokemonPower } from './powers.js';
+import { hasPowerOrBody, greenAroma, stickyHold, conditionBarred, conditionFree, discardsLocked, hasReact, holonWith, reactCount, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy, type Sides, pokemonPower } from './powers.js';
 import { shuffle } from './rng.js';
 import { addLog, baseUid, clearOnLeavingActive, hasSpecialCondition, effectId, evolvedFromName, isDelta, isPlasmaPokemon, energyProtected, flipCoin, inPlayDef, lakeTrio, pokemonName, previousLevel, revealFaceDown, sameCards, shapeshiftCard } from './status.js';
 import { isPokemonSP, type PendingChoice, type PendingChoiceInput } from './trainers.js';
@@ -1144,7 +1144,7 @@ function createContext(
         // Psybarrier: nothing from the opponent's Pokémon that aren't Evolved Pokémon.
         (!!passive(opp.active)?.psybarrier && !attacker.evolvedFrom.length) ||
         // Marvel Shell: nothing from a Pokémon with a Poké-Power or Poké-Body. Marvel Eyes: nothing from a Pokémon LV.X to Lunatone and Solrock, with both in play.
-        (!!passive(opp.active)?.marvelShell && !!attackerDef.power) ||
+        (!!passive(opp.active)?.marvelShell && hasPowerOrBody(state.cards, attacker)) ||
         (attackerDef.stage === 'levelUp' && ['Lunatone', 'Solrock'].some((n) => namesMatch(def(state.cards, opp.active!).name, n)) && [opp.active, ...opp.bench].some((q) => q && passive(q)?.marvelEyes) && [opp.active, ...opp.bench].some((q) => q && namesMatch(def(state.cards, q).name, 'Solrock'))) ||
         // Wild Guard: nothing from a Pokémon SP. Metal Barrier: nothing from a Pokémon LV.X for a while.
         (!!passive(opp.active)?.wildGuard && isPokemonSP(attackerDef.name)) ||
@@ -1156,7 +1156,7 @@ function createContext(
         // Night Spin: nothing from an attacker with 2 Energy or less attached.
         (active(opp.active.effects?.nightSpin, turn) && energyPool(attacker, state.cards).length <= 2) ||
         // Moonlight Fang: nothing from a Pokémon with a Poké-Power or Poké-Body for a while.
-        (active(opp.active.effects?.moonlightFang, turn) && !!attackerDef.power)));
+        (active(opp.active.effects?.moonlightFang, turn) && hasPowerOrBody(state.cards, attacker))));
   /** Airy Wall works against this attack: the attacker has 2 or fewer Energy cards attached. */
   const airy = (p: InPlayPokemon) => !!passive(p)?.airyWall && attacker.energy.filter((e) => !e.provides).length <= 2;
   /** Shielded, or Crystal Body or Light Wave: the attack does nothing to the Defending Pokémon but damage. Logs why. */

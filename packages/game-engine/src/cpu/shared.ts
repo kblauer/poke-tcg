@@ -302,6 +302,8 @@ function simulateAttacks(state: GameState, attackerId: PlayerId, nextTurn: boole
   const base = scratch(state);
   if (nextTurn) base.turn += 1;
   const attacker = base.players[attackerId]!.active!;
+  // Confused now: every attack flips first, and tails does damage to itself instead (confusedLoss, below).
+  const confused = !nextTurn && attacker.condition === 'confused';
   // A Pokémon Asleep now may wake up before its turn.
   if (attacker.condition === 'confused' || (nextTurn && attacker.condition === 'asleep')) attacker.condition = null;
   const situation = situationOf(base, attackerId);
@@ -317,7 +319,25 @@ function simulateAttacks(state: GameState, attackerId: PlayerId, nextTurn: boole
     }
     if (best) options.push(best);
   });
+  // A Confused attacker's tails is one of every attack's outcomes: if the damage it then does to itself loses the game,
+  // no attack is safe (agreed: never an attack that could lose the game, in any coin-flip outcome).
+  if (confused && options.length && confusedLoss(base, attackerId, options[0]!)) for (const o of options) o.loseChance = Math.max(o.loseChance, 0.5);
   return options;
+}
+
+/** Whether the Confused attacker's tails loses its player the game: the engine's own Confusion rule, its flips forced to tails. */
+function confusedLoss(base: GameState, attackerId: PlayerId, option: AttackOption): boolean {
+  const s = cloneState(base);
+  const me = s.players[attackerId]!;
+  const opp = s.players[opponentOf(s, attackerId)]!;
+  me.active!.condition = 'confused';
+  me.tailsUntil = s.turn;
+  try {
+    if (performAttack(s, me, opp, option.attackIndex, option.choices)) return false;
+  } catch {
+    return false;
+  }
+  return resolveKnockouts(s, attackerId) === opp.id;
 }
 
 /** The attacker's side of `state` for the attack rules (attackError, choiceSets). */
@@ -623,6 +643,17 @@ export function resolveSearch(t: Turn): GameAction {
     }
     const damage = (target: Target) => at(t.me, target)!.damage;
     return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (damage(b) > damage(a) ? b : a)) };
+  }
+  // Moon's Invite (the player's damage counters moved among their Pokémon, as many as it likes): onto the one with the
+  // least HP left, from each of the others in turn, then no more. It ends, where picking by HP alone moved one counter
+  // back and forth for ever.
+  if (choice.kind === 'moveCounters' && choice.fromSide === 'opp' && view.kind === 'oppPokemon') {
+    const left = (target: Target) => hpLeft(t.state.cards, at(t.opp, target)!);
+    const all = inPlay(t.opp).map(([target]) => target);
+    const onto: Target | undefined = choice.toActive ? 'active' : all.length ? all.reduce((a, b) => (left(b) < left(a) ? b : a)) : undefined;
+    if (choice.from !== undefined) return { type: 'RESOLVE_CHOICE', ...(onto !== undefined && onto !== choice.from && view.options.includes(onto) && { target: onto }) };
+    const from = view.options.find((target) => target !== onto && at(t.opp, target)!.damage > 0);
+    return { type: 'RESOLVE_CHOICE', ...(from !== undefined && { target: from }) };
   }
   // Damage to one of the player's Pokémon (Sneak Attack): the one with the least HP left, the Active Pokémon on a tie.
   if (view.kind === 'oppPokemon') {
