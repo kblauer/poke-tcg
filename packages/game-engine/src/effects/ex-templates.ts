@@ -25,6 +25,7 @@ import { attachFromDiscard, notNextTurn } from './neo3.js';
 import { shiftDefenderEnergy } from './ex7.js';
 import { flipOrNothing } from './rocket.js';
 import { healUpTo } from './si1.js';
+import { hasPowerOrBody } from '../powers.js';
 
 /** A number or word from the wording (a type, a Special Condition), or the attack's cost ("water,colorless") where it's needed. */
 export type TemplateArg = number | string;
@@ -275,7 +276,7 @@ export const ATTACK_TEMPLATES: Record<string, AttackTemplate> = {
     fits: sameBase(1),
     make: (_, [n, base, more]) => bonusIf(num(base), num(more), (ctx) => counters(ctx.defender) >= num(n)),
   },
-  powerMore: { pattern: re('if the defending pokemon has any poke-powers or poke-bodies, this attack does (\\d+) damage plus (\\d+) more damage'), fits: sameBase(0), make: (_, [base, more]) => bonusIf(num(base), num(more), (ctx) => !!ctx.defenderDef.power) },
+  powerMore: { pattern: re('if the defending pokemon has any poke-powers or poke-bodies, this attack does (\\d+) damage plus (\\d+) more damage'), fits: sameBase(0), make: (_, [base, more]) => bonusIf(num(base), num(more), (ctx) => hasPowerOrBody(ctx.state.cards, ctx.defender)) },
   toolMore: { pattern: re('if @ has a pokemon tool card attached to it, this attack does (\\d+) damage plus (\\d+) more damage'), fits: sameBase(0), make: (_, [base, more]) => bonusIf(num(base), num(more), (ctx) => (ctx.attacker.attached ?? []).some((a) => a.tool)) },
   lessEnergyMore: {
     pattern: re('if @ has less energy attached to it than the defending pokemon, this attack does (\\d+) damage plus (\\d+) more damage'),

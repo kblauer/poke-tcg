@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CardDef, PokemonCardDef } from '../cards.js';
 import { applyAction, inPlayDef, retreatCost, usableAttacks, type GameState, type InPlayPokemon, type Target } from '../index.js';
+import { darkGazed, hasPowerOrBody } from '../powers.js';
 import { act, attack, duel, endTurn, flips, id, mon, settles, C, F, FI, G, L, P, W } from './test-kit.js';
 
 const ash = (s: GameState) => s.players.ash!;
@@ -49,6 +50,48 @@ describe('Pokémon LV.X powers', () => {
     const fire = hand(s, 'misty', s.cards.fire!);
     s = act(s, 'misty', { type: 'ATTACH_ENERGY', cardUid: fire, target: 'active' });
     expect(misty(s).active!.damage).toBe(20);
+  });
+});
+
+describe('an Ability is no Poké-Power (agreed: only effects naming Abilities stop or see one)', () => {
+  /** Ash's Emboar (Inferno Fandango, an Ability he uses) with a Fire Energy in hand. */
+  const emboar = () => {
+    const s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('bw1-20', 'Emboar', F, 150, [], { stage: 'stage2', ...body('Inferno Fandango') }));
+    ash(s).hand = [];
+    hand(s, 'ash', s.cards.fire!);
+    return s;
+  };
+  const fandango = (s: GameState) => act(s, 'ash', { type: 'USE_POWER', source: 'active', choices: { cardUid: ash(s).hand[0]!.uid, to: 'active' } });
+
+  it("Power Cancel isn't offered against it", () => {
+    const s = emboar();
+    put(s, 'misty', 0, mon('dp2-2', 'Alakazam', P, 100, [], { stage: 'stage2', ...body('Power Cancel') }));
+    const after = fandango(s);
+    expect(after.pendingChoice).toBeUndefined();
+    expect(ash(after).active!.energy).toHaveLength(1);
+  });
+
+  it('counts as neither for "a Pokémon that has a Poké-Power or Poké-Body"', () => {
+    const s = emboar();
+    expect(hasPowerOrBody(s.cards, ash(s).active!)).toBe(false);
+    expect(hasPowerOrBody(s.cards, ash(s).active!, 'power')).toBe(false);
+    // A Poké-Body is a body, not a power; a Poké-Power the other way round.
+    const azelf = put(s, 'misty', 0, mon('dp2-4', 'Azelf', P, 70, [], body('Downer Material')));
+    expect([hasPowerOrBody(s.cards, azelf), hasPowerOrBody(s.cards, azelf, 'body'), hasPowerOrBody(s.cards, azelf, 'power')]).toEqual([true, true, false]);
+    const bronzong = put(s, 'misty', 1, mon('dp2-6', 'Bronzong', 'metal', 90, [], { stage: 'stage1', ...body('Miracle Oracle') }));
+    expect([hasPowerOrBody(s.cards, bronzong, 'power'), hasPowerOrBody(s.cards, bronzong, 'body')]).toEqual([true, false]);
+    expect(hasPowerOrBody(s.cards, misty(s).active!)).toBe(false);
+  });
+
+  it("Dark Gaze doesn't stop a Benched Pokémon's Ability", () => {
+    const s = emboar();
+    const benched = put(s, 'ash', 0, mon('bw1-20', 'Emboar', F, 150, [], { stage: 'stage2', ...body('Inferno Fandango') }));
+    put(s, 'misty', 'active', mon('ecard3-32', 'Umbreon', 'darkness', 70, [], { stage: 'stage1', ...body('Dark Gaze') }));
+    expect(darkGazed(benched, s.cards, [ash(s), misty(s)])).toBe(false);
+    // A Benched Poké-Power is stopped.
+    const bronzong = put(s, 'ash', 1, mon('dp2-6', 'Bronzong', 'metal', 90, [], { stage: 'stage1', ...body('Miracle Oracle') }));
+    expect(darkGazed(bronzong, s.cards, [ash(s), misty(s)])).toBe(true);
   });
 });
 
