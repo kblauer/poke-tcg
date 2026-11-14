@@ -1,4 +1,4 @@
-import { CONTEST_THEMES, danceAll, danceTiming, DANCE_LEADS, PLAYER, type ContestState, type DancePress, type DanceStep } from '@poke-tcg/campaign';
+import { CONTEST_THEMES, danceAll, danceTiming, DANCE_LEADS, PLAYER, type ContestView, type DancePress, type DanceStep } from '@poke-tcg/campaign';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { audioVolume, ContestSprite } from './contestUi';
 import { animCell, Cell, DsScreen, Layer, MonSprite, SCALE, useGfx } from './ds';
@@ -25,7 +25,7 @@ const GRADE_CELL = { excellent: 0, good: 1, miss: 2 } as const;
 const GRADE_WORD = { excellent: 'Excellent!', good: 'Good!', miss: 'Miss' } as const;
 
 /** The Visual Competition's results, as the dance begins: each contestant's hearts (condition) and stars (theme). */
-export function VisualRecap({ contest }: { contest: ContestState }) {
+export function VisualRecap({ contest }: { contest: ContestView }) {
   return (
     <div className="grid gap-2 sm:grid-cols-4">
       {contest.entrants.map((e, c) => {
@@ -55,7 +55,7 @@ export function VisualRecap({ contest }: { contest: ContestState }) {
  * (the arrow keys, W A S D, or the touch screen's buttons); the server dances it again with them (`contest.dance`) for the
  * scores. The CPU dancers here are the same simulation, run on the presses so far.
  */
-export function DanceRound({ contest, volume, busy, onDone }: { contest: ContestState; volume: number; busy: boolean; onDone: (presses: DancePress[]) => void }) {
+export function DanceRound({ contest, volume, busy, onDone }: { contest: ContestView; volume: number; busy: boolean; onDone: (presses: DancePress[]) => void }) {
   const t = useMemo(() => danceTiming(contest.rank, contest.category), [contest.rank, contest.category]);
   const gfx = useGfx();
   const [started, setStarted] = useState(false);

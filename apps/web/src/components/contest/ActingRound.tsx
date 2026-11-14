@@ -1,4 +1,4 @@
-import { ACTING_TURNS, canUseMove, CONTEST_CATEGORIES, CONTEST_EFFECTS, contestMove, JUDGES, MAIN_JUDGE, PLAYER, type ActingTurn, type ContestState } from '@poke-tcg/campaign';
+import { ACTING_TURNS, canUseMove, CONTEST_CATEGORIES, CONTEST_EFFECTS, contestMove, JUDGES, MAIN_JUDGE, PLAYER, type ActingTurn, type ContestView } from '@poke-tcg/campaign';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { rankName } from './contestUi';
 import { animCell, Cell, DsScreen, Layer, MonSprite, SCALE, useGfx, useTicks, type Gfx } from './ds';
@@ -22,7 +22,7 @@ const CATEGORY_FILES = ['cool', 'beauty', 'cute', 'smart', 'tough'];
 const PERFORMANCE_MS = 1600;
 
 /** A turn's lines, as the announcer would give them, one a step of the playback. */
-function turnSteps(contest: ContestState, turn: ActingTurn) {
+function turnSteps(contest: ContestView, turn: ActingTurn) {
   const name = (c: number) => contest.entrants[c]!.name;
   const steps: { performer: number | null; text: string; voltage?: number[] }[] = [];
   for (const p of turn.performances) {
@@ -36,7 +36,7 @@ function turnSteps(contest: ContestState, turn: ActingTurn) {
 }
 
 /** The top screen's stage: the judges with their Voltage, the contestants' panels with their hearts and NEXT badges, the performer. */
-function Stage({ contest, gfx, ticks, voltage, totals, performer, message, judgeCursor }: { contest: ContestState; gfx: Gfx | null; ticks: number; voltage: number[]; totals: number[]; performer: number | null; message: string; judgeCursor: number | null }) {
+function Stage({ contest, gfx, ticks, voltage, totals, performer, message, judgeCursor }: { contest: ContestView; gfx: Gfx | null; ticks: number; voltage: number[]; totals: number[]; performer: number | null; message: string; judgeCursor: number | null }) {
   const acting = contest.acting!;
   const sheet = (n: string) => gfx?.sheet(n) ?? null;
   return (
@@ -91,7 +91,7 @@ function Stage({ contest, gfx, ticks, voltage, totals, performer, message, judge
  * (8 hearts Dexter's, 5 the others') and empties; a judge fewer chose gives more. The server plays the turn with the CPUs'
  * choices (`contest.act`), and it's played back here a performance at a time.
  */
-export function ActingRound({ contest, busy, onAct, onFinished }: { contest: ContestState; busy: boolean; onAct: (move: string, judge: number) => void; onFinished?: () => void }) {
+export function ActingRound({ contest, busy, onAct, onFinished }: { contest: ContestView; busy: boolean; onAct: (move: string, judge: number) => void; onFinished?: () => void }) {
   const acting = contest.acting!;
   const me = contest.entrants[PLAYER]!;
   const gfx = useGfx();
