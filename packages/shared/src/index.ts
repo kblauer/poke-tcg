@@ -250,7 +250,10 @@ const whosThatGuess = z.string().max(30);
 export const whosThatRunInput = z.object({ runId: z.uuid(), expectedVersion: z.number().int().min(0) });
 export const whosThatRunGuessInput = z.object({ runId: z.uuid(), guess: whosThatGuess });
 export const whosThatStartInput = z.object({ daily: z.boolean() });
-export const whosThatGuessInput = z.object({ gameId: z.uuid(), guess: whosThatGuess });
+// `index`: the round the player sees, so a move that arrives after the game has moved on changes nothing.
+const whosThatIndex = z.number().int().min(0).max(99);
+export const whosThatGuessInput = z.object({ gameId: z.uuid(), index: whosThatIndex, guess: whosThatGuess });
+export const whosThatPassInput = z.object({ gameId: z.uuid(), index: whosThatIndex });
 export const whosThatGameInput = z.object({ gameId: z.uuid() });
 export const whosThatBoardInput = z.object({ board: z.enum(['average', 'fastest', 'daily']) });
 

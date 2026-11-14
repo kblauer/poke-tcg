@@ -1,4 +1,4 @@
-import { CARD_SCAN, shapePixels, type WhosThatShape } from '@poke-tcg/campaign';
+import { CARD_SCAN, shapePixels, WHOS_THAT_PASS_MS, type WhosThatShape } from '@poke-tcg/campaign';
 
 /**
  * Who's That Pokémon?'s drawing, as tools/whos-that/whos_that.py draws it (keep the two alike): the Pokémon's shape
@@ -78,3 +78,10 @@ export function drawReveal(canvas: HTMLCanvasElement, shape: WhosThatShape, imag
 
 /** A time in seconds, to the hundredth ("1.23 s"). */
 export const seconds = (ms: number) => `${(ms / 1000).toFixed(2)} s`;
+
+/**
+ * Whether the Extras game asks for the Pokémon on screen to be passed, its time run out: only one that is up (`shown`),
+ * not while the one before is `revealing`, and never while a guess or a pass is on its way (`busy`): the guess moves the
+ * game on, and a pass sent beside it would be for a Pokémon the player never saw.
+ */
+export const autoPassDue = (s: { shown: boolean; revealing: boolean; busy: boolean; elapsedMs: number }) => s.shown && !s.revealing && !s.busy && s.elapsedMs >= WHOS_THAT_PASS_MS;

@@ -91,6 +91,43 @@ export function whosThatTimes(times: readonly number[], passed: readonly boolean
   return { fastestMs: named.length ? Math.min(...named) : null, averageMs: times.length ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : 0 };
 }
 
+/** An Extras game as far as it's been played: the Pokémon on screen (`index` of `rounds`), shown at `shownAt` (ms; later than now while the one before is revealed), and the times and passes so far. */
+export interface WhosThatProgress {
+  rounds: number;
+  index: number;
+  shownAt: number;
+  times: number[];
+  passed: boolean[];
+}
+
+/** What the player sends for the Pokémon they see (`index`, the round's): a typed name, or a pass. */
+export type WhosThatMove = { index: number; guess: string } | { index: number; pass: true };
+
+/**
+ * A move's outcome: `stale` (not the Pokémon on screen any more, or the game is over), `early` (it isn't up yet: the
+ * one before is still revealed), `wrong`, `named` or `passed`. Only the last two change the game.
+ */
+export type WhosThatOutcome = 'stale' | 'early' | 'wrong' | 'named' | 'passed';
+
+/**
+ * One move of an Extras game at `now`, `name` being the card on screen's: the Pokémon named records the time since it
+ * was shown and the next is shown from now; "skip", a pass, or any name once WHOS_THAT_PASS_MS have gone by passes it
+ * (counting WHOS_THAT_PASS_MS, the next one's clock starting once it's been revealed: WHOS_THAT_REVEAL_MS). A move for
+ * another round than the one on screen changes nothing (a pass sent as a guess was moving the game on would pass a
+ * Pokémon never shown), nor does one sent before the Pokémon is up. Returns the game after it and the time recorded.
+ */
+export function whosThatStep(game: WhosThatProgress, name: string, move: WhosThatMove, now: number): { outcome: WhosThatOutcome; game: WhosThatProgress; timeMs: number } {
+  const same = (outcome: WhosThatOutcome) => ({ outcome, game, timeMs: 0 });
+  if (game.index >= game.rounds || move.index !== game.index) return same('stale');
+  const elapsed = now - game.shownAt;
+  if (elapsed < 0) return same('early');
+  const passes = 'pass' in move || isSkip(move.guess) || elapsed >= WHOS_THAT_PASS_MS;
+  if (!passes && !namesPokemon(move.guess, name)) return same('wrong');
+  const timeMs = passes ? WHOS_THAT_PASS_MS : elapsed;
+  const next = { rounds: game.rounds, index: game.index + 1, shownAt: passes ? now + WHOS_THAT_REVEAL_MS : now, times: [...game.times, timeMs], passed: [...game.passed, passes] };
+  return { outcome: passes ? 'passed' : 'named', game: next, timeMs };
+}
+
 /**
  * A silhouette's shape: `width` × `height` pixels of the Pokémon (trimmed to it), as runs of pixels left to right, top
  * to bottom, alternating outside and inside, starting outside (base 36, comma separated). `x`, `y`: where it is on the
