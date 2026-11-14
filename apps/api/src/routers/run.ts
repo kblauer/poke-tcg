@@ -9,7 +9,7 @@ import { towerUnderway } from '../towers.js';
 import { runTypeProgress } from '../progress.js';
 import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, lockUser, needsStarter, settleBattle, startRun, syncRunDeck, takeItem, type LoadedRun } from '../runs.js';
 import { holoTwins, lockedProblem, unlockedIds } from '../unlocks.js';
-import { markPlayed, playableDeck, playProblems, type DeckCosmetics } from './decks.js';
+import { deckCardIds, markPlayed, playableDeck, playProblems, type DeckCosmetics } from './decks.js';
 import { debugProcedure, protectedProcedure, router } from '../trpc.js';
 
 /** The default name for saving a run's deck: the run's number among the account's runs and its type, "Run #3 – Celadon City". */
@@ -84,7 +84,8 @@ export const runRouter = router({
         orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
       }),
     ]);
-    const [unlocked, limited, progress, starter] = await Promise.all([unlockedIds(ctx.user.id), holoTwins(), runTypeProgress(ctx.user.id), needsStarter(ctx.user.id)]);
+    // The decks' cards' unlocks only (a few hundred rows), not the account's whole list: the deck builder has that (decks.unlocked).
+    const [unlocked, limited, progress, starter] = await Promise.all([unlockedIds(ctx.user.id, prisma, { cardIds: deckCardIds(decks) }), holoTwins(), runTypeProgress(ctx.user.id), needsStarter(ctx.user.id)]);
     // A run started before there were automatic run decks gets one now.
     if (run?.status === 'ACTIVE' && !decks.some((d) => d.runId === run.id)) await syncRunDeck(ctx.user.id, run.id, run.state.deck);
     const runDeck = run && decks.find((d) => d.runId === run.id);
