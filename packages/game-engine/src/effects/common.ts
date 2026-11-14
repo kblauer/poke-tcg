@@ -4,7 +4,7 @@ import type { PendingChoice } from '../trainers.js';
 import type { PowerEffect, PowerSituation } from '../powers.js';
 import { isBasicEnergy, lookupCard, type CardLibrary, type EnergyType } from '../cards.js';
 import { counts, energyPool, type Affliction, type InPlayPokemon, type PlayerState, type PoolEnergy, type Target } from '../engine.js';
-import { energyProtected, openBenchSlot, pokemonName } from '../status.js';
+import { energyProtected, evolvedFromHand, openBenchSlot, pokemonName } from '../status.js';
 
 /** Every Pokémon in play on a side. */
 export const inPlay = (side: Pick<PlayerState, 'active' | 'bench'>) => [side.active, ...side.bench].filter((p): p is InPlayPokemon => !!p);
@@ -33,6 +33,17 @@ export const fromDiscard = (to: 'hand' | 'deckBottom'): PowerEffect => ({
     if (to === 'hand') ctx.me.hand.push(ctx.card);
     else ctx.me.deck.push(ctx.card);
     ctx.log(`Put ${lookupCard(ctx.state.cards, ctx.card.defId).name} ${to === 'hand' ? 'into the hand' : 'on the bottom of the deck'}.`);
+  },
+});
+
+/**
+ * "When you play this from your hand to evolve 1 of your (Active) Pokémon, you may …": a yes-or-no question as it evolves
+ * (`mayUse`), never as it's benched or levelled up (evolvedFromHand). The one helper for it: the copies each set had missed the level-up.
+ */
+export const onEvolveMay = (power: Extract<PendingChoice, { kind: 'mayUse' }>['power'], source: string, activeOnly = false): PowerEffect => ({
+  onPlayFromHand(state, owner, pokemon) {
+    if (!evolvedFromHand(pokemon) || (activeOnly && owner.active !== pokemon)) return;
+    state.pendingChoice = { player: owner.id, source, kind: 'mayUse', power, target: targetOf(owner, pokemon) };
   },
 });
 

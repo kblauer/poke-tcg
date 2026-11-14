@@ -82,7 +82,7 @@ export const sameCards = (cards: CardLibrary, options: readonly CardInstance[]) 
   new Set(
     options.map((c) => {
       const d = lookupCard(cards, c.defId);
-      return `${d.name}|${d.kind === 'energy' && d.basic === false ? 's' : ''}|${c.provides ?? ''}|${c.converted ?? ''}|${c.windless ? 'w' : ''}`;
+      return `${d.name}|${d.kind === 'energy' && d.basic === false ? 's' : ''}|${c.provides ? `${c.provides.type}×${c.provides.amount}` : ''}|${c.converted?.type ?? ''}|${c.windless ? 'w' : ''}`;
     }),
   ).size === 1;
 
@@ -129,7 +129,7 @@ export const FACE_DOWN: PokemonCardDef = {
  * basic Energy card attached (`types`), and Low Pressure System gives Grass and Lightning Pokémon 10 more HP.
  */
 /** The Pokémon's top card is a Pokémon LV.X. */
-const levelledUp = (cards: CardLibrary, pokemon: InPlayPokemon) => {
+export const levelledUp = (cards: CardLibrary, pokemon: InPlayPokemon) => {
   const top = lookupCard(cards, pokemon.card.defId);
   return top.kind === 'pokemon' && top.stage === 'levelUp';
 };
@@ -143,20 +143,46 @@ export function devolvable(cards: CardLibrary, pokemon: InPlayPokemon): boolean 
 }
 
 /**
+ * An Evolved Pokémon: an Evolution card is on it. A Pokémon LV.X is the same stage as the card under it (a level-up card, no
+ * Evolution card; agreed 2026-11-14), so a Basic Pokémon with a LV.X on it isn't one. Never `evolvedFrom.length` for this.
+ */
+export const isEvolved = devolvable;
+
+/** The card on top of the Pokémon was played from the hand to evolve it: not a Basic Pokémon put into play, nor a level-up (the on-evolve powers). */
+export const evolvedFromHand = (pokemon: InPlayPokemon) => pokemon.evolvedFrom.length > 0 && !pokemon.levelUpFrom;
+
+/**
+ * Takes the Pokémon's top card off it and returns it, the card under it on top again (Retro Energy, Volunteer, Level-Down):
+ * `levelUpFrom` goes with a Pokémon LV.X's card. Any effect that takes a card off the top of a Pokémon goes through this.
+ */
+export function removeTopCard(pokemon: InPlayPokemon): CardInstance {
+  const top = pokemon.card;
+  pokemon.card = pokemon.evolvedFrom.pop()!;
+  delete pokemon.levelUpFrom;
+  return top;
+}
+
+/**
  * Removes the Pokémon's highest Stage Evolution card and returns it, for the effect to put where it says. A Pokémon LV.X's card
  * on it is discarded with it (agreed). An effect that removes "the top card" (Retro Energy) takes the LV.X card itself instead.
  */
 export function removeTopEvolution(state: GameState, owner: PlayerState, pokemon: InPlayPokemon): CardInstance {
   if (levelledUp(state.cards, pokemon)) {
-    const lvx = pokemon.card;
-    pokemon.card = pokemon.evolvedFrom.pop()!;
+    const lvx = removeTopCard(pokemon);
     owner.discard.push(lvx);
     addLog(state, `${lookupCard(state.cards, lvx.defId).name} LV.X was discarded with the card under it.`, owner.id);
   }
-  const top = pokemon.card;
-  pokemon.card = pokemon.evolvedFrom.pop()!;
-  return top;
+  return removeTopCard(pokemon);
 }
+
+/** A card leaving play as the card it is: an Electrode attached as Energy (Buzzap) is a Pokémon card again, a converted or windless Energy card its own. */
+export const cleanCard = ({ provides: _, converted: _c, windless: _w, ...card }: CardInstance): CardInstance => card;
+
+/**
+ * Every card of a Pokémon in play, as they leave it: the cards under it, its own, the Energy cards (cleanCard) and everything
+ * attached (Tools, a LEGEND's other half). Never spell the list out: the copies each dropped a different flag.
+ */
+export const cardsOf = (pokemon: InPlayPokemon): CardInstance[] => [...pokemon.evolvedFrom, pokemon.card, ...pokemon.energy.map(cleanCard), ...(pokemon.attached ?? []).map((a) => a.card)];
 
 /** A card under the Pokémon has this name, whatever its case ("if Clefairy is evolved from Cleffa", "if Mantyke is anywhere under Mantine"). */
 export function evolvedFromName(cards: CardLibrary, pokemon: InPlayPokemon, name: string): boolean {

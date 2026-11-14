@@ -7,8 +7,8 @@ import { conditionProof, hasType, isBasicEnergy, isBasicPokemon, isLegend, isPok
 import { powerEffect, trainerEffect } from './effects/index.js';
 import { activeLocked, afflictBetweenTurns, conditionLabel, discardTheirEnergy, isEnergyCardOf, isSpecialEnergy, retireStadium, discardTool, evolvesOnto, newInPlay, opponentOf, toolOf, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
 import { nextRandom, shuffle } from './rng.js';
-import { conditionFree, stickyHold, discardsLocked, itemVeiled, offerChainReaction, powerActive, primalLocked, supportersVeiled, trainerProof, trainersBlocked, trainersDusted, pokemonPower, type PowerChoices } from './powers.js';
-import { addLog, baseUid, benchRoom, clearOnLeavingActive, clearSpecialConditions, countersMoved, devolvable, effectId, energyProtected, evolvedHook, flipCoin, inPlayDef, isDelta, isDeltaCard, isPlasmaPokemon, openBenchSlot, removeTopEvolution, sameCards, shapeshiftCard } from './status.js';
+import { askChoice, conditionFree, stickyHold, discardsLocked, itemVeiled, offerChainReaction, powerActive, primalLocked, supportersVeiled, trainerProof, trainersBlocked, trainersDusted, pokemonPower, type PowerChoices } from './powers.js';
+import { addLog, baseUid, benchRoom, clearOnLeavingActive, clearSpecialConditions, countersMoved, devolvable, effectId, energyProtected, evolvedHook, flipCoin, inPlayDef, isDelta, isDeltaCard, isPlasmaPokemon, openBenchSlot, removeTopCard, removeTopEvolution, sameCards, shapeshiftCard } from './status.js';
 
 /** Answers to a Trainer's questions. Each question names the field it fills. */
 export interface TrainerChoices {
@@ -1556,7 +1556,7 @@ function trainerContext(state: GameState, me: PlayerState, opp: PlayerState, car
       onAttach();
     },
     pend(choice) {
-      state.pendingChoice = { ...choice, player: me.id } as PendingChoice;
+      askChoice(state, { ...choice, player: me.id } as PendingChoice);
     },
     endTurn() {
       state.endTurnNow = true;
@@ -1717,16 +1717,25 @@ export const timeCapsuleCards = (cards: CardLibrary, discard: CardInstance[]) =>
   return [...pokemon, ...discard.filter((c) => isBasicEnergy(lookupCard(cards, c.defId)))];
 };
 
-/** Switches `side`'s Active Pokémon with its benched one in `slot` (Double Gust), unless Jaw Clamp holds it. */
-export function swapActive(state: GameState, side: PlayerState, slot: number) {
+/**
+ * Switches `side`'s Active Pokémon with its benched one in `slot` (Double Gust), unless Jaw Clamp holds it, and asks Sticky
+ * Hold. The one way an effect switches an Active Pokémon (Switch, Gust of Wind, the attack context's switches, Step In,
+ * Fragrance Trap, Koga's Ninja Trick…): `said` is the effect's own log line for it. Returns whether it switched.
+ */
+export function swapActive(state: GameState, side: PlayerState, slot: number, said?: string | null): boolean {
+  const benched = side.bench[slot];
+  if (!benched) return false;
   const locked = activeLocked(state, side.id);
-  if (locked) return addLog(state, `${locked}.`, side.id);
-  const benched = side.bench[slot]!;
+  if (locked) {
+    addLog(state, `${locked}.`, side.id);
+    return false;
+  }
   if (side.active) clearOnLeavingActive(side.active);
   side.bench[slot] = side.active;
   side.active = benched;
-  addLog(state, `${lookupCard(state.cards, benched.card.defId).name} was switched in.`, side.id);
+  addLog(state, said ?? `${lookupCard(state.cards, benched.card.defId).name} was switched in.`, side.id);
   stickyHold(state, side, slot);
+  return true;
 }
 
 /** Mind Games: how many of `owner`'s Pokémon have it working, each a flip for a Trainer `player` plays. */
@@ -3301,7 +3310,7 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
         p.damage -= healed;
         const top = p.card;
         if (p.evolvedFrom.length) {
-          p.card = p.evolvedFrom.pop()!;
+          removeTopCard(p);
           me.discard.push(top);
           clearOnLeavingActive(p);
         }
@@ -4392,6 +4401,8 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     me.bench[answer.target as number] = old;
     me.active = benched;
     addLog(state, old ? `${name(benched.card)} was switched in for ${name(old.card)}.` : `${name(benched.card)} is the new Active Pokémon.`, me.id);
+    // Sticky Hold: asked once this question is done (it's still pending here, so stickyHold queues its own).
+    stickyHold(state, me, answer.target as number);
     // Persuade: the new Active Pokémon can't retreat for a while.
     if (choice.noRetreat !== undefined) (benched.effects ??= {}).noRetreat = choice.noRetreat;
   } else if (choice.kind === 'rival') {

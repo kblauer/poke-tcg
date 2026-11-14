@@ -12,19 +12,11 @@ import { isBasicEnergy, lookupCard } from '../cards.js';
 import { afflictBetweenTurns, energyPool, isEnergyCardOf, resolveKnockouts, type Target } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, type PowerEffect } from '../powers.js';
 import { addLog, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
-import { onlyActive, POKE_BODY, targetOf } from './common.js';
+import { onEvolveMay, onlyActive, POKE_BODY, targetOf } from './common.js';
 import { DP3_POWERS } from './dp3-powers.js';
 import { EX1_POWERS } from './ex1-powers.js';
 import { EX2_POWERS } from './ex2-powers.js';
 
-type MayPower = 'emperorAura' | 'blazeDance' | 'sunshineSong' | 'evolutionaryGas';
-/** "When you play this from your hand to evolve 1 of your (Active) Pokémon, you may …": asked as it evolves. */
-const onEvolve = (power: MayPower, source: string, activeOnly = false): PowerEffect => ({
-  onPlayFromHand(state, owner, pokemon) {
-    if (!pokemon.evolvedFrom.length || pokemon.levelUpFrom || (activeOnly && owner.active !== pokemon)) return;
-    state.pendingChoice = { player: owner.id, source, kind: 'mayUse', power, target: targetOf(owner, pokemon) };
-  },
-});
 
 export const DP7_POWERS: Record<string, PowerEffect> = {
   // Dusknoir – Shadow Command: 2 cards drawn, the hand discarded down to 6 if it has 7 or more, then 2 damage counters on Dusknoir.
@@ -40,10 +32,10 @@ export const DP7_POWERS: Record<string, PowerEffect> = {
     },
   },
   // Empoleon – Emperor Aura; Skuntank – Evolutionary Gas: evolving the Active Pokémon. Infernape – Blaze Dance; Torterra – Sunshine Song.
-  'dp7-2': onEvolve('emperorAura', 'Emperor Aura', true),
-  'dp7-26': onEvolve('evolutionaryGas', 'Evolutionary Gas', true),
-  'dp7-3': onEvolve('blazeDance', 'Blaze Dance'),
-  'dp7-11': onEvolve('sunshineSong', 'Sunshine Song'),
+  'dp7-2': onEvolveMay('emperorAura', 'Emperor Aura', true),
+  'dp7-26': onEvolveMay('evolutionaryGas', 'Evolutionary Gas', true),
+  'dp7-3': onEvolveMay('blazeDance', 'Blaze Dance'),
+  'dp7-11': onEvolveMay('sunshineSong', 'Sunshine Song'),
   // Lumineon – Fin Luster: as the Active Pokémon, as Diamond & Pearl Lumineon's Sharp Eye.
   'dp7-4': {
     oncePerTurn: true,

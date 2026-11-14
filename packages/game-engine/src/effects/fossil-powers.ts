@@ -6,6 +6,7 @@
 import { activeLock, type InPlayPokemon, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
 import { clearOnLeavingActive, countersMoved, inPlayDef, pokemonName } from '../status.js';
+import { swapActive } from '../trainers.js';
 
 const at = (s: PowerSituation, t: Target) => pokemonAt(s.me, t)!;
 const theirs = (s: PowerSituation, t: Target) => pokemonAt(s.opp, t)!;
@@ -23,11 +24,7 @@ const HOLO: Record<string, PowerEffect> = {
     oncePerTurn: true,
     blocked: (s) => (s.source === 'active' ? 'Dragonite must be on your Bench' : !s.me.active ? 'No Active Pokémon to switch with' : activeLock(s.me, [s.me, s.opp], s.cards)),
     use(ctx) {
-      const old = ctx.me.active!;
-      clearOnLeavingActive(old);
-      ctx.me.bench[ctx.sourceTarget as number] = old;
-      ctx.me.active = ctx.source;
-      ctx.log(`${pokemonName(ctx.state, ctx.source)} switched in for ${pokemonName(ctx.state, old)}.`);
+      swapActive(ctx.state, ctx.me, ctx.sourceTarget as number, `${pokemonName(ctx.state, ctx.source)} switched in for ${pokemonName(ctx.state, ctx.me.active!)}.`);
     },
   },
 

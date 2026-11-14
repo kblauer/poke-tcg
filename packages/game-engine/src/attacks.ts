@@ -25,10 +25,10 @@ import {
   type PokemonEffects,
   type Target,
 } from './engine.js';
-import { hasPowerOrBody, greenAroma, stickyHold, conditionBarred, conditionFree, discardsLocked, hasReact, holonWith, reactCount, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy, type Sides, pokemonPower } from './powers.js';
+import { askChoice, hasPowerOrBody, greenAroma, stickyHold, conditionBarred, conditionFree, discardsLocked, hasReact, holonWith, reactCount, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy, type Sides, pokemonPower } from './powers.js';
 import { shuffle } from './rng.js';
 import { addLog, baseUid, clearOnLeavingActive, hasSpecialCondition, effectId, evolvedFromName, isDelta, isPlasmaPokemon, energyProtected, flipCoin, inPlayDef, lakeTrio, pokemonName, previousLevel, revealFaceDown, sameCards, shapeshiftCard } from './status.js';
-import { isPokemonSP, type PendingChoice, type PendingChoiceInput } from './trainers.js';
+import { isPokemonSP, swapActive, type PendingChoice, type PendingChoiceInput } from './trainers.js';
 
 /** Answers to an attack's questions. Each field belongs to one kind of ChoiceSpec. */
 export interface AttackChoices {
@@ -2174,6 +2174,7 @@ function createContext(
       opp.bench[flee!] = fled;
       opp.active = benched;
       log(`${pokemonName(state, benched)} was switched in for ${pokemonName(state, fled)}.`, opp.id);
+      stickyHold(state, opp, flee!);
     },
     get defender() {
       return opp.active!;
@@ -2286,15 +2287,9 @@ function createContext(
     },
     switchDefender(slot, opts) {
       if (!opts?.protectedToo && untouchable()) return;
-      const locked = activeLocked(state, opp.id);
-      if (locked) return log(`${locked}.`, opp.id);
       const benched = opp.bench[slot];
       if (!benched) return;
-      const old = opp.active!;
-      clearOnLeavingActive(old);
-      opp.bench[slot] = old;
-      opp.active = benched;
-      log(`${pokemonName(state, benched)} was switched in for ${pokemonName(state, old)}.`, opp.id);
+      swapActive(state, opp, slot, `${pokemonName(state, benched)} was switched in for ${pokemonName(state, opp.active!)}.`);
     },
     useAttack(attack, sourceDefId) {
       const effect = attackEffect(sourceDefId, attack.name);
@@ -2321,13 +2316,7 @@ function createContext(
     switchOwn(slot) {
       const benched = me.bench[slot];
       if (!benched) return;
-      const locked = activeLocked(state, me.id);
-      if (locked) return log(`${locked}.`);
-      clearOnLeavingActive(attacker);
-      me.bench[slot] = attacker;
-      me.active = benched;
-      log(`${pokemonName(state, attacker)} switched with ${pokemonName(state, benched)}.`);
-      stickyHold(state, me, slot);
+      swapActive(state, me, slot, `${pokemonName(state, attacker)} switched with ${pokemonName(state, benched)}.`);
     },
     returnDefender() {
       if (untouchable()) return;
@@ -2341,10 +2330,10 @@ function createContext(
     attackName,
     attackSource,
     pend(choice) {
-      state.pendingChoice = { ...choice, player: me.id } as PendingChoice;
+      askChoice(state, { ...choice, player: me.id } as PendingChoice);
     },
     opponentChooses(choice) {
-      state.pendingChoice = { ...choice, player: opp.id } as PendingChoice;
+      askChoice(state, { ...choice, player: opp.id } as PendingChoice);
     },
     log,
   };

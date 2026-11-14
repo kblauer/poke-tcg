@@ -13,17 +13,11 @@ import { activeLocked, afflictBetweenTurns, energyPool, isEnergyCardOf } from '.
 import { discardsLocked, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
 import { addLog, evolvedFromName, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
-import { onlyActive, onlyBenched, targetOf } from './common.js';
+import { onEvolveMay, onlyActive, onlyBenched } from './common.js';
 import { EX1_POWERS } from './ex1-powers.js';
 import { EX14_POWERS } from './ex14-powers.js';
 import { babyEvolution, POKE_BODY } from './ex2-powers.js';
 
-/** "When you play this from your hand to evolve 1 of your Pokémon, you may …": a yes-or-no question as it evolves. */
-const onEvolveMay = (power: 'freezeUp' | 'evolutionaryVitality' | 'evolutionaryToxic', source: string): PowerEffect => ({
-  onPlayFromHand(state, owner, pokemon) {
-    if (pokemon.evolvedFrom.length) state.pendingChoice = { player: owner.id, source, kind: 'mayUse', power, target: targetOf(owner, pokemon) };
-  },
-});
 
 /** The opponent's Benched Pokémon, as targets: those that pass `fits`. */
 const oppBenched = (s: PowerSituation, fits: (p: NonNullable<PowerSituation['opp']['bench'][number]>) => boolean = () => true) => s.opp.bench.flatMap((p, i) => (p && fits(p) ? [i] : []));

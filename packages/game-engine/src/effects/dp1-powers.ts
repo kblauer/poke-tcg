@@ -10,16 +10,10 @@ import { ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '..
 import { nextRandom } from '../rng.js';
 import { devolvable, evolvedFromName, inPlayDef, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
-import { onlyBenched, targetOf } from './common.js';
+import { onEvolveMay, onlyBenched } from './common.js';
 import { shuffleIntoDeck } from './dp1.js';
 import { babyEvolution, POKE_BODY } from './ex2-powers.js';
 
-/** "When you play this from your hand to evolve 1 of your Pokémon, you may …": a yes-or-no question as it evolves. */
-const onEvolveMay = (power: 'earthFissure' | 'sharpEye', source: string): PowerEffect => ({
-  onPlayFromHand(state, owner, pokemon) {
-    if (pokemon.evolvedFrom.length) state.pendingChoice = { player: owner.id, source, kind: 'mayUse', power, target: targetOf(owner, pokemon) };
-  },
-});
 
 /** Lightning Energy cards attached to the player's Pokémon other than the source (Intense Voltage). */
 const lightningOn = (s: PowerSituation, t: ReturnType<typeof ownTargets>[number]) => (t === s.source ? [] : (pokemonAt(s.me, t)?.energy ?? []).filter((e) => !e.provides && isEnergyCardOf(e, s.cards, 'lightning')));

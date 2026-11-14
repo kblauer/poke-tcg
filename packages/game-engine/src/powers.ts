@@ -4,7 +4,7 @@ import type { AttackContext, AttackSituation } from './attacks.js';
 import { hasType, holonEnergy, isBasicEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { powerEffect, trainerEffect } from './effects/index.js';
 import { counts, energyPool, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
-import { addLog, clearSpecialConditions, effectId, evolvedFromName, flipCoin, hasSpecialCondition, isDelta, lakeTrio, pokemonName, inPlayDef, sameCards, specialConditionLabel } from './status.js';
+import { addLog, clearSpecialConditions, effectId, evolvedFromName, flipCoin, hasSpecialCondition, isDelta, lakeTrio, levelledUp, pokemonName, inPlayDef, sameCards, specialConditionLabel } from './status.js';
 import { evolvesFromEevee, isPokemonSP, trainersLocked, type PendingChoice, type PendingChoiceInput } from './trainers.js';
 
 /** Answers to a power's questions. Each question names the field it fills. */
@@ -1141,7 +1141,8 @@ export function stickyGoo(sides: Sides, cards: CardLibrary): number {
  */
 export function playedFromHand(state: GameState, owner: PlayerState, pokemon: InPlayPokemon) {
   const sides = state.playerOrder.map((id) => state.players[id]!);
-  const effect = pokemonPower(pokemon);
+  // A Pokémon LV.X put onto its Pokémon: only its own power reacts, never its previous level's again (levelling up isn't evolving).
+  const effect = levelledUp(state.cards, pokemon) ? powerEffect(effectId(pokemon)) : pokemonPower(pokemon);
   // Dark Gaze: a Benched Pokémon's Poké-Power doesn't work as it's played either.
   if (effect?.onPlayFromHand && powerActive(pokemon, state.cards, sides) && !darkGazed(pokemon, state.cards, sides)) {
     addLog(state, `${powerOf(pokemon, state.cards)!.name}!`, owner.id);
@@ -1563,6 +1564,17 @@ export function stickyHold(state: GameState, side: PlayerState, slot: number) {
   else state.pendingChoice = choice;
 }
 
+/**
+ * Asks `choice`: what every `pend` (an attack's, a power's, a Trainer's) does. A Sticky Hold question a switch just left
+ * (stickyHold) is asked after it, never overwritten: an effect that switches and then asks goes through this, never
+ * `state.pendingChoice = …`.
+ */
+export function askChoice(state: GameState, choice: PendingChoice) {
+  const held = state.pendingChoice?.source === 'Sticky Hold' ? state.pendingChoice : null;
+  state.pendingChoice = choice;
+  if (held) (state.queuedChoices ??= []).push(held);
+}
+
 /** The player holds Power Spray and has 3 or more Pokémon SP in play, so may play it during the opponent's turn. */
 const powerSprayer = (state: GameState, player: PlayerState) =>
   !trainersLocked(player, state.turn) && player.hand.some((c) => trainerEffect(c.defId)?.powerSpray) && [player.active, ...player.bench].filter((p) => p && isPokemonSP(inPlayDef(state.cards, p).name)).length >= 3;
@@ -1602,7 +1614,7 @@ export function usePower(state: GameState, me: PlayerState, opp: PlayerState, so
     log: (text) => addLog(state, text, me.id),
     flip: () => flipCoin(state, def.power!.name, me.id),
     pend: (choice) => {
-      state.pendingChoice = { ...choice, player: me.id } as PendingChoice;
+      askChoice(state, { ...choice, player: me.id } as PendingChoice);
     },
   });
   // Darkness Drive: the opponent's working Tyranitar takes a basic Darkness Energy card from their discard pile.
@@ -1664,7 +1676,7 @@ export function useCardPower(state: GameState, me: PlayerState, opp: PlayerState
     log: (text) => addLog(state, text, me.id),
     flip: () => flipCoin(state, def.power!.name, me.id),
     pend: (choice) => {
-      state.pendingChoice = { ...choice, player: me.id } as PendingChoice;
+      askChoice(state, { ...choice, player: me.id } as PendingChoice);
     },
   });
   return null;

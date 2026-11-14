@@ -8,7 +8,7 @@
 import { isBasicEnergy, lookupCard, namesMatch, type PokemonCardDef } from '../cards.js';
 import { counts, energyPool, evolvesOnto } from '../engine.js';
 import { attachBlocked, energyFromHand, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, clearSpecialConditions, inPlayDef, pokemonName } from '../status.js';
+import { addLog, clearSpecialConditions, inPlayDef, pokemonName, removeTopCard } from '../status.js';
 import { babyEvolution, freeRetreat, POKE_BODY } from './ex2-powers.js';
 import { EX7_POWERS } from './ex7-powers.js';
 import { EX11_POWERS } from './ex11-powers.js';
@@ -83,8 +83,7 @@ export const EX15_POWERS: Record<string, PowerEffect> = {
     use(ctx) {
       const p = ctx.source;
       p.damage = Math.max(0, p.damage - 40);
-      const top = p.card;
-      p.card = p.evolvedFrom.pop()!;
+      const top = removeTopCard(p);
       ctx.me.discard.push(top);
       ctx.log(`Removed 4 damage counters and discarded ${lookupCard(ctx.state.cards, top.defId).name}: it's ${pokemonName(ctx.state, p)} again.`);
       const current = lookupCard(ctx.state.cards, p.card.defId);

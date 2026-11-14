@@ -1,7 +1,7 @@
 /// <reference path="./globals.d.ts" />
 import { applyWeaknessResistance, attackAsks, attackError, attackSituation, checkAttack, nextAttackChoice, performAttack, recallsAttacks, usableAttacks, type AttackChoices } from './attacks.js';
 import { hasPowerOrBody, attachBlocked, greenAroma, stickyHold, timeAura, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, pokemonAt, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, useCardPower, usePower, powerCanceller, zoomed, type PowerChoices, type PowerEffect, pokemonPower } from './powers.js';
-import { evolvesFromEevee, isPokemonSP, evolveWith, pendingChoiceView, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
+import { evolvesFromEevee, isPokemonSP, evolveWith, swapActive, pendingChoiceView, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 import { conditionProof, givesTwoPrizes, hasOwner, isLegend, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { addLog, baseUid, clearOnLeavingActive, logConditionDamage, clearSpecialConditions, effectId, evolvedFromName, isDelta, isPlasmaPokemon, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, logTool, openBenchSlot, pokemonName, revealFaceDown, sameCards, type LogEntry } from './status.js';
@@ -1125,15 +1125,12 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       const slot = action.target;
       const benched = typeof slot === 'number' ? me.bench[slot] : null;
       if (slot !== undefined && !benched) return fail('Choose one of your benched Pokémon, or not to switch');
-      delete state.pendingChoice;
       if (benched && me.active) {
         const old = me.active;
-        clearOnLeavingActive(old);
-        discardActiveOnly(state, me, old);
-        me.bench[slot as number] = old;
-        me.active = benched;
-        addLog(state, `Koga's Ninja Trick: ${pokemonName(state, benched)} was switched in for ${pokemonName(state, old)}.`, me.id);
+        // Through swapActive: a held Active Pokémon stays, and Sticky Hold's question (queued: this one is still pending) comes after the attack.
+        if (swapActive(state, me, slot as number, `Koga's Ninja Trick: ${pokemonName(state, benched)} was switched in for ${pokemonName(state, old)}.`)) discardActiveOnly(state, me, old);
       }
+      delete state.pendingChoice;
       if (!attacker.active || !defending.active) return ok(state);
       return preAttackQuestion(state, attacker, defending, pending.attackIndex, pending.choices, true) ?? attackAction(state, attacker, defending, pending.attackIndex, pending.choices);
     }

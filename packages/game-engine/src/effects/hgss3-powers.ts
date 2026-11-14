@@ -11,16 +11,10 @@ import { activeLock, afflictBetweenTurns, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
 import { nextRandom } from '../rng.js';
 import { pokemonName } from '../status.js';
-import { onlyActive, POKE_BODY, targetOf } from './common.js';
+import { onEvolveMay, onlyActive, POKE_BODY } from './common.js';
 import { onBench } from './dp5-powers.js';
 import { energyCardOf } from './ex2.js';
 
-/** "When you play this from your hand to evolve 1 of your Pokémon, you may …": a yes-or-no question as it evolves. */
-const onEvolve = (power: 'clawSnag', source: string): PowerEffect => ({
-  onPlayFromHand(state, owner, pokemon) {
-    if (pokemon.evolvedFrom.length) state.pendingChoice = { player: owner.id, source, kind: 'mayUse', power, target: targetOf(owner, pokemon) };
-  },
-});
 /** The player's Pokémon other than Raichu with a Lightning Energy card attached (Voltage Increase). */
 const lightningDonors = (s: PowerSituation): Target[] => ownTargets(s.me).filter((t) => t !== s.source && pokemonAt(s.me, t)!.energy.some((e) => !e.provides && energyCardOf(s.cards, e, 'lightning')));
 
@@ -67,7 +61,7 @@ export const HGSS3_POWERS: Record<string, PowerEffect> = {
   // Vileplume – Allergy Flower: neither player can play Trainer cards from their hand.
   'hgss3-24': { ...POKE_BODY, noTrainers: true },
   // Weavile – Claw Snag: as it evolves, a card from the opponent's hand discarded.
-  'hgss3-25': onEvolve('clawSnag', 'Claw Snag'),
+  'hgss3-25': onEvolveMay('clawSnag', 'Claw Snag'),
   // Unown – DARK: as it's benched from the hand, a Darkness Energy card from the deck, shown.
   'hgss3-40': onBench('unownDark', 'DARK'),
   // Slugma – Active Volcano: the top card discarded; a Fire Energy card is attached to Slugma instead.

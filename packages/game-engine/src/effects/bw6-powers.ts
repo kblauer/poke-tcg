@@ -16,7 +16,7 @@
 import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
 import { activeLock, newInPlay, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
-import { inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { evolvedFromHand, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { ABILITY, targetOf } from './common.js';
 import { energyCardOf } from './ex2.js';
 
@@ -24,7 +24,7 @@ import { energyCardOf } from './ex2.js';
 const onEvolve = (then: (state: GameState, owner: PlayerState, pokemon: InPlayPokemon) => void): PowerEffect => ({
   ...ABILITY,
   onPlayFromHand(state, owner, pokemon) {
-    if (pokemon.evolvedFrom.length && !pokemon.levelUpFrom) then(state, owner, pokemon);
+    if (evolvedFromHand(pokemon)) then(state, owner, pokemon);
   },
 });
 
