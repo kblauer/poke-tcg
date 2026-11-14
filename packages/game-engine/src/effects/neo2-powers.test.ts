@@ -129,6 +129,15 @@ describe('Neo Discovery Pokémon Powers', () => {
     expect(tryPower(s, 'active')).toMatchObject({ ok: false });
   });
 
+  it("Revive Friends and Fossil: not usable with the Bench at Narrow Gym's limit of 4", () => {
+    for (const name of ['kabutoNeo', 'omanyteNeo']) {
+      const s = duel(name, 'squirtle', { bench: ['charmander', 'charmander', 'charmander', 'charmander'] });
+      s.stadium = { card: { uid: 'gym', defId: id('narrowGym') }, owner: 'misty' };
+      deckCard(s, 'ash', 'kabutoNeo');
+      expect(tryPower(flips(s, true), 'active')).toMatchObject({ ok: false, error: 'Your Bench is full' });
+    }
+  });
+
   it('Fossil: heads puts a card that evolves from Mysterious Fossil from the deck onto the Bench', () => {
     let s = duel('omanyteNeo', 'squirtle');
     const omanyte = deckCard(s, 'ash', 'omanyte');
