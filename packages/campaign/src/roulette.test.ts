@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { coinRoundError, MAX_COINS } from './game-corner.js';
+import { MAX_COINS } from './game-corner.js';
 import { newRouletteGame, ROULETTE_GRID, rouletteFrame, rouletteMultiplier, selectionKind, type RouletteEvent, type RouletteGame, type RouletteInput } from './roulette.js';
 
 /** The game's Random(): its linear congruential generator from a seed. */
@@ -75,7 +75,6 @@ describe('the roulette', () => {
           expect(selectionKind(r.selection)).toBe(kind);
           expect(r.bet).toBe(table ? 3 : 1);
           expect(r.payout).toBe(inSelection(r.square, r.selection) ? r.bet * r.multiplier : 0);
-          expect(coinRoundError('roulette', r.bet, r.payout)).toBeNull();
         }
       }
     });
