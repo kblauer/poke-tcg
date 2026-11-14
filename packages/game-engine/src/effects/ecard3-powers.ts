@@ -14,7 +14,7 @@
 import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
 import { afflictionBlocked, evolvesOnto, isEnergyCardOf, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, powerActive, type PowerChoiceSpec, type PowerContext, type PowerEffect } from '../powers.js';
-import { addLog, clearSpecialConditions, effectId, hasSpecialCondition, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { addLog, clearSpecialConditions, effectId, hasSpecialCondition, inPlayDef, openBenchSlot, pokemonName, isEvolved } from '../status.js';
 import { isPokemonCard, type PokemonCardDef } from '../cards.js';
 import type { GameState } from '../engine.js';
 import { energyCards, onlyActive, onlyBenched, POKE_BODY } from './common.js';
@@ -305,7 +305,7 @@ export const ECARD3_POWERS: Record<string, PowerEffect> = {
   'ecard3-51': { ...POKE_BODY, basicEnergyAs: 'any' },
 
   // Dunsparce – Slippery Skin: Retreat Cost 0 while the Defending Pokémon is an Evolved Pokémon.
-  'ecard3-53': freeRetreat((_p, _cards, opp) => !!opp?.active?.evolvedFrom.length),
+  'ecard3-53': freeRetreat((_p, cards, opp) => !!opp?.active && isEvolved(cards, opp.active)),
 
   // Forretress – Exoskeleton: 10 less attack damage.
   'ecard3-56': { ...POKE_BODY, damageReduction: 10 },

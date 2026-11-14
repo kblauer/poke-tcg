@@ -11,7 +11,7 @@ import { targetsIn } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch, isTrainerCard } from '../cards.js';
 import { retireStadium, energyPool, type InPlayPokemon } from '../engine.js';
 import { nextRandom } from '../rng.js';
-import { clearSpecialConditions, inPlayDef, isDelta, pokemonName } from '../status.js';
+import { clearSpecialConditions, inPlayDef, isDelta, pokemonName, isEvolved } from '../status.js';
 import { benchedSlots, guardNext, headsUntilTails, opponentBenchChoice } from './common.js';
 import { discardAtRandom } from './ex1.js';
 import { discardOwn, energyCardOf, inPlay } from './ex2.js';
@@ -346,7 +346,7 @@ export const EX13: Record<string, Record<string, AttackEffect>> = {
   'ex13-103': {
     'Psychic Star': {
       run(ctx) {
-        if (!ctx.defender.evolvedFrom.length) return void ctx.hit(50);
+        if (!isEvolved(ctx.state.cards, ctx.defender)) return void ctx.hit(50);
         discardOwn(ctx, ctx.attacker.energy.filter((e) => !e.provides));
         ctx.hit(100);
       },

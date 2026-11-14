@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { CardDef, PokemonCardDef } from '../cards.js';
 import { applyAction, type GameState, type InPlayPokemon, type Target } from '../index.js';
 import { cardsOf, isEvolved, removeTopEvolution, sameCards } from '../status.js';
+import { legendNames, takeLegend } from '../trainers.js';
 import { act, attack, duel, endTurn, flips, give, id, mon, playAuto, settles, C, F, FI, W } from './test-kit.js';
 
 const ash = (s: GameState) => s.players.ash!;
@@ -382,6 +383,70 @@ describe('the same-card rule in the shared wordings', () => {
   });
 });
 
+describe('a Pokémon LEGEND is its two different halves (legendPair)', () => {
+  const lugia = (cardId: string) => mon(cardId, 'Lugia LEGEND', W, 130, [['Elemental Blast', [C], 200]]);
+
+  it('from the hand: never two copies of the same half, nor a half and its reverse-holo print', () => {
+    for (const second of ['hgss1-113', 'hgss1-113-reverse']) {
+      const s = duel('charmander', 'onix');
+      const top = hand(s, 'ash', lugia('hgss1-113'));
+      hand(s, 'ash', lugia(second));
+      expect(applyAction(s, 'ash', { type: 'PLAY_BENCH', cardUid: top, slot: 0 })).toMatchObject({ ok: false, error: expect.stringMatching(/other half/) });
+    }
+    const s = duel('charmander', 'onix');
+    const top = hand(s, 'ash', lugia('hgss1-113'));
+    hand(s, 'ash', lugia('hgss1-113'));
+    const bottom = hand(s, 'ash', lugia('hgss1-114'));
+    const after = act(s, 'ash', { type: 'PLAY_BENCH', cardUid: top, slot: 0 });
+    expect(ash(after).bench[0]!.attached?.map((a) => a.card.uid)).toEqual([bottom]);
+  });
+
+  it('from the deck (Legend Ceremony, Legend Box): the same pairing', () => {
+    const s = duel('charmander', 'onix');
+    s.cards = { ...s.cards, 'hgss1-113': lugia('hgss1-113'), 'hgss1-114': lugia('hgss1-114') };
+    const copies = [{ uid: 'top-1', defId: 'hgss1-113' }, { uid: 'top-2', defId: 'hgss1-113' }];
+    expect(legendNames(s.cards, copies)).toEqual([]);
+    ash(s).deck = [...copies];
+    takeLegend(s, ash(s), 'Lugia LEGEND', 'Legend Ceremony');
+    expect(ash(s).hand.filter((c) => c.uid.startsWith('top-'))).toEqual([]);
+
+    const both = [...copies, { uid: 'bottom-1', defId: 'hgss1-114' }];
+    expect(legendNames(s.cards, both)).toEqual(['Lugia LEGEND']);
+    ash(s).deck = [...both];
+    takeLegend(s, ash(s), 'Lugia LEGEND', 'Legend Ceremony');
+    expect(ash(s).hand.map((c) => c.uid).filter((u) => /^(top|bottom)-/.test(u)).sort()).toEqual(['bottom-1', 'top-1']);
+  });
+});
+
+describe('a Trainer card played as a Pokémon obeys every Trainer lock (trainerLockError)', () => {
+  const doll = mon('base1-70', 'Clefairy Doll', C, 10, [], { trainerText: '' });
+  const fossil = mon('base3-62', 'Mysterious Fossil', C, 10, [], { trainerText: '' });
+  const holder = (cardId: string, powerName: string) => mon(cardId, 'Holder', C, 90, [], { power: { name: powerName, text: '' } });
+  /** Each lock that stops an Item card (a Trainer that's neither a Supporter nor a Stadium). */
+  const LOCKS: [name: string, lock: (s: GameState) => void][] = [
+    ['no lock', () => {}],
+    ['Headache', (s) => void (ash(s).noTrainersUntil = s.turn)],
+    ['Disconnect', (s) => void (ash(s).noItemsUntil = s.turn)],
+    ["the Black & White series' Item lock", (s) => void (ash(s).noItemCardsUntil = s.turn)],
+    ['Dark Vileplume (Hay Fever)', (s) => void put(s, 'misty', 0, holder('base5-13', 'Hay Fever'))],
+    ['Block Dust', (s) => void put(s, 'misty', 'active', holder('ex5-100', 'Block Dust'))],
+    ['Magic Room', (s) => void put(s, 'misty', 'active', holder('bw2-47', 'Magic Room'))],
+    ['Primal Shell', (s) => void put(s, 'misty', 'active', holder('dp5-6', 'Primal Shell'))],
+    ['Lonesome', (s) => (put(s, 'misty', 'active', holder('ex10-7', 'Lonesome')), void put(s, 'ash', 1, mon('base1-63', 'Squirtle', W, 40, [])))],
+  ];
+
+  it.each(LOCKS)('%s: Clefairy Doll and a Fossil are refused exactly when an Item card is, with its reason', (name, lock) => {
+    const s = duel('charmander', 'onix');
+    lock(s);
+    const item = applyAction(s, 'ash', { type: 'PLAY_TRAINER', cardUid: give(s, 'ash', 'bill')[0]!, choices: {} });
+    expect(item.ok).toBe(name === 'no lock');
+    for (const def of [doll, fossil]) {
+      const played = applyAction(s, 'ash', { type: 'PLAY_BENCH', cardUid: hand(s, 'ash', def), slot: 0 });
+      expect(played.ok ? null : played.error).toBe(item.ok ? null : item.error);
+    }
+  });
+});
+
 describe('an Evolved Pokémon (isEvolved)', () => {
   it("isn't a Basic Pokémon with a LV.X on it; an Evolution card under a LV.X still counts", () => {
     const s = duel('charmander', 'onix');
@@ -393,6 +458,28 @@ describe('an Evolved Pokémon (isEvolved)', () => {
     expect(evolved(dialgaX, [dialga])).toBe(false);
     expect(evolved(rhydon, [mon('dp1-97', 'Rhyhorn', FI, 70, [])])).toBe(true);
     expect(evolved(rhyperiorX, [rhydon, rhyperior])).toBe(true);
+  });
+
+  it('effects that ask for an Evolved Pokémon read it: Cross-Cut, an "is an Evolved Pokémon" wording, Boost Energy', () => {
+    const board = (defender: PokemonCardDef, under: PokemonCardDef[]) => {
+      const s = duel('charmander', 'onix');
+      put(s, 'misty', 'active', defender, [], under);
+      return s;
+    };
+    const crossCut = (s: GameState) => {
+      put(s, 'ash', 'active', mon('ecard2-57', 'Scyther', C, 70, [['Quick Turn', [C], 0], ['Cross-Cut', [C], 20]]), ['fire']);
+      return attack(s, 1).players.misty!.active!.damage;
+    };
+    expect(crossCut(board(dialgaX, [dialga]))).toBe(20);
+    expect(crossCut(board(rhyperiorX, [rhydon, rhyperior]))).toBe(40);
+
+    const boost: CardDef = { id: 'ecard2-145', kind: 'energy', name: 'Boost Energy', imageUrl: null, energyType: C, basic: false };
+    const attach = (s: GameState) => {
+      ash(s).active = s.players.misty!.active;
+      return applyAction(s, 'ash', { type: 'ATTACH_ENERGY', cardUid: hand(s, 'ash', boost), target: 'active' });
+    };
+    expect(attach(board(dialgaX, [dialga]))).toMatchObject({ ok: false, error: expect.stringMatching(/Evolved Pokémon/) });
+    expect(attach(board(rhydon, [mon('dp1-97', 'Rhyhorn', FI, 70, [])])).ok).toBe(true);
   });
 });
 

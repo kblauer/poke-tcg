@@ -10,7 +10,7 @@ import { hasType, isBasicEnergy, isTrainerCard, lookupCard, namesMatch } from '.
 import { counts, energyPool, isSpecialEnergy, retreatCost, type InPlayPokemon, type Target } from '../engine.js';
 import { hasPowerOrBody, pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { evolvedFromName, inPlayDef, pokemonName } from '../status.js';
+import { evolvedFromName, inPlayDef, pokemonName, isEvolved } from '../status.js';
 import { benchedSlots, damageChosen, energyCards, headsUntilTails, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { DP1, discardOwnEnergy, removeDefenderEnergy } from './dp1.js';
 import { discardAtRandom, energyAmount } from './ex1.js';
@@ -256,7 +256,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
   'dp7-20': {
     'Take Out': {
       run(ctx) {
-        if (ctx.defender.evolvedFrom.length) return void ctx.hit(40);
+        if (isEvolved(ctx.state.cards, ctx.defender)) return void ctx.hit(40);
         if (!ctx.canAffect(ctx.opp, ctx.defender)) return;
         ctx.defender.damage = Math.max(ctx.defender.damage, ctx.defenderDef.hp);
         ctx.log(`${ctx.defenderDef.name} is Knocked Out.`, ctx.opp.id);

@@ -1,10 +1,10 @@
 /// <reference path="./globals.d.ts" />
 import { applyWeaknessResistance, attackAsks, attackError, attackSituation, checkAttack, nextAttackChoice, performAttack, recallsAttacks, usableAttacks, type AttackChoices } from './attacks.js';
 import { hasPowerOrBody, attachBlocked, greenAroma, stickyHold, timeAura, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, pokemonAt, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, useCardPower, usePower, powerCanceller, zoomed, type PowerChoices, type PowerEffect, pokemonPower } from './powers.js';
-import { evolvesFromEevee, isPokemonSP, evolveWith, swapActive, pendingChoiceView, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
+import { evolvesFromEevee, isPokemonSP, evolveWith, swapActive, pendingChoiceView, playTrainer, resolvePending, stadiumError, trainerLockError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 import { conditionProof, givesTwoPrizes, hasOwner, isLegend, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
-import { addLog, baseUid, clearOnLeavingActive, logConditionDamage, clearSpecialConditions, effectId, evolvedFromName, isDelta, isPlasmaPokemon, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, logTool, openBenchSlot, pokemonName, revealFaceDown, sameCards, type LogEntry } from './status.js';
+import { addLog, baseUid, legendPair, clearOnLeavingActive, logConditionDamage, clearSpecialConditions, effectId, evolvedFromName, isDelta, isPlasmaPokemon, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, logTool, openBenchSlot, pokemonName, revealFaceDown, sameCards, type LogEntry, isEvolved } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
 
@@ -1173,11 +1173,11 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       const played = takeFromHand(me, action.cardUid);
       if (played && card(played).kind === 'pokemon' && (card(played) as PokemonCardDef).restored) return fail(`${card(played).name} is a Restored Pokémon: only its Fossil puts it onto your Bench`);
       if (!played || !isBenchable(card(played))) return fail('Must play a Basic Pokémon from your hand');
-      if (isTrainerCard(card(played)) && trainersLocked(me, state.turn)) return fail(TRAINERS_LOCKED);
-      const hayFever = isTrainerCard(card(played)) && (trainersBlocked([me, opp], state.cards) ?? trainersDusted(me, [me, opp], state.cards));
-      if (hayFever) return fail(hayFever);
+      // A Trainer card played as a Pokémon (Clefairy Doll, the Fossils) obeys every Trainer lock an Item does.
+      const locked = isTrainerCard(card(played)) && trainerLockError({ me, opp, cards: state.cards, turn: state.turn, stadium: state.stadium?.card ?? null }, {});
+      if (locked) return fail(locked);
       // A Pokémon LEGEND: both halves together, as one Pokémon.
-      const half = isLegend(card(played)) ? me.hand.find((c) => c.uid !== played.uid && card(c).name === card(played).name && c.defId !== played.defId) ?? me.hand.find((c) => c.uid !== played.uid && card(c).name === card(played).name) : undefined;
+      const half = legendPair(state.cards, played, me.hand);
       if (isLegend(card(played)) && !half) return fail(`Put ${card(played).name} onto your Bench only with its other half`);
       me.bench[action.slot] = newInPlay(played, state.turn);
       if (half) {
@@ -2027,7 +2027,7 @@ export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): PoolEner
   // Dark Aura: all of it is Darkness Energy.
   const as = pokemonPower(pokemon)?.energyAs;
   // Magmar's Stages of Evolution: all of it is Fire Energy, only while it's an Evolved Pokémon.
-  const asWorks = !pokemonPower(pokemon)?.evolvedOnly || pokemon.evolvedFrom.length > 0;
+  const asWorks = !pokemonPower(pokemon)?.evolvedOnly || isEvolved(cards, pokemon);
   if (as && asWorks && pokemon.powerOffUntil === undefined) return pool.map(() => as);
   // Wild Growth: each basic Grass Energy card attached provides 2 Grass Energy.
   if (pokemon.wildGrowth) pool.push(...pokemon.energy.filter((e) => !e.provides && isBasicGrass(cards, e)).map((): PoolEnergy => 'grass'));
@@ -2984,7 +2984,7 @@ function refreshHideout(state: GameState) {
       // Poké-Bodies for Colorless, Darkness and Metal Evolved Pokémon (either of a dual type's types).
       delete p.stadiumMuted;
       if (stadium === 'Space Center' && d.stage === 'basic' && !d.ex && !hasOwner(d.name)) p.stadiumMuted = 'bodies';
-      if (stadium === 'Battle Frontier' && p.evolvedFrom.length && (['colorless', 'darkness', 'metal'] as const).some((t) => hasType(d, t))) p.stadiumMuted = 'all';
+      if (stadium === 'Battle Frontier' && isEvolved(state.cards, p) && (['colorless', 'darkness', 'metal'] as const).some((t) => hasType(d, t))) p.stadiumMuted = 'all';
       // Sidney's Stadium: Darkness Pokémon can't be Asleep, Confused or Paralyzed (one already is, no longer).
       if (stadium === "Sidney's Stadium" && hasType(d, 'darkness')) {
         p.sidneyGuard = true;
@@ -3000,7 +3000,7 @@ function refreshHideout(state: GameState) {
       // A Pokémon Tool that can't stay on its Pokémon (Curse Powder on a Basic Pokémon, Energy Root on a Pokémon-ex…) is discarded.
       const tool = toolOf(state.cards, p);
       const fits = tool && trainerEffect(tool.tool.card.defId)?.toolFor;
-      if (tool && fits && (!fits(d) || (trainerEffect(tool.tool.card.defId)?.evolvedToolOnly && !p.evolvedFrom.length))) {
+      if (tool && fits && (!fits(d) || (trainerEffect(tool.tool.card.defId)?.evolvedToolOnly && !isEvolved(state.cards, p)))) {
         discardTool(state, player, p);
         addLog(state, `${tool.name} on ${pokemonName(state, p)} was discarded.`, player.id);
       }
@@ -3050,7 +3050,7 @@ function refreshHideout(state: GameState) {
       // Thankfulness: its player's Grass Pokémon but Shaymin get 40 more HP (one, however many).
       if (hasType(inPlayDef(state.cards, p), 'grass') && !namesMatch(inPlayDef(state.cards, p).name, 'Shaymin') && [player.active, ...player.bench].some((q) => q && pokemonPower(q)?.thankfulness && powerActive(q, state.cards, sides))) p.hpPlus = (p.hpPlus ?? 0) + 40;
       // Snowpoint Temple: 20 more HP for every Pokémon that isn't an Evolved Pokémon.
-      if (stadium === 'Snowpoint Temple' && !p.evolvedFrom.length) p.hpPlus = (p.hpPlus ?? 0) + 20;
+      if (stadium === 'Snowpoint Temple' && !isEvolved(state.cards, p)) p.hpPlus = (p.hpPlus ?? 0) + 20;
       // Ditto DNA: as its player's Active Pokémon, the opponent's Active Pokémon's HP.
       const copied = state.players[opponentOf(state, player.id)]!.active;
       if (player.active === p && copied && pokemonPower(p)?.dittoDna && powerActive(p, state.cards, sides)) p.hpPlus = (p.hpPlus ?? 0) + inPlayDef(state.cards, copied).hp - inPlayDef(state.cards, p).hp;
@@ -3209,7 +3209,7 @@ function dropBoostEnergy(state: GameState) {
       const ex = !!p && inPlayDef(state.cards, p).ex;
       for (const e of p?.energy ?? []) if (!e.provides && name(e) === 'Scramble Energy') e.scrambled = behind || undefined;
       for (const e of p?.energy ?? []) if (!e.provides && name(e) === 'Upper Energy') e.upper = (behind && !!p && inPlayDef(state.cards, p).stage !== 'levelUp') || undefined;
-      const boost = p ? p.energy.filter((e) => !e.provides && ((!p.evolvedFrom.length && ['Boost Energy', 'Double Rainbow Energy', 'Scramble Energy'].includes(name(e))) || (ex && name(e) === 'Scramble Energy'))) : [];
+      const boost = p ? p.energy.filter((e) => !e.provides && ((!isEvolved(state.cards, p) && ['Boost Energy', 'Double Rainbow Energy', 'Scramble Energy'].includes(name(e))) || (ex && name(e) === 'Scramble Energy'))) : [];
       if (!p || !boost.length) continue;
       p.energy = p.energy.filter((e) => !boost.includes(e));
       player.discard.push(...boost.map(asDiscarded));

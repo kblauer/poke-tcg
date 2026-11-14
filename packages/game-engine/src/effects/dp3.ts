@@ -12,7 +12,7 @@ import { hasType, isBasicEnergy, isTrainerCard, lookupCard, namesMatch } from '.
 import { counts, energyPool, isEnergyCardOf, isSpecialEnergy, retreatCost, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { nextRandom, shuffle } from '../rng.js';
-import { countersMoved, effectId, evolvedFromName, inPlayDef, pokemonName } from '../status.js';
+import { countersMoved, effectId, evolvedFromName, inPlayDef, pokemonName, isEvolved } from '../status.js';
 import { benchedSlots, damageChosen, energyCards, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { discardOwnEnergy } from './dp1.js';
 import { discardAtRandom, energyAmount, EX1, restNextTurn } from './ex1.js';
@@ -787,7 +787,7 @@ export const DP3: Record<string, Record<string, AttackEffect>> = {
     'Frighten Horn': {
       run(ctx) {
         ctx.hit(20);
-        if (!ctx.defender.evolvedFrom.length) ctx.inflict('confused');
+        if (!isEvolved(ctx.state.cards, ctx.defender)) ctx.inflict('confused');
       },
     },
   },

@@ -4,7 +4,7 @@ import type { AttackContext, AttackSituation } from './attacks.js';
 import { hasType, holonEnergy, isBasicEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { powerEffect, trainerEffect } from './effects/index.js';
 import { counts, energyPool, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
-import { addLog, clearSpecialConditions, effectId, evolvedFromName, flipCoin, hasSpecialCondition, isDelta, lakeTrio, levelledUp, pokemonName, inPlayDef, sameCards, specialConditionLabel } from './status.js';
+import { addLog, clearSpecialConditions, effectId, evolvedFromName, flipCoin, hasSpecialCondition, isDelta, lakeTrio, levelledUp, pokemonName, inPlayDef, sameCards, specialConditionLabel, isEvolved } from './status.js';
 import { evolvesFromEevee, isPokemonSP, pendingChoiceView, trainersLocked, type PendingChoice, type PendingChoiceInput } from './trainers.js';
 
 /** Answers to a power's questions. Each question names the field it fills. */
@@ -854,7 +854,7 @@ export function auraStops(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sid
         (active && !!effect.intimidatingArmor && side !== owner && d.stage === 'basic') ||
         (!!effect.rearSensor && owner?.active === pokemon && !body && d.stage === 'basic' && !d.ex) ||
         (!!effect.shade && !body && !d.ex && hasType(d, effect.shade.type) && has(effect.shade.partner)) ||
-        (!!effect.dualAura && body && !d.ex && pokemon.evolvedFrom.length > 0 && (has(effect.dualAura) || has(`${effect.dualAura} ex`))) ||
+        (!!effect.dualAura && body && !d.ex && isEvolved(cards, pokemon) && (has(effect.dualAura) || has(`${effect.dualAura} ex`))) ||
         (!!effect.extraLiquid && !body && !!d.ex) ||
         (!!effect.deltaReserve && !body && !isDelta(cards, pokemon) && a.energy.some((e) => !e.provides && !e.windless && lookupCard(cards, e.defId).name.startsWith('Holon Energy'))) ||
         (!!effect.damageBind && !body && pokemon.damage > 0) ||
@@ -1028,7 +1028,7 @@ export function powerActive(pokemon: InPlayPokemon, cards: CardLibrary, sides: S
   if (pokemon.effects?.noPokePowers !== undefined && !effect?.body) return false;
   if (lazied(pokemon, cards, sides) || auraStops(pokemon, cards, sides)) return false;
   // Stages of Evolution: only while it's an Evolved Pokémon.
-  if (effect?.evolvedOnly && !pokemon.evolvedFrom.length) return false;
+  if (effect?.evolvedOnly && !isEvolved(cards, pokemon)) return false;
   // Space Center (Poké-Bodies) and Battle Frontier (both) switch off the powers of the Pokémon they name (refreshHideout).
   if (pokemon.stadiumMuted === 'all' || (pokemon.stadiumMuted === 'bodies' && effect?.body) || (pokemon.stadiumMuted === 'powers' && !effect?.body)) return false;
   // Imprison: a Pokémon with an Imprison marker can't use Poké-Powers or Poké-Bodies. Seal Off: for a turn.

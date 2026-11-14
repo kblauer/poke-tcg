@@ -8,7 +8,7 @@ import { powerEffect, trainerEffect } from './effects/index.js';
 import { activeLocked, afflictBetweenTurns, conditionLabel, discardTheirEnergy, isEnergyCardOf, isSpecialEnergy, retireStadium, discardTool, evolvesOnto, newInPlay, opponentOf, toolOf, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
 import { nextRandom, shuffle } from './rng.js';
 import { askChoice, conditionFree, stickyHold, discardsLocked, itemVeiled, offerChainReaction, powerActive, primalLocked, supportersVeiled, trainerProof, trainersBlocked, trainersDusted, pokemonPower, type PowerChoices } from './powers.js';
-import { addLog, baseUid, benchRoom, clearOnLeavingActive, clearSpecialConditions, countersMoved, devolvable, effectId, energyProtected, evolvedHook, flipCoin, inPlayDef, isDelta, isDeltaCard, isPlasmaPokemon, openBenchSlot, removeTopCard, removeTopEvolution, sameCards, shapeshiftCard } from './status.js';
+import { addLog, baseUid, benchRoom, clearOnLeavingActive, clearSpecialConditions, countersMoved, devolvable, effectId, energyProtected, evolvedHook, flipCoin, inPlayDef, isDelta, isDeltaCard, isPlasmaPokemon, legendPair, openBenchSlot, removeTopCard, removeTopEvolution, sameCards, shapeshiftCard, isEvolved } from './status.js';
 
 /** Answers to a Trainer's questions. Each question names the field it fills. */
 export interface TrainerChoices {
@@ -1312,47 +1312,61 @@ export const targetsOf = (side: Pick<PlayerState, 'active' | 'bench'>): Target[]
 export const otherHandCards = (s: TrainerSituation) => s.me.hand.filter((c) => c.uid !== s.card.uid);
 export const def = (s: { cards: CardLibrary }, c: CardInstance): CardDef => lookupCard(s.cards, c.defId);
 
+/**
+ * Why the player can't play a Trainer card of this `kind` now, or null: every Trainer lock there is (Headache, the Supporter
+ * rules, Hay Fever, Block Dust, Disconnect, the Item lock, Magic Room, Primal Shell, Lonesome, Sealing Scream…), in one place.
+ * A Trainer card played as a Pokémon (Clefairy Doll, the Fossils: PLAY_BENCH) is an Item: `kind` {}. View-safe.
+ */
+export function trainerLockError(
+  s: Pick<TrainerSituation, 'me' | 'opp' | 'cards' | 'turn' | 'stadium'>,
+  kind: Pick<TrainerEffect, 'supporter' | 'stadium' | 'tool' | 'technicalMachine'> & { aceSpec?: boolean },
+): string | null {
+  if (trainersLocked(s.me, s.turn)) return TRAINERS_LOCKED;
+  // Dual Brains (the player's working Magnezone): a second Supporter card this turn.
+  const dualBrains = () => s.me.secondSupporterTurn !== s.turn && [s.me.active, ...s.me.bench].some((p) => !!p && !!pokemonPower(p)?.dualBrains && powerActive(p, s.cards, [s.me, s.opp]));
+  if (kind.supporter && s.me.supporterTurn === s.turn && !dualBrains()) return 'You can play only one Supporter card each turn';
+  // The Diamond & Pearl era's rule, for every set (agreed): the player going first plays no Supporter on their first turn.
+  if (kind.supporter && s.turn === 1) return "The first player can't play a Supporter card on turn 1";
+  if (kind.supporter && (s.me.noSupportersUntil ?? 0) >= s.turn) return "Addictive Pollen: you can't play Supporter cards this turn";
+  const hayFever = trainersBlocked([s.me, s.opp], s.cards);
+  if (hayFever) return hayFever;
+  const veiled = kind.supporter && supportersVeiled([s.me, s.opp], s.cards);
+  if (veiled) return veiled;
+  const dusted = !kind.supporter && trainersDusted(s.me, [s.me, s.opp], s.cards);
+  if (dusted) return dusted;
+  if (kind.tool && primalLocked(s.me, [s.me, s.opp], s.cards)) return "Primal Lock: you can't play Pokémon Tool cards";
+  // Disconnect: no Trainer cards but Supporters this turn.
+  if (!kind.supporter && (s.me.noItemsUntil ?? 0) >= s.turn) return "Disconnect: you can't play Trainer cards but Supporters this turn";
+  // The Black & White series' Item lock: no Item cards (any Trainer but a Supporter or a Stadium, agreed) this turn.
+  if (!kind.supporter && !kind.stadium && (s.me.noItemCardsUntil ?? 0) >= s.turn) return "You can't play Item cards this turn";
+  // Commanding Aura (the opponent's Active Hariyama ex): no Stadium cards. Mystic Scale (any Milotic ex): no Technical Machines.
+  const holding = (key: 'commandingAura' | 'mysticScale' | 'lonesome' | 'deltaBlock' | 'primalShell' | 'magicRoom' | 'sentinel', pokemon: (InPlayPokemon | null)[]) =>
+    pokemon.some((p) => !!p && !!pokemonPower(p)?.[key] && powerActive(p, s.cards, [s.me, s.opp]));
+  // Magic Room (the opponent's Active Gothitelle): no Item cards.
+  if (!kind.supporter && !kind.stadium && holding('magicRoom', [s.opp.active])) return "Magic Room: you can't play Item cards";
+  if (kind.stadium && holding('commandingAura', [s.opp.active])) return "Commanding Aura: you can't play Stadium cards";
+  // Sentinel (the opponent's Active Stoutland): no Supporter cards.
+  if (kind.supporter && holding('sentinel', [s.opp.active])) return "Sentinel: you can't play Supporter cards";
+  // Primal Shell (the opponent's Active Kabutops): no Trainer cards, Supporters and Stadiums too (agreed).
+  if (holding('primalShell', [s.opp.active])) return "Primal Shell: you can't play Trainer cards";
+  // Delta Block (the opponent's Golduck δ): no Stadium cards while one with Holon in its name is in play.
+  if (kind.stadium && s.stadium && def(s, s.stadium).name.includes('Holon') && holding('deltaBlock', [s.opp.active, ...s.opp.bench])) return "Delta Block: you can't play Stadium cards";
+  // Lonesome (the opponent's Houndoom): while they have fewer Pokémon in play, no Trainer cards but Supporters.
+  const inPlayCount = (side: Pick<PlayerState, 'active' | 'bench'>) => [side.active, ...side.bench].filter(Boolean).length;
+  if (!kind.supporter && inPlayCount(s.opp) < inPlayCount(s.me) && holding('lonesome', [s.opp.active, ...s.opp.bench])) return "Lonesome: you can't play Trainer cards but Supporters";
+  if (kind.technicalMachine && holding('mysticScale', [s.me.active, ...s.me.bench, s.opp.active, ...s.opp.bench])) return "Mystic Scale: Technical Machine cards can't be played";
+  // Sealing Scream (any Spiritomb's, either player's): no ACE SPEC cards.
+  if (kind.aceSpec && [s.me, s.opp].some((side) => [side.active, ...side.bench].some((p) => !!p && !!pokemonPower(p)?.sealingScream && powerActive(p, s.cards, [s.me, s.opp])))) return "Sealing Scream: ACE SPEC cards can't be played";
+  return null;
+}
+
 /** Why the Trainer can't be played now, or null if it can (given the right choices). View-safe. */
 export function trainerError(s: TrainerSituation): string | null {
   const d = def(s, s.card);
   const effect = trainerEffect(s.card.defId);
   if (d.kind !== 'trainer' || !(effect?.play || effect?.stadium)) return `${d.name} can't be played this way`;
-  if (trainersLocked(s.me, s.turn)) return TRAINERS_LOCKED;
-  // Dual Brains (the player's working Magnezone): a second Supporter card this turn.
-  const dualBrains = () => s.me.secondSupporterTurn !== s.turn && [s.me.active, ...s.me.bench].some((p) => !!p && !!pokemonPower(p)?.dualBrains && powerActive(p, s.cards, [s.me, s.opp]));
-  if (effect.supporter && s.me.supporterTurn === s.turn && !dualBrains()) return 'You can play only one Supporter card each turn';
-  // The Diamond & Pearl era's rule, for every set (agreed): the player going first plays no Supporter on their first turn.
-  if (effect.supporter && s.turn === 1) return "The first player can't play a Supporter card on turn 1";
-  if (effect.supporter && (s.me.noSupportersUntil ?? 0) >= s.turn) return "Addictive Pollen: you can't play Supporter cards this turn";
-  const hayFever = trainersBlocked([s.me, s.opp], s.cards);
-  if (hayFever) return hayFever;
-  const veiled = effect.supporter && supportersVeiled([s.me, s.opp], s.cards);
-  if (veiled) return veiled;
-  const dusted = !effect.supporter && trainersDusted(s.me, [s.me, s.opp], s.cards);
-  if (dusted) return dusted;
-  if (effect.tool && primalLocked(s.me, [s.me, s.opp], s.cards)) return "Primal Lock: you can't play Pokémon Tool cards";
-  // Disconnect: no Trainer cards but Supporters this turn.
-  if (!effect.supporter && (s.me.noItemsUntil ?? 0) >= s.turn) return "Disconnect: you can't play Trainer cards but Supporters this turn";
-  // The Black & White series' Item lock: no Item cards (any Trainer but a Supporter or a Stadium, agreed) this turn.
-  if (!effect.supporter && !effect.stadium && (s.me.noItemCardsUntil ?? 0) >= s.turn) return "You can't play Item cards this turn";
-  // Commanding Aura (the opponent's Active Hariyama ex): no Stadium cards. Mystic Scale (any Milotic ex): no Technical Machines.
-  const holding = (key: 'commandingAura' | 'mysticScale' | 'lonesome' | 'deltaBlock' | 'primalShell' | 'magicRoom' | 'sentinel', pokemon: (InPlayPokemon | null)[]) =>
-    pokemon.some((p) => !!p && !!pokemonPower(p)?.[key] && powerActive(p, s.cards, [s.me, s.opp]));
-  // Magic Room (the opponent's Active Gothitelle): no Item cards.
-  if (!effect.supporter && !effect.stadium && holding('magicRoom', [s.opp.active])) return "Magic Room: you can't play Item cards";
-  if (effect.stadium && holding('commandingAura', [s.opp.active])) return "Commanding Aura: you can't play Stadium cards";
-  // Sentinel (the opponent's Active Stoutland): no Supporter cards.
-  if (effect.supporter && holding('sentinel', [s.opp.active])) return "Sentinel: you can't play Supporter cards";
-  // Primal Shell (the opponent's Active Kabutops): no Trainer cards, Supporters and Stadiums too (agreed).
-  if (holding('primalShell', [s.opp.active])) return "Primal Shell: you can't play Trainer cards";
-  // Delta Block (the opponent's Golduck δ): no Stadium cards while one with Holon in its name is in play.
-  if (effect.stadium && s.stadium && def(s, s.stadium).name.includes('Holon') && holding('deltaBlock', [s.opp.active, ...s.opp.bench])) return "Delta Block: you can't play Stadium cards";
-  // Lonesome (the opponent's Houndoom): while they have fewer Pokémon in play, no Trainer cards but Supporters.
-  const inPlayCount = (side: Pick<PlayerState, 'active' | 'bench'>) => [side.active, ...side.bench].filter(Boolean).length;
-  if (!effect.supporter && inPlayCount(s.opp) < inPlayCount(s.me) && holding('lonesome', [s.opp.active, ...s.opp.bench])) return "Lonesome: you can't play Trainer cards but Supporters";
-  if (effect.technicalMachine && holding('mysticScale', [s.me.active, ...s.me.bench, s.opp.active, ...s.opp.bench])) return "Mystic Scale: Technical Machine cards can't be played";
-  // Sealing Scream (any Spiritomb's, either player's): no ACE SPEC cards.
-  if (d.aceSpec && [s.me, s.opp].some((side) => [side.active, ...side.bench].some((p) => !!p && !!pokemonPower(p)?.sealingScream && powerActive(p, s.cards, [s.me, s.opp])))) return "Sealing Scream: ACE SPEC cards can't be played";
+  const locked = trainerLockError(s, { ...effect, aceSpec: d.aceSpec });
+  if (locked) return locked;
   // A Stadium can't be played while one with the same name is in play.
   if (effect.stadium && s.stadium && def(s, s.stadium).name === d.name) return `${d.name} is already in play`;
   if (effect.discardToHand && pokemonTower(s)) return 'Pokémon Tower: cards in discard piles stay there';
@@ -1618,7 +1632,7 @@ function supernaturalStep(state: GameState, me: PlayerState, opp: PlayerState, c
 /** The Pokémon LEGEND whose two halves are both among `pile`, by name. */
 export const legendNames = (cards: CardLibrary, pile: readonly CardInstance[]) => {
   const name = (c: CardInstance) => lookupCard(cards, c.defId).name;
-  return [...new Set(pile.filter((c) => isLegend(lookupCard(cards, c.defId)) && pile.some((d) => d.defId !== c.defId && name(d) === name(c))).map(name))];
+  return [...new Set(pile.filter((c) => legendPair(cards, c, pile)).map(name))];
 };
 
 /**
@@ -1629,7 +1643,7 @@ export function takeLegend(state: GameState, me: PlayerState, legend: string, so
   const name = (c: CardInstance) => lookupCard(state.cards, c.defId).name;
   const pile = looked ? me.deck.filter((c) => looked.includes(c.uid)) : me.deck;
   const top = pile.find((c) => name(c) === legend && isLegend(lookupCard(state.cards, c.defId)));
-  const half = top && pile.find((d) => d.defId !== top.defId && name(d) === legend);
+  const half = top && legendPair(state.cards, top, pile);
   const slot = openBenchSlot(me, state.cards, state.stadium?.card);
   if (top && half && looked && slot >= 0) {
     const energy = pile.filter((c) => lookupCard(state.cards, c.defId).kind === 'energy');
@@ -2515,7 +2529,7 @@ const conditionsOf = (p: InPlayPokemon): string[] => [
 const fanTargets = (cards: CardLibrary, player: Pick<PlayerState, 'active' | 'bench'>, not: string) =>
   targetsOf(player).filter((t) => {
     const p = atTarget(player, t)!;
-    return p.evolvedFrom.length > 0 && !namesMatch(inPlayDef(cards, p).name, not);
+    return isEvolved(cards, p) && !namesMatch(inPlayDef(cards, p).name, not);
   });
 
 /** The Energy cards Energy Grounding (basic ones), Golden Wing (any) or Reactive Recharge (React Energy) can move. */

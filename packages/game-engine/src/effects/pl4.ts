@@ -10,7 +10,7 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch, typesOf } from '../cards.js';
 import { energyPool, type InPlayPokemon, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { devolvable, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
+import { devolvable, inPlayDef, pokemonName, removeTopEvolution, isEvolved } from '../status.js';
 import { FOSSIL_NAMES } from '../trainers.js';
 import { benchedSlots, damageChosen, energyCards, headsUntilTails, inPlay, opponentTargets, same } from './common.js';
 import { DP3 } from './dp3.js';
@@ -200,7 +200,7 @@ export const PL4: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         ctx.hit(20);
         if (!hasTool(ctx.attacker)) return;
-        for (const slot of benchedSlots(ctx.opp.bench)) if (!ctx.opp.bench[slot]!.evolvedFrom.length) ctx.damageBenched(ctx.opp, slot, 20);
+        for (const slot of benchedSlots(ctx.opp.bench)) if (!isEvolved(ctx.state.cards, ctx.opp.bench[slot]!)) ctx.damageBenched(ctx.opp, slot, 20);
       },
     },
   },

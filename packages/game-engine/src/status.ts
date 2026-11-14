@@ -1,6 +1,6 @@
 // Small state helpers shared by the reducer and attack effects (no imports of engine values,
 // so effect modules can use them without import cycles).
-import { lookupCard, namesMatch, type CardLibrary, type PokemonCardDef } from './cards.js';
+import { isLegend, lookupCard, namesMatch, type CardLibrary, type PokemonCardDef } from './cards.js';
 import type { CardInstance, GameState, InPlayPokemon, PlayerId, PlayerState } from './engine.js';
 import { nextRandom } from './rng.js';
 import { powerEffect, trainerEffect } from './effects/index.js';
@@ -173,6 +173,16 @@ export function removeTopEvolution(state: GameState, owner: PlayerState, pokemon
     addLog(state, `${lookupCard(state.cards, lvx.defId).name} LV.X was discarded with the card under it.`, owner.id);
   }
   return removeTopCard(pokemon);
+}
+
+/**
+ * A Pokémon LEGEND half's other half among `pile`: the other card of that name, never a second copy of the same half (agreed
+ * 2026-11-14; a reverse-holo print is the same half). The one pairing rule, from the hand (PLAY_BENCH), the deck or the discard pile.
+ */
+export function legendPair(cards: CardLibrary, half: CardInstance, pile: readonly CardInstance[]): CardInstance | undefined {
+  const d = lookupCard(cards, half.defId);
+  const print = (c: CardInstance) => c.defId.replace(/-reverse$/, '');
+  return isLegend(d) ? pile.find((c) => c !== half && print(c) !== print(half) && lookupCard(cards, c.defId).name === d.name) : undefined;
 }
 
 /** A card leaving play as the card it is: an Electrode attached as Energy (Buzzap) is a Pokémon card again, a converted or windless Energy card its own. */

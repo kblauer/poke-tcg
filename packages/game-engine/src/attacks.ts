@@ -28,7 +28,7 @@ import {
 } from './engine.js';
 import { askChoice, hasPowerOrBody, greenAroma, stickyHold, conditionBarred, conditionFree, discardsLocked, hasReact, holonWith, reactCount, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy, type Sides, pokemonPower } from './powers.js';
 import { shuffle } from './rng.js';
-import { addLog, baseUid, clearOnLeavingActive, hasSpecialCondition, effectId, evolvedFromName, isDelta, isPlasmaPokemon, energyProtected, flipCoin, inPlayDef, lakeTrio, pokemonName, previousLevel, revealFaceDown, sameCards, shapeshiftCard } from './status.js';
+import { addLog, baseUid, clearOnLeavingActive, hasSpecialCondition, effectId, evolvedFromName, isDelta, isPlasmaPokemon, energyProtected, flipCoin, inPlayDef, lakeTrio, pokemonName, previousLevel, revealFaceDown, sameCards, shapeshiftCard, isEvolved } from './status.js';
 import { isPokemonSP, swapActive, type PendingChoice, type PendingChoiceInput } from './trainers.js';
 
 /** Answers to an attack's questions. Each field belongs to one kind of ChoiceSpec. */
@@ -529,7 +529,7 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
     if (marked?.some((name) => namesMatch(attackerDef.name, name))) return `Mark of Antiquity: ${attackerDef.name} can't attack`;
   }
   // Primal Pull: either Active Claydol's makes an Evolved Pokémon's attacks cost 1 more Colorless Energy.
-  const pulled = s.attacker.evolvedFrom.length > 0 && [s.attacker, s.defender].some((a) => working(a)?.primalPull);
+  const pulled = isEvolved(s.cards, s.attacker) && [s.attacker, s.defender].some((a) => working(a)?.primalPull);
   const effect = attackEffect(usable.source, attack.name);
   const cost = effect?.costNow?.(s) ?? attack.cost;
   // Extra Liquid (anywhere in play, either player's): a Pokémon-ex's attacks cost 1 Colorless more (only 1, however many).
@@ -1048,7 +1048,7 @@ function createContext(
   };
   /** Neutral Shield: attacks by Evolved Pokémon don't affect it. Safeguard: nor by Pokémon-ex; Wonder Guard: by either (the opponent's). */
   const neutral = (p: InPlayPokemon) => {
-    const evolved = attacker.evolvedFrom.length > 0;
+    const evolved = isEvolved(state.cards, attacker);
     const theirs = [opp.active, ...opp.bench].includes(p);
     // Beacon Protection, Extra Protection: only while its player has the partner in play.
     const partner = passive(p)?.guardPartner;
@@ -1142,7 +1142,7 @@ function createContext(
         // Marvel Scale: nothing from the opponent's Pokémon LV.X.
         (!!passive(opp.active)?.marvelScale && attackerDef.stage === 'levelUp') ||
         // Psybarrier: nothing from the opponent's Pokémon that aren't Evolved Pokémon.
-        (!!passive(opp.active)?.psybarrier && !attacker.evolvedFrom.length) ||
+        (!!passive(opp.active)?.psybarrier && !isEvolved(state.cards, attacker)) ||
         // Marvel Shell: nothing from a Pokémon with a Poké-Power or Poké-Body. Marvel Eyes: nothing from a Pokémon LV.X to Lunatone and Solrock, with both in play.
         (!!passive(opp.active)?.marvelShell && hasPowerOrBody(state.cards, attacker)) ||
         (attackerDef.stage === 'levelUp' && ['Lunatone', 'Solrock'].some((n) => namesMatch(def(state.cards, opp.active!).name, n)) && [opp.active, ...opp.bench].some((q) => q && passive(q)?.marvelEyes) && [opp.active, ...opp.bench].some((q) => q && namesMatch(def(state.cards, q).name, 'Solrock'))) ||
@@ -1242,7 +1242,7 @@ function createContext(
       // (with Grass Energy attached, against an Evolved Pokémon): less after Weakness and Resistance.
       const trash = body.trashCloak && (p.attached ?? []).some((a) => a.tool) ? 20 : 0;
       const camo = body.camouflage && p.energy.some((e) => !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId)) && typesOf(attackerDef).some((t) => isEnergyCardOf(e, state.cards, t))) ? 40 : 0;
-      const balloon = body.cottonBalloon && attacker.evolvedFrom.length > 0 && energyPool(p, state.cards).some((e) => counts(e, 'grass')) ? 20 : 0;
+      const balloon = body.cottonBalloon && isEvolved(state.cards, attacker) && energyPool(p, state.cards).some((e) => counts(e, 'grass')) ? 20 : 0;
       const less = trash + camo + balloon;
       if (less) {
         damage = noted(def(state.cards, p).power?.name ?? 'Less damage', damage, Math.max(0, damage - less));
@@ -1283,7 +1283,7 @@ function createContext(
     }
     // Root Protector: a set amount less from the opponent's Pokémon that isn't an Evolved Pokémon.
     const root = passive(p)?.unevolvedGuard;
-    if (damage > 0 && root && owner !== me && !attacker.evolvedFrom.length) {
+    if (damage > 0 && root && owner !== me && !isEvolved(state.cards, attacker)) {
       damage = noted(def(state.cards, p).power!.name, damage, Math.max(0, damage - root));
       log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${root}.`, owner.id);
     }
@@ -1305,7 +1305,7 @@ function createContext(
     }
     // Thick Shell: a set amount less from an Evolved Pokémon's attack.
     const shell = passive(p)?.evolvedGuard;
-    if (damage > 0 && shell && attacker.evolvedFrom.length > 0) {
+    if (damage > 0 && shell && isEvolved(state.cards, attacker)) {
       damage = noted(def(state.cards, p).power!.name, damage, Math.max(0, damage - shell));
       log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${shell}.`, owner.id);
     }
@@ -2011,7 +2011,7 @@ function createContext(
       }
       // Lie Low and Barrier Attack: a set amount less, after Weakness and Resistance.
       const reduced = effects?.reduceDamage;
-      if (damage > 0 && reduced && active(reduced.until, turn) && (!reduced.evolvedOnly || attacker.evolvedFrom.length > 0)) {
+      if (damage > 0 && reduced && active(reduced.until, turn) && (!reduced.evolvedOnly || isEvolved(state.cards, attacker))) {
         damage = noted('Less damage from an earlier attack', damage, Math.max(0, damage - reduced.amount));
         log(`The damage to ${defenderDef.name} was reduced by ${reduced.amount}.`, opp.id);
       }
@@ -2148,7 +2148,7 @@ function createContext(
     // Secrete Poison: the attacker is Poisoned and 10 damage to each of the attacking player's benched Pokémon, even if this Knocks it Out.
     // It's Kakuna's attack's effect, so Neutral Shield keeps it off a Mew, Active or Benched, while Kakuna is Evolved.
     if (active(effects?.secretePoison, turn)) {
-      const shielded = (p: InPlayPokemon) => defender.evolvedFrom.length > 0 && !!passive(p)?.neutralShield;
+      const shielded = (p: InPlayPokemon) => isEvolved(state.cards, defender) && !!passive(p)?.neutralShield;
       log(`Secrete Poison: ${attackerDef.name} is now Poisoned, and 10 damage to each benched Pokémon.`);
       if (shielded(attacker)) log(`Neutral Shield: Secrete Poison doesn't affect ${attackerDef.name}.`);
       else if (!conditionFree(attacker, state.cards, passive(attacker))) attacker.poison = Math.max(attacker.poison ?? 0, 10);

@@ -11,7 +11,7 @@
 import { lookupCard, namesMatch, typesOf, type EnergyType } from '../cards.js';
 import { afflictBetweenTurns, opponentOf, type Target } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, clearSpecialConditions, evolvedFromHand, hasSpecialCondition, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { addLog, clearSpecialConditions, evolvedFromHand, hasSpecialCondition, inPlayDef, openBenchSlot, pokemonName, isEvolved } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { inPlay, onlyBenched, POKE_BODY, targetOf } from './common.js';
 import { onBench, onLevelUp } from './dp5-powers.js';
@@ -162,7 +162,7 @@ export const DP6_POWERS: Record<string, PowerEffect> = {
   },
   // Regice – Regi Move: 2 cards discarded; the opponent switches their Active Pokémon that isn't an Evolved Pokémon.
   'dp6-36': regi(
-    (s) => (!s.opp.active || s.opp.active.evolvedFrom.length ? "Your opponent's Active Pokémon is an Evolved Pokémon" : s.opp.bench.some(Boolean) ? null : 'Your opponent has no Benched Pokémon'),
+    (s) => (!s.opp.active || isEvolved(s.cards, s.opp.active) ? "Your opponent's Active Pokémon is an Evolved Pokémon" : s.opp.bench.some(Boolean) ? null : 'Your opponent has no Benched Pokémon'),
     (ctx) => void (ctx.state.queuedChoices ??= []).push({ player: ctx.opp.id, source: 'Regi Move', kind: 'switchIn' }),
   ),
   // Regigigas – Recover Mechanism: an Energy card attached to it from the hand removes its Special Conditions.

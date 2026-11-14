@@ -10,7 +10,7 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { hasType, isPokemonCard, isTrainerCard, lookupCard, namesMatch, type EnergyType } from '../cards.js';
 import { energyPool, isSpecialEnergy, retireStadium, type InPlayPokemon, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { inPlayDef, pokemonName } from '../status.js';
+import { inPlayDef, pokemonName, isEvolved } from '../status.js';
 import { isPokemonSP } from '../trainers.js';
 import { benchedSlots, damageChosen, energyCards, inPlay, opponentBenchChoice, opponentTargets, same } from './common.js';
 import { discardOwnEnergy, removeDefenderEnergy } from './dp1.js';
@@ -266,7 +266,7 @@ export const PL3: Record<string, Record<string, AttackEffect>> = {
   // Empoleon FB – Escort: 20 more after a Supporter from the hand this turn.
   'pl3-27': { Escort: { run: (ctx) => void ctx.hit(ctx.me.supporterTurn === ctx.turn ? 60 : 40) } },
   // Honchkrow – Riot: 10 more for each Pokémon in play that isn't an Evolved Pokémon, both players'.
-  'pl3-29': { Riot: { run: (ctx) => void ctx.hit(30 + 10 * [...inPlay(ctx.me), ...inPlay(ctx.opp)].filter((p) => !p.evolvedFrom.length).length) } },
+  'pl3-29': { Riot: { run: (ctx) => void ctx.hit(30 + 10 * [...inPlay(ctx.me), ...inPlay(ctx.opp)].filter((p) => !isEvolved(ctx.state.cards, p)).length) } },
   // Lickilicky C – Licking-Licking Heal: a basic Energy card from the hand attached to one of the player's Pokémon, then 2 damage counters off it.
   'pl3-30': {
     'Licking-Licking Heal': {
@@ -528,7 +528,7 @@ export const PL3: Record<string, Record<string, AttackEffect>> = {
   // Chingling – Chime: as EX Hidden Legends Chimecho's.
   'pl3-98': { Chime: same(() => EX5['ex5-17']?.['Chime']) },
   // Feebas – Count and Draw: a card drawn for each of the opponent's Pokémon that isn't an Evolved Pokémon.
-  'pl3-104': { 'Count and Draw': { run: (ctx) => ctx.draw(inPlay(ctx.opp).filter((p) => !p.evolvedFrom.length).length) } },
+  'pl3-104': { 'Count and Draw': { run: (ctx) => ctx.draw(inPlay(ctx.opp).filter((p) => !isEvolved(ctx.state.cards, p)).length) } },
   // Mankey – Extra Punch: 50 more against a Pokémon LV.X.
   'pl3-112': { 'Extra Punch': { run: (ctx) => void ctx.hit(ctx.defenderDef.stage === 'levelUp' ? 60 : 10) } },
   // Mime Jr. – Encore: the Defending Pokémon can use only the attack picked next turn.

@@ -14,7 +14,7 @@ import { pokemonOn, targetsIn, type AttackContext, type AttackEffect, type Attac
 import { isBasicEnergy, isPokemonCard, lookupCard, type Attack } from '../cards.js';
 import { canPayCost, counts, energyPool, isEnergyCardOf, isSpecialEnergy, type CardInstance, type InPlayPokemon } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { effectId, inPlayDef, pokemonName } from '../status.js';
+import { effectId, inPlayDef, pokemonName, isEvolved } from '../status.js';
 import {
   benchedSlots,
   benchTarget,
@@ -578,7 +578,7 @@ export const ECARD2: Record<string, Record<string, AttackEffect>> = {
   // Pupitar – Thrash.
   'ecard2-56': { Thrash: thrash(30) },
   // Scyther – Quick Turn; Cross-Cut: 20 more against an Evolved Pokémon.
-  'ecard2-57': { 'Quick Turn': perHeads(2, 10), 'Cross-Cut': { run: (ctx) => void ctx.hit(ctx.defender.evolvedFrom.length ? 40 : 20) } },
+  'ecard2-57': { 'Quick Turn': perHeads(2, 10), 'Cross-Cut': { run: (ctx) => void ctx.hit(isEvolved(ctx.state.cards, ctx.defender) ? 40 : 20) } },
   // Seadra – Water Bullet: a coin for each Water Energy, 10 more for each heads.
   'ecard2-58': { 'Water Bullet': { run: (ctx) => void ctx.hit(30 + 10 * ctx.flips(energyOf(ctx, ctx.attacker, 'water'))) } },
   // Seaking – Flail; Undulate.

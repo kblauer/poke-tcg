@@ -8,7 +8,7 @@
 import { isBasicEnergy, lookupCard, namesMatch, type PokemonCardDef } from '../cards.js';
 import { counts, energyPool, evolvesOnto } from '../engine.js';
 import { attachBlocked, discardsLocked, energyFromHand, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, clearSpecialConditions, inPlayDef, pokemonName, removeTopCard } from '../status.js';
+import { addLog, clearSpecialConditions, inPlayDef, pokemonName, removeTopCard, isEvolved } from '../status.js';
 import { babyEvolution, freeRetreat, POKE_BODY } from './ex2-powers.js';
 import { EX7_POWERS } from './ex7-powers.js';
 import { EX11_POWERS } from './ex11-powers.js';
@@ -150,7 +150,7 @@ export const EX15_POWERS: Record<string, PowerEffect> = {
   // Electabuzz δ – Power of Evolution: once a turn, as an Evolved Pokémon, the bottom card of the deck drawn.
   'ex15-29': {
     oncePerTurn: true,
-    blocked: (s) => (!pokemonAt(s.me, s.source)?.evolvedFrom.length ? 'Electabuzz must be an Evolved Pokémon' : s.counts.deck ? null : 'Your deck is empty'),
+    blocked: (s) => (!isEvolved(s.cards, pokemonAt(s.me, s.source)!) ? 'Electabuzz must be an Evolved Pokémon' : s.counts.deck ? null : 'Your deck is empty'),
     use(ctx) {
       const card = ctx.me.deck.pop();
       if (card) ctx.me.hand.push(card);

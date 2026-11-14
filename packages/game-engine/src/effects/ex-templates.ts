@@ -10,7 +10,7 @@ import { hasType, isBasicEnergy, lookupCard, namesMatch, typesOf, type CardLibra
 import type { PendingChoice } from '../trainers.js';
 import { retireStadium, counts, discardTool, energyPool, isSpecialEnergy, PRIZE_COUNT, retreatCost, type Affliction, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { nextRandom, shuffle } from '../rng.js';
-import { clearSpecialConditions, devolvable, evolvedFromName, hasSpecialCondition, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { clearSpecialConditions, devolvable, evolvedFromName, hasSpecialCondition, inPlayDef, openBenchSlot, pokemonName, isEvolved } from '../status.js';
 import { benchedSlots, benchSearch, benchTarget, charmFor, discardOwnEnergy, discardToUse, energyCardOf, energyCanMove, extraEnergy, flipToInflict, flipToProtect, guardNext, headsUntilTails, inflicts, inPlay, lure, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
 import { copyAttack, discardDefenderTrainers } from './ecard2.js';
 import { discardAtRandom, eachDefending, energyAmount, restNextTurn } from './ex1.js';
@@ -234,7 +234,7 @@ export const ATTACK_TEMPLATES: Record<string, AttackTemplate> = {
   },
   toxic: { pattern: re('the defending pokemon is now poisoned\\. put 2 damage counters instead of 1 on the defending pokemon between turns'), make: (d) => inflicts(d, 'toxic') },
   poisonNoRetreat: { pattern: re("the defending pokemon is now poisoned\\. the defending pokemon can't retreat during your opponent's next turn"), make: (d) => thenDo(d, (ctx) => (ctx.inflict('poisoned'), noRetreatNow(ctx))) },
-  evolvedCondition: { pattern: re(`if the defending pokemon is an evolved pokemon, the defending pokemon is now ${CONDITION}`), make: (d, [c]) => thenDo(d, (ctx) => ctx.defender.evolvedFrom.length > 0 && ctx.inflict(word(c))) },
+  evolvedCondition: { pattern: re(`if the defending pokemon is an evolved pokemon, the defending pokemon is now ${CONDITION}`), make: (d, [c]) => thenDo(d, (ctx) => isEvolved(ctx.state.cards, ctx.defender) && ctx.inflict(word(c))) },
   exConditions: { pattern: re(`if the defending pokemon is pokemon-ex, the defending pokemon is now ${CONDITION} and ${CONDITION}`), make: (d, [a, b]) => thenDo(d, (ctx) => ctx.defenderDef.ex && (ctx.inflict(word(a)), ctx.inflict(word(b)))) },
   bothConfused: { pattern: re('both @ and the defending pokemon are now confused'), make: (d) => thenDo(d, (ctx) => (ctx.inflict('confused'), ctx.confuseSelf())) },
   selfAsleep: { pattern: re('@ is now asleep'), make: (d) => thenDo(d, (ctx) => ctx.sleepSelf()) },
@@ -256,7 +256,7 @@ export const ATTACK_TEMPLATES: Record<string, AttackTemplate> = {
 
   // Damage that depends on the Pokémon in play.
   exMore: { pattern: re('if the defending pokemon is pokemon-ex, this attack does (\\d+) damage plus (\\d+) more damage'), fits: sameBase(0), make: (_, [base, more]) => bonusIf(num(base), num(more), (ctx) => !!ctx.defenderDef.ex) },
-  evolvedMore: { pattern: re('if the defending pokemon is an evolved pokemon, this attack does (\\d+) damage plus (\\d+) more damage'), fits: sameBase(0), make: (_, [base, more]) => bonusIf(num(base), num(more), (ctx) => ctx.defender.evolvedFrom.length > 0) },
+  evolvedMore: { pattern: re('if the defending pokemon is an evolved pokemon, this attack does (\\d+) damage plus (\\d+) more damage'), fits: sameBase(0), make: (_, [base, more]) => bonusIf(num(base), num(more), (ctx) => isEvolved(ctx.state.cards, ctx.defender)) },
   stageMore: {
     pattern: re('if the defending pokemon is a stage (1|2) evolved pokemon, this attack does (\\d+) damage plus (\\d+) more damage'),
     fits: sameBase(1),
@@ -411,7 +411,7 @@ export const ATTACK_TEMPLATES: Record<string, AttackTemplate> = {
 
   // Cards.
   draw: { pattern: re('draw (?:a card|(\\d+) cards)'), make: (d, [n]) => thenDo(d, (ctx) => ctx.draw(n === undefined ? 1 : num(n))) },
-  evolvedDraw: { pattern: re('if your opponent has any evolved pokemon in play, draw (\\d+) cards'), make: (d, [n]) => thenDo(d, (ctx) => inPlay(ctx.opp).some((p) => p.evolvedFrom.length > 0) && ctx.draw(num(n))) },
+  evolvedDraw: { pattern: re('if your opponent has any evolved pokemon in play, draw (\\d+) cards'), make: (d, [n]) => thenDo(d, (ctx) => inPlay(ctx.opp).some((p) => isEvolved(ctx.state.cards, p)) && ctx.draw(num(n))) },
   randomDiscard: { pattern: re("choose 1 card from your opponent's hand without looking and discard it"), make: (d) => thenDo(d, discardAtRandom) },
   randomToDeck: {
     pattern: re("choose 1 card from your opponent's hand without looking\\. look at (?:the|that) card you chose, then have your opponent shuffle that card into his or her deck"),

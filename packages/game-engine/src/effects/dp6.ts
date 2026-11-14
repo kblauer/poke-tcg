@@ -12,7 +12,7 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch } from '../cards.js';
 import { counts, energyPool, type InPlayPokemon, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { baseUid, countersMoved, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
+import { baseUid, countersMoved, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution, isEvolved } from '../status.js';
 import { BASE1 } from './base1.js';
 import { benchedSlots, damageChosen, energyCards, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { discardOwnEnergy } from './dp1.js';
@@ -492,7 +492,7 @@ export const DP6: Record<string, Record<string, AttackEffect>> = {
     'Bite On': {
       run(ctx) {
         ctx.hit(30);
-        if (ctx.defender.evolvedFrom.length) return;
+        if (isEvolved(ctx.state.cards, ctx.defender)) return;
         ctx.affectDefender((e) => {
           e.noAttack = ctx.turn + 1;
           e.noRetreat = ctx.turn + 1;
@@ -695,7 +695,7 @@ export const DP6: Record<string, Record<string, AttackEffect>> = {
   'dp6-126': {
     'Gut Blow': {
       run(ctx) {
-        if (!ctx.defender.evolvedFrom.length) return void ctx.hit(10);
+        if (!isEvolved(ctx.state.cards, ctx.defender)) return void ctx.hit(10);
         ctx.hit(30);
         ctx.selfDamage(10);
       },

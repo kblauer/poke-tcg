@@ -7,7 +7,7 @@
 // of any types while its owner has more Prize cards left than the opponent, Colorless otherwise, and is discarded off a
 // Pokémon that isn't Evolved or is a Pokémon-ex (dropBoostEnergy, energyPool).
 import { lookupCard } from '../cards.js';
-import { addLog, clearSpecialConditions, pokemonName } from '../status.js';
+import { addLog, clearSpecialConditions, pokemonName, isEvolved } from '../status.js';
 import { type EnergyEffect, type TrainerEffect } from '../trainers.js';
 import { ECARD1_TRAINERS } from './ecard1-trainers.js';
 import { ECARD2_ENERGY } from './ecard2-trainers.js';
@@ -60,6 +60,6 @@ export const EX8_ENERGY: Record<string, EnergyEffect> = {
   // Scramble Energy: only on an Evolved Pokémon that isn't a Pokémon-ex.
   'ex8-95': {
     onAttach: () => {},
-    attachError: (pokemon, inPlay) => (inPlay.evolvedFrom.length && !pokemon.ex ? null : 'Scramble Energy can only be attached to an Evolved Pokémon (not a Pokémon-ex)'),
+    attachError: (pokemon, inPlay, cards) => (isEvolved(cards, inPlay) && !pokemon.ex ? null : 'Scramble Energy can only be attached to an Evolved Pokémon (not a Pokémon-ex)'),
   },
 };

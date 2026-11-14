@@ -12,7 +12,7 @@ import { hasType, isBasicEnergy, isBasicPokemon, lookupCard, namesMatch, type Ca
 import { retireStadium, counts, discardTool, energyPool, isEnergyCardOf, isSpecialEnergy, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { evolvedFromName, inPlayDef, pokemonName } from '../status.js';
+import { evolvedFromName, inPlayDef, pokemonName, isEvolved } from '../status.js';
 import { attachFromDiscard } from './neo3.js';
 import { benchedSlots, damageChosen, energyCards, headsUntilTails, inPlay, opponentBenchChoice, opponentTargets, same, targetOf } from './common.js';
 import { DP1, removeDefenderEnergy, shuffleIntoDeck } from './dp1.js';
@@ -425,7 +425,7 @@ export const DP2: Record<string, Record<string, AttackEffect>> = {
   'dp2-46': {
     'Triple Pick': {
       choices(s): ChoiceSpec[] {
-        const options = [s.defender, ...s.opponentBench].flatMap((p, i) => (p && p.evolvedFrom.length ? [i - 1] : []));
+        const options = [s.defender, ...s.opponentBench].flatMap((p, i) => (p && isEvolved(s.cards, p) ? [i - 1] : []));
         return options.length ? [{ kind: 'opponentBenchMany', count: 3, options, prompt: "Choose 3 of your opponent's Evolved Pokémon to do 30 damage to each" }] : [];
       },
       run(ctx) {

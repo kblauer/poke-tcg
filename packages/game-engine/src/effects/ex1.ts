@@ -11,7 +11,7 @@ import { type AttackContext, type AttackEffect, type ChoiceSpec } from '../attac
 import { isBasicEnergy, lookupCard } from '../cards.js';
 import { energyPool, isEnergyCardOf, type InPlayPokemon } from '../engine.js';
 import { nextRandom } from '../rng.js';
-import { clearSpecialConditions, pokemonName } from '../status.js';
+import { clearSpecialConditions, pokemonName, isEvolved } from '../status.js';
 import { energyCardOf, benchedSlots, benchTarget, discardToUse, extraEnergy, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
 import { basicEnergyOn, typedCards } from './ecard1.js';
 import { smokescreen } from './fossil.js';
@@ -200,7 +200,7 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
   'ex1-18': {
     'Invisible Hand': {
       run(ctx) {
-        if (!ctx.defender.evolvedFrom.length) return ctx.log('Invisible Hand did nothing.');
+        if (!isEvolved(ctx.state.cards, ctx.defender)) return ctx.log('Invisible Hand did nothing.');
         if (ctx.me.deck.length) ctx.pend({ kind: 'pickFromDeck', source: 'Invisible Hand', filter: 'any' });
       },
     },
