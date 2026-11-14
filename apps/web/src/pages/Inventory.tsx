@@ -53,7 +53,7 @@ export function InventoryPage() {
       onSettled: () => Promise.all([queryClient.invalidateQueries({ queryKey: trpc.run.inventory.queryKey() }), queryClient.invalidateQueries({ queryKey: trpc.run.overview.queryKey() })]),
     }),
   );
-  if (inventory.error) return <p className={`${PAGE_WIDTH} text-red-400`}>{inventory.error.message}</p>;
+  if (inventory.error && !inventory.data) return <p className={`${PAGE_WIDTH} text-red-400`}>{inventory.error.message}</p>;
   if (!inventory.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
   const { items, equipment, trainerSprite, playerGender, pendingConsumables } = inventory.data;
   const current = overview.data?.run;

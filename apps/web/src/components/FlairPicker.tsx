@@ -63,6 +63,7 @@ export function FlairPicker({
   );
   const equip = useMutation(trpc.flair.equip.mutationOptions({ onSuccess: done }));
   const options = flairFor(card, slot);
+  if (options.length && flair.error && !flair.data) return <p className="text-xs text-red-400">{flair.error.message}</p>;
   if (!options.length || !flair.data) return null;
 
   const { title, noun } = SLOTS[slot];
