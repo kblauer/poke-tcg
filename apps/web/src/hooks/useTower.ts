@@ -57,7 +57,3 @@ export function useTowerActions() {
     skip: (challenge: ClientTower) => skip.mutateAsync({ towerId: challenge.id }),
   };
 }
-
-/** The Play tab's pages: its menu, and its four modes. */
-const PLAY_PATHS = ['/', '/badge', '/tower', '/idle', '/battle'];
-export const isPlayPath = (path: string) => PLAY_PATHS.includes(path);

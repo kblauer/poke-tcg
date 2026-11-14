@@ -9,6 +9,7 @@ import {
   expandDeck,
   MAX_CONSUMABLES_PER_RUN,
   needsBattle,
+  packUnlockLine,
   STARTER_DECKS,
   withConsumablesBefore,
   type StarterId,
@@ -134,7 +135,7 @@ export async function advanceRun(run: LoadedRun, actions: (RunAction | RunSystem
   const saved = await prisma.$transaction(async (tx) => {
     // Its first battle completed unlocks its generation's next booster pack, beating it all of them; the run's log says so.
     const packs = await earnedPacks(run.ownerId, run.state, state, tx);
-    for (const { name } of packs) state.log.push(`Unlocked ${name} booster packs.`);
+    for (const { name } of packs) state.log.push(packUnlockLine(name));
     const { count } = await tx.run.updateMany({
       where: { id: run.id, version: run.version },
       data: { state: asJson(state), version: state.version, status, ...(reward && { rewarded: true }), ...((bank || unbank) && { banked: bank }) },

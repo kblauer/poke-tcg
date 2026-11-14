@@ -200,7 +200,8 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
   const [prefs, setPrefs] = useState(loadPrefs);
   const update = (change: Partial<MusicPrefs>) => setPrefs((p) => ({ ...p, ...change }));
   useEffect(() => savePrefs(prefs), [prefs]);
-  // Only fetched once the player has been opened, has a track to resume or plays by itself.
+  // Only fetched once the player has been opened, has a track to resume or plays by itself (auto play switched on by
+  // the account's settings, arriving after the page loaded, too: `prefs.autoplay`).
   const [wanted, setWanted] = useState(prefs.open || prefs.track !== null || prefs.autoplay);
   const tracks = useQuery({
     queryKey: ['music-tracks'],
@@ -209,7 +210,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
       if (!res.ok) throw new Error(`Couldn't load the song list (${res.status})`);
       return (await res.json()) as Track[];
     },
-    enabled: wanted,
+    enabled: wanted || prefs.autoplay,
     staleTime: Infinity,
   });
   const list = useMemo(() => playlist(tracks.data ?? [], prefs.gen), [tracks.data, prefs.gen]);

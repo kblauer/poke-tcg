@@ -131,3 +131,10 @@ export function openPack(set: PackSet, rng: Rng, { forceHoloEnergy = false, forc
   const rest = upgrade([...commons(PACK_COMMONS - reverse.length), ...sample(rng, set.uncommon, PACK_UNCOMMONS).map((cardId) => ({ cardId, slot: 'uncommon' as const }))]);
   return [energy, ...rest, ...extras, ...reverse, rare];
 }
+
+/**
+ * A run's log line for booster packs it unlocked (`name`: the set's; written as the run is saved, apps/api's runs.ts), and
+ * the sets' names read back out of a run's log (the end-of-run screen): one pair, so the two can't drift apart.
+ */
+export const packUnlockLine = (name: string) => `Unlocked ${name} booster packs.`;
+export const parsePackUnlocks = (log: readonly string[]): string[] => log.flatMap((line) => /^Unlocked (.+) booster packs\.$/.exec(line)?.[1] ?? []);

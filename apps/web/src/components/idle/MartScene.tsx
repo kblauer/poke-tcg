@@ -201,22 +201,26 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
     setStep(ok ? { kind: 'said', text: 'Here you are!\nThank you!' } : { kind: 'list' });
   };
   // The keys: the arrows move the cursor (or the quantity); Enter chooses (on a line, the text box takes it).
+  const onKey = (e: KeyboardEvent) => {
+    if (step.kind === 'list') {
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') point(cursor + (e.key === 'ArrowUp' ? -1 : 1));
+      else if (e.key === 'Enter' || e.key === ' ') choose(cursor);
+      else return;
+    } else if (step.kind === 'quantity') {
+      const d = { ArrowUp: 1, ArrowDown: -1, ArrowRight: 10, ArrowLeft: -10 }[e.key];
+      if (!d) return;
+      adjust(d);
+    } else return;
+    e.preventDefault();
+  };
+  // One listener for the screen's life, calling the latest render's handler (it reads the step, the cursor and the rows).
+  const keyHandler = useRef(onKey);
+  keyHandler.current = onKey;
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (step.kind === 'list') {
-        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') point(cursor + (e.key === 'ArrowUp' ? -1 : 1));
-        else if (e.key === 'Enter' || e.key === ' ') choose(cursor);
-        else return;
-      } else if (step.kind === 'quantity') {
-        const d = { ArrowUp: 1, ArrowDown: -1, ArrowRight: 10, ArrowLeft: -10 }[e.key];
-        if (!d) return;
-        adjust(d);
-      } else return;
-      e.preventDefault();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  });
+    const listener = (e: KeyboardEvent) => keyHandler.current(e);
+    window.addEventListener('keydown', listener);
+    return () => window.removeEventListener('keydown', listener);
+  }, []);
   // The mouse wheel over the list (the user's): a row a notch (WHEEL_ROW of scrolling, a trackpad's adding up), the
   // cursor kept among the rows shown; the page doesn't scroll with it (a listener that isn't passive).
   const list = useRef<HTMLDivElement>(null);

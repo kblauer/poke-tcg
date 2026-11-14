@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_RARES_CHANCE, EXTRA_RARE_CHANCES, HOLO_CHANCE, HOLO_ENERGY_CHANCE, HOLO_SET_PACK, openPack, PACK_SETS, type PackCard } from './packs.js';
+import { ALL_RARES_CHANCE, EXTRA_RARE_CHANCES, HOLO_CHANCE, HOLO_ENERGY_CHANCE, HOLO_SET_PACK, openPack, PACK_SETS, packUnlockLine, parsePackUnlocks, type PackCard } from './packs.js';
 import { BASIC_ENERGY, EX_SETS, GEN4_SETS, GEN5_SETS } from './pool.js';
 
 /** The sets whose packs have a reverse holo: the EX sets, Gen 4's but its promos, and Gen 5's but Dragon Vault (all holo). */
@@ -132,5 +132,15 @@ describe('a set of only holos (Southern Islands)', () => {
       expect(pack.map((c) => c.slot)).toEqual(['energy', ...Array(6).fill('holo')]);
       expect(new Set(pack.map((c) => c.cardId)).size).toBe(7);
     }
+  });
+});
+
+describe("a run's log lines for the packs it unlocked", () => {
+  it('are read back as written (packUnlockLine, parsePackUnlocks), other lines left out', () => {
+    const names = ['Base Set', 'Team Rocket', 'EX Ruby & Sapphire', 'HeartGold & SoulSilver', "Black & White: Dragons Exalted (Wizards' booster packs.)"];
+    const log = ['Beat Brock.', ...names.map(packUnlockLine), 'Unlocked the Boulder Badge.', 'Banked 500.'];
+    expect(parsePackUnlocks(log)).toEqual(names);
+    expect(parsePackUnlocks(['Beat Brock.'])).toEqual([]);
+    expect(parsePackUnlocks([])).toEqual([]);
   });
 });

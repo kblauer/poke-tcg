@@ -123,27 +123,31 @@ export function HgssBuyScreen({ run, player, busy, onBuy, onClose, machines, chi
   };
   // The keys (sMartCursorMoveDests: left from the left column and right from the right one turn the page; the quantity's
   // up and down ±1, right and left ±10: AdjustQuantityUsingDPad).
+  const onKey = (e: KeyboardEvent) => {
+    if (step.kind === 'list') {
+      const c = typeof cursor === 'number' ? cursor : 0;
+      if (e.key === 'ArrowLeft') c % 2 === 0 ? turn(-1) : setCursor(c - 1);
+      else if (e.key === 'ArrowRight') c % 2 === 1 || c + 1 >= shown.length ? turn(1) : setCursor(c + 1);
+      else if (e.key === 'ArrowUp') setCursor(Math.max(c % 2, c - 2));
+      else if (e.key === 'ArrowDown') setCursor(c + 2 < shown.length ? c + 2 : 'exit');
+      else if ((e.key === 'Enter' || e.key === ' ') && item) choose(item);
+      else return;
+    } else if (step.kind === 'quantity') {
+      const d = { ArrowUp: 1, ArrowDown: -1, ArrowRight: 10, ArrowLeft: -10 }[e.key];
+      if (d) adjust(d);
+      else if (e.key === 'Enter') setStep({ kind: 'confirm', item: step.item });
+      else return;
+    } else return;
+    e.preventDefault();
+  };
+  // One listener for the screen's life, calling the latest render's handler (it reads the step, the cursor and the rows).
+  const keyHandler = useRef(onKey);
+  keyHandler.current = onKey;
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (step.kind === 'list') {
-        const c = typeof cursor === 'number' ? cursor : 0;
-        if (e.key === 'ArrowLeft') c % 2 === 0 ? turn(-1) : setCursor(c - 1);
-        else if (e.key === 'ArrowRight') c % 2 === 1 || c + 1 >= shown.length ? turn(1) : setCursor(c + 1);
-        else if (e.key === 'ArrowUp') setCursor(Math.max(c % 2, c - 2));
-        else if (e.key === 'ArrowDown') setCursor(c + 2 < shown.length ? c + 2 : 'exit');
-        else if ((e.key === 'Enter' || e.key === ' ') && item) choose(item);
-        else return;
-      } else if (step.kind === 'quantity') {
-        const d = { ArrowUp: 1, ArrowDown: -1, ArrowRight: 10, ArrowLeft: -10 }[e.key];
-        if (d) adjust(d);
-        else if (e.key === 'Enter') setStep({ kind: 'confirm', item: step.item });
-        else return;
-      } else return;
-      e.preventDefault();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  });
+    const listener = (e: KeyboardEvent) => keyHandler.current(e);
+    window.addEventListener('keydown', listener);
+    return () => window.removeEventListener('keydown', listener);
+  }, []);
   const listing = step.kind === 'list';
   const said = useRef<(() => void) | null>(null);
   said.current = step.kind === 'said' ? () => setStep({ kind: 'list' }) : null;
