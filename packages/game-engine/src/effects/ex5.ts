@@ -10,7 +10,7 @@
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { targetsIn } from '../attacks.js';
 import { hasType, isBasicEnergy, lookupCard, typesOf } from '../cards.js';
-import { counts, energyPool, energyProvided, evolvesOnto, isEnergyCardOf, isSpecialEnergy, type CardInstance } from '../engine.js';
+import { retireStadium, counts, energyPool, energyProvided, evolvesOnto, isEnergyCardOf, isSpecialEnergy, type CardInstance } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { inPlayDef, pokemonName } from '../status.js';
@@ -575,8 +575,7 @@ export const EX5: Record<string, Record<string, AttackEffect>> = {
         }
         const stadium = ctx.state.stadium;
         if (stadium && stadium.owner === ctx.opp.id) {
-          ctx.opp.discard.push(stadium.card);
-          ctx.state.stadium = null;
+          retireStadium(ctx.state);
           discarded++;
         }
         if (!discarded) return ctx.log('Your opponent has no Trainer cards in play.');

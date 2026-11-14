@@ -7,10 +7,10 @@
 // Grass Energy card; Darkness Restore's Basic Pokémon is picked by the player; Dig Down takes any Fighting Energy
 // cards among the top 5, one at a time; Plunge moves every Energy card; Call for Power moves one Energy card at a time;
 // Energy Recycle's Energy cards go to the Pokémon clicked, then the turn ends.
-import { lookupCard, namesMatch } from '../cards.js';
+import { isBasicPokemon, lookupCard, namesMatch } from '../cards.js';
 import { counts, energyPool } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
-import { inPlayDef, pokemonName } from '../status.js';
+import { inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { onEvolveMay, POKE_BODY } from './common.js';
 import { DP1_POWERS } from './dp1-powers.js';
@@ -67,11 +67,8 @@ export const PL3_POWERS: Record<string, PowerEffect> = {
     oncePerTurn: true,
     blocked(s) {
       if (s.source !== 'active') return 'Honchkrow must be your Active Pokémon';
-      if (s.opp.bench.every(Boolean)) return "Your opponent's Bench is full";
-      return s.opp.discard.some((c) => {
-        const d = lookupCard(s.cards, c.defId);
-        return d.kind === 'pokemon' && d.stage === 'basic' && !d.trainerText;
-      }) ? null : "Your opponent has no Basic Pokémon in their discard pile";
+      if (openBenchSlot(s.opp, s.cards, s.stadium) < 0) return "Your opponent's Bench is full";
+      return s.opp.discard.some((c) => isBasicPokemon(lookupCard(s.cards, c.defId))) ? null : "Your opponent has no Basic Pokémon in their discard pile";
     },
     use(ctx) {
       if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');

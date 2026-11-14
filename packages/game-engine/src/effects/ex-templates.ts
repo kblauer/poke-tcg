@@ -8,12 +8,11 @@
 import { applyWeaknessResistance, type AttackContext, type AttackEffect, type ChoiceSpec } from '../attacks.js';
 import { hasType, isBasicEnergy, lookupCard, namesMatch, typesOf, type CardLibrary, type EnergyType } from '../cards.js';
 import type { PendingChoice } from '../trainers.js';
-import { counts, discardTool, energyPool, isEnergyCardOf, isSpecialEnergy, PRIZE_COUNT, retreatCost, type Affliction, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
+import { retireStadium, counts, discardTool, energyPool, isEnergyCardOf, isSpecialEnergy, PRIZE_COUNT, retreatCost, type Affliction, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { nextRandom, shuffle } from '../rng.js';
 import { clearSpecialConditions, devolvable, evolvedFromName, hasSpecialCondition, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { benchedSlots, benchSearch, benchTarget, charmFor, discardToUse, energyCanMove, extraEnergy, flipToInflict, flipToProtect, guardNext, headsUntilTails, inflicts, inPlay, lure, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
 import { copyAttack, discardDefenderTrainers } from './ecard2.js';
-import { discardStadium } from './gym2.js';
 import { discardAtRandom, eachDefending, energyAmount, restNextTurn } from './ex1.js';
 import { devolve } from './ex2.js';
 import { smokescreen } from './fossil.js';
@@ -563,7 +562,7 @@ const DP_TEMPLATES: Record<string, AttackTemplate> = {
       run(ctx) {
         const stadium = ctx.state.stadium;
         ctx.hit(stadium ? num(base) + num(more) : num(base));
-        if (stadium && ctx.state.stadium === stadium) discardStadium(ctx);
+        if (stadium && ctx.state.stadium === stadium) retireStadium(ctx.state);
       },
     }),
   },
@@ -1061,7 +1060,7 @@ const DP_TEMPLATES_3: Record<string, AttackTemplate> = {
       choices: (s): ChoiceSpec[] => (s.stadium ? [{ kind: 'boost', options: [true, false], prompt: 'Discard the Stadium card in play?' }] : []),
       run(ctx) {
         ctx.hit(d);
-        if (ctx.choices.boost) discardStadium(ctx);
+        if (ctx.choices.boost) retireStadium(ctx.state);
       },
     }),
   },

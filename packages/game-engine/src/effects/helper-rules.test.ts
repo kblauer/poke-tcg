@@ -136,6 +136,114 @@ describe('switches go through swapActive', () => {
   });
 });
 
+describe('Bench room goes through openBenchSlot, with the Stadium', () => {
+  const power = (id: string, name: string, powerName: string, extra: Partial<PokemonCardDef> = {}) => mon(id, name, C, 60, [], { power: { name: powerName, text: '' }, ...extra });
+  const squirtles = (s: GameState, player: string, slots: number[]) => slots.forEach((i) => put(s, player, i, mon('base1-63', 'Squirtle', W, 40, [])));
+  const toDiscard = (s: GameState, player: string, def: CardDef) => {
+    s.cards = { ...s.cards, [def.id]: def };
+    s.players[player]!.discard.push({ uid: `${def.id}-${n++}`, defId: def.id });
+  };
+  const usePower = (source: Target) => (s: GameState) => act(flips(s, true), 'ash', { type: 'USE_POWER', source });
+
+  /**
+   * Each Gen 4 effect that puts a Pokémon onto a Bench, with 4 Pokémon on that Bench: `setup`, then `go` uses it. Two different
+   * cards to pick from, or the same-card rule answers by itself.
+   */
+  const BENCHERS: [name: string, setup: (s: GameState) => void, go: (s: GameState) => GameState][] = [
+    ['Unown C (Call)', (s) => (squirtles(s, 'ash', [1, 2, 3]), void put(s, 'ash', 0, power('dp1-67', 'Unown C', 'Call'))), usePower(0)],
+    ['Illumise (Scent Conduct)', (s) => (squirtles(s, 'ash', [1, 2, 3]), void put(s, 'ash', 0, power('dp4-71', 'Illumise', 'Scent Conduct'))), usePower(0)],
+    ['Unown A (Ancient Guidance)', (s) => (squirtles(s, 'ash', [1, 2, 3]), void put(s, 'ash', 0, power('dp5-67', 'Unown A', 'Ancient Guidance'))), usePower(0)],
+    [
+      'Unown C (Call Up)',
+      (s) => (squirtles(s, 'ash', [1, 2, 3]), put(s, 'ash', 0, power('dp5-69', 'Unown C', 'Call Up')), toDiscard(s, 'ash', mon('helix', 'Helix Fossil', C, 50, [], { trainerText: '' })), toDiscard(s, 'ash', mon('dome', 'Dome Fossil', C, 50, [], { trainerText: '' }))),
+      usePower(0),
+    ],
+    [
+      "Garchomp LV.X (Restore)",
+      (s) => (squirtles(s, 'ash', [0, 1, 2, 3]), put(s, 'ash', 'active', mon('dp5-97', 'Garchomp', C, 140, [['Restore', [C], 0]]), ['fire']), toDiscard(s, 'ash', mon('base1-46', 'Charmander', F, 50, [])), toDiscard(s, 'ash', mon('base1-63', 'Squirtle', W, 40, []))),
+      (s) => attack(s, 0),
+    ],
+    [
+      'Ninjask (Cast-off Shell)',
+      (s) => (squirtles(s, 'ash', [0, 1, 2, 3]), put(s, 'ash', 'active', mon('dp6-109', 'Nincada', C, 50, [])), void hand(s, 'ash', mon('dp6-40', 'Shedinja', C, 60, [], { stage: 'stage1', evolvesFrom: 'Nincada' }))),
+      (s) => act(s, 'ash', { type: 'EVOLVE', cardUid: hand(s, 'ash', power('dp6-67', 'Ninjask', 'Cast-off Shell', { stage: 'stage1', evolvesFrom: 'Nincada' })), target: 'active' }),
+    ],
+    [
+      'Beldum (Metal Chain)',
+      (s) => (squirtles(s, 'ash', [0, 1, 2, 3]), void put(s, 'ash', 'active', power('dp6-83', 'Beldum', 'Metal Chain'))),
+      (s) => act(s, 'ash', { type: 'ATTACH_ENERGY', cardUid: hand(s, 'ash', { id: 'metal-e', kind: 'energy', name: 'Metal Energy', imageUrl: null, energyType: 'metal' }), target: 'active' }),
+    ],
+    [
+      "Honchkrow (Darkness Restore, the opponent's Bench)",
+      (s) => (squirtles(s, 'misty', [0, 1, 2, 3]), put(s, 'ash', 'active', power('pl3-29', 'Honchkrow', 'Darkness Restore')), toDiscard(s, 'misty', mon('base1-46', 'Charmander', F, 50, [])), toDiscard(s, 'misty', mon('base1-63', 'Squirtle', W, 40, []))),
+      usePower('active'),
+    ],
+  ];
+  const outcome = (setup: (s: GameState) => void, go: (s: GameState) => GameState, narrow: boolean) => {
+    const s = duel('charmander', 'onix');
+    setup(s);
+    if (narrow) {
+      s.cards = { ...s.cards, 'gym1-124': { id: 'gym1-124', kind: 'trainer', name: 'Narrow Gym', imageUrl: null, text: '' } };
+      s.stadium = { card: { uid: 'narrow', defId: 'gym1-124' }, owner: 'misty' };
+    }
+    try {
+      return go(s).pendingChoice ? 'asked' : 'nothing';
+    } catch {
+      return 'refused';
+    }
+  };
+
+  it.each(BENCHERS)('%s: offered with room for one more, never under Narrow Gym with 4 Benched', (_name, setup, go) => {
+    expect(outcome(setup, go, false)).toBe('asked');
+    expect(outcome(setup, go, true)).not.toBe('asked');
+  });
+});
+
+describe('a Stadium leaves play through retireStadium', () => {
+  const dusknoirX = mon('dp7-96', 'Dusknoir', C, 130, [], { stage: 'levelUp', power: { name: 'Ectoplasm', text: '' } });
+  const gym: CardDef = { id: 'some-gym', kind: 'trainer', name: 'Some Gym', imageUrl: null, text: '' };
+  const hits = (id: string, name: string, choices?: Parameters<typeof attack>[2]) => (s: GameState) => {
+    put(s, 'ash', 'active', mon(id, 'Attacker', C, 200, [[name, [C], 0]]), ['fire']);
+    return attack(s, 0, choices);
+  };
+  /** Each effect that discards the Stadium in play (the opponent's, here). */
+  const DISCARDS: [name: string, go: (s: GameState) => GameState][] = [
+    ['Spacial Rend', hits('dp1-11', 'Spacial Rend')],
+    ['Pulse Barrier', hits('dp2-121', 'Pulse Barrier')],
+    ['Detonate', hits('gym2-34', 'Detonate')],
+    ['Mega Thrash', hits('gym2-35', 'Mega Thrash')],
+    ['Shatter', hits('ex10-111', 'Shatter')],
+    ['Wreck (EX Holon Phantoms)', hits('ex13-50', 'Wreck')],
+    ['Wreck (EX Power Keepers)', hits('ex16-99', 'Wreck')],
+    ['Knock Over', hits('ex4-31', 'Knock Over', { boost: true })],
+    ['a new Stadium played over it', (s) => playAuto(s, 'ash', hand(s, 'ash', { id: 'gym1-124', kind: 'trainer', name: 'Narrow Gym', imageUrl: null, text: '' }))],
+  ];
+  const withStadium = (def: CardDef) => {
+    const s = duel('charmander', 'onix');
+    s.cards = { ...s.cards, [def.id]: def };
+    s.stadium = { card: { uid: 'the-stadium', defId: def.id }, owner: 'misty' };
+    s.players.ash!.deck = [];
+    return s;
+  };
+  const where = (s: GameState) => (['hand', 'discard', 'deck'] as const).filter((zone) => s.players.misty![zone].some((c) => c.uid === 'the-stadium'));
+
+  it.each(DISCARDS)("%s: a Stadium card to its owner's discard pile, Ectoplasm's Dusknoir LV.X back to their hand", (_name, go) => {
+    const plain = go(withStadium(gym));
+    expect([plain.stadium?.card.uid === 'the-stadium', where(plain)]).toEqual([false, ['discard']]);
+    const ecto = go(withStadium(dusknoirX));
+    expect([ecto.stadium?.card.uid === 'the-stadium', where(ecto)]).toEqual([false, ['hand']]);
+  });
+
+  it("Sand Reset shuffles a Stadium into its player's deck, Ectoplasm's Dusknoir LV.X too (agreed 2026-11-14: it's treated as a Stadium)", () => {
+    for (const def of [gym, dusknoirX]) {
+      const s = withStadium(def);
+      put(s, 'ash', 'active', mon('pl2-107', 'Hippowdon', C, 130, [], { power: { name: 'Sand Reset', text: '' } }));
+      const after = act(s, 'ash', { type: 'USE_POWER', source: 'active' });
+      expect([after.stadium, where(after)]).toEqual([null, ['deck']]);
+    }
+  });
+});
+
 describe('an Evolved Pokémon (isEvolved)', () => {
   it("isn't a Basic Pokémon with a LV.X on it; an Evolution card under a LV.X still counts", () => {
     const s = duel('charmander', 'onix');

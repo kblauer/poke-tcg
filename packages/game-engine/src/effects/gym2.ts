@@ -8,7 +8,7 @@
 // copy before the flips. Group Attack asks how many Koga's Zubat to bench (up to the room on the Bench) before searching.
 import { targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { hasType, isBasicPokemon, isTrainerCard, lookupCard } from '../cards.js';
-import { activeLocked, discardTheirEnergy, isEnergyCardOf, newInPlay, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
+import { retireStadium, activeLocked, discardTheirEnergy, isEnergyCardOf, newInPlay, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { energyKept, evolutionBlocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { benchRoom, energyProtected, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
@@ -40,15 +40,6 @@ const onceInPlay = (ctx: AttackContext, name: string) => {
   const effects = (ctx.attacker.effects ??= {});
   effects.usedOnce = [...(effects.usedOnce ?? []), name];
 };
-
-/** A Stadium in play is discarded, to its owner's discard pile (Detonate, Mega Thrash). */
-export function discardStadium(ctx: AttackContext) {
-  const stadium = ctx.state.stadium;
-  if (!stadium) return;
-  ctx.state.players[stadium.owner]!.discard.push(stadium.card);
-  ctx.state.stadium = null;
-  ctx.log(`${lookupCard(ctx.state.cards, stadium.card.defId).name} was discarded.`, stadium.owner);
-}
 
 /** Heals up to `amount` from every damaged Pokémon of `player`. */
 function healAll(ctx: AttackContext, player: PlayerState, amount: number) {
@@ -461,7 +452,7 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
         ctx.benchDamage(ctx.opp, 10);
         ctx.benchDamage(ctx.me, 10);
         ctx.selfDamage(50);
-        discardStadium(ctx);
+        retireStadium(ctx.state);
       },
     },
   },
@@ -471,7 +462,7 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         ctx.hit(60);
         ctx.selfDamage(20);
-        discardStadium(ctx);
+        retireStadium(ctx.state);
       },
     },
   },

@@ -8,7 +8,7 @@
 // Energy card; Cycler's card goes on top before the search; Sacrifice's Pokémon is Knocked Out (its Prize card taken) before
 // the Energy cards are picked, so they can be its; Darkness Drive and Fainting Spell's "you may" are always used; Evolutionary
 // Gas's Pokémon can still attack, and the attack does nothing (agreed, `fizzle`).
-import { isBasicEnergy, lookupCard } from '../cards.js';
+import { isBasicEnergy, isBasicPokemon, lookupCard } from '../cards.js';
 import { afflictBetweenTurns, energyPool, isEnergyCardOf, resolveKnockouts, type Target } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, type PowerEffect } from '../powers.js';
 import { addLog, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
@@ -42,10 +42,7 @@ export const DP7_POWERS: Record<string, PowerEffect> = {
     blocked: (s) => onlyActive(s, 'Lumineon'),
     use(ctx) {
       const room = openBenchSlot(ctx.opp, ctx.state.cards, ctx.state.stadium?.card) >= 0;
-      const basic = room && ctx.opp.hand.some((c) => {
-        const d = lookupCard(ctx.state.cards, c.defId);
-        return d.kind === 'pokemon' && d.stage === 'basic' && !d.trainerText;
-      });
+      const basic = room && ctx.opp.hand.some((c) => isBasicPokemon(lookupCard(ctx.state.cards, c.defId)));
       ctx.pend({ kind: basic ? 'oppHandToActive' : 'lookOppHand', source: 'Fin Luster' });
     },
   },

@@ -9,7 +9,7 @@
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { targetsIn } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch, isTrainerCard } from '../cards.js';
-import { energyPool, type InPlayPokemon } from '../engine.js';
+import { retireStadium, energyPool, type InPlayPokemon } from '../engine.js';
 import { nextRandom } from '../rng.js';
 import { clearSpecialConditions, inPlayDef, isDelta, pokemonName } from '../status.js';
 import { benchedSlots, guardNext, headsUntilTails, opponentBenchChoice } from './common.js';
@@ -271,9 +271,7 @@ export const EX13: Record<string, Record<string, AttackEffect>> = {
         const stadium = ctx.state.stadium;
         ctx.hit(stadium ? 60 : 30);
         if (!stadium) return;
-        ctx.state.players[stadium.owner]!.discard.push(stadium.card);
-        ctx.state.stadium = null;
-        ctx.log(`Discarded ${lookupCard(ctx.state.cards, stadium.card.defId).name}.`);
+        retireStadium(ctx.state);
       },
     },
     'Flames of Rage': { discard: { count: 2 }, run: (ctx) => void ctx.hit(10 + 2 * ctx.attacker.damage) },

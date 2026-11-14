@@ -10,7 +10,7 @@
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { targetsIn } from '../attacks.js';
 import { hasType, isBasicEnergy, lookupCard, namesMatch, type EnergyType } from '../cards.js';
-import { isEnergyCardOf, isSpecialEnergy } from '../engine.js';
+import { retireStadium, isEnergyCardOf, isSpecialEnergy } from '../engine.js';
 import { clearSpecialConditions, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
 import { shuffle } from '../rng.js';
 import { trainerEffect } from './index.js';
@@ -465,9 +465,7 @@ export const EX10: Record<string, Record<string, AttackEffect>> = {
         ctx.hit(30);
         const stadium = ctx.state.stadium;
         if (!stadium) return;
-        ctx.state.players[stadium.owner]!.discard.push(stadium.card);
-        ctx.state.stadium = null;
-        ctx.log(`Discarded ${lookupCard(ctx.state.cards, stadium.card.defId).name}.`);
+        retireStadium(ctx.state);
       },
     },
     Derail: {

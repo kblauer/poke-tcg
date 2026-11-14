@@ -8,7 +8,7 @@ import { lookupCard } from '../cards.js';
 import { activeLocked, isEnergyCardOf, type CardInstance } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
 import { nextRandom } from '../rng.js';
-import { devolvable, evolvedFromName, inPlayDef, pokemonName } from '../status.js';
+import { devolvable, evolvedFromName, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { onEvolveMay, onlyBenched } from './common.js';
 import { shuffleIntoDeck } from './dp1.js';
@@ -100,7 +100,7 @@ export const DP1_POWERS: Record<string, PowerEffect> = {
   // Unown C – Call: on the Bench, heads: any Unown from the deck onto the Bench.
   'dp1-67': {
     oncePerTurn: true,
-    blocked: (s) => onlyBenched(s, 'Unown C') ?? (s.me.bench.some((p) => !p) ? null : 'Your Bench is full'),
+    blocked: (s) => onlyBenched(s, 'Unown C') ?? (openBenchSlot(s.me, s.cards, s.stadium) >= 0 ? null : 'Your Bench is full'),
     use(ctx) {
       if (!ctx.flip()) return ctx.log('Call did nothing.');
       if (ctx.me.deck.length) ctx.pend({ kind: 'pickFromDeck', source: 'Call', filter: 'ownerBasic', name: 'Unown', toBench: true, optional: true });

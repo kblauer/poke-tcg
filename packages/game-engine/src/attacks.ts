@@ -24,6 +24,7 @@ import {
   type PlayerState,
   type PokemonEffects,
   type Target,
+  retireStadium,
 } from './engine.js';
 import { askChoice, hasPowerOrBody, greenAroma, stickyHold, conditionBarred, conditionFree, discardsLocked, hasReact, holonWith, reactCount, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy, type Sides, pokemonPower } from './powers.js';
 import { shuffle } from './rng.js';
@@ -884,9 +885,8 @@ export function performAttack(
   // Holon Circle: an Active Pokémon's attack does nothing at all; then the Stadium is discarded.
   const circle = state.stadium;
   if (circle && lookupCard(state.cards, circle.card.defId).name === 'Holon Circle') {
-    state.players[circle.owner]!.discard.push(circle.card);
-    state.stadium = null;
-    addLog(state, `Holon Circle: ${attack.name} did nothing, and Holon Circle was discarded.`, me.id);
+    addLog(state, `Holon Circle: ${attack.name} did nothing.`, me.id);
+    retireStadium(state);
     return null;
   }
   // Ink Spurt lasts until the Pokémon evolves or is benched.

@@ -8,8 +8,8 @@
 // turn; Pulse Barrier protects only when it discarded something; Hidden Power (Unown I) turns the Energy card face down
 // until the end of the opponent's next turn.
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
-import { hasType, isBasicEnergy, lookupCard, namesMatch, type CardLibrary } from '../cards.js';
-import { counts, discardTool, energyPool, isEnergyCardOf, isSpecialEnergy, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
+import { hasType, isBasicEnergy, isBasicPokemon, lookupCard, namesMatch, type CardLibrary } from '../cards.js';
+import { retireStadium, counts, discardTool, energyPool, isEnergyCardOf, isSpecialEnergy, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { evolvedFromName, inPlayDef, pokemonName } from '../status.js';
@@ -19,7 +19,6 @@ import { DP1, removeDefenderEnergy, shuffleIntoDeck } from './dp1.js';
 import { discardAtRandom, energyAmount, restNextTurn } from './ex1.js';
 import { discardOwn, energyCardOf } from './ex2.js';
 import { EX13 } from './ex13.js';
-import { discardStadium } from './gym2.js';
 import { notNextTurn } from './neo3.js';
 import { evolutionsOf } from './neo2.js';
 import { healUpTo } from './si1.js';
@@ -280,7 +279,7 @@ export const DP2: Record<string, Record<string, AttackEffect>> = {
     'Strange Bell': {
       run(ctx) {
         ctx.hit(20);
-        if (ctx.defenderDef.stage === 'basic') ctx.inflict('confused');
+        if (isBasicPokemon(ctx.defenderDef)) ctx.inflict('confused');
       },
     },
   },
@@ -704,7 +703,7 @@ export const DP2: Record<string, Record<string, AttackEffect>> = {
           }
         }
         if (ctx.state.stadium?.owner === ctx.opp.id) {
-          discardStadium(ctx);
+          retireStadium(ctx.state);
           gone++;
         }
         if (gone) ctx.protect('preventAll');

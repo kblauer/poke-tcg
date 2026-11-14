@@ -9,7 +9,7 @@
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import type { PendingChoice, PendingChoiceInput } from '../trainers.js';
 import { hasType, lookupCard, type CardLibrary, type EnergyType } from '../cards.js';
-import { counts, discardTheirEnergy, energyPool, isSpecialEnergy, PRIZE_COUNT, retreatCost, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
+import { retireStadium, counts, discardTheirEnergy, energyPool, isSpecialEnergy, PRIZE_COUNT, retreatCost, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { clearOnLeavingActive, countersMoved, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution, sameCards } from '../status.js';
@@ -21,7 +21,6 @@ import { discardOwn, energyCardOf, EX2 } from './ex2.js';
 import { EX6 } from './ex6.js';
 import { EX8 } from './ex8.js';
 import { energyCanGo } from './neo3.js';
-import { discardStadium } from './gym2.js';
 import { healUpTo } from './si1.js';
 
 /** Damage counters on one of the opponent's Pokémon (not attack damage: no Weakness or Resistance), if the attack can affect it. */
@@ -197,7 +196,7 @@ export const DP1: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         ctx.hit(10);
         if (ctx.me.deck.length) ctx.pend({ kind: 'pickFromDeck', source: 'Spacial Rend', filter: 'stadium', reveal: true, optional: true });
-        discardStadium(ctx);
+        retireStadium(ctx.state);
       },
     },
     Transback: {

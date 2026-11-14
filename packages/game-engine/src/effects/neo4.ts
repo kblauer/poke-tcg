@@ -14,14 +14,13 @@
 // 20 damage gets Weakness and Resistance, as Fire Wall's does. Charm lowers every attack damage the Defending Pokémon does.
 import { pokemonOn, targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { hasType, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard } from '../cards.js';
-import { energyPool, isEnergyCardOf, isSpecialEnergy, newInPlay, type CardInstance, type PlayerState, type Target } from '../engine.js';
+import { retireStadium, energyPool, isEnergyCardOf, isSpecialEnergy, newInPlay, type CardInstance, type PlayerState, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
 import { clearOnLeavingActive, devolvable, inPlayDef, openBenchSlot, pokemonName, removeTopEvolution } from '../status.js';
 import { pokemonTower } from '../trainers.js';
 import { benchTarget, discardToUse, energyCards, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentBenchChoice, opponentSwitches, perHeads, recoil } from './common.js';
 import { smokescreen } from './fossil.js';
 import { discardFromAttacker, healEach, noRetreat } from './gym1.js';
-import { discardStadium } from './gym2.js';
 import { flipForMore } from './jungle.js';
 import { damageOpponent, hold, opponentTargets, swift } from './neo1.js';
 import { evolutionsOf, hiddenPower, hiddenPowerOf } from './neo2.js';
@@ -417,7 +416,7 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
       choices: (s): ChoiceSpec[] => (s.stadium ? [{ kind: 'boost', options: [true, false], prompt: 'Discard the Stadium card in play?' }] : []),
       run(ctx) {
         ctx.hit(30);
-        if (ctx.choices.boost) discardStadium(ctx);
+        if (ctx.choices.boost) retireStadium(ctx.state);
       },
     },
   },

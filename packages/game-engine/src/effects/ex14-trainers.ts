@@ -8,6 +8,7 @@
 // Mysterious Shard keeps the opponent's Pokémon-ex's attacks off its Pokémon until the end of the opponent's next turn;
 // Castaway's three searches are each "if any"; Windstorm discards up to 2 Pokémon Tools and Stadiums in play, either player's.
 import { lookupCard } from '../cards.js';
+import { retireStadium } from '../engine.js';
 import { type EnergyEffect, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 import { pokemonName } from '../status.js';
 import { ECARD2_TRAINERS } from './ecard2-trainers.js';
@@ -72,10 +73,7 @@ export const EX14_TRAINERS: Record<string, TrainerEffect> = {
     play(ctx) {
       for (const uid of ctx.choices.discardUids ?? []) {
         if (ctx.state.stadium?.card.uid === uid) {
-          const stadium = ctx.state.stadium;
-          ctx.state.players[stadium.owner]!.discard.push(stadium.card);
-          ctx.state.stadium = null;
-          ctx.log(`Discarded ${lookupCard(ctx.state.cards, stadium.card.defId).name}.`);
+          retireStadium(ctx.state);
           continue;
         }
         for (const player of [ctx.me, ctx.opp]) {

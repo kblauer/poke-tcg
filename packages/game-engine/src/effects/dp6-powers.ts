@@ -11,7 +11,7 @@
 import { lookupCard, namesMatch, typesOf, type EnergyType } from '../cards.js';
 import { afflictBetweenTurns, opponentOf, type Target } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, clearSpecialConditions, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
+import { addLog, clearSpecialConditions, evolvedFromHand, hasSpecialCondition, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { inPlay, onlyBenched, POKE_BODY, targetOf } from './common.js';
 import { onBench, onLevelUp } from './dp5-powers.js';
@@ -204,7 +204,7 @@ export const DP6_POWERS: Record<string, PowerEffect> = {
   // Ninjask – Cast-off Shell: evolving from the hand, with room on the Bench (mayUse).
   'dp6-67': {
     onPlayFromHand(state, owner, pokemon) {
-      if (!pokemon.evolvedFrom.length || pokemon.levelUpFrom || !owner.bench.some((p) => !p)) return;
+      if (!evolvedFromHand(pokemon) || openBenchSlot(owner, state.cards, state.stadium?.card) < 0) return;
       const has = (pile: { defId: string }[]) => pile.some((c) => lookupCard(state.cards, c.defId).name === 'Shedinja');
       if (!has(owner.hand) && !has(owner.discard)) return;
       state.pendingChoice = { player: owner.id, source: 'Cast-off Shell', kind: 'mayUse', power: 'castOffShell', target: targetOf(owner, pokemon) };
@@ -265,7 +265,7 @@ export const DP6_POWERS: Record<string, PowerEffect> = {
   'dp6-83': {
     onEnergyFromHand(state, owner, pokemon, _target, energy) {
       const key = `Metal Chain ${pokemon.card.uid}`;
-      if (state.currentPlayer !== owner.id || (owner.powerTurns?.[key] ?? -1) >= state.turn || !energyCardOf(state.cards, energy, 'metal') || !owner.bench.some((p) => !p) || !owner.deck.length) return;
+      if (state.currentPlayer !== owner.id || (owner.powerTurns?.[key] ?? -1) >= state.turn || !energyCardOf(state.cards, energy, 'metal') || openBenchSlot(owner, state.cards, state.stadium?.card) < 0 || !owner.deck.length) return;
       owner.powerTurns = { ...owner.powerTurns, [key]: state.turn };
       state.pendingChoice = { player: owner.id, source: 'Metal Chain', kind: 'pickFromDeck', filter: 'basicNamed', name: 'Beldum', toBench: true, optional: true };
     },

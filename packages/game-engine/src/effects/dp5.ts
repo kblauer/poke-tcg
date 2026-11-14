@@ -6,7 +6,7 @@
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch } from '../cards.js';
 import { isSpecialEnergy, type InPlayPokemon, type Target } from '../engine.js';
-import { inPlayDef } from '../status.js';
+import { inPlayDef, openBenchSlot } from '../status.js';
 import { benchedSlots, energyCards, headsUntilTails, inPlay, opponentBenchChoice, same } from './common.js';
 import { discardOwnEnergy, removeDefenderEnergy } from './dp1.js';
 import { DP4 } from './dp4.js';
@@ -308,7 +308,7 @@ export const DP5: Record<string, Record<string, AttackEffect>> = {
   'dp5-97': {
     Restore: {
       run(ctx) {
-        if (ctx.me.bench.every(Boolean)) return ctx.log('Your Bench is full.');
+        if (openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card) < 0) return ctx.log('Your Bench is full.');
         ctx.pend({ kind: 'discardToBench', source: 'Restore', filter: 'restore', energy: 3 });
       },
     },
