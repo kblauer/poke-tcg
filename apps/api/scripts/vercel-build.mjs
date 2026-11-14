@@ -33,7 +33,9 @@ await build({
 await cp(`${root}apps/web/public/holo-masks`, `${func}/holo-masks`, { recursive: true });
 
 // The card catalog beside the function (src/catalog.ts reads it at start), read from the deployment's database once
-// per build instead of once per instance. Without it the API still works, reading the table itself.
+// per seed rather than once per instance: dump-catalog.ts keeps the dump between builds in node_modules/.cache under the
+// table's fingerprint and reads the table only when it has none of that fingerprint (its log says "Reused the cached
+// catalog" or "Wrote … catalog cards"). Without the file the API still works, reading the table itself.
 try {
   execFileSync('tsx', [fileURLToPath(new URL('./dump-catalog.ts', import.meta.url)), `${func}/catalog.json`], { stdio: 'inherit', shell: process.platform === 'win32' });
 } catch {
