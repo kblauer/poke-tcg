@@ -10,6 +10,8 @@
 //    rules engine, no run maps or boss decks and no Idle Adventure data, and stays under ENTRY_BUDGET_KB.
 // 3. The rules engine's card effects load only with the battle page (Game).
 // 4. The Idle Adventure's species data loads only with the Idle Adventure and the Extras (the contest lobby).
+// 5. Each region's run maps (campaign's kanto-run-maps.ts…) are a chunk of their own, holding no other region's, that no
+//    page loads with it: only loadRunMaps' dynamic import brings one, for the run screen of a run of that region.
 //
 // Skipped (exit 0, with a note) for a build made with the debug tools on (VITE_ENABLE_DEBUG=true): rule 1 can't hold.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -25,15 +27,23 @@ if (!existsSync(join(dist, 'index.html'))) {
 
 /** The debug procedures' names (the API's `debugProcedure`s the site calls) and the debug buttons' words. */
 const DEBUG_STRINGS = ['setFlags', 'addCurrency', 'debugOpen', 'debugSkipBattle', 'debugStart', 'debugWarp', 'debugMoney', 'debugCatch', 'debugNext', 'Skip battle', 'Unlock everything', 'Debug: force'];
-/** A string only that data holds: an attack's text, a run map's picture, a species' field. */
+/** Each region's run maps: a string only they hold (a gym's picture: the Idle Adventure has route pictures of its own). */
+const REGION_MAPS = {
+  'Kanto\'s run maps': '/routes/pewter_gym.png',
+  'Johto\'s run maps': '/routes/violet_gym.png',
+  'Hoenn\'s run maps': '/routes/rustboro_gym.png',
+  'Sinnoh\'s run maps': '/routes/oreburgh_gym.png',
+};
+/** A string only that data holds: an attack's text, a boss's deck name, a species' field, a run map's picture. */
 const MARKERS = {
   'the rules engine\'s card effects': 'is now Paralyzed',
-  'the run maps and boss decks': '/routes/petalburg_woods.png',
+  'the boss decks': 'Zapping Selfdestruct',
   'the Idle Adventure\'s species data': 'catchRate',
+  ...REGION_MAPS,
 };
-const [ENGINE, MAPS, IDLE] = Object.keys(MARKERS);
-/** The pages (their chunks' names) that may load each kind of data; the site's first load may load none. */
-const ALLOWED = { [ENGINE]: ['Game'], [IDLE]: ['Idle', 'Extras'] };
+const [ENGINE, , IDLE] = Object.keys(MARKERS);
+/** The pages (their chunks' names) that may load each kind of data; the site's first load may load none, and no page a region's maps. */
+const ALLOWED = { [ENGINE]: ['Game'], [IDLE]: ['Idle', 'Extras'], ...Object.fromEntries(Object.keys(REGION_MAPS).map((what) => [what, []])) };
 /** The first load's size limit, in kB before compression (300 kB of it is React, the router, tRPC and Supabase's client). */
 const ENTRY_BUDGET_KB = 800;
 
@@ -83,8 +93,15 @@ for (const [what, marker] of Object.entries(MARKERS)) {
   if (!allowed) continue;
   for (const root of lazy) {
     if (allowed.includes(page(root))) continue;
-    for (const name of holding(closure(root), marker)) failures.push(`${page(root)} loads ${what} (${name}); only ${allowed.join(' and ')} may`);
+    for (const name of holding(closure(root), marker)) failures.push(`${page(root)} loads ${what} (${name}); ${allowed.length ? `only ${allowed.join(' and ')} may` : 'no page may'}`);
   }
+}
+
+// 5. Each region's maps in a chunk of their own (that no page loads with it: ALLOWED, above).
+for (const [what, marker] of Object.entries(REGION_MAPS)) {
+  const [own, ...more] = holding(chunks.keys(), marker);
+  if (more.length) failures.push(`${what} are in ${[own, ...more].join(', ')}, not one chunk`);
+  for (const [other, theirs] of Object.entries(REGION_MAPS)) if (own && other !== what && chunks.get(own).includes(theirs)) failures.push(`${what}' chunk ${own} holds ${other} too`);
 }
 
 const sizes = Object.entries(MARKERS).map(([what, marker]) => `${what}: ${holding(chunks.keys(), marker).map((name) => `${name} ${kB([name]).toFixed(0)} kB`).join(', ')}`);
