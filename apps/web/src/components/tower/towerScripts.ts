@@ -4,6 +4,7 @@
 import { routePath, TOP_FLOOR, TOWER_ROOMS, towerGeneration, type TowerAction, type TowerRoom, type TowerSprites } from '@poke-tcg/campaign';
 import type { PlayerGender } from '@poke-tcg/shared';
 import type { ClientTower } from '../../hooks/useTower';
+import { DEBUG_BUILD } from '../../utils/debug';
 import { playerSprite, type Facing } from '../../utils/overworld';
 import { facing } from '../../utils/routeFigures';
 import type { SceneSteps } from './TowerScene';
@@ -314,7 +315,7 @@ async function between(s: SceneSteps, ctx: TowerContext, challenge: ClientTower,
   const r = room.points;
   const spot = r.attendantSpot;
   const said = (text: string) => s.say(text, 'Attendant');
-  const choices = ['Continue', 'Save and quit', 'Concede', ...(ctx.skip ? ['Skip battle (debug)'] : [])];
+  const choices = ['Continue', 'Save and quit', 'Concede', ...(DEBUG_BUILD && ctx.skip ? ['Skip battle (debug)'] : [])];
   // The attendant's conversation keeps room for his choices throughout (the box never reflows as they come up).
   s.reserve(choices);
   if (spot) {

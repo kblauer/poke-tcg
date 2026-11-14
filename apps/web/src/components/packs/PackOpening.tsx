@@ -7,7 +7,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { useTRPC } from '../../lib/trpc';
-import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
+import { DEBUG_BUILD, NO_DEBUG, useDebugEnabled } from '../../utils/debug';
 import { useCosmetics } from '../../hooks/useCosmetics';
 import { useFlair, usePattern } from '../../hooks/useFlair';
 import { holoAttributes } from '../../utils/holo';
@@ -167,7 +167,7 @@ export function PackOpening({
     },
   };
   const buy = useMutation(trpc.packs.open.mutationOptions(opened));
-  const debugBuy = useMutation(trpc.packs.debugOpen.mutationOptions(opened));
+  const debugBuy = useMutation(DEBUG_BUILD ? trpc.packs.debugOpen.mutationOptions(opened) : NO_DEBUG);
   // Whichever opened them: pending and errors come from either.
   const open = {
     isPending: buy.isPending || debugBuy.isPending,
