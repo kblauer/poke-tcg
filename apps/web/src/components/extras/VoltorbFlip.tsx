@@ -4,8 +4,9 @@ import { useTRPC } from '../../lib/trpc';
 import { VoltorbFlipScreen } from './VoltorbFlipScreen';
 
 /**
- * Voltorb Flip (the Extras page's): HeartGold and SoulSilver's game (VoltorbFlipScreen), its boards made and its rounds
- * settled by the API (`extras.voltorbRound`, `extras.voltorbSettle`), the coins won going into the account's Coin
+ * Voltorb Flip (the Extras page's): HeartGold and SoulSilver's game (VoltorbFlipScreen), its boards made, its cards
+ * flipped and its rounds settled by the API (`extras.voltorbRound`, `extras.voltorbFlip`, `extras.voltorbSettle`: the
+ * cards never come before they're flipped), the coins won going into the account's Coin
  * Case, the Game Corner's. Quitting at its menu goes back to the Extras page.
  */
 export function VoltorbFlip() {
@@ -14,6 +15,7 @@ export function VoltorbFlip() {
   const navigate = useNavigate();
   const accountName = useQuery(trpc.community.accountName.queryOptions());
   const round = useMutation(trpc.extras.voltorbRound.mutationOptions());
+  const flip = useMutation(trpc.extras.voltorbFlip.mutationOptions());
   const settle = useMutation(
     trpc.extras.voltorbSettle.mutationOptions({
       onSuccess: () => queryClient.invalidateQueries({ queryKey: trpc.extras.gameCorner.queryKey() }),
@@ -25,7 +27,8 @@ export function VoltorbFlip() {
     <VoltorbFlipScreen
       playerName={playerName}
       onRound={(restart) => round.mutateAsync({ restart })}
-      onSettle={(flips, outcome) => settle.mutateAsync({ flips, outcome })}
+      onFlip={(card) => flip.mutateAsync({ card })}
+      onSettle={(outcome) => settle.mutateAsync({ outcome })}
       onExit={() => navigate({ to: '/extras' })}
     />
   );

@@ -243,7 +243,8 @@ export const coinRoundInput = z.object({ game: z.enum(['roulette', 'slots']), be
 // Voltorb Flip: the next board (`restart` when the game is entered: a new session, from Lv. 1); a round's end, its cards
 // flipped in order and how it ended (settleRound checks them against the board).
 export const voltorbRoundInput = z.object({ restart: z.boolean() });
-export const voltorbSettleInput = z.object({ flips: z.array(z.number().int().min(0).max(24)).max(25), outcome: z.enum(['quit', 'won', 'lost']) });
+export const voltorbFlipInput = z.object({ card: z.number().int().min(0).max(24) });
+export const voltorbSettleInput = z.object({ outcome: z.enum(['quit', 'won', 'lost']) });
 
 /** Who's That Pokémon?: a typed name (a Pokémon's, at most 30 characters), a run's event, the Extras mode's games and leaderboards. */
 const whosThatGuess = z.string().max(30);
