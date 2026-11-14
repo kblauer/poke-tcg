@@ -166,6 +166,28 @@ export function GamePage() {
   const logView = shownView ?? data?.view;
   useGameLogInNav(logView ? { log: logView.log, you: logView.you, gameId, view: logView } : null);
 
+  // A run's or a challenge's battle is settled by the API with its last action (game.act), so their overviews (the site
+  // menu's HP, ₱ and log, the Play tiles, the run screen) are fetched again once for a finished game: as its result comes
+  // on screen (not before: the menu mustn't give it away while the last coin flips play), or as the page is left before
+  // that, by the site menu or the result's own button alike.
+  const finished = data?.view.phase === 'finished';
+  const resultShown = logView?.phase === 'finished';
+  const runId = data?.runId;
+  const towerId = data?.towerId;
+  const settledFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!finished) return;
+    const refresh = () => {
+      if (settledFor.current === gameId) return;
+      settledFor.current = gameId;
+      if (runId) void queryClient.invalidateQueries({ queryKey: trpc.run.overview.queryKey() });
+      if (towerId) void queryClient.invalidateQueries({ queryKey: trpc.tower.overview.queryKey() });
+    };
+    if (resultShown) return refresh();
+    return refresh;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finished, resultShown, gameId, runId, towerId]);
+
   // A failed refetch (a dropped connection on a tab focus) keeps the board up with what it has: the next action refetches.
   if (error && !data) return <p className={`${PAGE_WIDTH} text-red-400`}>{error.message}</p>;
   if (!data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
