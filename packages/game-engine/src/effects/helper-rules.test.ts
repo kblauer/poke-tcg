@@ -135,6 +135,19 @@ describe('switches go through swapActive', () => {
     expect(after.players[side]!.active!.card.uid).toBe(p.card.uid);
     expect(hold(after)).toBeUndefined();
   });
+
+  it("an effect that switches and then asks keeps Sticky Hold's question behind its own (askChoice): Scramble Switch, Slippery Soles", () => {
+    const scramble = board('ash', () => {}).s;
+    const played = playAuto(scramble, 'ash', hand(scramble, 'ash', { id: 'bw8-129', kind: 'trainer', name: 'Scramble Switch', imageUrl: null, text: '' }));
+    expect([played.pendingChoice?.source, played.queuedChoices?.map((c) => c.source)]).toEqual(['Scramble Switch', ['Sticky Hold']]);
+    for (const end of settles(played)) expect(end.pendingChoice).toBeUndefined();
+
+    const soles = board('ash', (s) => void put(s, 'misty', 1, mon('base1-46', 'Charmander', F, 50, []))).s;
+    put(soles, 'ash', 1, mon('bw4-33', 'Accelgor', C, 90, [], { stage: 'stage1', power: { name: 'Slippery Soles', text: '' } }));
+    const used = act(soles, 'ash', { type: 'USE_POWER', source: 1, choices: { to: 0 } });
+    expect([used.pendingChoice?.source, used.queuedChoices?.map((c) => c.source)]).toEqual(['Slippery Soles', ['Sticky Hold']]);
+    for (const end of settles(used)) expect(end.pendingChoice).toBeUndefined();
+  });
 });
 
 describe('Bench room goes through openBenchSlot, with the Stadium', () => {
