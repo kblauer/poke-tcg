@@ -12,7 +12,7 @@ import { isBasicEnergy, lookupCard } from '../cards.js';
 import { energyPool, isEnergyCardOf, type InPlayPokemon } from '../engine.js';
 import { nextRandom } from '../rng.js';
 import { clearSpecialConditions, pokemonName } from '../status.js';
-import { benchedSlots, benchTarget, discardToUse, extraEnergy, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
+import { energyCardOf, benchedSlots, benchTarget, discardToUse, extraEnergy, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
 import { basicEnergyOn, typedCards } from './ecard1.js';
 import { smokescreen } from './fossil.js';
 import { benchMany, noRetreat } from './gym1.js';
@@ -242,9 +242,9 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
   // Sharpedo – Dark Slash: may discard a Darkness Energy card for 30 more.
   'ex1-22': {
     'Dark Slash': {
-      choices: (s) => (s.attacker.energy.some((e) => isEnergyCardOf(e, s.cards, 'darkness')) ? [{ kind: 'boost', options: [true, false], prompt: 'Discard a Darkness Energy card attached to Sharpedo for 30 more damage?' }] : []),
+      choices: (s) => (s.attacker.energy.some((e) => !e.provides && energyCardOf(s.cards, e, 'darkness')) ? [{ kind: 'boost', options: [true, false], prompt: 'Discard a Darkness Energy card attached to Sharpedo for 30 more damage?' }] : []),
       run(ctx) {
-        const dark = ctx.choices.boost ? ctx.attacker.energy.find((e) => isEnergyCardOf(e, ctx.state.cards, 'darkness')) : undefined;
+        const dark = ctx.choices.boost ? ctx.attacker.energy.find((e) => !e.provides && energyCardOf(ctx.state.cards, e, 'darkness')) : undefined;
         if (dark) {
           ctx.attacker.energy = ctx.attacker.energy.filter((e) => e !== dark);
           ctx.me.discard.push(dark);

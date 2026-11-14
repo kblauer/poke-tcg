@@ -14,7 +14,7 @@ import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { clearOnLeavingActive, countersMoved, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution, sameCards } from '../status.js';
 import { amnesia } from './base1.js';
-import { benchedSlots, energyCanMove, energyCards, headsUntilTails, inPlay, leechSeed, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
+import { askAfter, benchedSlots, discardOwnEnergy, energyCanMove, energyCards, headsUntilTails, inPlay, leechSeed, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { copyAttack } from './ecard2.js';
 import { EX1, energyAmount, restNextTurn } from './ex1.js';
 import { discardOwn, energyCardOf, EX2 } from './ex2.js';
@@ -22,6 +22,8 @@ import { EX6 } from './ex6.js';
 import { EX8 } from './ex8.js';
 import { energyCanGo } from './neo3.js';
 import { healUpTo } from './si1.js';
+
+export { discardOwnEnergy };
 
 /** Damage counters on one of the opponent's Pokémon (not attack damage: no Weakness or Resistance), if the attack can affect it. */
 function putCounters(ctx: AttackContext, p: InPlayPokemon | null | undefined, n: number) {
@@ -70,26 +72,6 @@ const fireInDiscard = (cards: CardLibrary, discard: CardInstance[]) =>
 
 /** How much Energy of `type` a Pokémon has (Dark Pulse). */
 const typedAmount = (cards: CardLibrary, p: InPlayPokemon, type: 'darkness') => energyPool(p, cards).filter((e) => counts(e, type)).length;
-
-/** A choice for the attacking player once the attack is over, after any already asked. */
-function askAfter(ctx: AttackContext, choice: PendingChoiceInput) {
-  if (ctx.state.pendingChoice) (ctx.state.queuedChoices ??= []).push({ ...choice, player: ctx.me.id } as PendingChoice);
-  else ctx.pend(choice);
-}
-
-/**
- * `count` Energy cards discarded from the attacking Pokémon (only those of `types`, basic or Special, when given): picked by
- * its player once the attack is over when the cards that fit differ (the same-card rule, agreed), otherwise the first ones.
- * Returns how many go.
- */
-export function discardOwnEnergy(ctx: AttackContext, count: number, source: string, types?: EnergyType[]) {
-  const fit = energyCards(ctx.attacker).filter((e) => !types || types.some((t) => energyCardOf(ctx.state.cards, e, t)));
-  const n = Math.min(count, fit.length);
-  if (!n) return 0;
-  if (fit.length <= count || sameCards(ctx.state.cards, fit)) discardOwn(ctx, fit.slice(0, count));
-  else askAfter(ctx, { kind: 'discardAttached', source, target: 'active', count, ...(types && { types }) });
-  return n;
-}
 
 /**
  * `count` Energy cards attached to the attacking Pokémon (only those of `types`, when given) back into the player's hand:

@@ -14,12 +14,12 @@ import { isEnergyCardOf, isSpecialEnergy, type CardInstance, type InPlayPokemon,
 import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { benchRoom, clearOnLeavingActive, devolvable, openBenchSlot, pokemonName, removeTopEvolution } from '../status.js';
-import { benchedSlots, extraEnergy, inPlay, perHeads } from './common.js';
+import { benchedSlots, discardOwn, energyCardOf, extraEnergy, inPlay, perHeads } from './common.js';
 import { typedCards } from './ecard1.js';
 import { discardAtRandom, eachDefending, energyAmount } from './ex1.js';
 import { healUpTo } from './si1.js';
 
-export { inPlay };
+export { discardOwn, energyCardOf, inPlay };
 
 /** The Energy cards of `type` attached to a Pokémon, Special ones of that type too (Darkness Energy). */
 export const typeCards = (cards: CardLibrary, p: InPlayPokemon, type: EnergyType) =>
@@ -27,12 +27,6 @@ export const typeCards = (cards: CardLibrary, p: InPlayPokemon, type: EnergyType
     const d = lookupCard(cards, e.defId);
     return isEnergyCardOf(e, cards, type) || (!e.provides && !e.windless && !e.colorlessOnly && d.kind === 'energy' && d.energyType === type);
   });
-
-/** An Energy card of `type`, basic or Special (Darkness Energy, Metal Energy), wherever it is (Lightning Burst, Super Connectivity). */
-export const energyCardOf = (cards: CardLibrary, e: CardInstance, type: EnergyType) => {
-  const d = lookupCard(cards, e.defId);
-  return isEnergyCardOf(e, cards, type) || (!e.provides && !e.windless && !e.colorlessOnly && d.kind === 'energy' && d.energyType === type);
-};
 
 /** "You may discard a `type` Energy card attached to … If you do, `then`" (Deadly Poison, Dark Bind), asked before the attack. */
 export const mayDiscardFor = (damage: number, type: EnergyType, then: (ctx: AttackContext) => void): AttackEffect => ({
@@ -46,14 +40,6 @@ export const mayDiscardFor = (damage: number, type: EnergyType, then: (ctx: Atta
     then(ctx);
   },
 });
-
-/** Discards these Energy cards from the attacker. */
-export function discardOwn(ctx: AttackContext, cards: CardInstance[]) {
-  if (!cards.length) return;
-  ctx.attacker.energy = ctx.attacker.energy.filter((e) => !cards.includes(e));
-  ctx.me.discard.push(...cards);
-  ctx.log(`Discarded ${cards.map((c) => lookupCard(ctx.state.cards, c.defId).name).join(', ')} from ${ctx.attackerDef.name}.`);
-}
 
 /** `n` damage counters on one of `owner`'s Pokémon, if the attack can affect it. */
 export function putCounters(ctx: AttackContext, owner: PlayerState, p: InPlayPokemon, n: number) {

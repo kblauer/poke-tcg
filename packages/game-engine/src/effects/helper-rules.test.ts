@@ -293,6 +293,95 @@ describe('the discard-pile lock (Allergic Pollen)', () => {
   });
 });
 
+describe('a "[type] Energy card" is basic or Special (energyCardOf)', () => {
+  const special = (type: 'metal' | 'darkness'): CardDef => ({ id: `special-${type}`, kind: 'energy', name: `${type === 'metal' ? 'Metal' : 'Darkness'} Energy`, imageUrl: null, energyType: type, basic: false });
+  const withCards = (s: GameState, ...defs: CardDef[]) => void (s.cards = { ...s.cards, ...Object.fromEntries(defs.map((d) => [d.id, d])) });
+
+  it("Metal Load (a shared wording) attaches the EX sets' Special Metal Energy from the discard pile", () => {
+    const s = duel('charmander', 'onix');
+    withCards(s, special('metal'));
+    put(s, 'ash', 'active', mon('ex5-21', 'Metang', C, 70, [['Metal Load', [C], 0]]), ['fire']);
+    ash(s).discard = [{ uid: 'metal-1', defId: 'special-metal' }];
+    expect(ash(attack(s, 0)).active!.energy.map((e) => e.uid)).toContain('metal-1');
+  });
+
+  it('Heavy Metal (a shared wording) flips a coin for a Special Metal Energy card', () => {
+    const s = duel('charmander', 'onix');
+    withCards(s, special('metal'));
+    put(s, 'ash', 'active', mon('ex8-26', 'Skarmory', C, 70, [['Spearhead', [C], 0], ['Heavy Metal', [C], 10]]), ['special-metal']);
+    expect(attack(flips(s, true), 1).players.misty!.active!.damage).toBe(30);
+  });
+
+  it('Dark Slash offers its boost with a Special Darkness Energy card, and discards it', () => {
+    const s = duel('charmander', 'onix');
+    withCards(s, special('darkness'));
+    put(s, 'ash', 'active', mon('ex1-22', 'Sharpedo', C, 70, [['Dark Slash', [C], 40]]), ['special-darkness']);
+    const after = attack(s, 0, { boost: true });
+    expect([after.players.misty!.active!.damage, ash(after).active!.energy.length, ash(after).discard.map((c) => c.defId)]).toEqual([70, 0, ['special-darkness']]);
+  });
+
+  it('Dark Trance moves a Special Darkness Energy card', () => {
+    const s = duel('charmander', 'onix', { bench: ['squirtle'] });
+    withCards(s, special('darkness'));
+    const p = put(s, 'ash', 'active', mon('ex7-15', 'Dark Dragonite', C, 100, [], { stage: 'stage2', power: { name: 'Dark Trance', text: '' } }), ['special-darkness']);
+    const after = act(s, 'ash', { type: 'USE_POWER', source: 'active', choices: { from: 'active', energyUid: p.energy[0]!.uid, to: 0 } });
+    expect(ash(after).bench[0]!.energy.map((e) => e.defId)).toEqual(['special-darkness']);
+  });
+});
+
+describe('a Team Plasma Pokémon in play is isPlasmaPokemon (Team Plasma Badge)', () => {
+  const badge: CardDef = { id: 'bw9-104', kind: 'trainer', name: 'Team Plasma Badge', imageUrl: null, text: '' };
+  const badged = (s: GameState, p: InPlayPokemon) => {
+    s.cards = { ...s.cards, [badge.id]: badge };
+    p.attached = [{ card: { uid: `badge-${n++}`, defId: badge.id }, tool: true, until: Number.MAX_SAFE_INTEGER }];
+  };
+
+  it('Teampact counts a Pokémon holding the Badge', () => {
+    const s = duel('charmander', 'onix', { bench: ['squirtle'] });
+    put(s, 'ash', 'active', mon('bw8-101', 'Snorlax', C, 130, [['Teampact', [C], 0]], { teamPlasma: true }), ['fire']);
+    expect(attack(structuredClone(s), 0).players.misty!.active!.damage).toBe(30);
+    badged(s, ash(s).bench[0]!);
+    expect(attack(s, 0).players.misty!.active!.damage).toBe(60);
+  });
+
+  it('Colress Machine can be played when the only Team Plasma Pokémon is a Badge holder', () => {
+    const s = duel('charmander', 'onix');
+    const machine = hand(s, 'ash', { id: 'bw8-119', kind: 'trainer', name: 'Colress Machine', imageUrl: null, text: '' });
+    expect(applyAction(s, 'ash', { type: 'PLAY_TRAINER', cardUid: machine, choices: {} })).toMatchObject({ ok: false, error: 'You have no Team Plasma Pokémon in play' });
+    badged(s, ash(s).active!);
+    expect(applyAction(s, 'ash', { type: 'PLAY_TRAINER', cardUid: machine, choices: {} }).ok).toBe(true);
+  });
+});
+
+describe('the same-card rule in the shared wordings', () => {
+  const rainbow: CardDef = { id: 'rainbow', kind: 'energy', name: 'Rainbow Energy', imageUrl: null, energyType: C, basic: false, anyType: true };
+  /** A wording that discards an Energy card from the attacker, with Energy cards that differ: the player is asked, and every answer ends. */
+  const WORDINGS: [name: string, id: string, attackName: string, energy: string[], left: number][] = [
+    ['"if tails, discard an Energy" (Air Slash)', 'pl1-15', 'Air Slash', ['fire', 'water'], 1],
+    ['"if tails, discard a Fire Energy" (Fireworks)', 'ex7-108', 'Fireworks', ['fire', 'rainbow'], 1],
+    ['"discard a Fire Energy and a Water Energy" (Mist Ball)', 'dp4-22', 'Mist Ball', ['fire', 'rainbow', 'water'], 1],
+  ];
+  it.each(WORDINGS)('%s asks which card when they differ', (_name, cardId, attackName, energy, left) => {
+    const s = duel('charmander', 'onix');
+    s.cards = { ...s.cards, rainbow };
+    s.players.misty!.active!.damage = 0;
+    put(s, 'misty', 'active', mon('wall', 'Wall', C, 500, []));
+    put(s, 'ash', 'active', mon(cardId, 'Attacker', C, 100, [[attackName, [C], 10]]), energy);
+    const after = attack(flips(s, false), 0);
+    expect(after.pendingChoice).toMatchObject({ kind: 'discardAttached', player: 'ash' });
+    const ends = settles(after);
+    expect(ends.length).toBeGreaterThan(0);
+    for (const end of ends) expect(end.players.ash!.active!.energy.length).toBe(left);
+  });
+
+  it('nothing is asked when the cards are the same card', () => {
+    const s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('pl1-15', 'Shaymin', C, 100, [['Air Slash', [C], 40]]), ['fire', 'fire']);
+    const after = attack(flips(s, false), 0);
+    expect([after.pendingChoice, ash(after).active!.energy.length]).toEqual([undefined, 1]);
+  });
+});
+
 describe('an Evolved Pokémon (isEvolved)', () => {
   it("isn't a Basic Pokémon with a LV.X on it; an Evolution card under a LV.X still counts", () => {
     const s = duel('charmander', 'onix');
