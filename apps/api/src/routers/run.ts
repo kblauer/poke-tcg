@@ -3,13 +3,14 @@ import { Prisma, prisma } from '@poke-tcg/db';
 import { DECK_NAME_LENGTH } from '@poke-tcg/shared';
 import { buyItemInput, DEFAULT_TRAINER_SPRITE, equipInput, playerGenderInput, runActInput, runChooseInput, runIdInput, saveRunDeckInput, startRunInput, trainerSpriteInput, useConsumableInput, useItemInput, type PlayerGender } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
+import { userRow } from '../auth.js';
 import { debugWinGame } from '../games.js';
 import { runViewPool } from '../pool.js';
 import { towerUnderway } from '../towers.js';
 import { runTypeProgress } from '../progress.js';
 import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, lockUser, needsStarter, settleBattle, startRun, syncRunDeck, takeItem, type LoadedRun } from '../runs.js';
 import { holoTwins, lockedProblem, unlockedIds } from '../unlocks.js';
-import { deckCardIds, markPlayed, playableDeck, playProblems, type DeckCosmetics } from './decks.js';
+import { deckCardIds, markPlayed, playableDeck, playProblems, withCatalogCards, type DeckCosmetics } from './decks.js';
 import { debugProcedure, protectedProcedure, router } from '../trpc.js';
 
 /** The default name for saving a run's deck: the run's number among the account's runs and its type, "Run #3 – Celadon City". */
@@ -79,10 +80,10 @@ export const runRouter = router({
       prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { exp: true, bank: true, lastDeckId: true, playerGender: true } }),
       prisma.deck.findMany({
         where: { ownerId: ctx.user.id },
-        include: { cards: { include: { card: { select: { name: true, kind: true, stage: true, data: true } } } } },
+        include: { cards: { select: { cardId: true, quantity: true } } },
         // The Collection tab's order.
         orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
-      }),
+      }).then(withCatalogCards),
     ]);
     // The decks' cards' unlocks only (a few hundred rows), not the account's whole list: the deck builder has that (decks.unlocked).
     const [unlocked, limited, progress, starter] = await Promise.all([unlockedIds(ctx.user.id, prisma, { cardIds: deckCardIds(decks) }), holoTwins(), runTypeProgress(ctx.user.id), needsStarter(ctx.user.id)]);
@@ -181,6 +182,8 @@ export const runRouter = router({
     } else {
       // The item is taken in the same transaction as the check, which locks its row: two uses at once can't both pass.
       await prisma.$transaction(async (tx) => {
+        // Locked first, so two different consumables at once read the pending list one after the other (a count of 2 each would let a fourth through).
+        await lockUser(tx, ctx.user.id);
         if (!(await takeItem(ctx.user.id, def.id, true, tx))) throw new TRPCError({ code: 'BAD_REQUEST', message: `You have no ${def.name}` });
         const { pendingConsumables } = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { pendingConsumables: true } });
         if (pendingConsumables.length >= MAX_CONSUMABLES_PER_RUN) throw new TRPCError({ code: 'BAD_REQUEST', message: `${MAX_CONSUMABLES_PER_RUN} consumables are already waiting for your next run` });
@@ -234,7 +237,7 @@ export const runRouter = router({
    */
   shop: protectedProcedure.query(async ({ ctx }) => {
     const [user, inventory, stock] = await Promise.all([
-      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { exp: true } }),
+      userRow(ctx.user, { exp: true }),
       prisma.inventoryItem.findMany({ where: { userId: ctx.user.id, quantity: { gt: 0 } }, select: { itemId: true, quantity: true } }),
       latestStock(ctx.user.id),
     ]);
@@ -273,7 +276,7 @@ export const runRouter = router({
       prisma.inventoryItem.findMany({ where: { userId: ctx.user.id, quantity: { gt: 0 } } }),
       prisma.equipment.findMany({ where: { userId: ctx.user.id } }),
       prisma.cardUnlock.aggregate({ where: { userId: ctx.user.id }, _sum: { quantity: true }, _count: true }),
-      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { trainerSprite: true, playerGender: true, pendingConsumables: true } }),
+      userRow(ctx.user, { trainerSprite: true, playerGender: true, pendingConsumables: true }),
     ]);
     return {
       trainerSprite: user.trainerSprite ?? DEFAULT_TRAINER_SPRITE,
@@ -307,13 +310,17 @@ export const runRouter = router({
     }
     const def = ITEMS[input.itemId];
     if (!def || !fitsSlot(def, input.slot)) throw new TRPCError({ code: 'BAD_REQUEST', message: "That doesn't go there" });
-    const [owned, elsewhere] = await Promise.all([
-      prisma.inventoryItem.findUnique({ where: { userId_itemId: { userId, itemId: def.id } } }),
-      prisma.equipment.count({ where: { userId, itemId: def.id, slot: { not: input.slot } } }),
-    ]);
-    // Two accessories of the same kind need two of them.
-    if ((owned?.quantity ?? 0) <= elsewhere) throw new TRPCError({ code: 'BAD_REQUEST', message: `You have no spare ${def.name}` });
-    await prisma.equipment.upsert({ where: { userId_slot: { userId, slot: input.slot } }, create: { userId, slot: input.slot, itemId: def.id }, update: { itemId: def.id } });
+    // The lock makes the spare check hold against two equips of one accessory into both slots at once.
+    await prisma.$transaction(async (tx) => {
+      await lockUser(tx, userId);
+      const [owned, elsewhere] = await Promise.all([
+        tx.inventoryItem.findUnique({ where: { userId_itemId: { userId, itemId: def.id } } }),
+        tx.equipment.count({ where: { userId, itemId: def.id, slot: { not: input.slot } } }),
+      ]);
+      // Two accessories of the same kind need two of them.
+      if ((owned?.quantity ?? 0) <= elsewhere) throw new TRPCError({ code: 'BAD_REQUEST', message: `You have no spare ${def.name}` });
+      await tx.equipment.upsert({ where: { userId_slot: { userId, slot: input.slot } }, create: { userId, slot: input.slot, itemId: def.id }, update: { itemId: def.id } });
+    });
     return { ok: true };
   }),
 });
