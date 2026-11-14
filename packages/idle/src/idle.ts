@@ -1896,11 +1896,13 @@ function simulateIn(from: IdleState, idleSettings: IdleSettings, caught: Set<num
     let walkedFrom: number | undefined;
     const a = areas()[state.area] as WalkArea;
     const leg = a.legs[state.leg]!;
+    // HGSS's trainers there only at night or only by day (the user's: Policemen Keith and Dirk only at night), by the run's clock.
+    const there = (t: (typeof a.trainers)[number]) => {
+      const time = timeOfDayOf(state, out.durationMs);
+      return time === null || (!(t.night && time !== 'night') && !(t.day && time === 'night'));
+    };
     const trainerHere = (i: number) => {
       const [m, x, y] = leg.track[i]!;
-      // HGSS's trainers there only at night or only by day (the user's: Policemen Keith and Dirk only at night), by the run's clock.
-      const time = timeOfDayOf(state, out.durationMs);
-      const there = (t: (typeof a.trainers)[number]) => time === null || (!(t.night && time !== 'night') && !(t.day && time === 'night'));
       return a.trainers.find((t) => t.leg === state.leg && t.map === m && !state.beaten.includes(t.key) && there(t) && t.sight.some(([sx, sy]) => sx === x && sy === y));
     };
     // The first step of an area (or after a white-out) can be in a trainer's sight already (a League room's boss), and so
@@ -1962,6 +1964,12 @@ function simulateIn(from: IdleState, idleSettings: IdleSettings, caught: Set<num
           legendMet = true;
           break;
         }
+        // A trainers loop past its last trainer (one there only by day or at night, not there now: Johto's): round again,
+        // never on to the next area (the grind holds until Continue run).
+        if (state.loop?.kind === 'trainers') {
+          restartTrainerLoop(state, out);
+          break;
+        }
         finishArea(state, out);
         out.durationMs += FADE_MS;
         break;
@@ -1991,10 +1999,11 @@ function simulateIn(from: IdleState, idleSettings: IdleSettings, caught: Set<num
         if (a.kind === 'gym' && trainer.key !== a.leader) state.gymBeaten = [...(state.gymBeaten ?? []), trainer.key];
         state.log.push(`Beat ${generation().trainers[key]!.class} ${generation().trainers[key]!.name}.`);
         if ((a.kind === 'gym' || a.kind === 'league') && trainer.key === a.leader) finishArea(state, out);
-        // A trainer beaten while grinding counts in the real run (the user's); a trainers loop's last beaten: round again.
+        // A trainer beaten while grinding counts in the real run (the user's); a trainers loop's last beaten (of those there
+        // at this time of day): round again.
         const loop = state.loop;
         if (loop && !loop.resume.beaten.includes(trainer.key)) loop.resume.beaten.push(trainer.key);
-        if (loop?.kind === 'trainers' && loop.keys.every((k) => state.beaten.includes(k))) restartTrainerLoop(state, out);
+        if (loop?.kind === 'trainers' && a.trainers.filter((t) => loop.keys.includes(t.key) && there(t)).every((t) => state.beaten.includes(t.key))) restartTrainerLoop(state, out);
       }
       break;
     }
@@ -2055,6 +2064,9 @@ function cutIn(saved: IdleState, now: number): IdleState {
   let town: number | null = null;
   for (const [i, e] of again.segment.events.entries()) {
     if (e.t === 'area') {
+      // Into another area (always the segment's last event: the walk off its end, finishArea): the fade begun, the run is
+      // through, the segment kept whole (#204: only the leg and step were moved, back to the old area's start).
+      if (e.area !== state.area) return saved;
       Object.assign(state, { leg: e.leg, step: e.step });
       if (i > 0) t += FADE_MS;
     } else if (e.t === 'grind' && state.grind) {
