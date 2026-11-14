@@ -7,7 +7,7 @@ import type { BattleEvent } from './battle.js';
 import { catchTextFrame, FRAME_MS, openingMs } from './battle-timing.js';
 import { townMapPlaces, townMapArea } from './town-map.js';
 import { inGeneration } from './generation.js';
-import { applyIdleAction, atProgress, legendError, rodsOf, starters, BATTLE_HOLD_MS, BATTLE_MS, catchUp, cutSegment, mapGrindPlan, progressOf, reachedArea, travelError, wildSpots, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, modeOf, playing, previousRoute, routeGrindPlan, starterOptions, TICK_MS, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
+import { applyIdleAction, atProgress, legendError, rodsOf, starters, BATTLE_HOLD_MS, BATTLE_MS, catchUp, cutSegment, mapGrindPlan, progressOf, reachedArea, repairState, travelError, wildSpots, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, modeOf, playing, previousRoute, routeGrindPlan, starterOptions, TICK_MS, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
 
@@ -964,6 +964,53 @@ describe('an idle run', () => {
       });
     }
   }, 60000);
+
+  // Stale-state robustness (#204's test 2): a saved run whose indexes the data no longer has (a regenerated track).
+  it('puts a saved run\'s stale indexes back in bounds, so it can be viewed, played, cut and given up', () => {
+    for (const [gen, species] of [[1, 4], [2, 155]] as const) {
+      inGeneration(gen, () => {
+        let s: IdleState = createIdleRun({ species }, 6, gen);
+        for (let i = 0; i < 30; i++) s = simulateSegment(s, MANUAL, new Set())!.state;
+        expect(repairState(s), 'a sound run unchanged').toBe(s);
+        const route = areas().findIndex((a) => a.kind === 'route');
+        const town = areas().findIndex((a) => isTown(a) && !!a.grind);
+        const segment = simulateSegment(s, MANUAL, new Set(), { ask: true })!;
+        const replay = { prev: s, settings: MANUAL, caught: [], from: 0, throws: [] };
+        const stale: IdleState[] = [
+          { ...s, area: 9999 },
+          { ...s, area: route, phase: 'walking', leg: 99 },
+          { ...s, area: route, phase: 'walking', leg: 0, step: 99_999 },
+          { ...s, area: route, phase: 'walking', leg: 0, step: -3 },
+          { ...s, progress: { area: 9999, leg: 5, step: 5, beaten: [] }, reached: 9999 },
+          { ...s, area: route, phase: 'walking', progress: { area: route, leg: 0, step: 99_999, beaten: [] } },
+          { ...s, area: town, phase: 'grinding', grind: { at: 99_999, level: 20 } },
+          { ...s, area: route, phase: 'walking', leg: 0, step: 0, loop: { kind: 'pace', leg: 0, from: 0, to: 99_999, dir: 1, resume: { area: 9999, leg: 0, step: 0, beaten: [] } } },
+          { ...s, area: route, phase: 'walking', leg: 0, step: 0, loop: { kind: 'fish', spot: 99, resume: { area: route, leg: 0, step: 0, beaten: [] } } },
+          { ...segment.state, area: 9999, replay },
+        ];
+        for (const [k, bad] of stale.entries()) {
+          const fixed = repairState(bad);
+          expect(fixed, `${gen}: ${k}`).not.toBe(bad);
+          expect(fixed.replay, `${gen}: ${k}`).toBeUndefined();
+          expect(() => idleView(fixed), `${gen}: ${k}`).not.toThrow();
+          expect(() => simulateSegment(fixed, MANUAL, new Set(), { ask: true }), `${gen}: ${k}`).not.toThrow();
+          expect(() => cutSegment(fixed, 1000), `${gen}: ${k}`).not.toThrow();
+          expect(applyIdleAction(fixed, { type: 'GIVE_UP' }).ok, `${gen}: ${k}`).toBe(true);
+        }
+      });
+    }
+  });
+
+  it('keeps one waiting party order, and one set of slots a Pokémon, while a ball can still be thrown', () => {
+    const base = createIdleRun({ species: 4 }, 2);
+    const mon = base.party[0]!;
+    let s: IdleState = { ...base, replay: { prev: base, settings: MANUAL, caught: [], from: 0, throws: [], throwable: true } };
+    for (let i = 0; i < 10; i++) {
+      s = (applyIdleAction(s, { type: 'SET_ORDER', uids: [mon.uid] }) as { state: IdleState }).state;
+      s = (applyIdleAction(s, { type: 'SET_SLOTS', uid: mon.uid, slots: [], auto: true }) as { state: IdleState }).state;
+    }
+    expect(s.pending?.map((a) => a.type)).toEqual(['SET_ORDER', 'SET_SLOTS']);
+  });
 
   it('keeps a Pokémon caught when Stop comes after its "Gotcha!", and drops the catch before it', () => {
     const settings: IdleSettings = { ...MANUAL, autoCatch: 'all' };

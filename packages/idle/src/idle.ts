@@ -752,7 +752,9 @@ function applyIn(prev: IdleState, action: IdleAction): IdleResult {
     const check = applyNow(withPending(prev), action);
     if (!check.ok) return check;
     const state = structuredClone(prev);
-    state.pending = [...(prev.pending ?? []), action];
+    // A new order, or a Pokémon's slots set again, replaces the one waiting (#204: the queue grew without bound).
+    const replaces = (a: IdleAction) => (a.type === 'SET_ORDER' && action.type === 'SET_ORDER') || (a.type === 'SET_SLOTS' && action.type === 'SET_SLOTS' && a.uid === action.uid);
+    state.pending = [...(prev.pending ?? []).filter((a) => !replaces(a)), action];
     state.version += 1;
     return { ok: true, state };
   }
@@ -2218,6 +2220,55 @@ function catchUpIn(prev: IdleState, settings: IdleSettings, caught: Set<number>,
 
 /** The ₱ an ended run puts in the bank (the user's, 2026-10-25): its money once the Champion is beaten, nothing for a run given up. */
 export const bankedMoney = (state: Pick<IdleState, 'phase' | 'money'>) => (state.phase === 'won' ? state.money : 0);
+
+/**
+ * A saved run with any index past its region's data put back in bounds (#204: a regenerated data file that shortened a
+ * track or dropped an area made simulateSegment and idleView throw, so the account's whole mode failed): its place, the
+ * furthest place, the Town Map's reach, a grind's step, a route grind's loop. Anything moved drops the segment kept to
+ * play again (its start would hold the old indexes). The run unchanged (the same object) when nothing is out of bounds.
+ */
+export function repairState(saved: IdleState): IdleState {
+  return inGeneration(saved.gen, () => repairIn(saved));
+}
+
+function repairIn(saved: IdleState): IdleState {
+  const all = areas();
+  const state = structuredClone(saved);
+  let moved = false;
+  const fit = (n: number, size: number) => {
+    const v = Math.max(0, Math.min(Number.isInteger(n) ? n : 0, size - 1));
+    if (v !== n) moved = true;
+    return v;
+  };
+  // A place's area, and its leg and step along a walked area's tracks (a town's aren't read).
+  const place = (p: { area: number; leg: number; step: number }) => {
+    p.area = fit(p.area, all.length);
+    const a = all[p.area]!;
+    if (isTown(a)) return;
+    const legs = (a as WalkArea).legs;
+    p.leg = fit(p.leg, legs.length);
+    p.step = fit(p.step, legs[p.leg]!.track.length);
+  };
+  place(state);
+  if (state.progress) place(state.progress);
+  if (state.reached !== undefined) state.reached = fit(state.reached, all.length);
+  const a = all[state.area]!;
+  // The phase the area allows: a town waits (or grinds round its loop), anywhere else is walked.
+  if (state.phase === 'walking' && isTown(a)) ((state.phase = 'town'), (moved = true));
+  if ((state.phase === 'town' || state.phase === 'grinding') && !isTown(a)) ((state.phase = 'walking'), (moved = true));
+  if (state.phase === 'grinding' && !(isTown(a) && a.grind && state.grind)) ((state.phase = 'town'), delete state.grind, (moved = true));
+  if (state.phase === 'grinding' && isTown(a) && a.grind && state.grind) state.grind.at = fit(state.grind.at, a.grind.loop.length);
+  const loop = state.loop;
+  if (loop) {
+    place(loop.resume);
+    const legs = isTown(a) ? [] : (a as WalkArea).legs;
+    const broken = loop.kind === 'pace' ? !legs[loop.leg] || loop.from < 0 || loop.to >= legs[loop.leg]!.track.length || loop.from > loop.to : loop.kind === 'fish' ? !(a as WalkArea).fishing?.[loop.spot] : isTown(a);
+    if (broken) ((moved = true), delete state.loop);
+  }
+  if (!moved) return saved;
+  delete state.replay;
+  return state;
+}
 
 /** What the player sees of a run: everything but the RNG, with the area it's in. */
 export function idleView(saved: IdleState) {
