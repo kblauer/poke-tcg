@@ -35,8 +35,11 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # `pnpm test` with a longer limit for each test: a hosted runner is several times slower than a dev machine and turbo
+      # runs the packages' tests side by side, so vitest's 5 s is too little there (this workflow's first run timed out two
+      # tests that take 1.5 s on a dev machine).
       - name: Tests
-        run: pnpm test
+        run: pnpm exec turbo run test -- --testTimeout=60000
 
       - name: Web build
         run: npx vite build

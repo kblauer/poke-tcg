@@ -220,5 +220,5 @@ describe('the Battle Tower’s reducer', () => {
     expect([...faults]).toEqual([]);
     expect([...phases].sort()).toEqual(['battle', 'battle (game)', 'between', 'between (saved)', 'lost', 'won']);
     expect(TOP_FLOOR).toBe(100);
-  });
+  }, 60_000);
 });

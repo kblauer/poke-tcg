@@ -51,7 +51,7 @@ packages/
   idle/                 Pure TS Idle Adventure (see Idle Adventure): FireRed's data, a Gen 3 battle engine played a turn a tick by the cooldown rule, Kanto's areas and the run rules
   shared/               Zod schemas for API input, player ids, deck building rules (deck.ts), the trainer sprites to pick from (trainer-sprites.ts), the Super Contests' inputs (contest.ts)
   db/                   Prisma 7 schema, client (pg driver adapter), migrations, seed
-.github/workflows/ci.yml  CI on every pull request and push to main: `pnpm typecheck`, `pnpm test`, the web's `vite build` (no database)
+.github/workflows/ci.yml  CI on every pull request and push to main: `pnpm typecheck`, the tests (`turbo run test`, 60 s a test), the web's `vite build` (no database)
 scripts/dev.mjs         `pnpm dev`: asks which checkout to start the dev servers from, the main one or a worktree, then which database, local (the default) or hosted (see Scripts); starts up behind a progress bar, then shows only the web link and the frontend's and backend's errors
 scripts/local-db.mjs    `pnpm db:local`: points this checkout's `.env` at a local Supabase (Docker), migrated and seeded (see Setup, Option B)
 scripts/supabase-env.mjs The local Supabase's settings (started, migrated, seeded when empty) and the hosted project's (`.env.remote`), for dev.mjs and local-db.mjs
