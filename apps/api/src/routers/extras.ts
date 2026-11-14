@@ -1,6 +1,7 @@
-import { afterRound, berriesOf, buyCoinsError, COIN_OFFERS, coinRoundError, farmOf, gameCornerDay, MAX_COINS, slotMachineId, SLOT_MACHINES, farmView, GROW_MS, harvest, harvestAll, makePoffin, makePokeblock, afterRoundSummary, boardView, flipCard, leaveRound, levelsGained, newBoard, newVoltorbFlipState, opponentBerries, poffinLevel, pokeblockLevel, random, rngFrom, settleRound, voltorbFlipStateOf, type BerryFarm } from '@poke-tcg/campaign';
+import { randomInt } from 'node:crypto';
+import { berriesOf, buyCoinsError, COIN_OFFERS, drawSlotSpin, farmOf, gameCornerDay, gameCornerOf, keepGameCorner, leaveSlotSpin, MAX_COINS, rollRouletteBall, seededRandom16, settleSlotSpin, sitAtRoulette, sitAtSlots, slotMachineId, SLOT_MACHINES, farmView, GROW_MS, harvest, harvestAll, makePoffin, makePokeblock, afterRoundSummary, boardView, flipCard, leaveRound, levelsGained, newBoard, newVoltorbFlipState, opponentBerries, poffinLevel, pokeblockLevel, random, rngFrom, settleRound, voltorbFlipStateOf, withGameCorner, type BerryFarm } from '@poke-tcg/campaign';
 import { prisma } from '@poke-tcg/db';
-import { blendBerryInput, buyCoinsInput, coinRoundInput, cookPoffinInput, harvestBerryInput, voltorbFlipInput, voltorbRoundInput, voltorbSettleInput } from '@poke-tcg/shared';
+import { blendBerryInput, buyCoinsInput, cookPoffinInput, harvestBerryInput, rouletteBallInput, rouletteSitInput, slotSitInput, slotSpinInput, slotStopsInput, voltorbFlipInput, voltorbRoundInput, voltorbSettleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
 import { lockUser } from '../runs.js';
@@ -9,6 +10,8 @@ import { debugProcedure, protectedProcedure, router } from '../trpc.js';
 /** How many of the account's Pokéblocks the Berry Blender lists, newest first; and of its Poffins, the Poffin cooking (the game's Poffin Case holds 100). */
 const POKEBLOCKS_SHOWN = 50;
 const POFFINS_SHOWN = 100;
+/** The Game Corner's draws (a spin's seed, the lucky game, a ball's Random()): the system's, so no draw follows from the seeds handed out before it. */
+const cornerSeed = () => randomInt(2 ** 31);
 
 const farmData = (farm: BerryFarm, berries: Record<string, number>, now: number) => ({ now, growMs: GROW_MS, trees: farmView(farm, now), berries });
 
@@ -17,8 +20,9 @@ const farmData = (farm: BerryFarm, berries: Record<string, number>, now: number)
  * campaign's berry-farm.ts) and the Berry Blender (`blender`, `blend`: the game is played in the browser, the API makes
  * the Pokéblock from the berry and the top speed, campaign's berry-blender.ts) and Poffin cooking (`poffins`, `cook`: the
  * same, the Poffin made from the berry and how the cooking went, campaign's poffin-cooking.ts) and the Game Corner
- * (`gameCorner`, `buyCoins`, `coinRound`: the roulette and slots are played in the browser, the API settles each round,
- * campaign's game-corner.ts) and Voltorb Flip (`voltorbRound`, `voltorbFlip`, `voltorbSettle`: the API makes each board,
+ * (`gameCorner`, `buyCoins`; `slotSit`, `slotSpin`, `slotStops`, `rouletteSit`, `rouletteBall`: the API draws each spin
+ * and ball, the browser plays it back, and the API pays what it plays itself, campaign's game-corner-rounds.ts; the
+ * sittings in User.voltorbFlip's JSON beside Voltorb Flip's session) and Voltorb Flip (`voltorbRound`, `voltorbFlip`, `voltorbSettle`: the API makes each board,
  * keeps its cards and shows them one flip at a time, and settles each round, campaign's voltorb-flip.ts). The account's farm, berries, blender record, coins and Voltorb
  * Flip session are on `User`, its Pokéblocks in `Pokeblock` and its Poffins in `Poffin`.
  */
@@ -158,16 +162,88 @@ export const extrasRouter = router({
   ),
 
   /**
-   * A round of the roulette or a spin of the slots, over: its bet is taken and its payout added (the Coin Case kept to
-   * 9999). BAD_REQUEST if the account hasn't the coins for the bet or the round can't be (coinRoundError).
+   * A slot machine sat at: a new sitting (its luck today, the lucky game drawn here) in place of any before it, whose spin
+   * left without its stops is played and paid first (leaveSlotSpin). Returns the machine's luck and lucky game, for the
+   * screen to start the same machine.
    */
-  coinRound: protectedProcedure.input(coinRoundInput).mutation(({ ctx, input }) =>
+  slotSit: protectedProcedure.input(slotSitInput).mutation(({ ctx, input }) =>
     prisma.$transaction(async (tx) => {
       await lockUser(tx, ctx.user.id);
-      const user = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { coins: true } });
-      const error = coinRoundError(input.game, input.bet, input.payout) ?? (user.coins < input.bet ? "You don't have enough coins" : null);
-      if (error) throw new TRPCError({ code: 'BAD_REQUEST', message: error });
-      return tx.user.update({ where: { id: ctx.user.id }, data: { coins: afterRound(user.coins, input.bet, input.payout) }, select: { coins: true } });
+      const user = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { coins: true, voltorbFlip: true } });
+      const corner = gameCornerOf(user.voltorbFlip);
+      const coins = corner.slots ? leaveSlotSpin(corner.slots, user.coins).coins : user.coins;
+      const slots = sitAtSlots(input.machine, gameCornerDay(Date.now()), (cornerSeed() & 1) === 1);
+      await tx.user.update({ where: { id: ctx.user.id }, data: { coins, voltorbFlip: asJson(withGameCorner(user.voltorbFlip, { ...corner, slots })) } });
+      return { coins, machineId: slots.record.machineId, luckyGame: slots.record.luckyGame };
+    }),
+  ),
+
+  /**
+   * A spin's bet put in (drawSlotSpin): the coins taken and the spin's seed drawn, for the screen to play the spin with
+   * (its bias and Reel Time come from it; where the reels stop is the player's). A spin before it left without its stops
+   * is played and paid first. BAD_REQUEST with no machine sat at or without the coins.
+   */
+  slotSpin: protectedProcedure.input(slotSpinInput).mutation(({ ctx, input }) =>
+    prisma.$transaction(async (tx) => {
+      await lockUser(tx, ctx.user.id);
+      const user = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { coins: true, voltorbFlip: true } });
+      const corner = gameCornerOf(user.voltorbFlip);
+      if (!corner.slots) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No slot machine is being played' });
+      const left = leaveSlotSpin(corner.slots, user.coins);
+      const drawn = drawSlotSpin(left.sitting, input.bet, left.coins, cornerSeed());
+      if ('error' in drawn) throw new TRPCError({ code: 'BAD_REQUEST', message: drawn.error });
+      await tx.user.update({ where: { id: ctx.user.id }, data: { coins: drawn.coins, voltorbFlip: asJson(withGameCorner(user.voltorbFlip, { ...corner, slots: drawn.sitting })) } });
+      return { coins: drawn.coins, seed: drawn.sitting.spin!.seed };
+    }),
+  ),
+
+  /**
+   * The spin under way, its reels stopped at `stops` (settleSlotSpin): played again here and paid, the coins kept to 9999.
+   * A Replay's free spin is drawn with it (`next`, its seed). BAD_REQUEST with no spin under way or stops the reels never
+   * reach.
+   */
+  slotStops: protectedProcedure.input(slotStopsInput).mutation(({ ctx, input }) =>
+    prisma.$transaction(async (tx) => {
+      await lockUser(tx, ctx.user.id);
+      const user = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { coins: true, voltorbFlip: true } });
+      const corner = gameCornerOf(user.voltorbFlip);
+      if (!corner.slots) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No slot machine is being played' });
+      const settled = settleSlotSpin(corner.slots, input.stops, user.coins, cornerSeed());
+      if ('error' in settled) throw new TRPCError({ code: 'BAD_REQUEST', message: settled.error });
+      await tx.user.update({ where: { id: ctx.user.id }, data: { coins: settled.coins, voltorbFlip: asJson(withGameCorner(user.voltorbFlip, { ...corner, slots: settled.sitting })) } });
+      return { coins: settled.coins, payout: settled.payout, next: settled.next };
+    }),
+  ),
+
+  /** A roulette table sat at, at the player's hour (the game reads the clock then): a new board. A slot spin left without its stops is played and paid first. */
+  rouletteSit: protectedProcedure.input(rouletteSitInput).mutation(({ ctx, input }) =>
+    prisma.$transaction(async (tx) => {
+      await lockUser(tx, ctx.user.id);
+      const user = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { coins: true, voltorbFlip: true } });
+      const corner = gameCornerOf(user.voltorbFlip);
+      const left = corner.slots ? leaveSlotSpin(corner.slots, user.coins) : { sitting: null, coins: user.coins };
+      const next = { slots: left.sitting, roulette: sitAtRoulette(input.table, input.hours) };
+      await tx.user.update({ where: { id: ctx.user.id }, data: { coins: left.coins, voltorbFlip: asJson(withGameCorner(user.voltorbFlip, next)) } });
+      return { coins: left.coins };
+    }),
+  ),
+
+  /**
+   * A ball bet on `selection`, the wheel at `wheelAngle` as the spin starts (rollRouletteBall): the bet taken, the ball
+   * played here and paid, the coins kept to 9999. `draws` are the Random() values its roll takes, for the screen to roll
+   * it the same: the ball is decided and paid before they're sent. BAD_REQUEST with no table sat at, without the coins
+   * or on a selection already hit.
+   */
+  rouletteBall: protectedProcedure.input(rouletteBallInput).mutation(({ ctx, input }) =>
+    prisma.$transaction(async (tx) => {
+      await lockUser(tx, ctx.user.id);
+      const user = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { coins: true, voltorbFlip: true } });
+      const corner = gameCornerOf(user.voltorbFlip);
+      if (!corner.roulette) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No roulette table is being played' });
+      const rolled = rollRouletteBall(corner.roulette, input.selection, input.wheelAngle, user.coins, seededRandom16(cornerSeed()));
+      if ('error' in rolled) throw new TRPCError({ code: 'BAD_REQUEST', message: rolled.error });
+      await tx.user.update({ where: { id: ctx.user.id }, data: { coins: rolled.coins, voltorbFlip: asJson(withGameCorner(user.voltorbFlip, { ...corner, roulette: rolled.sitting })) } });
+      return { coins: rolled.coins, payout: rolled.payout, draws: rolled.draws };
     }),
   ),
 
@@ -187,7 +263,7 @@ export const extrasRouter = router({
       const saved = input.restart ? newVoltorbFlipState() : left.state;
       const rng = rngFrom(newSeed());
       const state = saved.board || coins >= MAX_COINS ? saved : { ...saved, board: newBoard(saved, () => Math.floor(random(rng) * 2 ** 32)) };
-      await tx.user.update({ where: { id: ctx.user.id }, data: { coins, voltorbFlip: asJson(state) } });
+      await tx.user.update({ where: { id: ctx.user.id }, data: { coins, voltorbFlip: asJson(keepGameCorner(user.voltorbFlip, state)) } });
       if (coins >= MAX_COINS || !state.board) return { full: true as const, coins };
       return { full: false as const, coins, board: boardView(state.board), levelsGained: levelsGained(state) };
     }),
@@ -204,7 +280,7 @@ export const extrasRouter = router({
       const user = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { voltorbFlip: true } });
       const flipped = flipCard(voltorbFlipStateOf(user.voltorbFlip), input.card);
       if ('error' in flipped) throw new TRPCError({ code: 'BAD_REQUEST', message: flipped.error });
-      await tx.user.update({ where: { id: ctx.user.id }, data: { voltorbFlip: asJson(flipped.state) } });
+      await tx.user.update({ where: { id: ctx.user.id }, data: { voltorbFlip: asJson(keepGameCorner(user.voltorbFlip, flipped.state)) } });
       return { card: flipped.card, won: flipped.over === 'won', cards: flipped.cards };
     }),
   ),
@@ -223,7 +299,7 @@ export const extrasRouter = router({
       const settled = settleRound(state.board, state.flips, input.outcome);
       if ('error' in settled) throw new TRPCError({ code: 'BAD_REQUEST', message: settled.error });
       const coins = Math.min(MAX_COINS, user.coins + settled.payout);
-      await tx.user.update({ where: { id: ctx.user.id }, data: { coins, voltorbFlip: asJson(afterRoundSummary(state, settled.summary)) } });
+      await tx.user.update({ where: { id: ctx.user.id }, data: { coins, voltorbFlip: asJson(keepGameCorner(user.voltorbFlip, afterRoundSummary(state, settled.summary))) } });
       return { coins, payout: settled.payout, cards: state.board.cards };
     }),
   ),
