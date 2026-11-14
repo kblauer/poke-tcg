@@ -1094,7 +1094,7 @@ Windows: Docker Desktop turns on Hyper-V/WSL, whose WinNAT reserves blocks of th
 pnpm install
 cp .env.example .env        # fill in values (see below)
 pnpm db:migrate             # create tables (prompts for a migration name)
-pnpm db:seed                # load the card catalog (WOTC era and EX sets, 1999–2007) from the TCGdex snapshot, plus the hand-made cards
+pnpm db:seed                # load the card catalog (the WOTC era, the EX sets, Generation 4's and the Black & White series, 1999–2013) from the TCGdex snapshot, plus the hand-made cards
                             # (TCGdex's mistakes are corrected on the way in: TCGDEX_FIXES in prisma/seed.ts, e.g. promo Jigglypuff's 50 HP)
 pnpm dev                    # web on :5173 and API on :8787, both with live reload (asks which checkout first when there are worktrees, then which database: local by default)
 ```
@@ -1140,7 +1140,7 @@ Dev servers, worktrees and review jobs should use the local stack, not the hoste
 | `pnpm db:local` (`--remote`) | Point `.env` at a local Supabase, started, migrated and seeded (or back at the hosted project; `scripts/local-db.mjs`, see Setup) |
 | `npx tsx scripts/generate-ex-templates.ts` (in `packages/game-engine`) | Rewrite `src/effects/ex-template-data.ts`: the EX, Gen 4 and Gen 5 attacks played by a shared wording (see Shared EX wordings) |
 | `npx tsx scripts/generate-bw-reprints.ts` (in `packages/game-engine`) | Rewrite `src/effects/bw-reprints.ts`: the Black & White series' word-for-word reprints, each played as its first print (see Generation 5) |
-| `pnpm cards:fetch` | Re-download the card snapshot (the WOTC era and Generation 3's EX sets) from TCGdex (`packages/db/prisma/data/tcgdex-wotc.json`). Cards TCGdex doesn't have are kept by hand in `custom-cards.json` beside it (same shape; `pnpm db:seed` loads both), with their images in `apps/web/public/cards/<id>/` as `high.webp` and `low.webp` |
+| `pnpm cards:fetch` | Re-download the card snapshot (the WOTC era, Generations 3 to 5: 63 sets) from TCGdex (`packages/db/prisma/data/tcgdex-wotc.json`). Cards TCGdex doesn't have are kept by hand in `custom-cards.json` beside it (same shape; `pnpm db:seed` loads both), with their images in `apps/web/public/cards/<id>/` as `high.webp` and `low.webp` |
 
 ## Performance
 

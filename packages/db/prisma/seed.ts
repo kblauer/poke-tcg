@@ -1,4 +1,4 @@
-// Loads the TCGdex card snapshot (prisma/data/tcgdex-wotc.json: the WOTC era and Generation 3's EX sets), then the hand-made cards TCGdex doesn't
+// Loads the TCGdex card snapshot (prisma/data/tcgdex-wotc.json: the WOTC era, Generations 3 to 5 through Black & White: 63 sets), then the hand-made cards TCGdex doesn't
 // have (prisma/data/custom-cards.json), into the database, with the holo Energy made from the packs' basic Energy
 // (holo-energy.ts).
 // Idempotent: re-running updates existing rows. Refresh the snapshot with `pnpm cards:fetch`.
