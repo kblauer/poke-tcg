@@ -395,7 +395,7 @@ export function PackOpening({
                   <img key={i} src={cardBack} alt="" draggable={false} className="absolute inset-0 aspect-[63/88] w-full rounded-lg object-cover shadow-lg" style={{ transform: `translate(${i * 3}px, ${i * 3}px)` }} />
                 ))}
               </div>
-              <span className="rounded bg-amber-500 px-4 py-1.5 font-semibold text-slate-900 group-hover:bg-amber-400">Open the rares ({queue.length})</span>
+              <span className="rounded bg-amber-500 px-4 py-1.5 font-semibold text-gray-900 group-hover:bg-amber-400">Open the rares ({queue.length})</span>
             </button>
           ) : (
             <button className="rounded bg-blue-600 px-6 py-2 font-semibold transition hover:bg-blue-500" onClick={() => setPhase('summary')}>
@@ -489,7 +489,7 @@ export function PackOpening({
               // The rares (each pack's rare slot, and a holo Energy) are framed and tagged, holos in their own colour.
               <div key={i} className={`relative rounded-xl ${isFoilSlot(c.slot) ? 'bg-fuchsia-400/10 ring-2 ring-fuchsia-400/80' : c.slot === 'rare' ? 'bg-amber-400/10 ring-2 ring-amber-400/80' : ''}`}>
                 {isRare(c) && (
-                  <span className={`absolute -left-1 -top-1 z-10 rounded-full px-1.5 text-[10px] font-bold uppercase text-slate-900 shadow ${isFoilSlot(c.slot) ? 'bg-fuchsia-300' : 'bg-amber-300'}`}>
+                  <span className={`absolute -left-1 -top-1 z-10 rounded-full px-1.5 text-[10px] font-bold uppercase text-gray-900 shadow ${isFoilSlot(c.slot) ? 'bg-fuchsia-300' : 'bg-amber-300'}`}>
                     {c.slot === 'holoEnergy' ? 'Holo Energy' : c.slot === 'reverse' ? 'Reverse Holo' : c.slot === 'holo' ? 'Holo' : 'Rare'}
                   </span>
                 )}

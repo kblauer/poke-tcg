@@ -177,7 +177,7 @@ function RootLayout() {
         <div className="flex flex-col items-center gap-4 py-24">
           <p className="text-slate-400">Sign in to play.</p>
           <button
-            className="rounded bg-white px-4 py-2 font-medium text-slate-900 hover:bg-slate-200"
+            className="rounded bg-white px-4 py-2 font-medium text-gray-900 hover:bg-gray-200"
             onClick={() => signInWithGoogle()}
           >
             Sign in with Google

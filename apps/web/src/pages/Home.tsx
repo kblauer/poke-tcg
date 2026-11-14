@@ -136,7 +136,7 @@ export function HomePage() {
       <div ref={fill.ref} className="-mb-4 -mt-6 flex" style={fill.style}>
         {/* With everything on the map (filled), a column: the map as tall as the window leaves it, no scrolling. */}
         <div ref={scroller} className={`min-w-0 flex-1 space-y-6 overflow-y-auto pb-4 pt-6 ${filled ? 'flex flex-col' : ''} ${PAGE_WIDTH}`}>
-          {run.error && <p className="rounded bg-red-400 px-3 py-2 text-sm font-medium text-slate-900">{run.error}</p>}
+          {run.error && <p className="rounded bg-red-400 px-3 py-2 text-sm font-medium text-gray-900">{run.error}</p>}
           {!current || !view ? (
             <>
               <PageHeader title="Play" />

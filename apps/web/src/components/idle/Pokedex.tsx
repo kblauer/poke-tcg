@@ -92,7 +92,7 @@ export function Pokedex({
                   Start with {sel.name}
                 </button>
                 {shinyStarters.includes(sel.id) && (
-                  <button className="rounded bg-yellow-500 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-yellow-400 active:scale-95 disabled:opacity-40" disabled={busy} onClick={() => onPick(sel.id, true)}>
+                  <button className="rounded bg-yellow-500 px-4 py-2 text-sm font-semibold text-gray-900 transition hover:bg-yellow-400 hover:text-slate-900 active:scale-95 disabled:opacity-40" disabled={busy} onClick={() => onPick(sel.id, true)}>
                     ★ Start with a shiny {sel.name}
                   </button>
                 )}
