@@ -4,8 +4,12 @@ import { createTRPCClient, httpBatchLink, httpLink, splitLink } from '@trpc/clie
 import { createTRPCContext } from '@trpc/tanstack-react-query';
 import { supabase } from './supabase';
 
+// Nothing is fetched again just because the window got the focus back: the account's state changes only through this
+// client's own mutations, which put their answers in the cache or invalidate it, so a refocus had nothing new to find
+// and reloaded the run, every deck and the unlock list each time (README: Performance). A change made elsewhere
+// (another device) shows as a CONFLICT, which refetches.
 export const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 10_000, retry: 1 } },
+  defaultOptions: { queries: { staleTime: 10_000, retry: 1, refetchOnWindowFocus: false } },
 });
 
 export const trpcClient = createTRPCClient<AppRouter>({

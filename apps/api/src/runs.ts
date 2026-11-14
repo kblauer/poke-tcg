@@ -18,12 +18,12 @@ import {
   type RunTypeId,
 } from '@poke-tcg/campaign';
 import { prisma, saveGameState, type Prisma, type Run } from '@poke-tcg/db';
-import { applyAction, createGame, runCpu, type GameAction, type GameState } from '@poke-tcg/game-engine';
+import { applyAction, createGame, runCpu, type GameAction } from '@poke-tcg/game-engine';
 import { CPU_ID, HUMAN_ID } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { ensureUser, type AuthUser } from './auth.js';
 import { loadCardLibrary } from './cards.js';
-import { actionRows, asJson, newSeed } from './games.js';
+import { actionRows, asJson, loadGame, newSeed, storedState } from './games.js';
 import { runPool } from './pool.js';
 import { earnedPacks, unlockPacks } from './progress.js';
 import { unlockCards } from './unlocks.js';
@@ -198,7 +198,7 @@ async function startBattle(run: LoadedRun, state: RunState, gear: string[]): Pro
       runId: run.id,
       seed,
       ...(cosmetics && { cosmetics }),
-      state: asJson(game),
+      state: asJson(storedState(game)),
       version: game.version,
       actions: { create: actionRows(actions.map((action) => ({ playerId: CPU_ID, action })), game.version) },
     },
@@ -211,16 +211,16 @@ async function startBattle(run: LoadedRun, state: RunState, gear: string[]): Pro
 export async function abandonBattle(gameId: string) {
   // Tried again if the game moved on meanwhile (an action of the player's in another tab), so no active game is left behind.
   for (let attempt = 0; attempt < 3; attempt++) {
-    const game = await prisma.game.findUnique({ where: { id: gameId } });
+    const game = await loadGame(gameId);
     if (!game || game.status === 'FINISHED') return;
     const action: GameAction = { type: 'CONCEDE' };
-    const result = applyAction(game.state as unknown as GameState, HUMAN_ID, action);
+    const result = applyAction(game.state, HUMAN_ID, action);
     if (!result.ok) return;
     const next = result.state;
     const saved = await saveGameState({
       gameId,
       expectedVersion: game.version,
-      state: next,
+      state: storedState(next),
       version: next.version,
       status: 'FINISHED',
       winner: next.winner,
