@@ -1,4 +1,4 @@
-"""Adds each Kanto route's tall grass (`grass` on its Route) to packages/campaign/src/kanto-routes.ts and routes.ts, from
+"""Adds each Kanto route's tall grass (`grass` on its Route) to packages/campaign/src/kanto-routes.ts, from
 FireRed's tile behaviours (MB_TALL_GRASS, as render_route.py finds them), so the route map can draw the people standing
 in it half hidden, as the games do. Only the `grass` rows are written: the routes' other fields (and the user's fixes to
 them) are left as they are. Each map is fetched and rendered (fetch_map.py, render_route.py) into <work>/; its size must be
@@ -11,7 +11,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.abspath(os.path.join(HERE, '..', '..', 'packages', 'campaign', 'src'))
 # The routes with tall grass: their constant, FireRed map and file.
 MAPS = {
-    'ROUTE_2': ('Route2', 'routes.ts'),
+    'ROUTE_2': ('Route2', 'kanto-routes.ts'),
     'ROUTE_4': ('Route4', 'kanto-routes.ts'),
     'ROUTE_5': ('Route5', 'kanto-routes.ts'),
     'ROUTE_6': ('Route6', 'kanto-routes.ts'),

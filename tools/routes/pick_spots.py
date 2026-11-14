@@ -3,7 +3,7 @@ bottom, the default, top, left or right) to the opposite one, alternating betwee
 both are walkable, each where its 5x5 surroundings are most open (the middle of a path, not against trees). Writes a
 preview with numbered markers.
 Usage: python pick_spots.py <route.json> <route.png> <preview.png> [N]. Prints the spots as JSON (for a Route in
-packages/campaign/src/routes.ts); check the preview before using them."""
+packages/campaign/src/kanto-routes.ts); check the preview before using them."""
 import json, os, sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pylib'))

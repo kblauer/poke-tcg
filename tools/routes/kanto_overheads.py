@@ -6,7 +6,7 @@ render_route.py's `--overhead`), see-through elsewhere, as <picture>_overhead.pn
 
 - every map in packages/idle/src/data/gen1/maps.ts (its `image`: public/routes/'s where the run maps draw it, else
   public/idle/gen1/maps/'s); kanto_areas.py gives a map with one its `top` (run it after this);
-- every Kanto route of the run maps (packages/campaign/src/routes.ts's and kanto-routes.ts's Routes whose picture is a
+- every Kanto route of the run maps (packages/campaign/src/kanto-routes.ts's Routes whose picture is a
   FireRed map's, Pewter Gym's pewter_gym.png PewterCity_Gym's), whose `overhead` line this writes (the Routes' other
   fields, and the user's fixes to them, left as they are, as kanto_grass.py writes their grass).
 
@@ -122,7 +122,7 @@ def main():
             done[picture] = write_overhead(name, picture, report)
             print(name, picture, 'overhead' if done[picture] else '-')
     # The run maps' Kanto routes: each Route's picture, its `overhead` line after its `image` line.
-    for file in ('routes.ts', 'kanto-routes.ts'):
+    for file in ('kanto-routes.ts',):
         p = os.path.join(CAMPAIGN, file)
         text = open(p, encoding='utf8', newline='').read()
         nl = '\r\n' if '\r\n' in text else '\n'
