@@ -21,7 +21,7 @@ import { baseUid, energyProtected, inPlayDef, pokemonName } from '../status.js';
 import { sporeTargets } from '../trainers.js';
 import { attackEffect } from './index.js';
 import { BASE1 } from './base1.js';
-import { benchSearch, discardDefenderEnergy, discardToUse, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentBenchChoice, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
+import { benchSearch, discardDefenderEnergy, discardFree, discardToUse, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentBenchChoice, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
 import { discardFromAttacker, noRetreat } from './gym1.js';
 import { flipForMore, rage } from './jungle.js';
 import { damageOpponent, opponentTargets, screech } from './neo1.js';
@@ -29,12 +29,7 @@ import { hiddenPower } from './neo2.js';
 import { flipOrNothing } from './rocket.js';
 import { damageEach, fly, healDefender, TYPES } from './si1.js';
 
-/** Whether the attack can do anything with cards in discard piles: not while Allergic Pollen works (logged). */
-export function discardFree(ctx: AttackContext): boolean {
-  if (!discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return true;
-  ctx.log('Allergic Pollen: cards in discard piles are not affected.');
-  return false;
-}
+export { discardFree };
 
 /** Attaches the first card `matches` finds in the attacking player's discard pile to the attacker (Plasma, Dark Flame). */
 export function attachFromDiscard(ctx: AttackContext, matches: (c: CardInstance) => boolean) {

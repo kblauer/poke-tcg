@@ -5,7 +5,7 @@ import { hasType, holonEnergy, isBasicEnergy, lookupCard, namesMatch, type CardL
 import { powerEffect, trainerEffect } from './effects/index.js';
 import { counts, energyPool, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
 import { addLog, clearSpecialConditions, effectId, evolvedFromName, flipCoin, hasSpecialCondition, isDelta, lakeTrio, levelledUp, pokemonName, inPlayDef, sameCards, specialConditionLabel } from './status.js';
-import { evolvesFromEevee, isPokemonSP, trainersLocked, type PendingChoice, type PendingChoiceInput } from './trainers.js';
+import { evolvesFromEevee, isPokemonSP, pendingChoiceView, trainersLocked, type PendingChoice, type PendingChoiceInput } from './trainers.js';
 
 /** Answers to a power's questions. Each question names the field it fills. */
 export interface PowerChoices {
@@ -1564,12 +1564,22 @@ export function stickyHold(state: GameState, side: PlayerState, slot: number) {
   else state.pendingChoice = choice;
 }
 
+/** The questions about cards in a discard pile, whatever they show first (the rest are known by their view: pickFromDiscard). */
+const DISCARD_PILE_KINDS: readonly PendingChoice['kind'][] = ['discardToHand', 'attachFromDiscard', 'discardToBench', 'discardToDeck', 'darknessRestore'];
+
 /**
  * Asks `choice`: what every `pend` (an attack's, a power's, a Trainer's) does. A Sticky Hold question a switch just left
  * (stickyHold) is asked after it, never overwritten: an effect that switches and then asks goes through this, never
  * `state.pendingChoice = …`.
+ * `pollen`: the question is an attack's or a Pokémon Power's (not a Trainer card's, nor an Ability's), so Allergic Pollen stops
+ * one about cards in a discard pile here, said in the log and not asked: the one place the lock is enforced for questions,
+ * whatever the effect checked itself. An effect that takes cards from a discard pile with no question still checks
+ * `discardsLocked` (attacks: `discardFree`).
  */
-export function askChoice(state: GameState, choice: PendingChoice) {
+export function askChoice(state: GameState, choice: PendingChoice, pollen = false) {
+  if (pollen && discardsLocked(state.playerOrder.map((id) => state.players[id]!), state.cards) && (DISCARD_PILE_KINDS.includes(choice.kind) || pendingChoiceView(state, choice).kind === 'pickFromDiscard')) {
+    return addLog(state, `Allergic Pollen: cards in discard piles are not affected (${choice.source}).`, choice.player);
+  }
   const held = state.pendingChoice?.source === 'Sticky Hold' ? state.pendingChoice : null;
   state.pendingChoice = choice;
   if (held) (state.queuedChoices ??= []).push(held);
@@ -1614,7 +1624,7 @@ export function usePower(state: GameState, me: PlayerState, opp: PlayerState, so
     log: (text) => addLog(state, text, me.id),
     flip: () => flipCoin(state, def.power!.name, me.id),
     pend: (choice) => {
-      askChoice(state, { ...choice, player: me.id } as PendingChoice);
+      askChoice(state, { ...choice, player: me.id } as PendingChoice, !effect.ability);
     },
   });
   // Darkness Drive: the opponent's working Tyranitar takes a basic Darkness Energy card from their discard pile.
@@ -1676,7 +1686,7 @@ export function useCardPower(state: GameState, me: PlayerState, opp: PlayerState
     log: (text) => addLog(state, text, me.id),
     flip: () => flipCoin(state, def.power!.name, me.id),
     pend: (choice) => {
-      askChoice(state, { ...choice, player: me.id } as PendingChoice);
+      askChoice(state, { ...choice, player: me.id } as PendingChoice, !effect.ability);
     },
   });
   return null;

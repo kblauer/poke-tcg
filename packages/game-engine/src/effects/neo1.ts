@@ -35,6 +35,7 @@ import {
   opponentTargets,
   perHeads,
   same,
+  discardFree,
 } from './common.js';
 import { FOSSIL, smokescreen } from './fossil.js';
 import { discardFromAttacker } from './gym1.js';
@@ -188,7 +189,8 @@ export const NEO1: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         const energy = ctx.me.discard.filter((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy');
         ctx.hit(10 + 10 * energy.length);
-        if (!energy.length) return;
+        // Allergic Pollen: the Energy cards are counted, but stay where they are.
+        if (!energy.length || !discardFree(ctx)) return;
         ctx.me.discard = ctx.me.discard.filter((c) => !energy.includes(c));
         ctx.me.deck.push(...energy);
         shuffleOwnDeck(ctx);

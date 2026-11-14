@@ -13,7 +13,7 @@
 // the older Pokémon Powers, both players', as Dark Impact does.
 import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
 import { afflictionBlocked, evolvesOnto, isEnergyCardOf, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
-import { ownTargets, pokemonAt, powerActive, type PowerChoiceSpec, type PowerContext, type PowerEffect } from '../powers.js';
+import { discardsLocked, ownTargets, pokemonAt, powerActive, type PowerChoiceSpec, type PowerContext, type PowerEffect } from '../powers.js';
 import { addLog, clearSpecialConditions, effectId, hasSpecialCondition, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { isPokemonCard, type PokemonCardDef } from '../cards.js';
 import type { GameState } from '../engine.js';
@@ -145,7 +145,7 @@ export const ECARD3_POWERS: Record<string, PowerEffect> = {
   // Gengar – Manipulate: evolving the Active Pokémon from the hand, a Basic Pokémon (not a Baby) from the discard pile onto the Bench; 3 coins, a basic Energy card from the discard pile to it for each heads.
   'ecard3-10': {
     onPlayFromHand(state, owner, gengar) {
-      if (!evolvedActive(owner, gengar)) return;
+      if (!evolvedActive(owner, gengar) || discardsLocked(state.playerOrder.map((id) => state.players[id]!), state.cards)) return;
       const fits = owner.discard.some((c) => {
         const d = lookupCard(state.cards, c.defId);
         return d.kind === 'pokemon' && d.stage === 'basic' && !d.baby && !d.trainerText;

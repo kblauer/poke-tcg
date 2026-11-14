@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { CardDef, PokemonCardDef } from '../cards.js';
 import { applyAction, type GameState, type InPlayPokemon, type Target } from '../index.js';
 import { cardsOf, isEvolved, removeTopEvolution, sameCards } from '../status.js';
-import { act, attack, duel, endTurn, flips, give, mon, playAuto, settles, C, F, FI, W } from './test-kit.js';
+import { act, attack, duel, endTurn, flips, give, id, mon, playAuto, settles, C, F, FI, W } from './test-kit.js';
 
 const ash = (s: GameState) => s.players.ash!;
 let n = 0;
@@ -241,6 +241,55 @@ describe('a Stadium leaves play through retireStadium', () => {
       const after = act(s, 'ash', { type: 'USE_POWER', source: 'active' });
       expect([after.stadium, where(after)]).toEqual([null, ['deck']]);
     }
+  });
+});
+
+describe('the discard-pile lock (Allergic Pollen)', () => {
+  const hits = (id: string, name: string, choices?: Parameters<typeof attack>[2]) => (s: GameState) => {
+    put(s, 'ash', 'active', mon(id, 'Attacker', C, 200, [[name, [C], 0]]), ['fire']);
+    return attack(flips(s, true, true, true), 0, choices);
+  };
+  const evolves = (from: PokemonCardDef, to: PokemonCardDef) => (s: GameState) => {
+    put(s, 'ash', 'active', from);
+    return act(s, 'ash', { type: 'EVOLVE', cardUid: hand(s, 'ash', to), target: 'active' });
+  };
+  /** Each attack and Pokémon Power that takes cards from a discard pile and didn't check the lock itself (#204). */
+  const TAKERS: [name: string, go: (s: GameState) => GameState][] = [
+    ["Rocket's Zapdos (Plasma)", hits('gym2-15', 'Plasma')],
+    ["Blaine's Vulpix (Call Will-o'-the-wisp)", hits('gym2-66', "Call Will-o'-the-wisp")],
+    ['Feraligatr (Riptide)', hits('neo1-5', 'Riptide')],
+    ['Magby (Energy Catch)', hits('ecard1-17', 'Energy Catch')],
+    ['Raticate (Pickup)', hits('ex6-48', 'Pickup')],
+    ['Quagsire δ (Dig up)', evolves(mon('ex15-71', 'Wooper δ', W, 50, []), mon('ex15-21', 'Quagsire δ', W, 80, [], { stage: 'stage1', evolvesFrom: 'Wooper δ', power: { name: 'Dig up', text: '' } }))],
+    ['Gengar (Manipulate)', evolves(mon('ecard3-63', 'Haunter', C, 70, [], { stage: 'stage1', evolvesFrom: 'Gastly' }), mon('ecard3-10', 'Gengar', C, 100, [], { stage: 'stage2', evolvesFrom: 'Haunter', power: { name: 'Manipulate', text: '' } }))],
+    ['Lillipup (Pickup)', hits('bw1-80', 'Pickup')],
+    ['Stoutland (Odor Sleuth)', hits('bw1-83', 'Odor Sleuth')],
+    ['Manaphy (Seafaring)', hits('bw8-34', 'Seafaring')],
+    ['Magnezone (Double Assist)', hits('bw8-47', 'Double Assist', { ownTarget: 0 })],
+  ];
+  const outcome = (go: (s: GameState) => GameState, pollen: boolean) => {
+    const s = duel('charmander', 'onix', { bench: ['squirtle'] });
+    ash(s).discard = ['fire', 'water', 'lightning', 'potion', 'charmander', 'squirtle'].map((name) => ({ uid: `gone-${name}`, defId: id(name) }));
+    if (pollen) put(s, 'misty', 0, mon('neo3-35', 'Parasect', C, 60, [], { stage: 'stage1', power: { name: 'Allergic Pollen', text: '' } }));
+    const after = go(s);
+    const asked = [after.pendingChoice, ...(after.queuedChoices ?? [])].some((c) => c && /discard|Discard/.test(c.kind));
+    return { asked, discard: ash(after).discard.map((c) => c.uid).sort() };
+  };
+
+  it.each(TAKERS)('%s takes from the discard pile, and does nothing to it while Allergic Pollen works', (_name, go) => {
+    const untouched = ['fire', 'water', 'lightning', 'potion', 'charmander', 'squirtle'].map((name) => `gone-${name}`).sort();
+    const free = outcome(go, false);
+    expect(free.asked || free.discard.join() !== untouched.join()).toBe(true);
+    expect(outcome(go, true)).toEqual({ asked: false, discard: untouched });
+  });
+
+  it('a Trainer card still takes from the discard pile (the lock is for attacks and Pokémon Powers)', () => {
+    const s = duel('charmander', 'onix');
+    ash(s).discard = [{ uid: 'gone-fire', defId: id('fire') }, { uid: 'gone-water', defId: id('water') }];
+    put(s, 'misty', 0, mon('neo3-35', 'Parasect', C, 60, [], { stage: 'stage1', power: { name: 'Allergic Pollen', text: '' } }));
+    give(s, 'ash', 'squirtle');
+    const after = playAuto(s, 'ash', give(s, 'ash', 'energyretrieval')[0]!);
+    expect(ash(after).hand.map((c) => c.uid)).toEqual(expect.arrayContaining(['gone-fire', 'gone-water']));
   });
 });
 

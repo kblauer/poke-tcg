@@ -2330,10 +2330,10 @@ function createContext(
     attackName,
     attackSource,
     pend(choice) {
-      askChoice(state, { ...choice, player: me.id } as PendingChoice);
+      askChoice(state, { ...choice, player: me.id } as PendingChoice, true);
     },
     opponentChooses(choice) {
-      askChoice(state, { ...choice, player: opp.id } as PendingChoice);
+      askChoice(state, { ...choice, player: opp.id } as PendingChoice, true);
     },
     log,
   };
