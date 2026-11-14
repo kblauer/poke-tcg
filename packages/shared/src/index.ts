@@ -1,5 +1,5 @@
 import { CPU_DIFFICULTIES, DEBUG_CONDITIONS, MAX_BENCH, type AttackChoices, type DebugCommand, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
-import { BERRIES, BOSS_IDS, COSMETIC_IDS, EQUIP_SLOTS, FLAIR_SLOTS, MAX_PACKS_AT_ONCE, PACK_SETS, RUN_TYPE_IDS, STARTER_IDS, TOP_FLOOR, type RunAction, type RunTypeId, type TowerAction } from '@poke-tcg/campaign';
+import { BERRIES, BOSS_IDS, COIN_OFFERS, COSMETIC_IDS, EQUIP_SLOTS, FLAIR_SLOTS, MAX_BLENDER_RPM, MAX_COOK_FRAMES, MAX_PACKS_AT_ONCE, MIN_COOK_FRAMES, PACK_SETS, RUN_TYPE_IDS, STARTER_IDS, TOP_FLOOR, type RunAction, type RunTypeId, type TowerAction } from '@poke-tcg/campaign';
 import { z } from 'zod';
 import { DECK_NAME_LENGTH } from './deck.js';
 import { TRAINER_SPRITES } from './trainer-sprites.js';
@@ -234,11 +234,12 @@ export const assignCosmeticInput = buyCosmeticInput.extend({ deckIds: z.array(z.
 // The Extras page: a berry by its id; the Berry Blender's top speed in hundredths of an RPM (5 digits on its screen).
 const berryId = z.enum(BERRIES.map((b) => b.id) as [string, ...string[]]);
 export const harvestBerryInput = z.object({ berry: berryId });
-export const blendBerryInput = z.object({ berry: berryId, maxRpm: z.number().int().min(0).max(99999) });
-// A Poffin's cooking: the berry, its time in frames (30 a second; 3 phases of at most 20 seconds) and its spills and burns.
-export const cookPoffinInput = z.object({ berry: berryId, frames: z.number().int().min(1).max(3 * 20 * 30), spills: z.number().int().min(0).max(9999), burns: z.number().int().min(0).max(9999) });
+// A blend's top speed: at most the perfect game's (MAX_BLENDER_RPM).
+export const blendBerryInput = z.object({ berry: berryId, maxRpm: z.number().int().min(0).max(MAX_BLENDER_RPM) });
+// A Poffin's cooking: the berry, its time in frames (30 a second; between the perfect game's and 3 phases of 20 seconds: MIN_COOK_FRAMES, MAX_COOK_FRAMES) and its spills and burns.
+export const cookPoffinInput = z.object({ berry: berryId, frames: z.number().int().min(MIN_COOK_FRAMES).max(MAX_COOK_FRAMES), spills: z.number().int().min(0).max(9999), burns: z.number().int().min(0).max(9999) });
 // The Game Corner: one of the counter's coin offers (COIN_OFFERS, by its coins); a round's bet and payout (coinRoundError checks them).
-export const buyCoinsInput = z.object({ coins: z.union([z.literal(50), z.literal(500)]) });
+export const buyCoinsInput = z.object({ coins: z.literal(COIN_OFFERS.map((o) => o.coins)) });
 export const coinRoundInput = z.object({ game: z.enum(['roulette', 'slots']), bet: z.number().int().min(0).max(6), payout: z.number().int().min(0).max(9999) });
 // Voltorb Flip: the next board (`restart` when the game is entered: a new session, from Lv. 1); a round's end, its cards
 // flipped in order and how it ended (settleRound checks them against the board).

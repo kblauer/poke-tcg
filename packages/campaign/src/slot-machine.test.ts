@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Random16 } from './berry-blender.js';
-import { afterRound, MAX_COINS, SLOT_MAX_PAYOUT, type SlotMachineId } from './game-corner.js';
+import { afterRound, coinRoundError, MAX_COINS, SLOT_MAX_PAYOUT, type SlotMachineId } from './game-corner.js';
 import {
   newSlotMachine,
   SLOT_KEYS,
@@ -122,6 +122,8 @@ describe('the slot machines', () => {
           expect(round.bet).toBeGreaterThanOrEqual(0);
           expect(round.bet).toBeLessThanOrEqual(3);
           expect(round.payout).toBeLessThanOrEqual(SLOT_MAX_PAYOUT);
+          // The API's check takes every spin the machine plays.
+          expect(coinRoundError('slots', round.bet, round.payout)).toBeNull();
         }
       }
       expect(rounds).toBeGreaterThanOrEqual(150);

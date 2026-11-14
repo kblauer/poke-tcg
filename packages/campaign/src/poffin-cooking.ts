@@ -17,6 +17,14 @@ export const PHASES = 3;
 /** Each phase's length (20 seconds) and laps (16) to end it. */
 export const PHASE_FRAMES = 20 * 30;
 const PHASE_LAPS = [16, 16, 16];
+/**
+ * The longest a cooking can take (every phase its 20 seconds) and the shortest: the perfect game's, the arrow never
+ * changing and the batter stirred its way as fast as it goes short of spilling from the first stroke (a test plays it).
+ * The API takes no time outside them (`cookPoffinInput`): the game is played in the browser, so its result is the
+ * browser's word within them.
+ */
+export const MAX_COOK_FRAMES = PHASE_FRAMES * PHASES;
+export const MIN_COOK_FRAMES = 918;
 /** The batter's top speed, either way, and the speed at or under which it burns. */
 export const MAX_SPEED = 3640;
 export const SLOW_SPEED = 910;
