@@ -104,7 +104,7 @@ export function returnOwnEnergy(ctx: AttackContext, count: number, source: strin
     ctx.attacker.energy = ctx.attacker.energy.filter((e) => !back.includes(e));
     ctx.me.hand.push(...back.map(({ converted: _c, windless: _w, ...c }) => c));
     ctx.log(`Returned ${back.map((e) => lookupCard(ctx.state.cards, e.defId).name).join(', ')} to the hand.`);
-  } else askAfter(ctx, { kind: 'discardAttached', source, target: 'active', count, toHand: true, ...(types && { types }) });
+  } else askAfter(ctx, { kind: 'discardAttached', source, target: 'active', count, toHand: true, anyEnergy: true, ...(types && { types }) });
   return Math.min(count, fit.length);
 }
 
