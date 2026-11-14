@@ -2,7 +2,7 @@ import { hasType, isBasicPokemon, lookupCard } from '../cards.js';
 import { inPlayDef, openBenchSlot } from '../status.js';
 import { evolveError, type GameAction, type GameState, type PlayerId, type PlayerState } from '../engine.js';
 import { pendingChoiceView } from '../trainers.js';
-import { acceptsChallenge, chooseActive, inPlay, lostWorldWin, pleadAnswer, rpsHand } from './shared.js';
+import { acceptsChallenge, chooseActive, inPlay, lostWorldWin, optionalCost, pleadAnswer, rpsHand, turnOf } from './shared.js';
 
 /**
  * The 'passive' CPU, with almost no strategy. Besides the moves the rules force (choose an active,
@@ -44,10 +44,13 @@ function finishSearch(state: GameState): GameAction {
   // The first option: Mind Games, Herbal Scent, Fire Boost and Softboiled flip (agreed for Mind Games). Howl, which ends the turn, isn't used.
   const choice = state.pendingChoice!;
   if (choice.kind === 'rps') return { type: 'RESOLVE_CHOICE', count: rpsHand(state) };
+  // Psychic Protector, Power Cancel, Charity Tail: only when it makes sense, as the other difficulties (agreed 2026-11-14).
+  const cost = optionalCost(turnOf(state, choice.player));
+  if (cost) return cost;
   if (choice.kind === 'beforeAttack' && choice.question === 'plead') return { type: 'RESOLVE_CHOICE', count: pleadAnswer(state, choice.player) };
   if (view.kind === 'options') return { type: 'RESOLVE_CHOICE', count: (choice.kind === 'mayFlip' && choice.power === 'howl') || (choice.kind === 'mayUse' && choice.power === 'retroEnergy') ? 1 : 0 };
   // Attract Energy, Delta Switch ("any number"): its Energy stays where it is.
-  if (choice.kind === 'moveAttached' || choice.kind === 'energyAnyWay' || choice.kind === 'protector' || (choice.kind === 'deltaSwitch' && !choice.cardUid)) return { type: 'RESOLVE_CHOICE' };
+  if (choice.kind === 'moveAttached' || choice.kind === 'energyAnyWay' || (choice.kind === 'deltaSwitch' && !choice.cardUid)) return { type: 'RESOLVE_CHOICE' };
   // A search onto a full Bench finds nothing (a card picked would be refused: Playground with 5 Benched Pokémon).
   const me = state.players[choice.player]!;
   if (choice.kind === 'pickFromDeck' && choice.toBench && openBenchSlot(me, state.cards, state.stadium?.card) < 0) return { type: 'RESOLVE_CHOICE' };
