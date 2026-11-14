@@ -26,7 +26,6 @@ import {
   perHeads,
   recoil,
   tailsSelfDamage,
-  discardFree,
 } from './common.js';
 import { smokescreen } from './fossil.js';
 import { benchMany, discardEnergyOf, discardFromAttacker, noRetreat } from './gym1.js';
@@ -275,7 +274,7 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         ctx.hit(20);
         const [energy] = basicEnergyInDiscard(ctx, 'lightning');
-        if (!energy || ctx.me.active !== ctx.attacker || !discardFree(ctx)) return;
+        if (!energy || ctx.me.active !== ctx.attacker) return;
         ctx.me.discard = ctx.me.discard.filter((c) => c !== energy);
         ctx.attacker.energy.push(energy);
         ctx.log(`Attached a Lightning Energy card from the discard pile to ${ctx.attackerDef.name}.`);
@@ -763,7 +762,6 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
         const heads = ctx.flips(3);
         const fire = basicEnergyInDiscard(ctx, 'fire').slice(0, heads);
         if (!fire.length) return ctx.log("Call Will-o'-the-wisp found nothing.");
-        if (!discardFree(ctx)) return;
         ctx.me.discard = ctx.me.discard.filter((c) => !fire.includes(c));
         ctx.me.hand.push(...fire);
         ctx.log(`Put ${fire.length} Fire Energy card${fire.length === 1 ? '' : 's'} from the discard pile into the hand.`);

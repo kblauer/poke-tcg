@@ -1,6 +1,6 @@
 // Attack resolution: legality, the choices an attack asks for, damage (weakness, resistance,
 // prevention) and the helpers card effects use. Card-specific behaviour lives in effects/.
-import { conditionProof, hasOwner, hasType, isBasicEnergy, isBasicPokemon, lookupCard, namesMatch, typeName, typesOf, weaknessLabel, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { isBasicInPlay, conditionProof, hasOwner, hasType, isBasicEnergy, lookupCard, namesMatch, typeName, typesOf, weaknessLabel, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { attackEffect, powerEffect, trainerEffect } from './effects/index.js';
 import {
   afflictBetweenTurns,
@@ -25,7 +25,7 @@ import {
   type Target,
   retireStadium,
 } from './engine.js';
-import { askChoice, hasPowerOrBody, greenAroma, stickyHold, conditionBarred, conditionFree, discardsLocked, hasReact, holonWith, reactCount, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy, type Sides, pokemonPower } from './powers.js';
+import { askChoice, hasPowerOrBody, greenAroma, stickyHold, conditionBarred, conditionFree, hasReact, holonWith, reactCount, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy, type Sides, pokemonPower } from './powers.js';
 import { shuffle } from './rng.js';
 import { addLog, baseUid, clearOnLeavingActive, hasSpecialCondition, effectId, evolvedFromName, isDelta, isPlasmaPokemon, energyProtected, flipCoin, inPlayDef, lakeTrio, pokemonName, previousLevel, revealFaceDown, sameCards, shapeshiftCard, isEvolved, cardsOf } from './status.js';
 import { isPokemonSP, swapActive, type PendingChoice, type PendingChoiceInput } from './trainers.js';
@@ -156,8 +156,6 @@ export interface AttackSituation {
   opponentDiscard?: CardInstance[];
   /** Every Pokémon Power is off (Goop Gas Attack, Sputter: `powersOffUntil` on either player). */
   powersOff?: boolean;
-  /** Allergic Pollen: the attack can't do anything with cards in discard piles (its questions about them aren't asked). */
-  discardsLocked?: boolean;
   /** How many Prize cards the opponent has left (the Mystery Plates). Missing = not known: their questions are asked anyway. */
   opponentPrizes?: number;
   /** How many Prize cards the attacking player has left (Rage Aura). Missing = not known. */
@@ -503,7 +501,7 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
   }
   // Intimidating Ring (the Defending Pokémon's), and Shining Horn (a Skarmory that's its player's only Pokémon in play):
   // Basic Pokémon can't attack.
-  if (attackerDef.stage === 'basic') {
+  if (isBasicInPlay(attackerDef)) {
     const ring = working(s.defender)?.intimidatingRing || working(s.defender)?.intimidatingArmor;
     const horn = working(s.defender)?.shiningHorn && !s.opponentBench.some(Boolean);
     if (ring || horn) return `${def(s.cards, s.defender).power!.name}: ${attackerDef.name} can't attack`;
@@ -534,7 +532,7 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
   // Extra Liquid (anywhere in play, either player's): a Pokémon-ex's attacks cost 1 Colorless more (only 1, however many).
   const liquid = !!attackerDef.ex && sides.some((side) => [side.active, ...side.bench].some((p) => p && working(p)?.extraLiquid));
   // Downer Material (the opponent's, with their Uxie and Mesprit in play): a Basic Pokémon's attacks cost 1 Colorless more (only 1).
-  const downer = attackerDef.stage === 'basic' && [s.defender, ...s.opponentBench].some((p) => p && working(p)?.downerMaterial && lakeTrio(s.cards, sides[1]!, ['Uxie', 'Mesprit']));
+  const downer = isBasicInPlay(attackerDef) && [s.defender, ...s.opponentBench].some((p) => p && working(p)?.downerMaterial && lakeTrio(s.cards, sides[1]!, ['Uxie', 'Mesprit']));
   // Mother Pheromone: 1 Colorless less for each of the player's working Nidoqueen, for the Nidoran line.
   // Regi Form: 1 Colorless less with Regirock, Regice and Registeel in play.
   const regi = working(s.attacker)?.regiForm && ['Regirock', 'Regice', 'Registeel'].every((n) => [s.attacker, ...s.ownBench].some((p) => p && namesMatch(def(s.cards, p).name, n))) ? 1 : 0;
@@ -584,8 +582,7 @@ function choiceSpecs(s: AttackSituation, attackIndex: number, c: AttackChoices):
       prompt: `Choose ${discard.count} ${type}Energy to discard`,
     });
   }
-  // Allergic Pollen: no cards can be taken from discard piles, so those questions go.
-  if (effect?.choices) specs.push(...effect.choices(s, c).filter((spec) => !s.discardsLocked || !['ownDiscard', 'eitherDiscard', 'oppDiscard'].includes(spec.kind)));
+  if (effect?.choices) specs.push(...effect.choices(s, c));
   // Vermilion City Gym: a Pokémon with Lt. Surge in its name may flip (the CPU always does).
   if (s.stadium && lookupCard(s.cards, s.stadium.defId).name === 'Vermilion City Gym' && def(s.cards, s.attacker).name.includes('Lt. Surge')) {
     specs.push({ kind: 'vermilion', options: [true, false], prompt: 'Vermilion City Gym: flip a coin? Heads: 10 more damage; tails: 10 damage to your Pokémon' });
@@ -877,7 +874,7 @@ export function performAttack(
   }
   // Pattern Distraction: the Defending player's working Active Spinda makes a Basic Pokémon's attack a flip; tails, it does nothing.
   const spinda = opp.active;
-  if (spinda && attackerDef.stage === 'basic' && pokemonPower(spinda)?.patternDistraction && powerActive(spinda, state.cards, [me, opp]) && !flipCoin(state, 'Pattern Distraction', me.id)) {
+  if (spinda && isBasicInPlay(attackerDef) && pokemonPower(spinda)?.patternDistraction && powerActive(spinda, state.cards, [me, opp]) && !flipCoin(state, 'Pattern Distraction', me.id)) {
     addLog(state, `${attack.name} did nothing.`, me.id);
     return null;
   }
@@ -937,7 +934,6 @@ export const attackSituation = (state: GameState, me: PlayerState, opp: PlayerSt
   recall: recallsAttacks(state, me),
   opponentDiscard: opp.discard,
   powersOff: me.powersOffUntil !== undefined || opp.powersOffUntil !== undefined,
-  discardsLocked: discardsLocked([me, opp], state.cards),
   opponentPrizes: opp.prizes.length,
   ownPrizes: me.prizes.length,
 });
@@ -1055,7 +1051,7 @@ function createContext(
     const from = partnered ? passive(p)?.guardFrom : undefined;
     // Fast Protection: nor by the opponent's Basic Pokémon. Advanced Armor, Psychic Shield: nor, this turn, by the opponent's
     // Evolved Pokémon or Pokémon-ex.
-    if (theirs && ((passive(p)?.basicProof && attackerDef.stage === 'basic') || (active(p.effects?.evolvedProof, turn) && evolved) || (active(p.effects?.exProof, turn) && attackerDef.ex))) return true;
+    if (theirs && ((passive(p)?.basicProof && isBasicInPlay(attackerDef)) || (active(p.effects?.evolvedProof, turn) && evolved) || (active(p.effects?.exProof, turn) && attackerDef.ex))) return true;
     // Holy Shield ('dark'): nor by Pokémon with Dark in their names.
     if (from === 'dark') return theirs && /\bDark\b/.test(attackerDef.name);
     // Mysterious Shard: nothing from the opponent's Pokémon-ex's attacks.
@@ -1298,7 +1294,7 @@ function createContext(
     }
     // Dense Body: 20 less from a Basic Pokémon's attack (not a Baby Pokémon's).
     const guarded = passive(p)?.basicGuard;
-    if (damage > 0 && guarded && attackerDef.stage === 'basic' && !attackerDef.baby) {
+    if (damage > 0 && guarded && isBasicInPlay(attackerDef) && !attackerDef.baby) {
       damage = noted(def(state.cards, p).power!.name, damage, Math.max(0, damage - guarded));
       log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${guarded}.`, owner.id);
     }
@@ -1339,7 +1335,7 @@ function createContext(
       log(`Buffer Piece reduced the damage to ${pokemonName(state, p)} by 20.`, owner.id);
     }
     // Eviolite: 20 less to a Basic Pokémon from any attack.
-    if (damage > 0 && toolOf(state.cards, p)?.name === 'Eviolite' && isBasicPokemon(def(state.cards, p))) {
+    if (damage > 0 && toolOf(state.cards, p)?.name === 'Eviolite' && isBasicInPlay(def(state.cards, p))) {
       damage = noted('Eviolite', damage, Math.max(0, damage - 20));
       log(`Eviolite reduced the damage to ${pokemonName(state, p)} by 20.`, owner.id);
     }
@@ -1422,7 +1418,7 @@ function createContext(
       damage = noted(def(state.cards, p).power!.name, damage, Math.max(0, damage - reduction));
       log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${reduction}.`, owner.id);
     }
-    if (damage >= 20 && attackerDef.stage === 'basic' && passive(p)?.strangeBarrier) {
+    if (damage >= 20 && isBasicInPlay(attackerDef) && passive(p)?.strangeBarrier) {
       damage = noted('Strange Barrier', damage, 10);
       log(`Strange Barrier reduced the damage to ${pokemonName(state, p)} to 10.`, owner.id);
     }
@@ -2327,10 +2323,10 @@ function createContext(
     attackName,
     attackSource,
     pend(choice) {
-      askChoice(state, { ...choice, player: me.id } as PendingChoice, true);
+      askChoice(state, { ...choice, player: me.id } as PendingChoice);
     },
     opponentChooses(choice) {
-      askChoice(state, { ...choice, player: opp.id } as PendingChoice, true);
+      askChoice(state, { ...choice, player: opp.id } as PendingChoice);
     },
     log,
   };

@@ -3,7 +3,7 @@ import { applyWeaknessResistance, attackAsks, attackError, attackSituation, chec
 import { hasPowerOrBody, attachBlocked, greenAroma, stickyHold, timeAura, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, pokemonAt, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, useCardPower, usePower, powerCanceller, zoomed, type PowerChoices, type PowerEffect, pokemonPower } from './powers.js';
 import { evolvesFromEevee, isPokemonSP, evolveWith, swapActive, pendingChoiceView, playTrainer, resolvePending, stadiumError, trainerLockError, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
-import { conditionProof, givesTwoPrizes, hasOwner, isLegend, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { isBasicInPlay, conditionProof, givesTwoPrizes, hasOwner, isLegend, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { addLog, baseUid, cleanCard, legendPair, clearOnLeavingActive, logConditionDamage, clearSpecialConditions, effectId, evolvedFromName, isDelta, isPlasmaPokemon, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, logTool, openBenchSlot, pokemonName, revealFaceDown, sameCards, type LogEntry, isEvolved, cardsOf } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
@@ -2062,7 +2062,7 @@ export function cardEnergy(pokemon: InPlayPokemon, e: CardInstance, cards: CardL
   // δ Rainbow Energy: every type, 1 at a time, on a δ Pokémon; Colorless otherwise.
   if (!e.provides && !e.windless && lookupCard(cards, e.defId).name === 'δ Rainbow Energy' && isDelta(cards, pokemon)) return ['any'] as PoolEnergy[];
   // Prism Energy: every type, 1 at a time, on a Basic Pokémon; Colorless otherwise.
-  if (!e.provides && !e.windless && lookupCard(cards, e.defId).name === 'Prism Energy' && isBasicPokemon(inPlayDef(cards, pokemon))) return ['any'] as PoolEnergy[];
+  if (!e.provides && !e.windless && lookupCard(cards, e.defId).name === 'Prism Energy' && isBasicInPlay(inPlayDef(cards, pokemon))) return ['any'] as PoolEnergy[];
   return Array<PoolEnergy>(amount).fill(isCrystalEnergy(cards, e) ? crystalProvides(pokemon, cards) : type);
 }
 
@@ -2980,7 +2980,7 @@ function refreshHideout(state: GameState) {
       // Space Center: no Poké-Bodies for Basic Pokémon (not Pokémon-ex or an owner's). Battle Frontier: no Poké-Powers or
       // Poké-Bodies for Colorless, Darkness and Metal Evolved Pokémon (either of a dual type's types).
       delete p.stadiumMuted;
-      if (stadium === 'Space Center' && d.stage === 'basic' && !d.ex && !hasOwner(d.name)) p.stadiumMuted = 'bodies';
+      if (stadium === 'Space Center' && isBasicInPlay(d) && !d.ex && !hasOwner(d.name)) p.stadiumMuted = 'bodies';
       if (stadium === 'Battle Frontier' && isEvolved(state.cards, p) && (['colorless', 'darkness', 'metal'] as const).some((t) => hasType(d, t))) p.stadiumMuted = 'all';
       // Sidney's Stadium: Darkness Pokémon can't be Asleep, Confused or Paralyzed (one already is, no longer).
       if (stadium === "Sidney's Stadium" && hasType(d, 'darkness')) {

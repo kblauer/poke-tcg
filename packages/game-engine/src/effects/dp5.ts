@@ -110,7 +110,7 @@ export const DP5: Record<string, Record<string, AttackEffect>> = {
   // Rotom – Dual Trans: up to 2 basic Energy cards from the discard pile attached to one of the player's Pokémon.
   'dp5-13': {
     'Dual Trans': {
-      choices: (s): ChoiceSpec[] => (s.discardsLocked ? [] : [{ kind: 'ownPokemon', options: ownTargets(s), prompt: 'Choose one of your Pokémon to attach basic Energy cards to' }]),
+      choices: (s): ChoiceSpec[] => ([{ kind: 'ownPokemon', options: ownTargets(s), prompt: 'Choose one of your Pokémon to attach basic Energy cards to' }]),
       run(ctx) {
         const t = ctx.choices.ownTarget ?? 'active';
         if (mine(ctx, t) && ctx.me.discard.some((c) => isBasicEnergy(lookupCard(ctx.state.cards, c.defId))))

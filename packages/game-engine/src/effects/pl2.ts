@@ -245,7 +245,7 @@ export const PL2: Record<string, Record<string, AttackEffect>> = {
   // Groundquake: 10 to each Benched Pokémon that isn't an Evolved Pokémon, both players'.
   'pl2-25': {
     'Save Sand': {
-      choices: (s) => (!s.discardsLocked && s.ownDiscard.some((c) => energyCardOf(s.cards, c, 'fighting')) ? [may('Save Sand: attach a Fighting Energy card from your discard pile to Hippowdon first?')] : []),
+      choices: (s) => (s.ownDiscard.some((c) => energyCardOf(s.cards, c, 'fighting')) ? [may('Save Sand: attach a Fighting Energy card from your discard pile to Hippowdon first?')] : []),
       run(ctx) {
         const card = ctx.choices.boost ? ctx.me.discard.find((c) => energyCardOf(ctx.state.cards, c, 'fighting')) : undefined;
         if (card) {

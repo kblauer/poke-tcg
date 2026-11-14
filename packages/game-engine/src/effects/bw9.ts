@@ -18,7 +18,7 @@ import { DP6 } from './dp6.js';
 import { copyAttack } from './ecard2.js';
 import { EX1 } from './ex1.js';
 import { discardOwn, energyCardOf } from './ex2.js';
-import { discardFree, reachesDefender } from './neo3.js';
+import { reachesDefender } from './neo3.js';
 import { healUpTo } from './si1.js';
 
 /** How many Plasma Energy cards are attached to the Pokémon (Plasma Storm's Special Energy, by its name). */
@@ -37,7 +37,7 @@ const cantAttack = (ctx: AttackContext) =>
   });
 
 /** The Energy cards in the attacking player's discard pile an attack may take (none while Allergic Pollen works). */
-const discardEnergy = (s: AttackSituation) => (s.discardsLocked ? [] : s.ownDiscard.filter((c) => lookupCard(s.cards, c.defId).kind === 'energy'));
+const discardEnergy = (s: AttackSituation) => (s.ownDiscard.filter((c) => lookupCard(s.cards, c.defId).kind === 'energy'));
 
 /** What kind of card it is, for Transfer Junk's one of each. */
 const kindOf = (cards: CardLibrary, c: CardInstance) => {
@@ -60,7 +60,7 @@ const raidenKnuckle: AttackEffect = {
     ctx.hit(30);
     const card = ctx.me.discard.find((c) => c.uid === ctx.choices.discardUids?.[0]);
     const to = ctx.choices.ownBenchSlot === undefined ? null : ctx.me.bench[ctx.choices.ownBenchSlot];
-    if (!card || !to || !isPlasmaPokemon(ctx.state.cards, to) || !discardFree(ctx)) return;
+    if (!card || !to || !isPlasmaPokemon(ctx.state.cards, to)) return;
     ctx.me.discard = ctx.me.discard.filter((c) => c !== card);
     to.energy.push(card);
     ctx.log(`Attached ${lookupCard(ctx.state.cards, card.defId).name} from the discard pile to ${pokemonName(ctx.state, to)}.`);
@@ -264,7 +264,7 @@ export const BW9: Record<string, Record<string, AttackEffect>> = {
   'bw9-84': {
     'Dragon Vortex': {
       run(ctx) {
-        const cards = discardFree(ctx) ? ctx.me.discard.filter((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy' && (energyCardOf(ctx.state.cards, c, 'water') || energyCardOf(ctx.state.cards, c, 'lightning'))) : [];
+        const cards = ctx.me.discard.filter((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy' && (energyCardOf(ctx.state.cards, c, 'water') || energyCardOf(ctx.state.cards, c, 'lightning')));
         ctx.hit(20 * cards.length);
         if (!cards.length) return;
         ctx.me.discard = ctx.me.discard.filter((c) => !cards.includes(c));
@@ -277,11 +277,11 @@ export const BW9: Record<string, Record<string, AttackEffect>> = {
   'bw9-88': {
     'Transfer Junk': {
       choices(s): ChoiceSpec[] {
-        const options = s.discardsLocked ? [] : s.ownDiscard.filter((c) => !!lookupCard(s.cards, c.defId).teamPlasma);
+        const options = s.ownDiscard.filter((c) => !!lookupCard(s.cards, c.defId).teamPlasma);
         return options.length ? [{ kind: 'ownDiscard', min: 0, max: Math.min(3, options.length), options, prompt: 'Transfer Junk: choose a Team Plasma Pokémon, Trainer card and Energy card from your discard pile' }] : [];
       },
       run(ctx) {
-        if (!ctx.choices.discardUids?.length || !discardFree(ctx)) return;
+        if (!ctx.choices.discardUids?.length) return;
         const kinds = new Set<string>();
         const taken = ctx.choices.discardUids.flatMap((uid) => {
           const card = ctx.me.discard.find((c) => c.uid === uid && lookupCard(ctx.state.cards, c.defId).teamPlasma);

@@ -137,7 +137,7 @@ export const DP6: Record<string, Record<string, AttackEffect>> = {
     'Aqua Stream': {
       choices: (s): ChoiceSpec[] => {
         const options = (s.ownDiscard ?? []).filter((c) => energyCardOf(s.cards, c, 'water'));
-        return options.length && !s.discardsLocked ? [{ kind: 'ownDiscard', min: 0, max: options.length, options, prompt: 'Aqua Stream: choose Water Energy cards from your discard pile (10 damage each)' }] : [];
+        return options.length ? [{ kind: 'ownDiscard', min: 0, max: options.length, options, prompt: 'Aqua Stream: choose Water Energy cards from your discard pile (10 damage each)' }] : [];
       },
       run(ctx) {
         const picked = ctx.me.discard.filter((c) => ctx.choices.discardUids?.includes(c.uid) && energyCardOf(ctx.state.cards, c, 'water'));
@@ -257,7 +257,7 @@ export const DP6: Record<string, Record<string, AttackEffect>> = {
   // Delcatty – Energy Assist: a basic Energy card from the discard pile attached to one of the player's Benched Pokémon.
   'dp6-23': {
     'Energy Assist': {
-      choices: (s): ChoiceSpec[] => (benchedSlots(s.ownBench).length && !s.discardsLocked ? [{ kind: 'ownBench', options: benchedSlots(s.ownBench), prompt: 'Choose one of your Benched Pokémon to attach a basic Energy card to' }] : []),
+      choices: (s): ChoiceSpec[] => (benchedSlots(s.ownBench).length ? [{ kind: 'ownBench', options: benchedSlots(s.ownBench), prompt: 'Choose one of your Benched Pokémon to attach a basic Energy card to' }] : []),
       run(ctx) {
         ctx.hit(30);
         const slot = ctx.choices.ownBenchSlot;
@@ -551,7 +551,7 @@ export const DP6: Record<string, Record<string, AttackEffect>> = {
     'Tentacle Strike': {
       choices(s): ChoiceSpec[] {
         const options = (s.opponentDiscard ?? []).filter((c) => lookupCard(s.cards, c.defId).kind === 'energy');
-        if (!options.length || s.discardsLocked) return [];
+        if (!options.length) return [];
         const targets = ['active', ...benchedSlots(s.opponentBench)] as Target[];
         return [
           { kind: 'ownDiscard', min: 0, max: Math.min(2, options.length), options, prompt: "Tentacle Strike: choose up to 2 Energy cards in your opponent's discard pile" },

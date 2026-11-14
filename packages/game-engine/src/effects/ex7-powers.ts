@@ -9,7 +9,7 @@
 // Benched Basic Pokémon, one Sand Damage a player between turns; Dual Armor makes Rocket's Scizor ex and Scyther ex both
 // types with the Energy attached (refreshHideout).
 import type { AttackContext } from '../attacks.js';
-import { conditionProof, lookupCard } from '../cards.js';
+import { isBasicInPlay, conditionProof, lookupCard } from '../cards.js';
 import { afflictBetweenTurns, afflictionBlocked, energyPool, isEnergyCardOf, type InPlayPokemon } from '../engine.js';
 import { powerEffect } from './index.js';
 import { conditionFree, ownTargets, pokemonAt, powerActive, type PowerEffect } from '../powers.js';
@@ -131,7 +131,7 @@ export const EX7_POWERS: Record<string, PowerEffect> = {
       if (owner.active !== pokemon || done.has(`${owner.id}:Sand Damage`)) return;
       done.add(`${owner.id}:Sand Damage`);
       for (const p of opp.bench) {
-        if (!p || inPlayDef(state.cards, p).stage !== 'basic') continue;
+        if (!p || !isBasicInPlay(inPlayDef(state.cards, p))) continue;
         p.damage += 10;
         addLog(state, `Sand Damage put a damage counter on ${pokemonName(state, p)}.`, opp.id);
       }

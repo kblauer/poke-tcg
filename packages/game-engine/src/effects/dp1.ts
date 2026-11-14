@@ -9,7 +9,6 @@
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { hasType, lookupCard, type CardLibrary, type EnergyType } from '../cards.js';
 import { retireStadium, counts, discardTheirEnergy, energyPool, isSpecialEnergy, PRIZE_COUNT, retreatCost, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
-import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { clearOnLeavingActive, countersMoved, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution, sameCards, cardsOf } from '../status.js';
 import { amnesia } from './base1.js';
@@ -239,7 +238,6 @@ export const DP1: Record<string, Record<string, AttackEffect>> = {
   'dp1-24': {
     'Wind Wave': {
       run(ctx) {
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         ctx.pend({ kind: 'discardToDeck', source: 'Wind Wave', count: 5, of: 5, filter: 'pokemonOrSupporter' });
       },
     },
@@ -451,7 +449,6 @@ export const DP1: Record<string, Record<string, AttackEffect>> = {
   'dp1-70': {
     Scavenge: {
       run(ctx) {
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         ctx.pend({ kind: 'discardToHand', source: 'Scavenge', count: 1, filter: 'trainer', reveal: true });
       },
     },
@@ -545,7 +542,7 @@ export const DP1: Record<string, Record<string, AttackEffect>> = {
   'dp1-121': {
     'Flare Up': {
       run(ctx) {
-        const fire = discardsLocked([ctx.me, ctx.opp], ctx.state.cards) ? [] : fireInDiscard(ctx.state.cards, ctx.me.discard);
+        const fire = fireInDiscard(ctx.state.cards, ctx.me.discard);
         if (fire.length < 8) return ctx.log("Flare Up did nothing: there aren't 8 Fire Energy cards in your discard pile.");
         const back = fire.slice(0, 8);
         ctx.me.discard = ctx.me.discard.filter((c) => !back.includes(c));

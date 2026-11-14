@@ -277,7 +277,7 @@ export const PL4: Record<string, Record<string, AttackEffect>> = {
       run: (ctx) => damageChosen(ctx, ctx.choices.oppTarget ?? 'active', hasNamed(ctx, 'Wormadam Plant Cloak') ? 40 : 10),
     },
     'Serve Trash': {
-      choices: (s): ChoiceSpec[] => ((s.opponentDiscard ?? []).length && !s.discardsLocked ? [{ kind: 'oppDiscard', options: s.opponentDiscard!, prompt: "Serve Trash: choose a card from your opponent's discard pile to put on top of their deck" }] : []),
+      choices: (s): ChoiceSpec[] => ((s.opponentDiscard ?? []).length ? [{ kind: 'oppDiscard', options: s.opponentDiscard!, prompt: "Serve Trash: choose a card from your opponent's discard pile to put on top of their deck" }] : []),
       run(ctx) {
         ctx.hit(30);
         const card = ctx.opp.discard.find((c) => c.uid === ctx.choices.oppDiscardUid);

@@ -3,7 +3,7 @@
 // cards, the same-card rule, Evolved Pokémon, Pokémon LEGEND halves, Trainers played as Pokémon, cards leaving play).
 import { describe, expect, it } from 'vitest';
 import { isBasicInPlay, type CardDef, type PokemonCardDef } from '../cards.js';
-import { applyAction, inPlayDef, type GameState, type InPlayPokemon, type Target } from '../index.js';
+import { applyAction, energyPool, inPlayDef, retreatCost, type GameState, type InPlayPokemon, type Target } from '../index.js';
 import { cardsOf, isEvolved, removeTopEvolution, sameCards } from '../status.js';
 import { legendNames, takeLegend } from '../trainers.js';
 import { act, attack, duel, endTurn, flips, give, id, mon, playAuto, settles, C, F, FI, W } from './test-kit.js';
@@ -267,18 +267,27 @@ describe('the discard-pile lock (Allergic Pollen)', () => {
     put(s, 'ash', 'active', from);
     return act(s, 'ash', { type: 'EVOLVE', cardUid: hand(s, 'ash', to), target: 'active' });
   };
-  /** Each attack and Pokémon Power that takes cards from a discard pile and didn't check the lock itself (#204). */
-  const TAKERS: [name: string, go: (s: GameState) => GameState][] = [
+  /** Pokémon Powers that take cards from a discard pile and didn't check the lock themselves (#204): Allergic Pollen stops them. */
+  const POWERS: [name: string, go: (s: GameState) => GameState][] = [
+    ['Quagsire δ (Dig up)', evolves(mon('ex15-71', 'Wooper δ', W, 50, []), mon('ex15-21', 'Quagsire δ', W, 80, [], { stage: 'stage1', evolvesFrom: 'Wooper δ', power: { name: 'Dig up', text: '' } }))],
+    ['Gengar (Manipulate)', evolves(mon('ecard3-63', 'Haunter', C, 70, [], { stage: 'stage1', evolvesFrom: 'Gastly' }), mon('ecard3-10', 'Gengar', C, 100, [], { stage: 'stage2', evolvesFrom: 'Haunter', power: { name: 'Manipulate', text: '' } }))],
+  ];
+  /** Attacks that take cards from a discard pile, each of which used to check the lock: Allergic Pollen doesn't stop attacks (the user's, 2026-11-14). */
+  const ATTACKS: [name: string, go: (s: GameState) => GameState][] = [
     ["Rocket's Zapdos (Plasma)", hits('gym2-15', 'Plasma')],
     ["Blaine's Vulpix (Call Will-o'-the-wisp)", hits('gym2-66', "Call Will-o'-the-wisp")],
     ['Magby (Energy Catch)', hits('ecard1-17', 'Energy Catch')],
+    ['Skitty (Energy Catch)', hits('ex2-79', 'Energy Catch')],
     ['Raticate (Pickup)', hits('ex6-48', 'Pickup')],
-    ['Quagsire δ (Dig up)', evolves(mon('ex15-71', 'Wooper δ', W, 50, []), mon('ex15-21', 'Quagsire δ', W, 80, [], { stage: 'stage1', evolvesFrom: 'Wooper δ', power: { name: 'Dig up', text: '' } }))],
-    ['Gengar (Manipulate)', evolves(mon('ecard3-63', 'Haunter', C, 70, [], { stage: 'stage1', evolvesFrom: 'Gastly' }), mon('ecard3-10', 'Gengar', C, 100, [], { stage: 'stage2', evolvesFrom: 'Haunter', power: { name: 'Manipulate', text: '' } }))],
+    ['Linoone (Sniff Out)', hits('ex2-44', 'Sniff Out')],
+    ['Bidoof (Scavenge)', hits('dp1-70', 'Scavenge')],
+    ['Horsea (Water Plant)', hits('ex7-58', 'Water Plant')],
     ['Lillipup (Pickup)', hits('bw1-80', 'Pickup')],
     ['Stoutland (Odor Sleuth)', hits('bw1-83', 'Odor Sleuth')],
     ['Manaphy (Seafaring)', hits('bw8-34', 'Seafaring')],
     ['Magnezone (Double Assist)', hits('bw8-47', 'Double Assist', { ownTarget: 0 })],
+    ['Feraligatr (Riptide)', hits('neo1-5', 'Riptide')],
+    ['Energy Assist (HGSS promo)', hits('hgssp-HGSS10', 'Energy Assist')],
   ];
   const outcome = (go: (s: GameState) => GameState, pollen: boolean) => {
     const s = duel('charmander', 'onix', { bench: ['squirtle'] });
@@ -289,14 +298,20 @@ describe('the discard-pile lock (Allergic Pollen)', () => {
     return { asked, discard: ash(after).discard.map((c) => c.uid).sort() };
   };
 
-  it.each(TAKERS)('%s takes from the discard pile, and does nothing to it while Allergic Pollen works', (_name, go) => {
-    const untouched = ['fire', 'water', 'lightning', 'potion', 'charmander', 'squirtle'].map((name) => `gone-${name}`).sort();
-    const free = outcome(go, false);
-    expect(free.asked || free.discard.join() !== untouched.join()).toBe(true);
+  const untouched = ['fire', 'water', 'lightning', 'potion', 'charmander', 'squirtle'].map((name) => `gone-${name}`).sort();
+  const reaches = (o: ReturnType<typeof outcome>) => o.asked || o.discard.join() !== untouched.join();
+
+  it.each(POWERS)('%s (a Pokémon Power) takes from the discard pile, and does nothing to it while Allergic Pollen works', (_name, go) => {
+    expect(reaches(outcome(go, false))).toBe(true);
     expect(outcome(go, true)).toEqual({ asked: false, discard: untouched });
   });
 
-  it('a Trainer card still takes from the discard pile (the lock is for attacks and Pokémon Powers)', () => {
+  it.each(ATTACKS)('%s (an attack) takes from the discard pile just the same while Allergic Pollen works', (_name, go) => {
+    expect(outcome(go, true)).toEqual(outcome(go, false));
+    expect(reaches(outcome(go, true))).toBe(true);
+  });
+
+  it('a Trainer card still takes from the discard pile (the lock is for Pokémon Powers)', () => {
     const s = duel('charmander', 'onix');
     ash(s).discard = [{ uid: 'gone-fire', defId: id('fire') }, { uid: 'gone-water', defId: id('water') }];
     put(s, 'misty', 0, mon('neo3-35', 'Parasect', C, 60, [], { stage: 'stage1', power: { name: 'Allergic Pollen', text: '' } }));
@@ -305,7 +320,7 @@ describe('the discard-pile lock (Allergic Pollen)', () => {
     expect(ash(after).hand.map((c) => c.uid)).toEqual(expect.arrayContaining(['gone-fire', 'gone-water']));
   });
 
-  it('Riptide still counts and shuffles its Energy cards while Allergic Pollen works (the user\'s, 2026-11-14: this attack only)', () => {
+  it("Riptide still counts and shuffles its Energy cards while Allergic Pollen works (the user's, 2026-11-14)", () => {
     for (const pollen of [false, true]) {
       const s = duel('charmander', 'onix', { bench: ['squirtle'] });
       put(s, 'misty', 'active', mon('wall', 'Wall', C, 500, []));
@@ -347,6 +362,68 @@ describe('a Basic Pokémon in play, Trainer cards played as one included (isBasi
     expect(bell(mon('base3-62', 'Mysterious Fossil', C, 200, [], { trainerText: '' }))).toEqual({ basic: true, confused: false });
     // A Stage 1 Fossil Pokémon put into play as a Basic Pokémon (Strange Cave) has no such text: it is Confused.
     expect(bell(mon('as-basic', 'Omanyte', C, 200, [], { stage: 'stage1' }), true)).toEqual({ basic: true, confused: true });
+  });
+});
+
+describe('"a Basic Pokémon in play" means one thing everywhere (isBasicInPlay; the user\'s, 2026-11-14)', () => {
+  const doll = mon('base1-70', 'Clefairy Doll', C, 200, [], { trainerText: '' });
+  const fossil = mon('base3-62', 'Mysterious Fossil', C, 200, [], { trainerText: '' });
+  const basic = mon('plain-basic', 'Snorlax', C, 200, []);
+  const legend = mon('legend', 'Lugia LEGEND', C, 200, []);
+  const restored = mon('restored', 'Archen', C, 200, [], { restored: true });
+  const stage1 = mon('stage1', 'Raichu', C, 200, [], { stage: 'stage1', evolvesFrom: 'Pikachu' });
+
+  it('isBasicInPlay: a Basic Pokémon and a Trainer card in play as one (asBasic too); never a LEGEND, a Restored Pokémon or an Evolution', () => {
+    const s = duel('charmander', 'onix');
+    const asBasic = (def: PokemonCardDef) => {
+      const p = put(s, 'misty', 'active', def);
+      p.asBasic = true;
+      return inPlayDef(s.cards, p);
+    };
+    expect([basic, doll, fossil, legend, restored, stage1].map(isBasicInPlay)).toEqual([true, true, true, false, false, false]);
+    expect(isBasicInPlay(asBasic(stage1))).toBe(true);
+  });
+
+  /** Effects on "a Basic Pokémon" in play the test kit can drive: with `def` in play where the effect looks, whether it reaches it. */
+  const SITES: [name: string, reaches: (def: PokemonCardDef) => boolean][] = [
+    ['Gentle Flames (the Defending Pokémon)', (def) => {
+      const s = duel('charmander', 'onix');
+      put(s, 'misty', 'active', def);
+      put(s, 'ash', 'active', mon('neo4-12', 'Light Arcanine', C, 100, [['Gentle Flames', [C], 30]]), ['fire']);
+      return attack(s, 0).players.misty!.active!.damage === 30;
+    }],
+    ['Coral Glow (counts the opponent\'s Basic Pokémon)', (def) => {
+      const s = duel('charmander', 'onix');
+      put(s, 'misty', 'active', def);
+      put(s, 'ash', 'active', mon('ex5-32', 'Corsola', C, 100, [['Coral Glow', [C], 0]]), ['fire']);
+      ash(s).deck = [{ uid: 'top-1', defId: id('charmander') }, { uid: 'top-2', defId: id('charmander') }];
+      const before = ash(s).hand.length;
+      const after = attack(s, 0);
+      return ash(after).hand.length > before || !!after.pendingChoice;
+    }],
+    ['Eviolite (20 less to a Basic Pokémon)', (def) => {
+      const s = duel('charmander', 'onix');
+      s.cards = { ...s.cards, 'bw3-91': { id: 'bw3-91', kind: 'trainer', name: 'Eviolite', imageUrl: null, text: '' } };
+      const p = put(s, 'misty', 'active', def);
+      p.attached = [{ card: { uid: 'eviolite', defId: 'bw3-91' }, tool: true, until: Number.MAX_SAFE_INTEGER }];
+      put(s, 'ash', 'active', mon('hitter', 'Hitter', C, 100, [['Hit', [C], 50]]), ['fire']);
+      return attack(s, 0).players.misty!.active!.damage === 30;
+    }],
+    ['Prism Energy (every type on a Basic Pokémon)', (def) => {
+      const s = duel('charmander', 'onix');
+      s.cards = { ...s.cards, prism: { id: 'prism', kind: 'energy', name: 'Prism Energy', imageUrl: null, energyType: C, basic: false } };
+      return energyPool(put(s, 'misty', 'active', def, ['prism']), s.cards).includes('any');
+    }],
+    ['Skyarrow Bridge (1 less to retreat a Basic Pokémon)', (def) => {
+      const s = duel('charmander', 'onix');
+      s.cards = { ...s.cards, 'bw4-91': { id: 'bw4-91', kind: 'trainer', name: 'Skyarrow Bridge', imageUrl: null, text: '' } };
+      const p = put(s, 'misty', 'active', { ...def, retreatCost: 2 });
+      return retreatCost(p, s.cards, [], { uid: 'bridge', defId: 'bw4-91' }) === 1;
+    }],
+  ];
+
+  it.each(SITES)('%s: reaches a Basic Pokémon, Clefairy Doll and a Fossil; never a LEGEND, a Restored Pokémon or an Evolution', (_name, reaches) => {
+    expect([basic, doll, fossil, legend, restored, stage1].map((def) => reaches({ ...def, id: `${def.id}-${n++}` }))).toEqual([true, true, true, false, false, false]);
   });
 });
 

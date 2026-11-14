@@ -13,7 +13,7 @@
 // Ho-Oh-EX's Rebirth is used from the discard pile (fromZone, USE_CARD_POWER: the card clicked there, the user's 2026-10-26):
 // not with a full Bench; heads, onto the Bench, then basic Energy cards of 3 different types from the discard pile, the player's
 // picks (as many types as there are, when fewer: attachFromDiscard's distinctTypes).
-import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
+import { isBasicInPlay, isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
 import { activeLock, newInPlay, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
 import { evolvedFromHand, inPlayDef, openBenchSlot, pokemonName, cardsOf } from '../status.js';
@@ -148,7 +148,7 @@ export const BW6_POWERS: Record<string, PowerEffect> = {
     ...ABILITY,
     attackBlocked(s) {
       const d = inPlayDef(s.cards, s.defender);
-      return d.stage === 'basic' && !d.restored ? `Unobservant: ${inPlayDef(s.cards, s.attacker).name} can't attack while your opponent's Active Pokémon is a Basic Pokémon` : null;
+      return isBasicInPlay(d) ? `Unobservant: ${inPlayDef(s.cards, s.attacker).name} can't attack while your opponent's Active Pokémon is a Basic Pokémon` : null;
     },
   },
 

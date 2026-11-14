@@ -11,7 +11,6 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { targetsIn } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyType } from '../cards.js';
 import { isEnergyCardOf, isSpecialEnergy, type CardInstance, type InPlayPokemon, type PlayerState } from '../engine.js';
-import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { benchRoom, clearOnLeavingActive, devolvable, openBenchSlot, pokemonName, removeTopEvolution } from '../status.js';
 import { benchedSlots, discardOwn, energyCardOf, extraEnergy, inPlay, perHeads } from './common.js';
@@ -185,7 +184,7 @@ export const EX2: Record<string, Record<string, AttackEffect>> = {
   'ex2-20': {
     'Energy Retrieval': {
       choices(s): ChoiceSpec[] {
-        const basics = s.discardsLocked ? [] : s.ownDiscard.filter((c) => isBasicEnergy(lookupCard(s.cards, c.defId)));
+        const basics = s.ownDiscard.filter((c) => isBasicEnergy(lookupCard(s.cards, c.defId)));
         if (!basics.length) return [];
         return [
           { kind: 'ownPokemon', options: targetsIn(s.attacker, s.ownBench), prompt: 'Choose one of your Pokémon to attach basic Energy cards to' },
@@ -196,7 +195,7 @@ export const EX2: Record<string, Record<string, AttackEffect>> = {
         const t = ctx.choices.ownTarget;
         const p = t === undefined ? null : t === 'active' ? ctx.me.active : ctx.me.bench[t];
         const cards = ctx.me.discard.filter((c) => ctx.choices.discardUids?.includes(c.uid));
-        if (!p || !cards.length || discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Energy Retrieval found nothing.');
+        if (!p || !cards.length) return ctx.log('Energy Retrieval found nothing.');
         ctx.me.discard = ctx.me.discard.filter((c) => !cards.includes(c));
         p.energy.push(...cards);
         p.damage += 10 * cards.length;
@@ -280,7 +279,6 @@ export const EX2: Record<string, Record<string, AttackEffect>> = {
   'ex2-44': {
     'Sniff Out': {
       run(ctx) {
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         if (ctx.me.discard.length) ctx.pend({ kind: 'discardToHand', source: 'Sniff Out', count: 1, filter: 'any' });
       },
     },
@@ -353,7 +351,6 @@ export const EX2: Record<string, Record<string, AttackEffect>> = {
   'ex2-79': {
     'Energy Catch': {
       run(ctx) {
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         if (ctx.me.discard.some((c) => isBasicEnergy(lookupCard(ctx.state.cards, c.defId)))) ctx.pend({ kind: 'discardToHand', source: 'Energy Catch', count: 1, filter: 'basicEnergy', reveal: true });
       },
     },

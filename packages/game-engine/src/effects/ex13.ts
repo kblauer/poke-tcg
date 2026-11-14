@@ -20,7 +20,6 @@ import { EX7 } from './ex7.js';
 import { chooseOpponents } from './ex8.js';
 
 import { devolveIntoDeck, foresight, lateCounters, same } from './ex12.js';
-import { discardFree } from './neo3.js';
 import { healUpTo } from './si1.js';
 import { hasPowerOrBody } from '../powers.js';
 
@@ -297,7 +296,7 @@ export const EX13: Record<string, Record<string, AttackEffect>> = {
     Paste: {
       run(ctx) {
         const energy = ctx.me.discard.some((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy');
-        if (energy && deltas(ctx) && discardFree(ctx)) ctx.pend({ kind: 'attachFromDiscard', source: 'Paste', count: 1, anyEnergy: true, onlyName: 'δ' });
+        if (energy && deltas(ctx)) ctx.pend({ kind: 'attachFromDiscard', source: 'Paste', count: 1, anyEnergy: true, onlyName: 'δ' });
       },
     },
   },
@@ -329,7 +328,7 @@ export const EX13: Record<string, Record<string, AttackEffect>> = {
         ctx.hit(20);
         const heads = headsUntilTails(ctx);
         const basics = ctx.me.discard.filter((c) => isBasicEnergy(lookupCard(ctx.state.cards, c.defId))).length;
-        if (Math.min(heads, basics) && discardFree(ctx)) ctx.pend({ kind: 'attachFromDiscard', source: 'Spiral Growth', count: Math.min(heads, basics), target: 'active' });
+        if (Math.min(heads, basics)) ctx.pend({ kind: 'attachFromDiscard', source: 'Spiral Growth', count: Math.min(heads, basics), target: 'active' });
       },
     },
     'All-out Blast': {

@@ -392,7 +392,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
     Hoodwink: {
       choices(s): ChoiceSpec[] {
         const options = (s.opponentDiscard ?? []).filter((c) => isTrainerCard(lookupCard(s.cards, c.defId)));
-        return options.length && !s.discardsLocked ? [{ kind: 'ownDiscard', min: 0, max: Math.min(3, options.length), options, prompt: "Hoodwink: you may choose up to 3 Trainer cards in your opponent's discard pile to put into their hand" }] : [];
+        return options.length ? [{ kind: 'ownDiscard', min: 0, max: Math.min(3, options.length), options, prompt: "Hoodwink: you may choose up to 3 Trainer cards in your opponent's discard pile to put into their hand" }] : [];
       },
       run(ctx) {
         ctx.hit(30);

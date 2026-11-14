@@ -15,7 +15,7 @@ import { counts, discardTheirEnergy, energyPool, energyProvided, isEnergyCardOf,
 import { shuffle } from '../rng.js';
 import { inPlayDef, openBenchSlot, pokemonName, isEvolved } from '../status.js';
 import { handTrainerFits } from '../trainers.js';
-import { benchedSlots, discardFree, headsUntilTails, opponentBenchChoice, same } from './common.js';
+import { benchedSlots, headsUntilTails, opponentBenchChoice, same } from './common.js';
 import { copyAttack } from './ecard2.js';
 import { energyAmount } from './ex1.js';
 import { discardOwn, inPlay, putCounters } from './ex2.js';
@@ -296,7 +296,6 @@ export const EX6: Record<string, Record<string, AttackEffect>> = {
           { kind: 'discardToHand' as const, source: 'Pickup', count: 1, filter: 'energy' as const, reveal: true },
         ];
         // The two questions queued behind the first never pass ctx.pend's check.
-        if (!discardFree(ctx)) return;
         const [first, ...rest] = searches;
         ctx.pend(first!);
         (ctx.state.queuedChoices ??= []).push(...rest.map((s) => ({ ...s, player: ctx.me.id })));

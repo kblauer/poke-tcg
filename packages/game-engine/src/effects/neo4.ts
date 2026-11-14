@@ -13,7 +13,7 @@
 // only the damage. Rushing Flames may discard Fire Energy cards from any of the attacking player's Pokémon. Reflect Shield's
 // 20 damage gets Weakness and Resistance, as Fire Wall's does. Charm lowers every attack damage the Defending Pokémon does.
 import { pokemonOn, targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { hasType, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard } from '../cards.js';
+import { isBasicInPlay, hasType, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard } from '../cards.js';
 import { retireStadium, energyPool, isEnergyCardOf, isSpecialEnergy, newInPlay, type CardInstance, type PlayerState, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
 import { clearOnLeavingActive, devolvable, inPlayDef, openBenchSlot, pokemonName, removeTopEvolution, cardsOf as allCardsOf, cleanCard } from '../status.js';
@@ -24,7 +24,7 @@ import { discardFromAttacker, healEach, noRetreat } from './gym1.js';
 import { flipForMore } from './jungle.js';
 import { damageOpponent, hold, opponentTargets, swift } from './neo1.js';
 import { evolutionsOf, hiddenPower, hiddenPowerOf } from './neo2.js';
-import { discardFree, energyCanGo, notNextTurn, reachesDefender } from './neo3.js';
+import { energyCanGo, notNextTurn, reachesDefender } from './neo3.js';
 import { flipOrNothing, shuffleIntoDeck } from './rocket.js';
 import { eitherCondition, healUpTo } from './si1.js';
 
@@ -226,7 +226,7 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
   },
   // Light Arcanine
   'neo4-12': {
-    'Gentle Flames': { run: (ctx) => void ctx.hit(ctx.defenderDef.baby ? 10 : ctx.defenderDef.stage === 'basic' ? 30 : 50) },
+    'Gentle Flames': { run: (ctx) => void ctx.hit(ctx.defenderDef.baby ? 10 : isBasicInPlay(ctx.defenderDef) ? 30 : 50) },
   },
   // Light Azumarill
   'neo4-13': {
@@ -373,7 +373,6 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         if (!ctx.flip()) return ctx.log('Searchlight did nothing.');
         if (pokemonTower({ stadium: ctx.state.stadium?.card, cards: ctx.state.cards })) return ctx.log('Pokémon Tower: cards in discard piles stay there.');
-        if (!discardFree(ctx)) return;
         const choice = { source: 'Searchlight', kind: 'discardToHand', count: 1, filter: 'any' } as const;
         if (ctx.me.discard.length) ctx.pend({ ...choice, then: ctx.opp.id });
         else if (ctx.opp.discard.length) ctx.opponentChooses(choice);
@@ -485,13 +484,13 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
     'Call Back': {
       blocked: (s) => (openBenchSlot({ bench: s.opponentBench, benchLimit: s.opponentBenchLimit }, s.cards, s.stadium) < 0 ? "Your opponent's Bench is full" : null),
       choices(s): ChoiceSpec[] {
-        const options = s.discardsLocked ? [] : basicsIn(s, s.opponentDiscard);
+        const options = basicsIn(s, s.opponentDiscard);
         return options.length ? [{ kind: 'oppDiscard', options, prompt: "Choose a Baby or Basic Pokémon from your opponent's discard pile to put onto their Bench" }] : [];
       },
       run(ctx) {
         const card = ctx.opp.discard.find((c) => c.uid === ctx.choices.oppDiscardUid);
         const slot = openBenchSlot(ctx.opp, ctx.state.cards, ctx.state.stadium?.card);
-        if (!card || slot < 0 || !discardFree(ctx)) return ctx.log('Call Back did nothing.');
+        if (!card || slot < 0) return ctx.log('Call Back did nothing.');
         ctx.opp.discard = ctx.opp.discard.filter((c) => c !== card);
         ctx.opp.bench[slot] = { card, evolvedFrom: [], damage: 10, energy: [], playedTurn: ctx.turn };
         ctx.log(`Put ${lookupCard(ctx.state.cards, card.defId).name} onto the Bench with a damage counter.`, ctx.opp.id);
@@ -673,7 +672,7 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
         ctx.hit(50);
         const card = ctx.me.discard.find((c) => c.uid === ctx.choices.discardUids?.[0]);
         const slot = openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card);
-        if (!card || slot < 0 || !discardFree(ctx)) return;
+        if (!card || slot < 0) return;
         ctx.me.discard = ctx.me.discard.filter((c) => c !== card);
         ctx.me.bench[slot] = newInPlay(card, ctx.turn);
         ctx.log(`Put ${lookupCard(ctx.state.cards, card.defId).name} onto the Bench.`);
@@ -685,7 +684,6 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
   'neo4-51': {
     'Fish Out': {
       run(ctx) {
-        if (!discardFree(ctx)) return;
         const has = (p: PlayerState) => p.discard.some((c) => isPokemonCard(lookupCard(ctx.state.cards, c.defId)));
         const choice = { source: 'Fish Out', kind: 'discardToDeck', count: 3, of: 3 } as const;
         if (has(ctx.opp)) ctx.opponentChooses({ ...choice, then: ctx.me.id });
@@ -725,7 +723,6 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
     'Mysterious Wing': {
       run(ctx) {
         if (pokemonTower({ stadium: ctx.state.stadium?.card, cards: ctx.state.cards })) return ctx.log('Pokémon Tower: cards in discard piles stay there.');
-        if (!discardFree(ctx)) return;
         const has = (p: PlayerState) => p.discard.some((c) => isPokemonCard(lookupCard(ctx.state.cards, c.defId)));
         const choice = { source: 'Mysterious Wing', kind: 'discardToHand', count: 1 } as const;
         if (has(ctx.opp)) ctx.opponentChooses({ ...choice, then: ctx.me.id });

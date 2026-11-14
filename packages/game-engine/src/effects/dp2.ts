@@ -10,7 +10,6 @@
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { hasType, isBasicEnergy, isBasicInPlay, lookupCard, namesMatch, type CardLibrary } from '../cards.js';
 import { retireStadium, counts, discardTool, energyPool, isEnergyCardOf, isSpecialEnergy, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
-import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { evolvedFromName, inPlayDef, pokemonName, isEvolved } from '../status.js';
 import { attachFromDiscard } from './neo3.js';
@@ -54,7 +53,6 @@ const haveInPlay = (ctx: AttackContext, ...names: string[]) => names.every((n) =
 /** Cards from the discard pile into the hand, shown (Gather Up, Rescue). */
 const fromDiscard = (source: string, count: number, filter: 'energy' | 'any'): AttackEffect => ({
   run(ctx) {
-    if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
     ctx.pend({ kind: 'discardToHand', source, count, filter, reveal: true });
   },
 });
@@ -79,7 +77,7 @@ export const DP2: Record<string, Record<string, AttackEffect>> = {
   'dp2-1': {
     'Heap Up': {
       run(ctx) {
-        const energy = discardsLocked([ctx.me, ctx.opp], ctx.state.cards) ? [] : ctx.me.discard.filter((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy');
+        const energy = ctx.me.discard.filter((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy');
         const metal = energy.some((c) => {
           const d = lookupCard(ctx.state.cards, c.defId);
           return d.kind === 'energy' && d.basic === false && d.energyType === 'metal';
@@ -128,7 +126,7 @@ export const DP2: Record<string, Record<string, AttackEffect>> = {
   // Blissey – Happy Chance: first, may attach a basic Energy card from the discard pile to it; 10 more for each Energy.
   'dp2-5': {
     'Happy Chance': {
-      choices: (s): ChoiceSpec[] => (s.ownDiscard.some((c) => isBasicEnergy(lookupCard(s.cards, c.defId))) && !s.discardsLocked ? [may('Happy Chance: attach a basic Energy card from your discard pile to Blissey first?')] : []),
+      choices: (s): ChoiceSpec[] => (s.ownDiscard.some((c) => isBasicEnergy(lookupCard(s.cards, c.defId))) ? [may('Happy Chance: attach a basic Energy card from your discard pile to Blissey first?')] : []),
       run(ctx) {
         if (ctx.choices.boost) attachFromDiscard(ctx, (c) => isBasicEnergy(lookupCard(ctx.state.cards, c.defId)));
         ctx.hit(20 + 10 * energyAmount(ctx, ctx.attacker));
@@ -482,7 +480,6 @@ export const DP2: Record<string, Record<string, AttackEffect>> = {
   'dp2-56': {
     Rescue: {
       run(ctx) {
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         ctx.pend({ kind: 'discardToHand', source: 'Rescue', count: 2, reveal: true });
       },
     },

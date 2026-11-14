@@ -13,7 +13,7 @@
 // attack on the Defending Pokémon, so whatever stops those stops them. Twister, Devastate and Sneasel's Swipe go through
 // Brock's Protection, Unown K's Keep and Crystal Body like every other effect on the opponent's Energy or Pokémon.
 import { pokemonOn, targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { isBasicEnergy, lookupCard, namesMatch, type EnergyType } from '../cards.js';
+import { isBasicInPlay, isBasicEnergy, lookupCard, namesMatch, type EnergyType } from '../cards.js';
 import { counts, discardTheirEnergy, energyPool, energyProvided, isEnergyCardOf, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { energyKept, evolutionBlocked } from '../powers.js';
 import { shuffle } from '../rng.js';
@@ -21,7 +21,7 @@ import { baseUid, energyProtected, inPlayDef, pokemonName } from '../status.js';
 import { sporeTargets } from '../trainers.js';
 import { attackEffect } from './index.js';
 import { BASE1 } from './base1.js';
-import { benchSearch, discardDefenderEnergy, discardFree, discardToUse, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentBenchChoice, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
+import { benchSearch, discardDefenderEnergy, discardToUse, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentBenchChoice, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
 import { discardFromAttacker, noRetreat } from './gym1.js';
 import { flipForMore, rage } from './jungle.js';
 import { damageOpponent, opponentTargets, screech } from './neo1.js';
@@ -29,12 +29,10 @@ import { hiddenPower } from './neo2.js';
 import { flipOrNothing } from './rocket.js';
 import { damageEach, fly, healDefender, TYPES } from './si1.js';
 
-export { discardFree };
-
 /** Attaches the first card `matches` finds in the attacking player's discard pile to the attacker (Plasma, Dark Flame). */
 export function attachFromDiscard(ctx: AttackContext, matches: (c: CardInstance) => boolean) {
   const card = ctx.me.discard.find(matches);
-  if (!card || ctx.me.active !== ctx.attacker || !discardFree(ctx)) return;
+  if (!card || ctx.me.active !== ctx.attacker) return;
   ctx.me.discard = ctx.me.discard.filter((c) => c !== card);
   ctx.attacker.energy.push(card);
   ctx.log(`Attached ${lookupCard(ctx.state.cards, card.defId).name} from the discard pile to ${ctx.attackerDef.name}.`);
@@ -505,9 +503,9 @@ export const NEO3: Record<string, Record<string, AttackEffect>> = {
   // Stantler
   'neo3-38': {
     Terrorize: {
-      choices: (s, c) => (inPlayDef(s.cards, s.defender).stage === 'basic' ? (BASE1['base1-38']!.Amnesia!.choices?.(s, c) ?? []) : []),
+      choices: (s, c) => (isBasicInPlay(inPlayDef(s.cards, s.defender)) ? (BASE1['base1-38']!.Amnesia!.choices?.(s, c) ?? []) : []),
       run(ctx) {
-        if (ctx.defenderDef.stage !== 'basic') return ctx.log(`${ctx.defenderDef.name} isn't a Basic Pokémon.`);
+        if (!isBasicInPlay(ctx.defenderDef)) return ctx.log(`${ctx.defenderDef.name} isn't a Basic Pokémon.`);
         BASE1['base1-38']!.Amnesia!.run(ctx);
       },
     },

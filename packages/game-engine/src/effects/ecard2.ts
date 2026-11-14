@@ -40,7 +40,7 @@ import { attackEffect, trainerEffect } from './index.js';
 import { flipForMore } from './jungle.js';
 import { damageOpponent, opponentTargets, swift } from './neo1.js';
 import { evolutionsOf } from './neo2.js';
-import { attachFromDiscard, discardFree, energyCanGo, notNextTurn, reachesDefender } from './neo3.js';
+import { attachFromDiscard, energyCanGo, notNextTurn, reachesDefender } from './neo3.js';
 import { flipOrNothing } from './rocket.js';
 import { eitherCondition } from './si1.js';
 
@@ -775,7 +775,7 @@ export const ECARD2: Record<string, Record<string, AttackEffect>> = {
   'ecard2-93': {
     Charge: {
       run(ctx) {
-        if (discardFree(ctx)) attachFromDiscard(ctx, (c) => isEnergyCardOf(c, ctx.state.cards, 'lightning') && isBasicEnergy(lookupCard(ctx.state.cards, c.defId)));
+        attachFromDiscard(ctx, (c) => isEnergyCardOf(c, ctx.state.cards, 'lightning') && isBasicEnergy(lookupCard(ctx.state.cards, c.defId)));
       },
     },
   },
@@ -837,7 +837,7 @@ export const ECARD2: Record<string, Record<string, AttackEffect>> = {
     'Fishing Tail': {
       run(ctx) {
         const fits = (c: CardInstance) => isPokemonCard(lookupCard(ctx.state.cards, c.defId)) || isBasicEnergy(lookupCard(ctx.state.cards, c.defId));
-        if (ctx.me.discard.some(fits) && discardFree(ctx)) ctx.pend({ kind: 'discardToHand', source: 'Fishing Tail', count: 1, filter: 'pokemonOrBasicEnergy', reveal: true });
+        if (ctx.me.discard.some(fits)) ctx.pend({ kind: 'discardToHand', source: 'Fishing Tail', count: 1, filter: 'pokemonOrBasicEnergy', reveal: true });
       },
     },
   },

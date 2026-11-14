@@ -279,7 +279,7 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
     'Energy Call': {
       choices: (s): ChoiceSpec[] => {
         const options = s.ownDiscard.filter((c) => lookupCard(s.cards, c.defId).kind === 'energy');
-        return options.length && !s.discardsLocked ? [{ kind: 'ownDiscard', min: 1, max: 1, options, prompt: 'Choose an Energy card from your discard pile to attach to your Active Pokémon' }] : [];
+        return options.length ? [{ kind: 'ownDiscard', min: 1, max: 1, options, prompt: 'Choose an Energy card from your discard pile to attach to your Active Pokémon' }] : [];
       },
       run(ctx) {
         ctx.hit(10);

@@ -1,7 +1,7 @@
 // Building blocks for attack effects that many cards share.
 import { targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import type { PendingChoice, PendingChoiceInput } from '../trainers.js';
-import { discardsLocked, type PowerEffect, type PowerSituation } from '../powers.js';
+import type { PowerEffect, PowerSituation } from '../powers.js';
 import { isBasicEnergy, lookupCard, type CardLibrary, type EnergyType } from '../cards.js';
 import { counts, energyPool, isEnergyCardOf, type Affliction, type CardInstance, type InPlayPokemon, type PlayerState, type PoolEnergy, type Target } from '../engine.js';
 import { energyProtected, evolvedFromHand, openBenchSlot, pokemonName, sameCards } from '../status.js';
@@ -84,13 +84,6 @@ export const onEvolveMay = (power: Extract<PendingChoice, { kind: 'mayUse' }>['p
 /** "If [it] is your Active Pokémon" / "on your Bench": why a power can't be used from where its Pokémon is. */
 export const onlyActive = (s: PowerSituation, name: string) => (s.source === 'active' ? null : `${name} must be your Active Pokémon`);
 export const onlyBenched = (s: PowerSituation, name: string) => (s.source !== 'active' ? null : `${name} must be on your Bench`);
-
-/** Whether the attack can do anything with cards in discard piles: not while Allergic Pollen works (logged). */
-export function discardFree(ctx: AttackContext): boolean {
-  if (!discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return true;
-  ctx.log('Allergic Pollen: cards in discard piles are not affected.');
-  return false;
-}
 
 /** Another set's attack, read when used (the effect tables can't be read while the modules load). */
 export const same = (get: () => AttackEffect | undefined): AttackEffect => ({

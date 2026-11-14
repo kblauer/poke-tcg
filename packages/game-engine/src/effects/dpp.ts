@@ -57,7 +57,7 @@ export const DPP: Record<string, Record<string, AttackEffect>> = {
     'Roar of Time': {
       choices(s): ChoiceSpec[] {
         const options = (s.ownDiscard ?? []).filter((c) => isPokemonCard(lookupCard(s.cards, c.defId)));
-        return options.length >= 3 && !s.discardsLocked ? [{ kind: 'ownDiscard', min: 3, max: 3, options, prompt: 'Roar of Time: choose 3 Pokémon in your discard pile to put on top of your deck' }] : [];
+        return options.length >= 3 ? [{ kind: 'ownDiscard', min: 3, max: 3, options, prompt: 'Roar of Time: choose 3 Pokémon in your discard pile to put on top of your deck' }] : [];
       },
       run(ctx) {
         const picked = ctx.me.discard.filter((c) => ctx.choices.discardUids?.includes(c.uid) && isPokemonCard(lookupCard(ctx.state.cards, c.defId)));
