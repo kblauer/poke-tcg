@@ -132,14 +132,14 @@ export function IdlePage() {
     actions
       .act(actOn(active), action)
       // Stop, Continue run and the Town Map's moves act at once: the segment on screen dropped (`interrupt`).
-      .then((r) => (cuts(action) ? interrupt(r.run) : acted(r.run)))
+      .then((r) => (cuts(action) ? interrupt(r.run) : acted(r.run, action)))
       .catch(failed);
   // A purchase in the store: whether it went through (the buy screen says "Here you are!" only then).
   const buy = (item: string, count: number) =>
     active
       ? actions
           .act(actOn(active), { type: 'BUY', item, count })
-          .then((r) => (acted(r.run), true))
+          .then((r) => (acted(r.run, { type: 'BUY', item, count }), true))
           .catch((e: unknown) => (failed(e), false))
       : Promise.resolve(false);
   const start = (id: number, shiny = false) => picked && actions.start(id, shiny, picked.gen, !!picked.locked).catch(failed);
