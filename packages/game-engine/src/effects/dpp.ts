@@ -9,7 +9,7 @@ import { isPokemonCard, lookupCard } from '../cards.js';
 import { type InPlayPokemon, type Target } from '../engine.js';
 import { pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { countersMoved, inPlayDef, pokemonName } from '../status.js';
+import { countersMoved, inPlayDef, pokemonName, cardsOf } from '../status.js';
 import { benchedSlots, damageChosen, energyCards, inPlay, opponentBenchChoice, opponentTargets, same } from './common.js';
 import { DP1, discardOwnEnergy } from './dp1.js';
 import { DP2 } from './dp2.js';
@@ -113,7 +113,7 @@ export const DPP: Record<string, Record<string, AttackEffect>> = {
         ctx.defender.damage = ctx.defenderDef.hp - 10;
         ctx.log(`Put damage counters on ${ctx.defenderDef.name}: it has 10 HP left.`, ctx.opp.id);
         const p = ctx.attacker;
-        const cards = [...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card)];
+        const cards = cardsOf(p);
         ctx.me.active = null;
         [ctx.me.deck, ctx.state.rngState] = shuffle([...ctx.me.deck, ...cards], ctx.state.rngState);
         ctx.log('Gliscor and its cards were shuffled into the deck.');

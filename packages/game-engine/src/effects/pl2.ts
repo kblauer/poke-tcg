@@ -10,7 +10,7 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { hasType, isBasicEnergy, isPokemonCard, lookupCard, namesMatch } from '../cards.js';
 import { afflictBetweenTurns, isEnergyCardOf, retireStadium, type InPlayPokemon, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { clearSpecialConditions, evolvedFromName, hasSpecialCondition, inPlayDef, pokemonName, isEvolved } from '../status.js';
+import { clearSpecialConditions, evolvedFromName, hasSpecialCondition, inPlayDef, pokemonName, isEvolved, cardsOf } from '../status.js';
 import { benchedSlots, damageChosen, energyCards, headsUntilTails, inPlay, opponentBenchChoice, opponentTargets, same } from './common.js';
 import { DP2 } from './dp2.js';
 import { DP4 } from './dp4.js';
@@ -354,7 +354,7 @@ export const PL2: Record<string, Record<string, AttackEffect>> = {
         ctx.after(() => {
           const p = ctx.attacker;
           if (ctx.me.active !== p) return;
-          const cards = [...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card)];
+          const cards = cardsOf(p);
           ctx.me.active = null;
           [ctx.me.deck, ctx.state.rngState] = shuffle([...ctx.me.deck, ...cards], ctx.state.rngState);
           ctx.log(`${pokemonName(ctx.state, p)} and all cards attached to it were shuffled into the deck.`);
@@ -389,7 +389,7 @@ export const PL2: Record<string, Record<string, AttackEffect>> = {
         const p = ctx.opp.active;
         if (!p || !benchedSlots(ctx.opp.bench).length) return ctx.log('Brush Off did nothing.');
         if (!ctx.canAffect(ctx.opp, p)) return;
-        const cards = [...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card)];
+        const cards = cardsOf(p);
         ctx.opp.active = null;
         [ctx.opp.deck, ctx.state.rngState] = shuffle([...cards, ...ctx.opp.deck], ctx.state.rngState);
         ctx.log(`${pokemonName(ctx.state, p)} and all cards attached to it were shuffled into the deck.`, ctx.opp.id);

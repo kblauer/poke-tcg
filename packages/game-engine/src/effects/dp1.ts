@@ -7,12 +7,11 @@
 // all attack damage, Staraptor's own included, off it until the end of its player's next turn; Metronome copies with the
 // copied attack's discards (as Aquapolis's Copy); Heave discards after the flips, but does nothing with fewer than 2 cards.
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
-import type { PendingChoice, PendingChoiceInput } from '../trainers.js';
 import { hasType, lookupCard, type CardLibrary, type EnergyType } from '../cards.js';
 import { retireStadium, counts, discardTheirEnergy, energyPool, isSpecialEnergy, PRIZE_COUNT, retreatCost, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { clearOnLeavingActive, countersMoved, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution, sameCards } from '../status.js';
+import { clearOnLeavingActive, countersMoved, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution, sameCards, cardsOf } from '../status.js';
 import { amnesia } from './base1.js';
 import { askAfter, benchedSlots, discardOwnEnergy, energyCanMove, energyCards, headsUntilTails, inPlay, leechSeed, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { copyAttack } from './ecard2.js';
@@ -46,7 +45,7 @@ const ownTargets = (s: { attacker: InPlayPokemon; ownBench: (InPlayPokemon | nul
 
 /** A Pokémon and every card with it, shuffled into its owner's deck (Transback, Blowing Wind). Its place is emptied. */
 export function shuffleIntoDeck(ctx: Pick<AttackContext, 'state' | 'log'>, owner: PlayerState, p: InPlayPokemon) {
-  const cards = [...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...card }) => card), ...(p.attached ?? []).map((a) => a.card)];
+  const cards = cardsOf(p);
   if (owner.active === p) owner.active = null;
   else owner.bench = owner.bench.map((q) => (q === p ? null : q));
   [owner.deck, ctx.state.rngState] = shuffle([...owner.deck, ...cards], ctx.state.rngState);

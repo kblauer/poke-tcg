@@ -12,7 +12,7 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch } from '../cards.js';
 import { counts, energyPool, type InPlayPokemon, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { baseUid, countersMoved, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution, isEvolved } from '../status.js';
+import { baseUid, countersMoved, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution, isEvolved, cardsOf } from '../status.js';
 import { BASE1 } from './base1.js';
 import { benchedSlots, damageChosen, energyCards, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { discardOwnEnergy } from './dp1.js';
@@ -45,7 +45,7 @@ function putCounters(ctx: AttackContext, p: InPlayPokemon | null | undefined, n:
 function backToHand(ctx: AttackContext) {
   if (!ctx.me.bench.some(Boolean)) return;
   const p = ctx.attacker;
-  ctx.me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+  ctx.me.hand.push(...cardsOf(p));
   ctx.me.active = null;
   ctx.log(`${ctx.attackerDef.name} and its cards went back into the hand.`);
 }
@@ -352,7 +352,7 @@ export const DP6: Record<string, Record<string, AttackEffect>> = {
         ctx.hit(20);
         if (!ctx.choices.boost || !ctx.me.bench.some(Boolean)) return;
         const p = ctx.attacker;
-        ctx.me.deck.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+        ctx.me.deck.push(...cardsOf(p));
         ctx.me.active = null;
         ctx.log('Uxie and its cards went on the bottom of the deck.');
       },

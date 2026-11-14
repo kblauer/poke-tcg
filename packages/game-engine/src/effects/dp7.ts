@@ -10,7 +10,7 @@ import { hasType, isBasicEnergy, isTrainerCard, lookupCard, namesMatch } from '.
 import { counts, energyPool, isSpecialEnergy, retreatCost, type InPlayPokemon, type Target } from '../engine.js';
 import { hasPowerOrBody, pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { evolvedFromName, inPlayDef, pokemonName, isEvolved } from '../status.js';
+import { evolvedFromName, inPlayDef, pokemonName, isEvolved, cardsOf } from '../status.js';
 import { benchedSlots, damageChosen, energyCards, headsUntilTails, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { DP1, discardOwnEnergy, removeDefenderEnergy } from './dp1.js';
 import { discardAtRandom, energyAmount } from './ex1.js';
@@ -103,7 +103,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
         const slot = ctx.choices.benchSlot;
         const p = slot === undefined || ctx.opp.bench.filter(Boolean).length < 4 ? null : ctx.opp.bench[slot];
         if (!p || !ctx.canAffect(ctx.opp, p)) return;
-        ctx.opp.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+        ctx.opp.hand.push(...cardsOf(p));
         ctx.opp.bench[slot!] = null;
         ctx.log(`${pokemonName(ctx.state, p)} and its cards went back into the hand.`, ctx.opp.id);
       },
@@ -313,7 +313,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
         const slot = ctx.choices.benchSlot;
         const p = slot === undefined ? null : ctx.opp.bench[slot];
         if (!p || !ctx.flip() || !ctx.canAffect(ctx.opp, p)) return ctx.log('Strong Breeze did nothing.');
-        const cards = [...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card)];
+        const cards = cardsOf(p);
         ctx.opp.bench[slot!] = null;
         [ctx.opp.deck, ctx.state.rngState] = shuffle([...ctx.opp.deck, ...cards], ctx.state.rngState);
         ctx.log(`${pokemonName(ctx.state, p)} and its cards were shuffled into the deck.`, ctx.opp.id);

@@ -11,7 +11,7 @@ import { hasType, isBasicPokemon, isTrainerCard, lookupCard } from '../cards.js'
 import { retireStadium, activeLocked, discardTheirEnergy, isEnergyCardOf, newInPlay, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { energyKept, evolutionBlocked } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { benchRoom, energyProtected, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { benchRoom, energyProtected, inPlayDef, openBenchSlot, pokemonName, cardsOf as allCardsOf, cleanCard } from '../status.js';
 import { amnesia, metronome } from './base1.js';
 import {
   benchedSlots,
@@ -61,7 +61,7 @@ export function returnSelf(ctx: AttackContext) {
   if (ctx.me.active !== p) return;
   const locked = activeLocked(ctx.state, ctx.me.id);
   if (locked) return ctx.log(`${locked}.`);
-  ctx.me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+  ctx.me.hand.push(...allCardsOf(p));
   ctx.me.active = null;
   ctx.log(`${pokemonName(ctx.state, p)} and all cards attached to it returned to the hand.`);
 }
@@ -569,7 +569,7 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
     Messenger: {
       run(ctx) {
         const p = ctx.attacker;
-        const cards = [...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card)];
+        const cards = allCardsOf(p);
         ctx.me.deck.unshift(...cards);
         ctx.me.active = null;
         ctx.log(`Put ${ctx.attackerDef.name} and all cards attached to it on top of the deck.`);
@@ -998,7 +998,7 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
         ctx.after(() => {
           const p = ctx.attacker;
           if (ctx.me.active !== p) return;
-          ctx.me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c));
+          ctx.me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(cleanCard));
           ctx.me.discard.push(...(p.attached ?? []).map((a) => a.card));
           ctx.me.active = null;
           ctx.log(`${pokemonName(ctx.state, p)} and its Energy cards returned to the hand.`);

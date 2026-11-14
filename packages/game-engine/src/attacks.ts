@@ -6,7 +6,6 @@ import {
   afflictBetweenTurns,
   canPayCost,
   conditionLabel,
-  activeLocked,
   counts,
   discardTheirEnergy,
   discardTool,
@@ -28,7 +27,7 @@ import {
 } from './engine.js';
 import { askChoice, hasPowerOrBody, greenAroma, stickyHold, conditionBarred, conditionFree, discardsLocked, hasReact, holonWith, reactCount, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy, type Sides, pokemonPower } from './powers.js';
 import { shuffle } from './rng.js';
-import { addLog, baseUid, clearOnLeavingActive, hasSpecialCondition, effectId, evolvedFromName, isDelta, isPlasmaPokemon, energyProtected, flipCoin, inPlayDef, lakeTrio, pokemonName, previousLevel, revealFaceDown, sameCards, shapeshiftCard, isEvolved } from './status.js';
+import { addLog, baseUid, clearOnLeavingActive, hasSpecialCondition, effectId, evolvedFromName, isDelta, isPlasmaPokemon, energyProtected, flipCoin, inPlayDef, lakeTrio, pokemonName, previousLevel, revealFaceDown, sameCards, shapeshiftCard, isEvolved, cardsOf } from './status.js';
 import { isPokemonSP, swapActive, type PendingChoice, type PendingChoiceInput } from './trainers.js';
 
 /** Answers to an attack's questions. Each field belongs to one kind of ChoiceSpec. */
@@ -835,7 +834,7 @@ export function performAttack(
   if (pokemonPower(attacker)?.rebellion && powerActive(attacker, state.cards, [me, opp])) {
     const tails = [flipCoin(state, 'Rebellion', me.id), flipCoin(state, 'Rebellion', me.id)].every((h) => !h);
     if (tails) {
-      const cards = [...attacker.evolvedFrom, attacker.card, ...attacker.energy.map(({ provides: _, ...c }) => c), ...(attacker.attached ?? []).map((a) => a.card)];
+      const cards = cardsOf(attacker);
       [me.deck, state.rngState] = shuffle([...me.deck, ...cards], state.rngState);
       me.active = null;
       addLog(state, `Rebellion: ${attack.name} did nothing, and ${attackerDef.name} was shuffled into the deck.`, me.id);
@@ -2321,9 +2320,7 @@ function createContext(
     returnDefender() {
       if (untouchable()) return;
       const defender = opp.active!;
-      // A Buzzap'd Electrode attached as Energy is a Pokémon card again.
-      const energy = defender.energy.map(({ provides: _, ...card }) => card);
-      opp.hand.push(...defender.evolvedFrom, defender.card, ...energy, ...(defender.attached ?? []).map((a) => a.card));
+      opp.hand.push(...cardsOf(defender));
       opp.active = null;
       log(`${pokemonName(state, defender)} and all cards attached to it returned to the hand.`, opp.id);
     },

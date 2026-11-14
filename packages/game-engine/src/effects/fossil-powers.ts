@@ -5,7 +5,7 @@
 // against any attack, even its owner's; Kabuto Armor halves after weakness, resistance, PlusPower and Defender.
 import { activeLock, type InPlayPokemon, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
-import { clearOnLeavingActive, countersMoved, inPlayDef, pokemonName } from '../status.js';
+import { countersMoved, inPlayDef, pokemonName, cleanCard } from '../status.js';
 import { swapActive } from '../trainers.js';
 
 const at = (s: PowerSituation, t: Target) => pokemonAt(s.me, t)!;
@@ -99,7 +99,7 @@ export const FOSSIL_POWERS: Record<string, PowerEffect> = {
     use(ctx) {
       const tentacool = ctx.source;
       // A Buzzap'd Electrode attached as Energy goes back to being a Pokémon card.
-      ctx.me.discard.push(...tentacool.energy.map(({ provides: _, ...card }) => card), ...(tentacool.attached ?? []).map((a) => a.card), ...tentacool.evolvedFrom);
+      ctx.me.discard.push(...tentacool.energy.map(cleanCard), ...(tentacool.attached ?? []).map((a) => a.card), ...tentacool.evolvedFrom);
       ctx.me.hand.push(tentacool.card);
       if (ctx.sourceTarget === 'active') ctx.me.active = null;
       else ctx.me.bench[ctx.sourceTarget] = null;

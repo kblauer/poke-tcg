@@ -4,7 +4,7 @@
 import { isBasicEnergy, isBasicPokemon, isBenchable, isPokemonCard, isTrainerCard, type CardLibrary, type PokemonCardDef } from '../cards.js';
 import { activeLock, discardTheirEnergy, newInPlay, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { energyKept, evolutionBlocked, offerChainReaction, playedFromHand, pokemonAt, trainerProof } from '../powers.js';
-import { clearOnLeavingActive, clearSpecialConditions, devolvable, energyProtected, evolvedHook, hasSpecialCondition, inPlayDef, openBenchSlot } from '../status.js';
+import { clearOnLeavingActive, clearSpecialConditions, devolvable, energyProtected, evolvedHook, hasSpecialCondition, inPlayDef, openBenchSlot, cardsOf, cleanCard } from '../status.js';
 import { def, otherHandCards, own, swapActive, targetsOf, theirs, type TrainerChoiceSpec, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
 const pokemonDef = (s: { cards: TrainerSituation['cards'] }, p: InPlayPokemon): PokemonCardDef => inPlayDef(s.cards, p);
@@ -29,7 +29,7 @@ const emptySlot = (side: Pick<PlayerState, 'bench'>, s: { cards: CardLibrary; st
 /** Removes a Pokémon from play, putting all its cards in the discard pile except `keep`. */
 function removeFromPlay(side: PlayerState, t: Target, keep?: CardInstance) {
   const p = at(side, t);
-  const cards = [...p.evolvedFrom, p.card, ...p.energy, ...(p.attached ?? []).map((a) => a.card)];
+  const cards = cardsOf(p);
   side.discard.push(...cards.filter((c) => c !== keep));
   if (t === 'active') side.active = null;
   else side.bench[t] = null;
@@ -415,7 +415,7 @@ function breederTargets(s: TrainerSituation, card: CardInstance): Target[] {
 function discardEnergy(owner: PlayerState, p: InPlayPokemon, uids: string[]) {
   const gone = p.energy.filter((e) => uids.includes(e.uid));
   p.energy = p.energy.filter((e) => !gone.includes(e));
-  owner.discard.push(...gone.map(({ provides: _, ...card }) => card));
+  owner.discard.push(...gone.map(cleanCard));
 }
 
 /** The opponent's Energy cards, discarded by the player's Trainer (Ecogym may send them back to the hand). */

@@ -11,7 +11,7 @@
 import { lookupCard, namesMatch, typesOf, type EnergyType } from '../cards.js';
 import { afflictBetweenTurns, opponentOf, type Target } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, clearSpecialConditions, evolvedFromHand, hasSpecialCondition, inPlayDef, openBenchSlot, pokemonName, isEvolved } from '../status.js';
+import { addLog, clearSpecialConditions, evolvedFromHand, hasSpecialCondition, inPlayDef, openBenchSlot, pokemonName, isEvolved, cardsOf } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { inPlay, onlyBenched, POKE_BODY, targetOf } from './common.js';
 import { onBench, onLevelUp } from './dp5-powers.js';
@@ -219,7 +219,7 @@ export const DP6_POWERS: Record<string, PowerEffect> = {
     blocked: (s) => onlyBenched(s, 'Unown R'),
     use(ctx) {
       const unown = ctx.source;
-      ctx.me.discard.push(...unown.evolvedFrom, unown.card, ...unown.energy.map(({ provides: _, ...card }) => card), ...(unown.attached ?? []).map((a) => a.card));
+      ctx.me.discard.push(...cardsOf(unown));
       ctx.me.bench = ctx.me.bench.map((p) => (p === unown ? null : p));
       ctx.log('Discarded Unown R and its cards.');
       const drawn = ctx.me.deck.shift();

@@ -11,7 +11,7 @@
 import { lookupCard, typesOf } from '../cards.js';
 import { activeLocked, afflictBetweenTurns, energyPool, isEnergyCardOf } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, evolvedFromName, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
+import { addLog, evolvedFromName, hasSpecialCondition, inPlayDef, pokemonName, cleanCard } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { onEvolveMay, onlyActive, onlyBenched } from './common.js';
 import { EX1_POWERS } from './ex1-powers.js';
@@ -161,7 +161,7 @@ export const DP2_POWERS: Record<string, PowerEffect> = {
       const to = ctx.choices.to === undefined ? null : pokemonAt(ctx.me, ctx.choices.to);
       if (!to || to === ctx.source || (to.attached ?? []).some((a) => a.tool)) return;
       const unown = ctx.source;
-      ctx.me.discard.push(...unown.energy.map(({ provides: _, ...card }) => card), ...(unown.attached ?? []).map((a) => a.card));
+      ctx.me.discard.push(...unown.energy.map(cleanCard), ...(unown.attached ?? []).map((a) => a.card));
       ctx.me.bench = ctx.me.bench.map((p) => (p === unown ? null : p));
       (to.attached ??= []).push({ card: unown.card, until: Number.MAX_SAFE_INTEGER, tool: true, equip: true });
       ctx.log(`Attached Unown E to ${pokemonName(ctx.state, to)} as a Pokémon Tool.`);

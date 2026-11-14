@@ -6,7 +6,7 @@
 // and retreating (energyPool); Stare stops it there, Toxic Gas and Goop Gas Attack don't (energyPool sees no other Pokémon).
 import { afflictionBlocked, isEnergyCardOf, type InPlayPokemon, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, powerActive, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, clearOnLeavingActive, effectId, flipCoin, inPlayDef, pokemonName } from '../status.js';
+import { addLog, effectId, flipCoin, inPlayDef, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { powerEffect } from './index.js';
 

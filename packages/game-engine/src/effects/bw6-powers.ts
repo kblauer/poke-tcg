@@ -16,7 +16,7 @@
 import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
 import { activeLock, newInPlay, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
-import { evolvedFromHand, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { evolvedFromHand, inPlayDef, openBenchSlot, pokemonName, cardsOf } from '../status.js';
 import { ABILITY, targetOf } from './common.js';
 import { energyCardOf } from './ex2.js';
 
@@ -85,7 +85,7 @@ export const BW6_POWERS: Record<string, PowerEffect> = {
     blocked: (s) => (ownTargets(s.me).length < 2 ? "You can't return your only Pokémon in play" : s.source === 'active' ? activeLock(s.me, [s.me, s.opp], s.cards) : null),
     use(ctx) {
       const p = ctx.source;
-      ctx.me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, converted: _c, windless: _w, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+      ctx.me.hand.push(...cardsOf(p));
       if (ctx.me.active === p) ctx.me.active = null;
       else ctx.me.bench = ctx.me.bench.map((q) => (q === p ? null : q));
       ctx.log(`${pokemonName(ctx.state, p)} and all cards attached to it returned to the hand.`);

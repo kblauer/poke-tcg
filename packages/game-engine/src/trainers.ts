@@ -8,7 +8,7 @@ import { powerEffect, trainerEffect } from './effects/index.js';
 import { activeLocked, afflictBetweenTurns, conditionLabel, discardTheirEnergy, isEnergyCardOf, isSpecialEnergy, retireStadium, discardTool, evolvesOnto, newInPlay, opponentOf, toolOf, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
 import { nextRandom, shuffle } from './rng.js';
 import { askChoice, conditionFree, stickyHold, discardsLocked, itemVeiled, offerChainReaction, powerActive, primalLocked, supportersVeiled, trainerProof, trainersBlocked, trainersDusted, pokemonPower, type PowerChoices } from './powers.js';
-import { addLog, baseUid, benchRoom, clearOnLeavingActive, clearSpecialConditions, countersMoved, devolvable, effectId, energyProtected, evolvedHook, flipCoin, inPlayDef, isDelta, isDeltaCard, isPlasmaPokemon, legendPair, openBenchSlot, removeTopCard, removeTopEvolution, sameCards, shapeshiftCard, isEvolved } from './status.js';
+import { addLog, baseUid, benchRoom, clearOnLeavingActive, clearSpecialConditions, countersMoved, devolvable, effectId, energyProtected, evolvedHook, flipCoin, inPlayDef, isDelta, isDeltaCard, isPlasmaPokemon, legendPair, openBenchSlot, removeTopCard, removeTopEvolution, sameCards, shapeshiftCard, isEvolved, cardsOf, cleanCard } from './status.js';
 
 /** Answers to a Trainer's questions. Each question names the field it fills. */
 export interface TrainerChoices {
@@ -3161,7 +3161,7 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
           const gone = q?.energy.filter((e) => isSpecialEnergy(state.cards, e)) ?? [];
           if (!q || !gone.length) continue;
           q.energy = q.energy.filter((e) => !gone.includes(e));
-          opp.discard.push(...gone.map(({ provides: _, ...c }) => c));
+          opp.discard.push(...gone.map(cleanCard));
           addLog(state, `${choice.source}: discarded ${gone.length} Special Energy card${gone.length === 1 ? '' : 's'} from ${name(q.card)}.`, opp.id);
         }
         return null;
@@ -3179,7 +3179,7 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
         const heads = [flipCoin(state, choice.source, me.id), flipCoin(state, choice.source, me.id)].every(Boolean);
         const target = opp.active;
         if (!heads || !target) return null;
-        opp.discard.push(...target.evolvedFrom, target.card, ...target.energy.map(({ provides: _, ...card }) => card), ...(target.attached ?? []).map((a) => a.card));
+        opp.discard.push(...cardsOf(target));
         opp.active = null;
         addLog(state, `${choice.source}: ${name(target.card)} and all cards attached to it were discarded.`, opp.id);
         return null;
@@ -3577,7 +3577,7 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
       if (kept.length < 3) return again({ ...choice, kept });
       for (const [i, p] of me.bench.entries()) {
         if (!p || kept.includes(i)) continue;
-        (me.lostZone ??= []).push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, converted: _c, windless: _w, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+        (me.lostZone ??= []).push(...cardsOf(p));
         me.bench[i] = null;
         addLog(state, `${choice.source}: ${name(p.card)} and all cards attached to it went to the Lost Zone.`, me.id);
       }
@@ -3713,7 +3713,7 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
         // Giant Fan: the Pokémon and every card attached to it into its owner's deck, shuffled (a Pokémon attached as Energy a card again).
         const p = answer.target === undefined ? null : atTarget(opp, answer.target);
         if (!p) return retry(choice, "Choose one of your opponent's Pokémon");
-        opp.deck.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...card }) => card), ...(p.attached ?? []).map((a) => a.card));
+        opp.deck.push(...cardsOf(p));
         if (answer.target === 'active') opp.active = null;
         else opp.bench[answer.target as number] = null;
         [opp.deck, state.rngState] = shuffle(opp.deck, state.rngState);
@@ -4331,7 +4331,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     if (target === 'active' && activeLocked(state, me.id)) return activeLocked(state, me.id)!;
     const p = atTarget(me, target)!;
     me.hand.push(...p.evolvedFrom, p.card);
-    me.discard.push(...p.energy.map(({ provides: _, ...card }) => card), ...(p.attached ?? []).map((a) => a.card));
+    me.discard.push(...p.energy.map(cleanCard), ...(p.attached ?? []).map((a) => a.card));
     if (target === 'active') me.active = null;
     else me.bench[target] = null;
     addLog(state, `${name(p.card)} returned to the hand; its cards were discarded.`, me.id);
@@ -4718,7 +4718,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
       if (!p || (choice.evolvedNot && !fanTargets(state.cards, me, choice.evolvedNot).includes(answer.target))) return 'Choose one of your highlighted Pokémon';
       if (answer.target === 'active' && activeLocked(state, me.id)) return activeLocked(state, me.id)!;
       // A Buzzap'd Electrode attached as Energy is a Pokémon card again.
-      me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...card }) => card), ...(p.attached ?? []).map((a) => a.card));
+      me.hand.push(...cardsOf(p));
       if (answer.target === 'active') me.active = null;
       else me.bench[answer.target] = null;
       addLog(state, `${name(p.card)} and all cards attached to it returned to the hand.`, me.id);
@@ -4935,7 +4935,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
       const p = atTarget(me, answer.target);
       if (!p || !name(p.card).includes('Koga')) return 'Choose a Pokémon with Koga in its name';
       if (answer.target === 'active' && activeLocked(state, me.id)) return activeLocked(state, me.id)!;
-      const cards = [...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card)];
+      const cards = cardsOf(p);
       [me.deck, state.rngState] = shuffle([...me.deck, ...cards], state.rngState);
       if (answer.target === 'active') me.active = null;
       else me.bench[answer.target] = null;
@@ -4994,7 +4994,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
   } else if (choice.kind === 'narrowGym') {
     const p = typeof answer.target === 'number' ? me.bench[answer.target] : null;
     if (!p) return 'Choose one of your benched Pokémon';
-    (choice.discard ? me.discard : me.hand).push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...card }) => card), ...(p.attached ?? []).map((a) => a.card));
+    (choice.discard ? me.discard : me.hand).push(...cardsOf(p));
     me.bench[answer.target as number] = null;
     addLog(state, `${name(p.card)} and all cards attached to it ${choice.discard ? 'were discarded' : 'returned to the hand'} (${choice.source}).`, me.id);
     // Giant Stump: again while there are more than its limit.
@@ -5181,7 +5181,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     if (choice.thenShuffleActive && me.active) {
       const p = me.active;
       me.active = null;
-      [me.deck, state.rngState] = shuffle([...me.deck, ...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card)], state.rngState);
+      [me.deck, state.rngState] = shuffle([...me.deck, ...cardsOf(p)], state.rngState);
       addLog(state, `${name(p.card)} and all cards attached to it were shuffled into the deck.`, me.id);
     }
     // Pokémon Contest Hall: a Pokémon Tool from the deck for the Pokémon just benched.

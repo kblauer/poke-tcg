@@ -10,7 +10,7 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { hasType, isPokemonCard, isTrainerCard, lookupCard, namesMatch, type EnergyType } from '../cards.js';
 import { energyPool, isSpecialEnergy, retireStadium, type InPlayPokemon, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { inPlayDef, pokemonName, isEvolved } from '../status.js';
+import { inPlayDef, pokemonName, isEvolved, cardsOf } from '../status.js';
 import { isPokemonSP } from '../trainers.js';
 import { benchedSlots, damageChosen, energyCards, inPlay, opponentBenchChoice, opponentTargets, same } from './common.js';
 import { discardOwnEnergy, removeDefenderEnergy } from './dp1.js';
@@ -392,7 +392,7 @@ export const PL3: Record<string, Record<string, AttackEffect>> = {
         ctx.after(() => {
           const p = ctx.attacker;
           if (ctx.me.active !== p) return;
-          ctx.me.deck.unshift(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+          ctx.me.deck.unshift(...cardsOf(p));
           ctx.me.active = null;
           ctx.log(`${pokemonName(ctx.state, p)} and all cards attached to it went on top of the deck.`);
         });

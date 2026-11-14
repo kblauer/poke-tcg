@@ -301,7 +301,7 @@ export function revealFaceDown(state: GameState, owner: PlayerId, pokemon: InPla
   const def = lookupCard(state.cards, pokemon.card.defId);
   addLog(state, `The face-down card is ${def.name}.`, owner);
   if (def.kind === 'pokemon' && def.stage === 'basic' && !def.trainerText) return true;
-  player.discard.push(pokemon.card, ...pokemon.energy.map(({ provides: _, ...card }) => card), ...(pokemon.attached ?? []).map((a) => a.card));
+  player.discard.push(pokemon.card, ...pokemon.energy.map(cleanCard), ...(pokemon.attached ?? []).map((a) => a.card));
   if (player.active === pokemon) player.active = null;
   else player.bench = player.bench.map((p) => (p === pokemon ? null : p));
   addLog(state, `It isn't a Basic Pokémon, so it was discarded with every card attached.`, owner);

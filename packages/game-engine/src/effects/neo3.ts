@@ -15,7 +15,7 @@
 import { pokemonOn, targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch, type EnergyType } from '../cards.js';
 import { counts, discardTheirEnergy, energyPool, energyProvided, isEnergyCardOf, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
-import { discardsLocked, energyKept, evolutionBlocked } from '../powers.js';
+import { energyKept, evolutionBlocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { baseUid, energyProtected, inPlayDef, pokemonName } from '../status.js';
 import { sporeTargets } from '../trainers.js';

@@ -16,7 +16,7 @@ import { pokemonOn, targetsIn, type AttackContext, type AttackEffect, type Attac
 import { hasType, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard } from '../cards.js';
 import { retireStadium, energyPool, isEnergyCardOf, isSpecialEnergy, newInPlay, type CardInstance, type PlayerState, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { clearOnLeavingActive, devolvable, inPlayDef, openBenchSlot, pokemonName, removeTopEvolution } from '../status.js';
+import { clearOnLeavingActive, devolvable, inPlayDef, openBenchSlot, pokemonName, removeTopEvolution, cardsOf as allCardsOf, cleanCard } from '../status.js';
 import { pokemonTower } from '../trainers.js';
 import { benchTarget, discardToUse, energyCards, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentBenchChoice, opponentSwitches, perHeads, recoil } from './common.js';
 import { smokescreen } from './fossil.js';
@@ -251,7 +251,7 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
         to.energy.push(...moved);
         ctx.log(`Moved ${moved.length} Energy card${moved.length === 1 ? '' : 's'} to ${pokemonName(ctx.state, to)}.`);
         const p = ctx.attacker;
-        ctx.me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+        ctx.me.hand.push(...allCardsOf(p));
         ctx.me.active = null;
         ctx.log(`${ctx.attackerDef.name} and all cards attached to it returned to the hand.`);
       },
@@ -706,7 +706,7 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
         const p = slot === undefined ? null : ctx.me.bench[slot];
         if (!p || !ctx.flip()) return ctx.log('Wash Away did nothing.');
         healUpTo(ctx, ctx.me, p, p.damage);
-        ctx.me.discard.push(...p.energy.map(({ provides: _, ...c }) => c));
+        ctx.me.discard.push(...p.energy.map(cleanCard));
         p.energy = [];
         ctx.log(`Discarded the Energy attached to ${pokemonName(ctx.state, p)}.`);
       },

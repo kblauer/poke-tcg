@@ -10,7 +10,7 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { lookupCard, namesMatch, type EnergyType } from '../cards.js';
 import { activeLocked, retreatCost, type CardInstance, type PlayerState } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { pokemonName, sameCards } from '../status.js';
+import { pokemonName, sameCards, cardsOf } from '../status.js';
 import { trainerEffect } from './index.js';
 import { opponentBenchChoice } from './common.js';
 import { discardOwn, energyCardOf } from './ex2.js';
@@ -46,7 +46,7 @@ function shuffleSelf(ctx: AttackContext) {
   if (ctx.me.active !== p) return;
   const locked = activeLocked(ctx.state, ctx.me.id);
   if (locked) return ctx.log(`${locked}.`);
-  const cards = [...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, converted: _c, windless: _w, ...c }) => c), ...(p.attached ?? []).map((a) => a.card)];
+  const cards = cardsOf(p);
   [ctx.me.deck, ctx.state.rngState] = shuffle([...ctx.me.deck, ...cards], ctx.state.rngState);
   ctx.me.active = null;
   ctx.log(`${pokemonName(ctx.state, p)} and all cards attached to it were shuffled into the deck.`);

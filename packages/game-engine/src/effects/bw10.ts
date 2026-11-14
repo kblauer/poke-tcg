@@ -10,7 +10,7 @@
 import type { AttackEffect, ChoiceSpec } from '../attacks.js';
 import { lookupCard, namesMatch } from '../cards.js';
 import { counts, discardTool, energyPool, isSpecialEnergy, retireStadium, retreatCost, toolOf, type CardInstance } from '../engine.js';
-import { inPlayDef, isPlasmaPokemon, openBenchSlot, pokemonName } from '../status.js';
+import { inPlayDef, isPlasmaPokemon, openBenchSlot, pokemonName, cleanCard } from '../status.js';
 import { isItemCard } from '../trainers.js';
 import { benchedSlots, energyCanMove, energyCards, inPlay, opponentBenchChoice } from './common.js';
 import { energyCardOf } from './ex2.js';
@@ -49,7 +49,7 @@ export const BW10: Record<string, Record<string, AttackEffect>> = {
         const avenged = ctx.me.knockedOutByAttack === ctx.turn - 1 && (ctx.me.knockedOutByAttackNames ?? []).some((n) => namesMatch(n, 'Escavalier'));
         const defender = ctx.opp.active;
         if (!avenged || !defender || !defender.energy.length || !reachesDefender(ctx) || !energyCanMove(ctx, defender)) return;
-        const energy = defender.energy.map(({ provides: _, ...c }) => c);
+        const energy = defender.energy.map(cleanCard);
         defender.energy = [];
         ctx.opp.hand.push(...energy);
         ctx.log(`Retribution: ${energy.length} Energy card${energy.length === 1 ? '' : 's'} from ${pokemonName(ctx.state, defender)} into the hand.`, ctx.opp.id);

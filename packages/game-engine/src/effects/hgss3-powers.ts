@@ -10,7 +10,7 @@ import { lookupCard } from '../cards.js';
 import { activeLock, afflictBetweenTurns, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
 import { nextRandom } from '../rng.js';
-import { pokemonName } from '../status.js';
+import { pokemonName, cardsOf } from '../status.js';
 import { onEvolveMay, onlyActive, POKE_BODY } from './common.js';
 import { onBench } from './dp5-powers.js';
 import { energyCardOf } from './ex2.js';
@@ -133,7 +133,7 @@ export const HGSS3_POWERS: Record<string, PowerEffect> = {
     use(ctx) {
       const active = ctx.me.active;
       if (!active || !ctx.flip()) return;
-      ctx.me.hand.push(...active.evolvedFrom, active.card, ...active.energy.map(({ provides: _, ...card }) => card), ...(active.attached ?? []).map((a) => a.card));
+      ctx.me.hand.push(...cardsOf(active));
       ctx.me.active = null;
       ctx.log(`${pokemonName(ctx.state, active)} and all cards attached to it returned to the hand.`);
     },

@@ -9,7 +9,7 @@
 import { lookupCard } from '../cards.js';
 import type { InPlayPokemon } from '../engine.js';
 import { hasPowerOrBody, discardsLocked, ownTargets, pokemonAt, pokemonPower, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { addLog, inPlayDef, openBenchSlot, pokemonName, cleanCard } from '../status.js';
 import { FOSSIL_NAMES, type PendingChoice } from '../trainers.js';
 import { onlyBenched, POKE_BODY, targetOf } from './common.js';
 import { DP1_POWERS } from './dp1-powers.js';
@@ -42,7 +42,7 @@ export const equip = (name: string): PowerEffect => ({
     const to = ctx.choices.to === undefined ? null : pokemonAt(ctx.me, ctx.choices.to);
     if (!to || to === ctx.source || (to.attached ?? []).some((a) => a.tool)) return;
     const unown = ctx.source;
-    ctx.me.discard.push(...unown.energy.map(({ provides: _, ...card }) => card), ...(unown.attached ?? []).map((a) => a.card));
+    ctx.me.discard.push(...unown.energy.map(cleanCard), ...(unown.attached ?? []).map((a) => a.card));
     ctx.me.bench = ctx.me.bench.map((p) => (p === unown ? null : p));
     (to.attached ??= []).push({ card: unown.card, until: Number.MAX_SAFE_INTEGER, tool: true, equip: true });
     ctx.log(`Attached ${name} to ${pokemonName(ctx.state, to)} as a Pokémon Tool.`);

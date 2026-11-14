@@ -8,7 +8,7 @@ import { lookupCard } from '../cards.js';
 import { activeLocked, isEnergyCardOf, type CardInstance } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
 import { nextRandom } from '../rng.js';
-import { devolvable, evolvedFromName, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { devolvable, evolvedFromName, inPlayDef, openBenchSlot, pokemonName, cleanCard } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { onEvolveMay, onlyBenched } from './common.js';
 import { shuffleIntoDeck } from './dp1.js';
@@ -91,7 +91,7 @@ export const DP1_POWERS: Record<string, PowerEffect> = {
       const p = ctx.choices.from === undefined ? null : pokemonAt(ctx.me, ctx.choices.from);
       if (!ctx.flip()) return ctx.log('Bounce did nothing.');
       if (!p) return;
-      ctx.me.discard.push(...p.energy.map(({ provides: _, ...card }) => card), ...(p.attached ?? []).map((a) => a.card));
+      ctx.me.discard.push(...p.energy.map(cleanCard), ...(p.attached ?? []).map((a) => a.card));
       p.energy = [];
       p.attached = [];
       shuffleIntoDeck(ctx, ctx.me, p);
