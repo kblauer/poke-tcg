@@ -10,9 +10,8 @@
 import { targetsIn, type AttackContext, type AttackEffect, type ChoiceSpec } from '../attacks.js';
 import { hasType, isBasicEnergy, isTrainerCard, lookupCard, namesMatch } from '../cards.js';
 import { counts, energyPool, isEnergyCardOf, isSpecialEnergy, retreatCost, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
-import { discardsLocked } from '../powers.js';
 import { nextRandom, shuffle } from '../rng.js';
-import { countersMoved, effectId, evolvedFromName, inPlayDef, pokemonName } from '../status.js';
+import { countersMoved, effectId, evolvedFromName, inPlayDef, pokemonName, isEvolved } from '../status.js';
 import { benchedSlots, damageChosen, energyCards, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { discardOwnEnergy } from './dp1.js';
 import { discardAtRandom, energyAmount, EX1, restNextTurn } from './ex1.js';
@@ -257,7 +256,6 @@ export const DP3: Record<string, Record<string, AttackEffect>> = {
     },
     'Re-creation': {
       choices(s, c): ChoiceSpec[] {
-        if (s.discardsLocked) return [];
         const options = discardAttackers(s);
         if (!options.length) return [];
         const specs: ChoiceSpec[] = [{ kind: 'oppDiscard', options, prompt: "Re-creation: choose a Pokémon in your opponent's discard pile" }];
@@ -351,7 +349,7 @@ export const DP3: Record<string, Record<string, AttackEffect>> = {
     },
     'Spiteful Pain': {
       run(ctx) {
-        const banette = discardsLocked([ctx.me, ctx.opp], ctx.state.cards) ? undefined : ctx.me.discard.find((c) => namesMatch(lookupCard(ctx.state.cards, c.defId).name, 'Banette'));
+        const banette = ctx.me.discard.find((c) => namesMatch(lookupCard(ctx.state.cards, c.defId).name, 'Banette'));
         ctx.hit(banette ? 80 : 40);
         if (!banette) return;
         ctx.me.discard = ctx.me.discard.filter((c) => c !== banette);
@@ -584,7 +582,6 @@ export const DP3: Record<string, Record<string, AttackEffect>> = {
   'dp3-53': {
     'Psychic Research': {
       run(ctx) {
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         ctx.pend({ kind: 'supernatural', source: 'Psychic Research', ownDiscard: true });
       },
     },
@@ -787,7 +784,7 @@ export const DP3: Record<string, Record<string, AttackEffect>> = {
     'Frighten Horn': {
       run(ctx) {
         ctx.hit(20);
-        if (!ctx.defender.evolvedFrom.length) ctx.inflict('confused');
+        if (!isEvolved(ctx.state.cards, ctx.defender)) ctx.inflict('confused');
       },
     },
   },
@@ -840,7 +837,7 @@ export const DP3: Record<string, Record<string, AttackEffect>> = {
     'Darkness Wing': {
       run(ctx) {
         ctx.hit(60);
-        if (ctx.defender.damage < ctx.defenderDef.hp || discardsLocked([ctx.me, ctx.opp], ctx.state.cards) || !ctx.me.discard.length) return;
+        if (ctx.defender.damage < ctx.defenderDef.hp || !ctx.me.discard.length) return;
         ctx.pend({ kind: 'discardToHand', source: 'Darkness Wing', count: 1, filter: 'any', reveal: true });
       },
     },

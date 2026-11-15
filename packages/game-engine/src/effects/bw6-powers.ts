@@ -13,10 +13,10 @@
 // Ho-Oh-EX's Rebirth is used from the discard pile (fromZone, USE_CARD_POWER: the card clicked there, the user's 2026-10-26):
 // not with a full Bench; heads, onto the Bench, then basic Energy cards of 3 different types from the discard pile, the player's
 // picks (as many types as there are, when fewer: attachFromDiscard's distinctTypes).
-import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
+import { isBasicInPlay, isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
 import { activeLock, newInPlay, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
-import { inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { evolvedFromHand, inPlayDef, openBenchSlot, pokemonName, cardsOf } from '../status.js';
 import { ABILITY, targetOf } from './common.js';
 import { energyCardOf } from './ex2.js';
 
@@ -24,7 +24,7 @@ import { energyCardOf } from './ex2.js';
 const onEvolve = (then: (state: GameState, owner: PlayerState, pokemon: InPlayPokemon) => void): PowerEffect => ({
   ...ABILITY,
   onPlayFromHand(state, owner, pokemon) {
-    if (pokemon.evolvedFrom.length && !pokemon.levelUpFrom) then(state, owner, pokemon);
+    if (evolvedFromHand(pokemon)) then(state, owner, pokemon);
   },
 });
 
@@ -85,7 +85,7 @@ export const BW6_POWERS: Record<string, PowerEffect> = {
     blocked: (s) => (ownTargets(s.me).length < 2 ? "You can't return your only Pokémon in play" : s.source === 'active' ? activeLock(s.me, [s.me, s.opp], s.cards) : null),
     use(ctx) {
       const p = ctx.source;
-      ctx.me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, converted: _c, windless: _w, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+      ctx.me.hand.push(...cardsOf(p));
       if (ctx.me.active === p) ctx.me.active = null;
       else ctx.me.bench = ctx.me.bench.map((q) => (q === p ? null : q));
       ctx.log(`${pokemonName(ctx.state, p)} and all cards attached to it returned to the hand.`);
@@ -148,7 +148,7 @@ export const BW6_POWERS: Record<string, PowerEffect> = {
     ...ABILITY,
     attackBlocked(s) {
       const d = inPlayDef(s.cards, s.defender);
-      return d.stage === 'basic' && !d.restored ? `Unobservant: ${inPlayDef(s.cards, s.attacker).name} can't attack while your opponent's Active Pokémon is a Basic Pokémon` : null;
+      return isBasicInPlay(d) ? `Unobservant: ${inPlayDef(s.cards, s.attacker).name} can't attack while your opponent's Active Pokémon is a Basic Pokémon` : null;
     },
   },
 

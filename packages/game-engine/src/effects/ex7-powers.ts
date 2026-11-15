@@ -9,7 +9,7 @@
 // Benched Basic Pokémon, one Sand Damage a player between turns; Dual Armor makes Rocket's Scizor ex and Scyther ex both
 // types with the Energy attached (refreshHideout).
 import type { AttackContext } from '../attacks.js';
-import { conditionProof, lookupCard } from '../cards.js';
+import { isBasicInPlay, conditionProof, lookupCard } from '../cards.js';
 import { afflictBetweenTurns, afflictionBlocked, energyPool, isEnergyCardOf, type InPlayPokemon } from '../engine.js';
 import { powerEffect } from './index.js';
 import { conditionFree, ownTargets, pokemonAt, powerActive, type PowerEffect } from '../powers.js';
@@ -17,6 +17,7 @@ import { shuffle } from '../rng.js';
 import { addLog, clearSpecialConditions, effectId, inPlayDef, pokemonName } from '../status.js';
 import { BASE1_POWERS } from './base1-powers.js';
 import { roughSkin } from './ex1-powers.js';
+import { energyCardOf } from './common.js';
 import { babyEvolution, EX2_POWERS, freeRetreat, POKE_BODY } from './ex2-powers.js';
 import { EX4_POWERS } from './ex4-powers.js';
 import { ROCKET_POWERS } from './rocket-powers.js';
@@ -130,7 +131,7 @@ export const EX7_POWERS: Record<string, PowerEffect> = {
       if (owner.active !== pokemon || done.has(`${owner.id}:Sand Damage`)) return;
       done.add(`${owner.id}:Sand Damage`);
       for (const p of opp.bench) {
-        if (!p || inPlayDef(state.cards, p).stage !== 'basic') continue;
+        if (!p || !isBasicInPlay(inPlayDef(state.cards, p))) continue;
         p.damage += 10;
         addLog(state, `Sand Damage put a damage counter on ${pokemonName(state, p)}.`, opp.id);
       }
@@ -249,7 +250,7 @@ export const EX7_POWERS: Record<string, PowerEffect> = {
 };
 
 /** A Darkness Energy card (Dark Trance): one providing Darkness, not a Pokémon attached as Energy. */
-const isDarkCard = (cards: Parameters<typeof energyPool>[1], e: InPlayPokemon['energy'][number]) => !e.provides && isEnergyCardOf(e, cards, 'darkness');
+const isDarkCard = (cards: Parameters<typeof energyPool>[1], e: InPlayPokemon['energy'][number]) => !e.provides && energyCardOf(cards, e, 'darkness');
 
 /** Shuffles the player's deck (Gift Exchange). */
 function shuffleDeck(ctx: Parameters<NonNullable<PowerEffect['use']>>[0]) {

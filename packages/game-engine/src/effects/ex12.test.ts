@@ -113,8 +113,11 @@ describe('EX Legend Maker', () => {
     let s = duel('charmander', 'onix');
     s = act(s, 'ash', { type: 'PLAY_TRAINER', cardUid: hand(s, 'ash', trainer('ex12-72', 'Cursed Stone')) });
     put(s, 'misty', 0, mon('ex13-35', 'Aerodactyl δ', F, 70, [], { stage: 'stage1', ...power('Primal Light') }));
+    // Not on one with an Ability (Emboar's Inferno Fandango): an Ability is no Poké-Power.
+    put(s, 'misty', 1, mon('bw1-20', 'Emboar', F, 150, [], { stage: 'stage2', ...power('Inferno Fandango') }));
     s = endTurn(s, 'ash');
     expect(misty(s).bench[0]!.damage).toBe(10);
+    expect(misty(s).bench[1]!.damage).toBe(0);
   });
 
   it('Fire Remedy: a Rainbow Energy attached from the hand counts as Fire (agreed)', () => {

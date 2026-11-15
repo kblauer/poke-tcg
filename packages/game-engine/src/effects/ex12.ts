@@ -6,7 +6,7 @@
 // top card into its owner's deck; Influence puts its Pokémon onto the Bench as Basic Pokémon; Regice ☆, Regirock ☆ and
 // Registeel ☆'s Final attacks need the opponent at 1 Prize card and the attacker as its player's only Pokémon in play.
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
-import { lookupCard, namesMatch } from '../cards.js';
+import { isBasicInPlay, lookupCard, namesMatch } from '../cards.js';
 import { isEnergyCardOf, isSpecialEnergy, type InPlayPokemon, type Target } from '../engine.js';
 import { reactCount } from '../powers.js';
 import { shuffle } from '../rng.js';
@@ -19,7 +19,6 @@ import { lureIn, notNextTurn, snipe } from './ex6.js';
 import { dragOff, EX8 } from './ex8.js';
 
 import { FOSSIL_POKEMON } from './ex12-trainers.js';
-import { discardFree } from './neo3.js';
 import { healUpTo } from './si1.js';
 
 export { same };
@@ -121,7 +120,7 @@ export const EX12: Record<string, Record<string, AttackEffect>> = {
     Mend: {
       run(ctx) {
         const card = ctx.me.discard.find((c) => isEnergyCardOf(c, ctx.state.cards, 'fighting') && lookupCard(ctx.state.cards, c.defId).kind === 'energy');
-        if (!card || !discardFree(ctx)) return ctx.log('No Fighting Energy card was attached.');
+        if (!card) return ctx.log('No Fighting Energy card was attached.');
         ctx.me.discard = ctx.me.discard.filter((c) => c !== card);
         ctx.attacker.energy.push(card);
         ctx.log(`Attached ${lookupCard(ctx.state.cards, card.defId).name} from the discard pile to ${ctx.attackerDef.name}.`);
@@ -303,7 +302,7 @@ export const EX12: Record<string, Record<string, AttackEffect>> = {
     'Entangling Vines': {
       run(ctx) {
         ctx.hit(10);
-        if (ctx.defenderDef.stage !== 'basic') return;
+        if (!isBasicInPlay(ctx.defenderDef)) return;
         ctx.affectDefender((e) => {
           e.noAttack = ctx.turn + 1;
           ctx.log(`${ctx.defenderDef.name} can't attack next turn.`, ctx.opp.id);

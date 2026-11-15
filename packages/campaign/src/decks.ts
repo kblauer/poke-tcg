@@ -1,6 +1,7 @@
 // Deck lists: the starter deck, gym leaders' decks, and random medium-strength decks for the other trainers.
 import { isBasicPokemon, isPokemonCard, type CardDef, type EnergyType, type PokemonCardDef } from '@poke-tcg/game-engine';
 import { BASIC_ENERGY, byId, DOUBLE_COLORLESS, GEN2_BASIC_ENERGY, GEN3_BASIC_ENERGY, GEN4_BASIC_ENERGY, GEN4_DOUBLE_COLORLESS, nameKey, type PoolCard } from './pool.js';
+import { isAceSpec } from './card-fixes.js';
 import { between, chance, pick, sample, type Rng } from './random.js';
 
 /** [card id, copies] */
@@ -575,6 +576,29 @@ export function generateDeck(
   }
   while (deck.length < DECK_SIZE) deck.push(rules.basicEnergy[split[0]![0]]!);
   return deck.slice(0, DECK_SIZE);
+}
+
+/**
+ * Whether `deck` with one `give` taken out can take a copy of `get` and still follow the copy limits: 4 of a name (a δ Pokémon
+ * under its base name), 1 of a Shining Pokémon, Pokémon ☆ (any name), Miracle Energy and ACE SPEC (any name), 4 Basic Pokémon
+ * with Unown in their names (the same rules as shared's deckProblems, which campaign can't import). Cards `defs` doesn't know
+ * (another generation's, in a deck started with one) aren't counted.
+ */
+export function takesCopy(deck: readonly string[], give: string, get: CardDef, defs: (id: string) => CardDef | undefined): boolean {
+  if (get.kind === 'energy' && get.basic !== false) return true;
+  const rest = [...deck];
+  const i = rest.indexOf(give);
+  if (i >= 0) rest.splice(i, 1);
+  const held = rest.flatMap((id) => defs(id) ?? []);
+  const base = (name: string) => name.replace(/ δ$/, '');
+  const isStar = (d: CardDef) => d.kind === 'pokemon' && (d.name.endsWith(' ☆') || d.name.endsWith(' Star'));
+  const onlyOne = (d: CardDef) => (d.kind === 'pokemon' && (d.name.startsWith('Shining ') || isStar(d))) || d.name === 'Miracle Energy';
+  const same = held.filter((d) => base(d.name) === base(get.name) && !(d.kind === 'energy' && d.basic !== false)).length;
+  if (same + 1 > (onlyOne(get) ? 1 : 4)) return false;
+  if (isStar(get) && held.some(isStar)) return false;
+  if (isAceSpec(get.id) && rest.some(isAceSpec)) return false;
+  if (isBasicPokemon(get) && get.name.includes('Unown') && held.filter((d) => isBasicPokemon(d) && d.name.includes('Unown')).length + 1 > 4) return false;
+  return true;
 }
 
 /**

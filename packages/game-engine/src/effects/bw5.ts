@@ -10,11 +10,10 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { lookupCard, namesMatch, type EnergyType } from '../cards.js';
 import { activeLocked, retreatCost, type CardInstance, type PlayerState } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { pokemonName, sameCards } from '../status.js';
+import { pokemonName, sameCards, cardsOf } from '../status.js';
 import { trainerEffect } from './index.js';
 import { opponentBenchChoice } from './common.js';
 import { discardOwn, energyCardOf } from './ex2.js';
-import { discardFree } from './neo3.js';
 
 /** The Energy cards of `type` (basic or Special) attached to the attacker; any Energy card without a type. */
 const energyOfType = (cards: Parameters<typeof energyCardOf>[0], energy: CardInstance[], type?: EnergyType) => energy.filter((e) => !e.provides && (!type || energyCardOf(cards, e, type)));
@@ -46,7 +45,7 @@ function shuffleSelf(ctx: AttackContext) {
   if (ctx.me.active !== p) return;
   const locked = activeLocked(ctx.state, ctx.me.id);
   if (locked) return ctx.log(`${locked}.`);
-  const cards = [...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, converted: _c, windless: _w, ...c }) => c), ...(p.attached ?? []).map((a) => a.card)];
+  const cards = cardsOf(p);
   [ctx.me.deck, ctx.state.rngState] = shuffle([...ctx.me.deck, ...cards], ctx.state.rngState);
   ctx.me.active = null;
   ctx.log(`${pokemonName(ctx.state, p)} and all cards attached to it were shuffled into the deck.`);
@@ -56,7 +55,7 @@ function shuffleSelf(ctx: AttackContext) {
 const chargeBeam = (damage: number): AttackEffect => ({
   run(ctx) {
     ctx.hit(damage);
-    if (!ctx.flip() || !ctx.me.discard.some((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy') || !discardFree(ctx)) return;
+    if (!ctx.flip() || !ctx.me.discard.some((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy')) return;
     ctx.pend({ kind: 'attachFromDiscard', source: 'Charge Beam', count: 1, target: 'active', anyEnergy: true });
   },
 });
@@ -100,7 +99,7 @@ export const BW5: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         ctx.hit(90);
         const fire = ctx.me.discard.some((c) => energyCardOf(ctx.state.cards, c, 'fire') && lookupCard(ctx.state.cards, c.defId).kind === 'energy');
-        if (fire && ctx.me.bench.some(Boolean) && discardFree(ctx)) ctx.pend({ kind: 'attachFromDiscard', source: 'Grand Flame', count: 1, type: 'fire', benchOnly: true });
+        if (fire && ctx.me.bench.some(Boolean)) ctx.pend({ kind: 'attachFromDiscard', source: 'Grand Flame', count: 1, type: 'fire', benchOnly: true });
       },
     },
   },
@@ -185,7 +184,7 @@ export const BW5: Record<string, Record<string, AttackEffect>> = {
     'Dig Uppercut': {
       run(ctx) {
         ctx.hit(50);
-        if (ctx.me.discard.length && discardFree(ctx)) ctx.pend({ kind: 'discardToHand', source: 'Dig Uppercut', count: 1, filter: 'any', exact: true });
+        if (ctx.me.discard.length) ctx.pend({ kind: 'discardToHand', source: 'Dig Uppercut', count: 1, filter: 'any', exact: true });
       },
     },
   },
@@ -193,7 +192,7 @@ export const BW5: Record<string, Record<string, AttackEffect>> = {
   'bw5-62': {
     'Junk Hunt': {
       run(ctx) {
-        if (discardFree(ctx)) ctx.pend({ kind: 'discardToHand', source: 'Junk Hunt', count: 2, filter: 'item', exact: true });
+        ctx.pend({ kind: 'discardToHand', source: 'Junk Hunt', count: 2, filter: 'item', exact: true });
       },
     },
   },

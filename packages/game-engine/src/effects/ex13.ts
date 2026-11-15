@@ -9,9 +9,9 @@
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { targetsIn } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch, isTrainerCard } from '../cards.js';
-import { energyPool, type InPlayPokemon } from '../engine.js';
+import { retireStadium, energyPool, type InPlayPokemon } from '../engine.js';
 import { nextRandom } from '../rng.js';
-import { clearSpecialConditions, inPlayDef, isDelta, pokemonName } from '../status.js';
+import { clearSpecialConditions, inPlayDef, isDelta, pokemonName, isEvolved } from '../status.js';
 import { benchedSlots, guardNext, headsUntilTails, opponentBenchChoice } from './common.js';
 import { discardAtRandom } from './ex1.js';
 import { discardOwn, energyCardOf, inPlay } from './ex2.js';
@@ -20,8 +20,8 @@ import { EX7 } from './ex7.js';
 import { chooseOpponents } from './ex8.js';
 
 import { devolveIntoDeck, foresight, lateCounters, same } from './ex12.js';
-import { discardFree } from './neo3.js';
 import { healUpTo } from './si1.js';
+import { hasPowerOrBody } from '../powers.js';
 
 /** The player's δ Pokémon in play. */
 const deltas = (ctx: AttackContext) => inPlay(ctx.me).filter((p) => isDelta(ctx.state.cards, p)).length;
@@ -42,7 +42,7 @@ const FOSSILS = ['Claw Fossil', 'Mysterious Fossil', 'Root Fossil', 'Holon Fossi
 const OMANYTE_KABUTO = ['Omanyte', 'Omastar', 'Kabuto', 'Kabutops', 'Kabutops ex'];
 
 /** A printed Poké-Power or Poké-Body (Zzzap). */
-const hasPower = (ctx: AttackContext, p: InPlayPokemon) => !!inPlayDef(ctx.state.cards, p).power;
+const hasPower = (ctx: AttackContext, p: InPlayPokemon) => hasPowerOrBody(ctx.state.cards, p);
 
 export const EX13: Record<string, Record<string, AttackEffect>> = {
   // Armaldo δ – Delta Edge: 20 instead of 70 with a Supporter card in play; Fossil Charge: may discard a Fossil from the hand
@@ -270,9 +270,7 @@ export const EX13: Record<string, Record<string, AttackEffect>> = {
         const stadium = ctx.state.stadium;
         ctx.hit(stadium ? 60 : 30);
         if (!stadium) return;
-        ctx.state.players[stadium.owner]!.discard.push(stadium.card);
-        ctx.state.stadium = null;
-        ctx.log(`Discarded ${lookupCard(ctx.state.cards, stadium.card.defId).name}.`);
+        retireStadium(ctx.state);
       },
     },
     'Flames of Rage': { discard: { count: 2 }, run: (ctx) => void ctx.hit(10 + 2 * ctx.attacker.damage) },
@@ -298,7 +296,7 @@ export const EX13: Record<string, Record<string, AttackEffect>> = {
     Paste: {
       run(ctx) {
         const energy = ctx.me.discard.some((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy');
-        if (energy && deltas(ctx) && discardFree(ctx)) ctx.pend({ kind: 'attachFromDiscard', source: 'Paste', count: 1, anyEnergy: true, onlyName: 'δ' });
+        if (energy && deltas(ctx)) ctx.pend({ kind: 'attachFromDiscard', source: 'Paste', count: 1, anyEnergy: true, onlyName: 'δ' });
       },
     },
   },
@@ -330,7 +328,7 @@ export const EX13: Record<string, Record<string, AttackEffect>> = {
         ctx.hit(20);
         const heads = headsUntilTails(ctx);
         const basics = ctx.me.discard.filter((c) => isBasicEnergy(lookupCard(ctx.state.cards, c.defId))).length;
-        if (Math.min(heads, basics) && discardFree(ctx)) ctx.pend({ kind: 'attachFromDiscard', source: 'Spiral Growth', count: Math.min(heads, basics), target: 'active' });
+        if (Math.min(heads, basics)) ctx.pend({ kind: 'attachFromDiscard', source: 'Spiral Growth', count: Math.min(heads, basics), target: 'active' });
       },
     },
     'All-out Blast': {
@@ -347,7 +345,7 @@ export const EX13: Record<string, Record<string, AttackEffect>> = {
   'ex13-103': {
     'Psychic Star': {
       run(ctx) {
-        if (!ctx.defender.evolvedFrom.length) return void ctx.hit(50);
+        if (!isEvolved(ctx.state.cards, ctx.defender)) return void ctx.hit(50);
         discardOwn(ctx, ctx.attacker.energy.filter((e) => !e.provides));
         ctx.hit(100);
       },
