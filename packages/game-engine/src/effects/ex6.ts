@@ -13,7 +13,7 @@ import { targetsIn } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch, type EnergyType } from '../cards.js';
 import { counts, discardTheirEnergy, energyPool, energyProvided, isEnergyCardOf, type CardInstance, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { inPlayDef, openBenchSlot, pokemonName, isEvolved } from '../status.js';
 import { handTrainerFits } from '../trainers.js';
 import { benchedSlots, headsUntilTails, opponentBenchChoice, same } from './common.js';
 import { copyAttack } from './ecard2.js';
@@ -199,7 +199,7 @@ export const EX6: Record<string, Record<string, AttackEffect>> = {
     'Bound Crush': snipe(60, (ctx) => notNextTurn(ctx, 'Bound Crush')),
   },
   // Nidoqueen – Power Lariat: 10 more for each of the player's Evolved Pokémon in play.
-  'ex6-9': { 'Power Lariat': { run: (ctx) => void ctx.hit(40 + 10 * inPlay(ctx.me).filter((p) => p.evolvedFrom.length > 0).length) } },
+  'ex6-9': { 'Power Lariat': { run: (ctx) => void ctx.hit(40 + 10 * inPlay(ctx.me).filter((p) => isEvolved(ctx.state.cards, p)).length) } },
   // Raichu – Recharge: up to 2 Lightning Energy cards from the deck to it; Thunder Reflection: any of its Lightning Energy
   // cards may move to another of the player's Pokémon.
   'ex6-12': {
@@ -295,6 +295,7 @@ export const EX6: Record<string, Record<string, AttackEffect>> = {
           { kind: 'discardToHand' as const, source: 'Pickup', count: 1, filter: 'trainer' as const, reveal: true },
           { kind: 'discardToHand' as const, source: 'Pickup', count: 1, filter: 'energy' as const, reveal: true },
         ];
+        // The two questions queued behind the first never pass ctx.pend's check.
         const [first, ...rest] = searches;
         ctx.pend(first!);
         (ctx.state.queuedChoices ??= []).push(...rest.map((s) => ({ ...s, player: ctx.me.id })));

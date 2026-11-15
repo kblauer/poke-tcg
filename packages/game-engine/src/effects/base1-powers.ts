@@ -3,7 +3,7 @@
 import { lookupCard, typeName, type EnergyType } from '../cards.js';
 import { isEnergyCardOf, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { energyFromHand, ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
-import { clearOnLeavingActive, countersMoved, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
+import { clearOnLeavingActive, countersMoved, hasSpecialCondition, inPlayDef, pokemonName, cleanCard } from '../status.js';
 
 const def = (s: PowerSituation, p: InPlayPokemon) => inPlayDef(s.cards, p);
 const at = (s: PowerSituation, t: Target) => pokemonAt(s.me, t)!;
@@ -139,7 +139,7 @@ export const BASE1_POWERS: Record<string, PowerEffect> = {
       const to = pokemonAt(ctx.me, ctx.choices.to!)!;
       const type = ctx.choices.type!;
       // Electrode is Knocked Out: the cards under it and its Energy go to the discard pile, and the opponent takes a prize.
-      ctx.me.discard.push(...electrode.evolvedFrom, ...electrode.energy, ...(electrode.attached ?? []).map((a) => a.card));
+      ctx.me.discard.push(...electrode.evolvedFrom, ...electrode.energy.map(cleanCard), ...(electrode.attached ?? []).map((a) => a.card));
       clearOnLeavingActive(electrode);
       to.energy.push({ ...electrode.card, provides: { type, amount: 2 } });
       if (ctx.sourceTarget === 'active') ctx.me.active = null;

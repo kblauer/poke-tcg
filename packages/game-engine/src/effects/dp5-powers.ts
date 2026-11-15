@@ -9,7 +9,7 @@
 import { lookupCard } from '../cards.js';
 import type { InPlayPokemon } from '../engine.js';
 import { hasPowerOrBody, discardsLocked, ownTargets, pokemonAt, pokemonPower, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, inPlayDef, pokemonName } from '../status.js';
+import { addLog, inPlayDef, openBenchSlot, pokemonName, cleanCard } from '../status.js';
 import { FOSSIL_NAMES, type PendingChoice } from '../trainers.js';
 import { onlyBenched, POKE_BODY, targetOf } from './common.js';
 import { DP1_POWERS } from './dp1-powers.js';
@@ -42,7 +42,7 @@ export const equip = (name: string): PowerEffect => ({
     const to = ctx.choices.to === undefined ? null : pokemonAt(ctx.me, ctx.choices.to);
     if (!to || to === ctx.source || (to.attached ?? []).some((a) => a.tool)) return;
     const unown = ctx.source;
-    ctx.me.discard.push(...unown.energy.map(({ provides: _, ...card }) => card), ...(unown.attached ?? []).map((a) => a.card));
+    ctx.me.discard.push(...unown.energy.map(cleanCard), ...(unown.attached ?? []).map((a) => a.card));
     ctx.me.bench = ctx.me.bench.map((p) => (p === unown ? null : p));
     (to.attached ??= []).push({ card: unown.card, until: Number.MAX_SAFE_INTEGER, tool: true, equip: true });
     ctx.log(`Attached ${name} to ${pokemonName(ctx.state, to)} as a Pokémon Tool.`);
@@ -52,7 +52,7 @@ export const equip = (name: string): PowerEffect => ({
 const fossilCall = (fromDiscard: boolean, source: string): PowerEffect => ({
   oncePerTurn: true,
   blocked(s) {
-    if (s.me.bench.every(Boolean)) return 'Your Bench is full';
+    if (openBenchSlot(s.me, s.cards, s.stadium) < 0) return 'Your Bench is full';
     if (!fromDiscard) return s.counts.deck ? null : 'Your deck is empty';
     if (discardsLocked([s.me, s.opp], s.cards)) return 'Allergic Pollen: cards in discard piles are not affected';
     return s.me.discard.some((c) => FOSSIL_NAMES.includes(lookupCard(s.cards, c.defId).name)) ? null : 'No Helix Fossil, Dome Fossil or Old Amber in your discard pile';

@@ -11,8 +11,8 @@ import { type AttackContext, type AttackEffect, type ChoiceSpec } from '../attac
 import { isBasicEnergy, lookupCard } from '../cards.js';
 import { energyPool, isEnergyCardOf, type InPlayPokemon } from '../engine.js';
 import { nextRandom } from '../rng.js';
-import { clearSpecialConditions, pokemonName } from '../status.js';
-import { benchedSlots, benchTarget, discardToUse, extraEnergy, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
+import { clearSpecialConditions, pokemonName, isEvolved } from '../status.js';
+import { energyCardOf, benchedSlots, benchTarget, discardToUse, extraEnergy, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
 import { basicEnergyOn, typedCards } from './ecard1.js';
 import { smokescreen } from './fossil.js';
 import { benchMany, noRetreat } from './gym1.js';
@@ -200,7 +200,7 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
   'ex1-18': {
     'Invisible Hand': {
       run(ctx) {
-        if (!ctx.defender.evolvedFrom.length) return ctx.log('Invisible Hand did nothing.');
+        if (!isEvolved(ctx.state.cards, ctx.defender)) return ctx.log('Invisible Hand did nothing.');
         if (ctx.me.deck.length) ctx.pend({ kind: 'pickFromDeck', source: 'Invisible Hand', filter: 'any' });
       },
     },
@@ -242,9 +242,9 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
   // Sharpedo – Dark Slash: may discard a Darkness Energy card for 30 more.
   'ex1-22': {
     'Dark Slash': {
-      choices: (s) => (s.attacker.energy.some((e) => isEnergyCardOf(e, s.cards, 'darkness')) ? [{ kind: 'boost', options: [true, false], prompt: 'Discard a Darkness Energy card attached to Sharpedo for 30 more damage?' }] : []),
+      choices: (s) => (s.attacker.energy.some((e) => !e.provides && energyCardOf(s.cards, e, 'darkness')) ? [{ kind: 'boost', options: [true, false], prompt: 'Discard a Darkness Energy card attached to Sharpedo for 30 more damage?' }] : []),
       run(ctx) {
-        const dark = ctx.choices.boost ? ctx.attacker.energy.find((e) => isEnergyCardOf(e, ctx.state.cards, 'darkness')) : undefined;
+        const dark = ctx.choices.boost ? ctx.attacker.energy.find((e) => !e.provides && energyCardOf(ctx.state.cards, e, 'darkness')) : undefined;
         if (dark) {
           ctx.attacker.energy = ctx.attacker.energy.filter((e) => e !== dark);
           ctx.me.discard.push(dark);
@@ -279,7 +279,7 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
     'Energy Call': {
       choices: (s): ChoiceSpec[] => {
         const options = s.ownDiscard.filter((c) => lookupCard(s.cards, c.defId).kind === 'energy');
-        return options.length && !s.discardsLocked ? [{ kind: 'ownDiscard', min: 1, max: 1, options, prompt: 'Choose an Energy card from your discard pile to attach to your Active Pokémon' }] : [];
+        return options.length ? [{ kind: 'ownDiscard', min: 1, max: 1, options, prompt: 'Choose an Energy card from your discard pile to attach to your Active Pokémon' }] : [];
       },
       run(ctx) {
         ctx.hit(10);

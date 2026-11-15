@@ -1,12 +1,11 @@
 // Attack resolution: legality, the choices an attack asks for, damage (weakness, resistance,
 // prevention) and the helpers card effects use. Card-specific behaviour lives in effects/.
-import { conditionProof, hasOwner, hasType, isBasicEnergy, isBasicPokemon, lookupCard, namesMatch, typeName, typesOf, weaknessLabel, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { isBasicInPlay, conditionProof, hasOwner, hasType, isBasicEnergy, lookupCard, namesMatch, typeName, typesOf, weaknessLabel, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { attackEffect, powerEffect, trainerEffect } from './effects/index.js';
 import {
   afflictBetweenTurns,
   canPayCost,
   conditionLabel,
-  activeLocked,
   counts,
   discardTheirEnergy,
   discardTool,
@@ -24,11 +23,12 @@ import {
   type PlayerState,
   type PokemonEffects,
   type Target,
+  retireStadium,
 } from './engine.js';
-import { hasPowerOrBody, greenAroma, stickyHold, conditionBarred, conditionFree, discardsLocked, hasReact, holonWith, reactCount, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy, type Sides, pokemonPower } from './powers.js';
+import { askChoice, hasPowerOrBody, greenAroma, stickyHold, conditionBarred, conditionFree, hasReact, holonWith, reactCount, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy, type Sides, pokemonPower } from './powers.js';
 import { shuffle } from './rng.js';
-import { addLog, baseUid, clearOnLeavingActive, hasSpecialCondition, effectId, evolvedFromName, isDelta, isPlasmaPokemon, energyProtected, flipCoin, inPlayDef, lakeTrio, pokemonName, previousLevel, revealFaceDown, sameCards, shapeshiftCard } from './status.js';
-import { isPokemonSP, type PendingChoice, type PendingChoiceInput } from './trainers.js';
+import { addLog, baseUid, clearOnLeavingActive, hasSpecialCondition, effectId, evolvedFromName, isDelta, isPlasmaPokemon, energyProtected, flipCoin, inPlayDef, lakeTrio, pokemonName, previousLevel, revealFaceDown, sameCards, shapeshiftCard, isEvolved, cardsOf } from './status.js';
+import { isPokemonSP, swapActive, type PendingChoice, type PendingChoiceInput } from './trainers.js';
 
 /** Answers to an attack's questions. Each field belongs to one kind of ChoiceSpec. */
 export interface AttackChoices {
@@ -156,8 +156,6 @@ export interface AttackSituation {
   opponentDiscard?: CardInstance[];
   /** Every Pokémon Power is off (Goop Gas Attack, Sputter: `powersOffUntil` on either player). */
   powersOff?: boolean;
-  /** Allergic Pollen: the attack can't do anything with cards in discard piles (its questions about them aren't asked). */
-  discardsLocked?: boolean;
   /** How many Prize cards the opponent has left (the Mystery Plates). Missing = not known: their questions are asked anyway. */
   opponentPrizes?: number;
   /** How many Prize cards the attacking player has left (Rage Aura). Missing = not known. */
@@ -505,7 +503,7 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
   }
   // Intimidating Ring (the Defending Pokémon's), and Shining Horn (a Skarmory that's its player's only Pokémon in play):
   // Basic Pokémon can't attack.
-  if (attackerDef.stage === 'basic') {
+  if (isBasicInPlay(attackerDef)) {
     const ring = working(s.defender)?.intimidatingRing || working(s.defender)?.intimidatingArmor;
     const horn = working(s.defender)?.shiningHorn && !s.opponentBench.some(Boolean);
     if (ring || horn) return `${def(s.cards, s.defender).power!.name}: ${attackerDef.name} can't attack`;
@@ -530,13 +528,13 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
     if (marked?.some((name) => namesMatch(attackerDef.name, name))) return `Mark of Antiquity: ${attackerDef.name} can't attack`;
   }
   // Primal Pull: either Active Claydol's makes an Evolved Pokémon's attacks cost 1 more Colorless Energy.
-  const pulled = s.attacker.evolvedFrom.length > 0 && [s.attacker, s.defender].some((a) => working(a)?.primalPull);
+  const pulled = isEvolved(s.cards, s.attacker) && [s.attacker, s.defender].some((a) => working(a)?.primalPull);
   const effect = attackEffect(usable.source, attack.name);
   const cost = effect?.costNow?.(s) ?? attack.cost;
   // Extra Liquid (anywhere in play, either player's): a Pokémon-ex's attacks cost 1 Colorless more (only 1, however many).
   const liquid = !!attackerDef.ex && sides.some((side) => [side.active, ...side.bench].some((p) => p && working(p)?.extraLiquid));
   // Downer Material (the opponent's, with their Uxie and Mesprit in play): a Basic Pokémon's attacks cost 1 Colorless more (only 1).
-  const downer = attackerDef.stage === 'basic' && [s.defender, ...s.opponentBench].some((p) => p && working(p)?.downerMaterial && lakeTrio(s.cards, sides[1]!, ['Uxie', 'Mesprit']));
+  const downer = isBasicInPlay(attackerDef) && [s.defender, ...s.opponentBench].some((p) => p && working(p)?.downerMaterial && lakeTrio(s.cards, sides[1]!, ['Uxie', 'Mesprit']));
   // Mother Pheromone: 1 Colorless less for each of the player's working Nidoqueen, for the Nidoran line.
   // Regi Form: 1 Colorless less with Regirock, Regice and Registeel in play.
   const regi = working(s.attacker)?.regiForm && ['Regirock', 'Regice', 'Registeel'].every((n) => [s.attacker, ...s.ownBench].some((p) => p && namesMatch(def(s.cards, p).name, n))) ? 1 : 0;
@@ -586,8 +584,7 @@ function choiceSpecs(s: AttackSituation, attackIndex: number, c: AttackChoices):
       prompt: `Choose ${discard.count} ${type}Energy to discard`,
     });
   }
-  // Allergic Pollen: no cards can be taken from discard piles, so those questions go.
-  if (effect?.choices) specs.push(...effect.choices(s, c).filter((spec) => !s.discardsLocked || !['ownDiscard', 'eitherDiscard', 'oppDiscard'].includes(spec.kind)));
+  if (effect?.choices) specs.push(...effect.choices(s, c));
   // Vermilion City Gym: a Pokémon with Lt. Surge in its name may flip (the CPU always does).
   if (s.stadium && lookupCard(s.cards, s.stadium.defId).name === 'Vermilion City Gym' && def(s.cards, s.attacker).name.includes('Lt. Surge')) {
     specs.push({ kind: 'vermilion', options: [true, false], prompt: 'Vermilion City Gym: flip a coin? Heads: 10 more damage; tails: 10 damage to your Pokémon' });
@@ -836,7 +833,7 @@ export function performAttack(
   if (pokemonPower(attacker)?.rebellion && powerActive(attacker, state.cards, [me, opp])) {
     const tails = [flipCoin(state, 'Rebellion', me.id), flipCoin(state, 'Rebellion', me.id)].every((h) => !h);
     if (tails) {
-      const cards = [...attacker.evolvedFrom, attacker.card, ...attacker.energy.map(({ provides: _, ...c }) => c), ...(attacker.attached ?? []).map((a) => a.card)];
+      const cards = cardsOf(attacker);
       [me.deck, state.rngState] = shuffle([...me.deck, ...cards], state.rngState);
       me.active = null;
       addLog(state, `Rebellion: ${attack.name} did nothing, and ${attackerDef.name} was shuffled into the deck.`, me.id);
@@ -879,16 +876,15 @@ export function performAttack(
   }
   // Pattern Distraction: the Defending player's working Active Spinda makes a Basic Pokémon's attack a flip; tails, it does nothing.
   const spinda = opp.active;
-  if (spinda && attackerDef.stage === 'basic' && pokemonPower(spinda)?.patternDistraction && powerActive(spinda, state.cards, [me, opp]) && !flipCoin(state, 'Pattern Distraction', me.id)) {
+  if (spinda && isBasicInPlay(attackerDef) && pokemonPower(spinda)?.patternDistraction && powerActive(spinda, state.cards, [me, opp]) && !flipCoin(state, 'Pattern Distraction', me.id)) {
     addLog(state, `${attack.name} did nothing.`, me.id);
     return null;
   }
   // Holon Circle: an Active Pokémon's attack does nothing at all; then the Stadium is discarded.
   const circle = state.stadium;
   if (circle && lookupCard(state.cards, circle.card.defId).name === 'Holon Circle') {
-    state.players[circle.owner]!.discard.push(circle.card);
-    state.stadium = null;
-    addLog(state, `Holon Circle: ${attack.name} did nothing, and Holon Circle was discarded.`, me.id);
+    addLog(state, `Holon Circle: ${attack.name} did nothing.`, me.id);
+    retireStadium(state);
     return null;
   }
   // Ink Spurt lasts until the Pokémon evolves or is benched.
@@ -940,7 +936,6 @@ export const attackSituation = (state: GameState, me: PlayerState, opp: PlayerSt
   recall: recallsAttacks(state, me),
   opponentDiscard: opp.discard,
   powersOff: me.powersOffUntil !== undefined || opp.powersOffUntil !== undefined,
-  discardsLocked: discardsLocked([me, opp], state.cards),
   opponentPrizes: opp.prizes.length,
   ownPrizes: me.prizes.length,
 });
@@ -1050,7 +1045,7 @@ function createContext(
   };
   /** Neutral Shield: attacks by Evolved Pokémon don't affect it. Safeguard: nor by Pokémon-ex; Wonder Guard: by either (the opponent's). */
   const neutral = (p: InPlayPokemon) => {
-    const evolved = attacker.evolvedFrom.length > 0;
+    const evolved = isEvolved(state.cards, attacker);
     const theirs = [opp.active, ...opp.bench].includes(p);
     // Beacon Protection, Extra Protection: only while its player has the partner in play.
     const partner = passive(p)?.guardPartner;
@@ -1058,7 +1053,7 @@ function createContext(
     const from = partnered ? passive(p)?.guardFrom : undefined;
     // Fast Protection: nor by the opponent's Basic Pokémon. Advanced Armor, Psychic Shield: nor, this turn, by the opponent's
     // Evolved Pokémon or Pokémon-ex.
-    if (theirs && ((passive(p)?.basicProof && attackerDef.stage === 'basic') || (active(p.effects?.evolvedProof, turn) && evolved) || (active(p.effects?.exProof, turn) && attackerDef.ex))) return true;
+    if (theirs && ((passive(p)?.basicProof && isBasicInPlay(attackerDef)) || (active(p.effects?.evolvedProof, turn) && evolved) || (active(p.effects?.exProof, turn) && attackerDef.ex))) return true;
     // Holy Shield ('dark'): nor by Pokémon with Dark in their names.
     if (from === 'dark') return theirs && /\bDark\b/.test(attackerDef.name);
     // Mysterious Shard: nothing from the opponent's Pokémon-ex's attacks.
@@ -1144,7 +1139,7 @@ function createContext(
         // Marvel Scale: nothing from the opponent's Pokémon LV.X.
         (!!passive(opp.active)?.marvelScale && attackerDef.stage === 'levelUp') ||
         // Psybarrier: nothing from the opponent's Pokémon that aren't Evolved Pokémon.
-        (!!passive(opp.active)?.psybarrier && !attacker.evolvedFrom.length) ||
+        (!!passive(opp.active)?.psybarrier && !isEvolved(state.cards, attacker)) ||
         // Marvel Shell: nothing from a Pokémon with a Poké-Power or Poké-Body. Marvel Eyes: nothing from a Pokémon LV.X to Lunatone and Solrock, with both in play.
         (!!passive(opp.active)?.marvelShell && hasPowerOrBody(state.cards, attacker)) ||
         (attackerDef.stage === 'levelUp' && ['Lunatone', 'Solrock'].some((n) => namesMatch(def(state.cards, opp.active!).name, n)) && [opp.active, ...opp.bench].some((q) => q && passive(q)?.marvelEyes) && [opp.active, ...opp.bench].some((q) => q && namesMatch(def(state.cards, q).name, 'Solrock'))) ||
@@ -1244,7 +1239,7 @@ function createContext(
       // (with Grass Energy attached, against an Evolved Pokémon): less after Weakness and Resistance.
       const trash = body.trashCloak && (p.attached ?? []).some((a) => a.tool) ? 20 : 0;
       const camo = body.camouflage && p.energy.some((e) => !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId)) && typesOf(attackerDef).some((t) => isEnergyCardOf(e, state.cards, t))) ? 40 : 0;
-      const balloon = body.cottonBalloon && attacker.evolvedFrom.length > 0 && energyPool(p, state.cards).some((e) => counts(e, 'grass')) ? 20 : 0;
+      const balloon = body.cottonBalloon && isEvolved(state.cards, attacker) && energyPool(p, state.cards).some((e) => counts(e, 'grass')) ? 20 : 0;
       const less = trash + camo + balloon;
       if (less) {
         damage = noted(def(state.cards, p).power?.name ?? 'Less damage', damage, Math.max(0, damage - less));
@@ -1285,7 +1280,7 @@ function createContext(
     }
     // Root Protector: a set amount less from the opponent's Pokémon that isn't an Evolved Pokémon.
     const root = passive(p)?.unevolvedGuard;
-    if (damage > 0 && root && owner !== me && !attacker.evolvedFrom.length) {
+    if (damage > 0 && root && owner !== me && !isEvolved(state.cards, attacker)) {
       damage = noted(def(state.cards, p).power!.name, damage, Math.max(0, damage - root));
       log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${root}.`, owner.id);
     }
@@ -1301,13 +1296,13 @@ function createContext(
     }
     // Dense Body: 20 less from a Basic Pokémon's attack (not a Baby Pokémon's).
     const guarded = passive(p)?.basicGuard;
-    if (damage > 0 && guarded && attackerDef.stage === 'basic' && !attackerDef.baby) {
+    if (damage > 0 && guarded && isBasicInPlay(attackerDef) && !attackerDef.baby) {
       damage = noted(def(state.cards, p).power!.name, damage, Math.max(0, damage - guarded));
       log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${guarded}.`, owner.id);
     }
     // Thick Shell: a set amount less from an Evolved Pokémon's attack.
     const shell = passive(p)?.evolvedGuard;
-    if (damage > 0 && shell && attacker.evolvedFrom.length > 0) {
+    if (damage > 0 && shell && isEvolved(state.cards, attacker)) {
       damage = noted(def(state.cards, p).power!.name, damage, Math.max(0, damage - shell));
       log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${shell}.`, owner.id);
     }
@@ -1342,7 +1337,7 @@ function createContext(
       log(`Buffer Piece reduced the damage to ${pokemonName(state, p)} by 20.`, owner.id);
     }
     // Eviolite: 20 less to a Basic Pokémon from any attack.
-    if (damage > 0 && toolOf(state.cards, p)?.name === 'Eviolite' && isBasicPokemon(def(state.cards, p))) {
+    if (damage > 0 && toolOf(state.cards, p)?.name === 'Eviolite' && isBasicInPlay(def(state.cards, p))) {
       damage = noted('Eviolite', damage, Math.max(0, damage - 20));
       log(`Eviolite reduced the damage to ${pokemonName(state, p)} by 20.`, owner.id);
     }
@@ -1425,7 +1420,7 @@ function createContext(
       damage = noted(def(state.cards, p).power!.name, damage, Math.max(0, damage - reduction));
       log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${reduction}.`, owner.id);
     }
-    if (damage >= 20 && attackerDef.stage === 'basic' && passive(p)?.strangeBarrier) {
+    if (damage >= 20 && isBasicInPlay(attackerDef) && passive(p)?.strangeBarrier) {
       damage = noted('Strange Barrier', damage, 10);
       log(`Strange Barrier reduced the damage to ${pokemonName(state, p)} to 10.`, owner.id);
     }
@@ -2013,7 +2008,7 @@ function createContext(
       }
       // Lie Low and Barrier Attack: a set amount less, after Weakness and Resistance.
       const reduced = effects?.reduceDamage;
-      if (damage > 0 && reduced && active(reduced.until, turn) && (!reduced.evolvedOnly || attacker.evolvedFrom.length > 0)) {
+      if (damage > 0 && reduced && active(reduced.until, turn) && (!reduced.evolvedOnly || isEvolved(state.cards, attacker))) {
         damage = noted('Less damage from an earlier attack', damage, Math.max(0, damage - reduced.amount));
         log(`The damage to ${defenderDef.name} was reduced by ${reduced.amount}.`, opp.id);
       }
@@ -2150,7 +2145,7 @@ function createContext(
     // Secrete Poison: the attacker is Poisoned and 10 damage to each of the attacking player's benched Pokémon, even if this Knocks it Out.
     // It's Kakuna's attack's effect, so Neutral Shield keeps it off a Mew, Active or Benched, while Kakuna is Evolved.
     if (active(effects?.secretePoison, turn)) {
-      const shielded = (p: InPlayPokemon) => defender.evolvedFrom.length > 0 && !!passive(p)?.neutralShield;
+      const shielded = (p: InPlayPokemon) => isEvolved(state.cards, defender) && !!passive(p)?.neutralShield;
       log(`Secrete Poison: ${attackerDef.name} is now Poisoned, and 10 damage to each benched Pokémon.`);
       if (shielded(attacker)) log(`Neutral Shield: Secrete Poison doesn't affect ${attackerDef.name}.`);
       else if (!conditionFree(attacker, state.cards, passive(attacker))) attacker.poison = Math.max(attacker.poison ?? 0, 10);
@@ -2176,6 +2171,7 @@ function createContext(
       opp.bench[flee!] = fled;
       opp.active = benched;
       log(`${pokemonName(state, benched)} was switched in for ${pokemonName(state, fled)}.`, opp.id);
+      stickyHold(state, opp, flee!);
     },
     get defender() {
       return opp.active!;
@@ -2288,15 +2284,9 @@ function createContext(
     },
     switchDefender(slot, opts) {
       if (!opts?.protectedToo && untouchable()) return;
-      const locked = activeLocked(state, opp.id);
-      if (locked) return log(`${locked}.`, opp.id);
       const benched = opp.bench[slot];
       if (!benched) return;
-      const old = opp.active!;
-      clearOnLeavingActive(old);
-      opp.bench[slot] = old;
-      opp.active = benched;
-      log(`${pokemonName(state, benched)} was switched in for ${pokemonName(state, old)}.`, opp.id);
+      swapActive(state, opp, slot, `${pokemonName(state, benched)} was switched in for ${pokemonName(state, opp.active!)}.`);
     },
     useAttack(attack, sourceDefId) {
       const effect = attackEffect(sourceDefId, attack.name);
@@ -2323,30 +2313,22 @@ function createContext(
     switchOwn(slot) {
       const benched = me.bench[slot];
       if (!benched) return;
-      const locked = activeLocked(state, me.id);
-      if (locked) return log(`${locked}.`);
-      clearOnLeavingActive(attacker);
-      me.bench[slot] = attacker;
-      me.active = benched;
-      log(`${pokemonName(state, attacker)} switched with ${pokemonName(state, benched)}.`);
-      stickyHold(state, me, slot);
+      swapActive(state, me, slot, `${pokemonName(state, attacker)} switched with ${pokemonName(state, benched)}.`);
     },
     returnDefender() {
       if (untouchable()) return;
       const defender = opp.active!;
-      // A Buzzap'd Electrode attached as Energy is a Pokémon card again.
-      const energy = defender.energy.map(({ provides: _, ...card }) => card);
-      opp.hand.push(...defender.evolvedFrom, defender.card, ...energy, ...(defender.attached ?? []).map((a) => a.card));
+      opp.hand.push(...cardsOf(defender));
       opp.active = null;
       log(`${pokemonName(state, defender)} and all cards attached to it returned to the hand.`, opp.id);
     },
     attackName,
     attackSource,
     pend(choice) {
-      state.pendingChoice = { ...choice, player: me.id } as PendingChoice;
+      askChoice(state, { ...choice, player: me.id } as PendingChoice);
     },
     opponentChooses(choice) {
-      state.pendingChoice = { ...choice, player: opp.id } as PendingChoice;
+      askChoice(state, { ...choice, player: opp.id } as PendingChoice);
     },
     log,
   };
