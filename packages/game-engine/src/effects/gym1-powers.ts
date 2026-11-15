@@ -6,7 +6,8 @@
 // and retreating (energyPool); Stare stops it there, Toxic Gas and Goop Gas Attack don't (energyPool sees no other Pokémon).
 import { afflictionBlocked, isEnergyCardOf, type InPlayPokemon, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, powerActive, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, clearOnLeavingActive, effectId, flipCoin, inPlayDef, pokemonName } from '../status.js';
+import { addLog, effectId, flipCoin, inPlayDef, pokemonName } from '../status.js';
+import { swapActive } from '../trainers.js';
 import { powerEffect } from './index.js';
 
 const at = (s: PowerSituation, t: Target) => pokemonAt(s.me, t)!;
@@ -73,11 +74,8 @@ export const GYM1_POWERS: Record<string, PowerEffect> = {
       if (!ctx.flip()) return ctx.log('Fragrance Trap did nothing.');
       const slot = ctx.choices.oppTo as number;
       const benched = ctx.opp.bench[slot]!;
-      const old = ctx.opp.active!;
-      clearOnLeavingActive(old);
-      ctx.opp.bench[slot] = old;
-      ctx.opp.active = benched;
-      addLog(ctx.state, `${pokemonName(ctx.state, benched)} was switched in for ${pokemonName(ctx.state, old)}.`, ctx.opp.id);
+      // Through swapActive: a held Active Pokémon (Jaw Clamp, Sticky Nectar) stays, and Sticky Hold is asked.
+      swapActive(ctx.state, ctx.opp, slot, `${pokemonName(ctx.state, benched)} was switched in for ${pokemonName(ctx.state, ctx.opp.active!)}.`);
     },
   },
 

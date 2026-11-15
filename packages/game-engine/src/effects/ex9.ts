@@ -9,7 +9,7 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { benchedSlots } from './common.js';
 import { isBasicEnergy, lookupCard, namesMatch } from '../cards.js';
 import { isEnergyCardOf } from '../engine.js';
-import { hasPowerOrBody, discardsLocked, pokemonPower } from '../powers.js';
+import { hasPowerOrBody, pokemonPower } from '../powers.js';
 import { effectId, inPlayDef, pokemonName } from '../status.js';
 import { powerEffect } from './index.js';
 import { energyAmount } from './ex1.js';
@@ -121,7 +121,6 @@ export const EX9: Record<string, Record<string, AttackEffect>> = {
   'ex9-99': {
     Mend: {
       run(ctx) {
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         const card = ctx.me.discard.find((c) => isEnergyCardOf(c, ctx.state.cards, 'fighting') && lookupCard(ctx.state.cards, c.defId).kind === 'energy');
         if (!card) return ctx.log('There are no Fighting Energy cards in the discard pile.');
         ctx.me.discard = ctx.me.discard.filter((c) => c !== card);

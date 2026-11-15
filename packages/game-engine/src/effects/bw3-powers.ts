@@ -44,7 +44,8 @@ export const BW3_POWERS: Record<string, PowerEffect> = {
   'bw3-26': { ...ABILITY, hardCocoon: 50 },
   // Jellicent – Cursed Body: as the Active Pokémon damaged by the opponent's attack, the Attacking Pokémon is now Confused.
   'bw3-31': strikesWith('confused'),
-  // Eelektrik – Dynamotor: once a turn, a Lightning Energy card from the discard pile onto a Benched Pokémon.
+  // Eelektrik – Dynamotor: once a turn, a Lightning Energy card from the discard pile onto a Benched Pokémon. It works under
+  // Allergic Pollen: an Ability's question about a discard pile is not stopped by Allergic Pollen (the user's, 2026-11-14).
   'bw3-40': {
     ...ABILITY,
     oncePerTurn: true,

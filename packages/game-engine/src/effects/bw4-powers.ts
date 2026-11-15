@@ -5,20 +5,13 @@
 // Growth); Forewarn's other card stays on top; Heal Block needs no partner (Bronzong's, unlike Solrock's) and lets damage
 // counters be moved; Smooth Coat is its owner's flip against the opponent's attacks (as Cotton Spore); Blazing Mane and
 // Reflexive Retaliation work only while their Pokémon is the Active one, even as it's Knocked Out.
-import type { InPlayPokemon, PlayerState } from '../engine.js';
-import type { GameState } from '../engine.js';
 import { swapActive } from '../trainers.js';
-import { type PowerEffect } from '../powers.js';
-import { ABILITY, targetOf } from './common.js';
+import { askChoice, type PowerEffect } from '../powers.js';
+import { ABILITY, onEvolveMay as onEvolve } from './common.js';
 import { roughSkin, strikesWith } from './bw3-powers.js';
 
 /** "When you play this Pokémon from your hand to evolve 1 of your Pokémon, you may …": a yes-or-no question as it evolves. */
-const onEvolveMay = (power: 'sporprise' | 'giantFan', source: string): PowerEffect => ({
-  ...ABILITY,
-  onPlayFromHand(state: GameState, owner: PlayerState, pokemon: InPlayPokemon) {
-    if (pokemon.evolvedFrom.length) state.pendingChoice = { player: owner.id, source, kind: 'mayUse', power, target: targetOf(owner, pokemon) };
-  },
-});
+const onEvolveMay = (power: 'sporprise' | 'giantFan', source: string): PowerEffect => ({ ...ABILITY, ...onEvolve(power, source) });
 
 export const BW4_POWERS: Record<string, PowerEffect> = {
   // Amoonguss – Sporprise: as it evolves from the hand, may make the opponent's Active Pokémon Confused and Poisoned.
@@ -39,7 +32,7 @@ export const BW4_POWERS: Record<string, PowerEffect> = {
       if (ctx.me.active === was) return;
       const theirs = ctx.opp.bench.flatMap((p, i) => (p ? [i] : []));
       if (theirs.length === 1) swapActive(ctx.state, ctx.opp, theirs[0]!);
-      else if (theirs.length > 1) ctx.state.pendingChoice = { player: ctx.opp.id, source: 'Slippery Soles', kind: 'switchIn' };
+      else if (theirs.length > 1) askChoice(ctx.state, { player: ctx.opp.id, source: 'Slippery Soles', kind: 'switchIn' });
     },
   },
   // Gardevoir – Psychic Mirage: basic Psychic Energy on the player's Psychic Pokémon provides 2 Psychic Energy (refreshWildGrowth).

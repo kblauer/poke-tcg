@@ -8,7 +8,7 @@
 // flip. Thought Wave Machine's heads return Energy cards from the opponent's Active Pokémon to their hand (Brock's Protection
 // and Legendary Body stop it), then the turn ends. Pokémon Personality Test's guess is Light, Dark or neither; the card stays
 // in the hand. Team Rocket's Evil Deeds' opponent may then draw up to 2 cards. Mail from Bill counts itself in the hand.
-import { isBasicEnergy, isPokemonCard, type CardLibrary } from '../cards.js';
+import { isBasicInPlay, isBasicEnergy, isPokemonCard, type CardLibrary } from '../cards.js';
 import type { CardInstance } from '../engine.js';
 import { trainerProof } from '../powers.js';
 import { addLog, energyProtected, pokemonName } from '../status.js';
@@ -28,7 +28,7 @@ const personality = (name: string) => (/\bLight\b/.test(name) ? 0 : /\bDark\b/.t
 
 export const NEO4_TRAINERS: Record<string, TrainerEffect> = {
   // Broken Ground Gym: a Stadium; Baby and Basic Pokémon cost 1 more to retreat.
-  'neo4-92': { stadium: true, retreatModifier: (p) => (p.stage === 'basic' ? 1 : 0) },
+  'neo4-92': { stadium: true, retreatModifier: (p) => (isBasicInPlay(p) ? 1 : 0) },
 
   // EXP.ALL: a Pokémon Tool (attacks.ts: a basic Energy card goes from the Knocked Out Active Pokémon to it).
   'neo4-93': tool('EXP.ALL'),

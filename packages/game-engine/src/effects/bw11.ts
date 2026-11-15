@@ -14,7 +14,7 @@ import { countersMoved, openBenchSlot, pokemonName } from '../status.js';
 import { benchedSlots } from './common.js';
 import { removeDefenderEnergy } from './dp1.js';
 import { returnSelf } from './gym2.js';
-import { discardFree, notNextTurn, reachesDefender } from './neo3.js';
+import { notNextTurn, reachesDefender } from './neo3.js';
 import { healUpTo } from './si1.js';
 
 /** A Teddiursa card (Picnic Weather). */
@@ -133,14 +133,14 @@ export const BW11: Record<string, Record<string, AttackEffect>> = {
     'Picnic Weather': {
       blocked: (s) => (s.ownDiscard.some((c) => isTeddiursa(s.cards, c)) ? null : 'You have no Teddiursa in your discard pile'),
       choices(s): ChoiceSpec[] {
-        if (s.discardsLocked || openBenchSlot({ bench: s.ownBench, benchLimit: s.ownBenchLimit }, s.cards, s.stadium) < 0) return [];
+        if (openBenchSlot({ bench: s.ownBench, benchLimit: s.ownBenchLimit }, s.cards, s.stadium) < 0) return [];
         const energy = s.ownDiscard.filter((c) => lookupCard(s.cards, c.defId).kind === 'energy');
         return energy.length ? [{ kind: 'ownDiscard', min: 1, max: 1, options: energy, prompt: 'Picnic Weather: choose an Energy card from your discard pile to attach to Teddiursa' }] : [];
       },
       run(ctx) {
         const teddiursa = ctx.me.discard.find((c) => isTeddiursa(ctx.state.cards, c));
         const slot = openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card);
-        if (!teddiursa || slot < 0 || !discardFree(ctx)) return;
+        if (!teddiursa || slot < 0) return;
         const energy = ctx.me.discard.find((c) => ctx.choices.discardUids?.includes(c.uid));
         ctx.me.discard = ctx.me.discard.filter((c) => c !== teddiursa && c !== energy);
         const p = newInPlay(teddiursa, ctx.turn);

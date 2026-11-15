@@ -13,7 +13,6 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { targetsIn } from '../attacks.js';
 import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
 import { energyProvided, isEnergyCardOf, retreatCost, type CardInstance } from '../engine.js';
-import { discardsLocked } from '../powers.js';
 import { benchRoom, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { benchedSlots, headsUntilTails, opponentBenchChoice, same } from './common.js';
 import { attachFromDiscard } from './neo3.js';
@@ -112,7 +111,6 @@ export const EX3: Record<string, Record<string, AttackEffect>> = {
   'ex3-12': {
     'Power Generation': {
       run(ctx) {
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         if (ctx.me.discard.some((c) => basic(ctx, c))) ctx.pend({ kind: 'discardToHand', source: 'Power Generation', count: 2, filter: 'basicEnergy', reveal: true });
       },
     },
@@ -241,12 +239,12 @@ export const EX3: Record<string, Record<string, AttackEffect>> = {
   'ex3-27': {
     'Energy Recall': {
       choices(s): ChoiceSpec[] {
-        const basics = s.discardsLocked ? [] : s.ownDiscard.filter((c) => isBasicEnergy(lookupCard(s.cards, c.defId)));
+        const basics = s.ownDiscard.filter((c) => isBasicEnergy(lookupCard(s.cards, c.defId)));
         return basics.length ? [{ kind: 'ownDiscard', min: 1, max: 2, options: basics, prompt: 'Choose up to 2 basic Energy cards from your discard pile' }] : [];
       },
       run(ctx) {
         const cards = ctx.me.discard.filter((c) => ctx.choices.discardUids?.includes(c.uid));
-        if (!cards.length || discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Energy Recall found nothing.');
+        if (!cards.length) return ctx.log('Energy Recall found nothing.');
         ctx.me.discard = ctx.me.discard.filter((c) => !cards.includes(c));
         ctx.attacker.energy.push(...cards);
         ctx.log(`Attached ${cards.length} basic Energy card${cards.length === 1 ? '' : 's'} from the discard pile to ${ctx.attackerDef.name}.`);
@@ -478,7 +476,7 @@ export const EX3: Record<string, Record<string, AttackEffect>> = {
     'Spiral Growth': {
       run(ctx) {
         const heads = headsUntilTails(ctx);
-        if (!heads || discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return;
+        if (!heads) return;
         const count = Math.min(heads, ctx.me.discard.filter((c) => basic(ctx, c)).length);
         if (count) ctx.pend({ kind: 'attachFromDiscard', source: 'Spiral Growth', count, target: 'active' });
       },
@@ -502,7 +500,7 @@ export const EX3: Record<string, Record<string, AttackEffect>> = {
     'Collect Fire': {
       run(ctx) {
         ctx.hit(30);
-        if (!ctx.flip() || discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return;
+        if (!ctx.flip()) return;
         const fire = ctx.me.discard.filter((c) => basic(ctx, c) && isEnergyCardOf(c, ctx.state.cards, 'fire')).slice(0, 2);
         if (!fire.length) return;
         ctx.me.discard = ctx.me.discard.filter((c) => !fire.includes(c));

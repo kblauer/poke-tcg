@@ -13,7 +13,7 @@ import { hasType, lookupCard } from '../cards.js';
 import { afflictBetweenTurns, type InPlayPokemon, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { addLog, clearOnLeavingActive, countersMoved, devolvable, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
+import { addLog, clearOnLeavingActive, countersMoved, devolvable, inPlayDef, pokemonName, removeTopEvolution, cleanCard } from '../status.js';
 import { isPokemonSP } from '../trainers.js';
 import { POKE_BODY } from './common.js';
 import { DP1_POWERS } from './dp1-powers.js';
@@ -224,7 +224,7 @@ export const PL2_POWERS: Record<string, PowerEffect> = {
           const gone = [...p.energy.filter((e) => lookupCard(ctx.state.cards, e.defId).kind === 'energy'), ...(p.attached ?? []).filter((a) => !a.legendHalf).map((a) => a.card)];
           p.energy = p.energy.filter((e) => lookupCard(ctx.state.cards, e.defId).kind !== 'energy');
           p.attached = (p.attached ?? []).filter((a) => a.legendHalf);
-          return gone.map(({ provides: _, converted: _c, windless: _w, ...c }) => c);
+          return gone.map(cleanCard);
         });
         if (ctx.state.stadium?.owner === side.id) {
           cards.push(ctx.state.stadium.card);

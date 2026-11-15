@@ -11,7 +11,7 @@
 import { hasType, isBasicEnergy, lookupCard, type PokemonCardDef } from '../cards.js';
 import { counts, energyProvided, evolvesOnto, isEnergyCardOf, opponentOf, toolOf, type CardInstance } from '../engine.js';
 import { attachBlocked, discardsLocked, energyFromHand, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
-import { devolvable, flipCoin, inPlayDef, pokemonName } from '../status.js';
+import { devolvable, evolvedFromHand, flipCoin, inPlayDef, pokemonName, cleanCard } from '../status.js';
 import { EX1_POWERS } from './ex1-powers.js';
 import { babyEvolution, EX2_POWERS, freeRetreat, POKE_BODY } from './ex2-powers.js';
 import { countersBetween, healBetween } from './ex6-powers.js';
@@ -33,7 +33,7 @@ const stages = (effect: PowerEffect): PowerEffect => ({ ...POKE_BODY, evolvedOnl
 /** "When you play this from your hand to evolve 1 of your Pokémon": `then`, only for an evolution. */
 const onEvolve = (then: NonNullable<PowerEffect['onPlayFromHand']>): PowerEffect => ({
   onPlayFromHand(state, owner, pokemon) {
-    if (pokemon.evolvedFrom.length) then(state, owner, pokemon);
+    if (evolvedFromHand(pokemon)) then(state, owner, pokemon);
   },
 });
 
@@ -137,7 +137,7 @@ export const EX10_POWERS: Record<string, PowerEffect> = {
         ctx.log('Drew a card.');
       }
       const aipom = ctx.source;
-      const attached: CardInstance[] = [...aipom.energy.map(({ provides: _, ...e }) => e), ...(aipom.attached ?? []).map((a) => a.card), ...aipom.evolvedFrom];
+      const attached: CardInstance[] = [...aipom.energy.map(cleanCard), ...(aipom.attached ?? []).map((a) => a.card), ...aipom.evolvedFrom];
       ctx.me.discard.push(...attached);
       ctx.me.bench = ctx.me.bench.map((p) => (p === aipom ? null : p));
       ctx.me.deck.push(aipom.card);

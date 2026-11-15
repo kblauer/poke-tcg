@@ -11,9 +11,8 @@
 // nothing if its effect is prevented.
 import type { AttackContext, AttackEffect, AttackSituation, ChoiceSpec } from '../attacks.js';
 import { targetsIn } from '../attacks.js';
-import { hasType, isBasicEnergy, lookupCard } from '../cards.js';
+import { isBasicInPlay, hasType, isBasicEnergy, lookupCard } from '../cards.js';
 import { canPayCost, isEnergyCardOf, retreatCost, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
-import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { clearSpecialConditions, effectId, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { handTrainerFits } from '../trainers.js';
@@ -114,7 +113,6 @@ export const shiftDefenderEnergy = (damage: number, basic: boolean, flip = false
 export const rotatingClaws = (damage: number) =>
   mayDiscardAny(damage, (ctx) => {
     const gone = ctx.me.discard[ctx.me.discard.length - 1];
-    if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
     if (ctx.me.discard.some((c) => c !== gone && lookupCard(ctx.state.cards, c.defId).kind === 'energy')) {
       ctx.pend({ kind: 'attachFromDiscard', source: 'Rotating Claws', count: 1, target: 'active', anyEnergy: true, excludeUid: gone?.uid });
     }
@@ -367,7 +365,7 @@ export const EX7: Record<string, Record<string, AttackEffect>> = {
     'Thunder Slash': {
       run(ctx) {
         ctx.hit(10);
-        if (ctx.defenderDef.stage === 'basic') ctx.inflict('paralyzed');
+        if (isBasicInPlay(ctx.defenderDef)) ctx.inflict('paralyzed');
         notNextTurn(ctx, 'Thunder Slash');
       },
     },
@@ -478,7 +476,6 @@ export const EX7: Record<string, Record<string, AttackEffect>> = {
         ];
       },
       run(ctx) {
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         const picked = ctx.me.discard.filter((c) => ctx.choices.discardUids?.includes(c.uid) && handTrainerFits(c, 'toolOrSecret'));
         if (!picked.length) return ctx.log('Dark Aid did nothing.');
         ctx.me.discard = ctx.me.discard.filter((c) => !picked.includes(c));
@@ -509,7 +506,6 @@ export const EX7: Record<string, Record<string, AttackEffect>> = {
   'ex7-58': {
     'Water Plant': {
       run(ctx) {
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         ctx.pend({ kind: 'discardToHand', source: 'Water Plant', count: 2, filter: 'waterEnergy', reveal: true });
       },
     },
@@ -596,7 +592,6 @@ export const EX7: Record<string, Record<string, AttackEffect>> = {
     'Fire Dance': {
       run(ctx) {
         ctx.hit(30);
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         if (ctx.me.discard.some((c) => isEnergyCardOf(c, ctx.state.cards, 'fire') && isBasicEnergy(lookupCard(ctx.state.cards, c.defId)))) ctx.pend({ kind: 'attachFromDiscard', source: 'Fire Dance', count: 1, type: 'fire' });
       },
     },
