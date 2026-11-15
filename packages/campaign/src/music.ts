@@ -5,7 +5,8 @@
 // Emerald's maps play Ruby & Sapphire's songs, and Omega Ruby & Alpha Sapphire keeps their places.
 
 import { battlesFought, isBattleKind, type BattleKind, type EncounterKind } from './run.js';
-import { routeAt, RUN_TYPE_IDS, runBosses, runType } from './run-types.js';
+import { routeAt, RUN_TYPE_IDS, runBosses, runTypeInfo } from './run-type-info.js';
+import { runType, type RunType } from './run-types.js';
 import { travelAt } from './routes.js';
 
 export { pickSong } from './pick-song.js';
@@ -271,8 +272,12 @@ export interface SpottedBattle {
  * gym's inside a gym, the League's in the Elite Four's and Champion's rooms, the town's over the last TOWN_STEPS steps
  * before a gym, and otherwise the route's (the bike's or Surf's on a route ridden or surfed).
  */
-export function runMusic(view: RunMusicView, soundtrack: Soundtrack, runId = '', spotted: SpottedBattle | null = null): MusicCue {
-  const type = runType(view.type);
+export const runMusic = (view: RunMusicView, soundtrack: Soundtrack, runId = '', spotted: SpottedBattle | null = null): MusicCue =>
+  runMusicOn(runType(view.type), view, soundtrack, runId, spotted);
+
+/** runMusic with the run's maps given (the site's, loaded with loadRunMaps: run-type-info.ts), not read from RUN_TYPES. */
+export function runMusicOn(maps: Pick<RunType, 'routes'>, view: RunMusicView, soundtrack: Soundtrack, runId = '', spotted: SpottedBattle | null = null): MusicCue {
+  const type = runTypeInfo(view.type);
   const music = regionMusic(type.generation, soundtrack);
   const encounter = view.encounter;
   const position = Math.min(view.position, view.steps.length - 1);
@@ -289,8 +294,8 @@ export function runMusic(view: RunMusicView, soundtrack: Soundtrack, runId = '',
   const town = music.towns[type.id];
   if (town && gymAt >= 0 && gymAt - position <= TOWN_STEPS) return cue(`town:${type.id}`, town);
   // The step's route map (as RouteView shows it: each map's spots in turn), or the last one past them all (the gym's steps).
-  const at = routeAt(type, position);
-  const route = at?.route ?? type.routes?.at(-1) ?? null;
+  const at = routeAt(maps, position);
+  const route = at?.route ?? maps.routes?.at(-1) ?? null;
   // How the player gets along at the step's spot (on foot before a route's travel begins: travelAt).
   const travel = at ? travelAt(at.route, at.route.spots[at.index]!) : route?.travel;
   if (travel === 'bike') return cue('bike', music.bike);
@@ -312,18 +317,18 @@ export function battleMusic(gen: number, soundtrack: Soundtrack, kind: BattleKin
 
 /** A beaten run's music: its region's victory theme once, from the start, then the album's other music shuffled. */
 export function victoryMusic(typeId: string, soundtrack: Soundtrack, runId: string): MusicCue {
-  const music = regionMusic(runType(typeId).generation, soundtrack);
+  const music = regionMusic(runTypeInfo(typeId).generation, soundtrack);
   return { key: `${music.game}:victory:${runId}`, songs: [song(music, music.victory)], seed: runId, fromStart: true, then: { shuffle: music.game } };
 }
 
 /** The Pokémon Center's healing jingle for a run's region. */
 export const healedJingle = (typeId: string, soundtrack: Soundtrack): Song => {
-  const music = regionMusic(runType(typeId).generation, soundtrack);
+  const music = regionMusic(runTypeInfo(typeId).generation, soundtrack);
   return { game: music.healedGame ?? music.game, title: music.healed };
 };
 
 /** Each boss's generation and role, from the run types that have them. */
-const BOSS_GENERATIONS = new Map(RUN_TYPE_IDS.flatMap((id) => runBosses(runType(id)).map((b) => [b, runType(id).generation] as const)));
+const BOSS_GENERATIONS = new Map(RUN_TYPE_IDS.flatMap((id) => runBosses(runTypeInfo(id)).map((b) => [b, runTypeInfo(id).generation] as const)));
 
 /**
  * A Training battle's music, from its opponent's label ("Gym Leader Brock", "Elite Four Lorelei", "Champion Blue"): the

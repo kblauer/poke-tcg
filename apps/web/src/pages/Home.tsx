@@ -1,4 +1,3 @@
-import { runType } from '@poke-tcg/campaign';
 import { useEffect, useRef, useState } from 'react';
 import { PanelTabs } from '../components/LogDrawer';
 import { PageHeader } from '../components/PageHeader';
@@ -16,6 +15,7 @@ import { RunStats } from '../components/run/RunStats';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useRun } from '../hooks/useRun';
 import { ReturnToPlay } from '../components/ReturnToPlay';
+import { useRunMaps } from '../hooks/useRunMaps';
 import { useRunMusic } from '../hooks/useRunMusic';
 import { useWindowFill } from '../hooks/useWindowFill';
 import { useMapEncounters } from '../hooks/useMapEncounters';
@@ -72,6 +72,9 @@ export function HomePage() {
   const [mapEncounters] = useMapEncounters();
   const position = overview.data?.run?.view.position;
   useEffect(() => setDeckId(null), [position]);
+  // The run's maps, loaded with its region's (useRunMaps): until they're here, "Loading…" where the map goes. A run
+  // that's over shows none.
+  const { maps, error: mapsError } = useRunMaps(runView && runView.phase !== 'won' && runView.phase !== 'lost' ? runView.type : undefined);
   // A failed refetch keeps the run screen (and the map's walk) up with what it has.
   if (overview.error && !overview.data) return <p className={`${PAGE_WIDTH} text-red-400`}>{overview.error.message}</p>;
   if (!overview.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
@@ -84,7 +87,7 @@ export function HomePage() {
     logTitle: 'Run log',
     run: view && <RunStats view={view} account={overview.data.account} run={run} />,
   } as const;
-  const routes = view ? runType(view.type).routes : undefined;
+  const routes = maps?.routes;
   // On a phone, under a route map, the side panel's tabs are in the panel below it (PanelTabs, collapsible to its tab row):
   // under the deck choice, or under the encounter.
   const inline = !!routes && !!view && view.phase !== 'won' && view.phase !== 'lost';
@@ -147,11 +150,13 @@ export function HomePage() {
               <RunHeader view={view} actions={<ReturnToPlay small={phone} />} />
               {view.phase === 'won' || view.phase === 'lost' ? (
                 <RunOver current={current} overview={overview.data} run={run} />
-              ) : routes ? (
+              ) : !maps ? (
+                mapsError ? <p className="text-red-400">{mapsError.message}</p> : <p className="text-slate-400">Loading…</p>
+              ) : routes?.length ? (
                 <>
                   <RouteView
                     routes={routes}
-                    gym={runType(view.type).gym}
+                    gym={maps.gym}
                     view={view}
                     spotted={run.spotted}
                     gender={overview.data.playerGender}
