@@ -71,6 +71,11 @@ describe("Johto's run", () => {
       expect(storeStock(violet, at(['Zephyr', 'Hive', 'Plain']))).toContain('great-ball');
       expect(tmShopOpen(at([], 'azalea-town'))).toBe(false);
       expect(tmShopOpen(at([], 'goldenrod-city'))).toBe(true);
+      // The evolution stones at Goldenrod's Department Store (the user's, 2026-11-15: HGSS's marts sell none), and only there.
+      const goldenrod = areaById('goldenrod-city') as TownArea;
+      const stones = ['fire-stone', 'thunder-stone', 'water-stone', 'leaf-stone', 'moon-stone', 'sun-stone', 'shiny-stone', 'dusk-stone', 'dawn-stone'];
+      expect(storeStock(goldenrod, at([], 'goldenrod-city'))).toEqual(expect.arrayContaining(stones));
+      expect(storeStock(violet, at([]))).not.toContain('fire-stone');
     });
   });
 
