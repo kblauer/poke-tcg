@@ -9,6 +9,13 @@ import { useTRPC } from '../lib/trpc';
 export const DEBUG_BUILD: boolean = __DEBUG_BUILD__;
 
 /**
+ * In place of a debug procedure's mutation options in a build without the debug tools, so a hook can still be called:
+ * `useMutation(DEBUG_BUILD ? trpc.x.debugY.mutationOptions(…) : NO_DEBUG)`. Written out as that ternary at each place (not
+ * in a helper taking a function), the build drops the procedure's name with the rest (scripts/check-dist.mjs checks).
+ */
+export const NO_DEBUG = { mutationFn: () => Promise.reject(new Error('The debug tools are off in this build.')) } as never;
+
+/**
  * Whether to offer the debug tools: the build includes them and the API accepts them (it refuses
  * them in production whatever the client does, see debugProcedure in the API).
  */

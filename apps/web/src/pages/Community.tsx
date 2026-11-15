@@ -52,8 +52,9 @@ export function CommunityPage() {
   }, [focused]);
   useEscape(() => setFocused(null), !!focused);
 
-  const error = decks.error?.message ?? catalog.error?.message;
-  if (error) return <p className={`${PAGE_WIDTH} text-red-400`}>{error}</p>;
+  // A failed refetch keeps the page up with what it has.
+  if (decks.error && !decks.data) return <p className={`${PAGE_WIDTH} text-red-400`}>{decks.error.message}</p>;
+  if (catalog.error && !catalog.data) return <p className={`${PAGE_WIDTH} text-red-400`}>{catalog.error.message}</p>;
   if (!decks.data || !catalog.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
 
   const words = foldText(search.trim());

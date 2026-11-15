@@ -130,7 +130,8 @@ export function CosmeticsPanel() {
   const { collapsed, toggle } = useCollapsed();
   const section = (kind: CosmeticKind) => ({ foldable: phone, folded: collapsed.includes(kind), onFold: () => toggle(kind) });
   const backs = useRowsTall(3, list.data, !(phone && collapsed.includes('cardBack')));
-  if (!list.data) return null;
+  if (list.error && !list.data) return <p className="text-red-400">{list.error.message}</p>;
+  if (!list.data) return <p className="text-slate-400">Loading…</p>;
   const { cosmetics, bank } = list.data;
   const busy = buy.isPending || assign.isPending;
   const error = buy.error ?? assign.error;

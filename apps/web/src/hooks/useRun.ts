@@ -6,13 +6,12 @@ import { createContext, createElement, useContext, useEffect, useRef, useState, 
 import type { inferRouterOutputs } from '@trpc/server';
 import { useTRPC } from '../lib/trpc';
 import { useBattleTransition } from '../components/BattleTransition';
+import { DEBUG_BUILD, NO_DEBUG } from '../utils/debug';
+import { afterRunAction, spottedWait } from '../utils/runAction';
 
 export type Overview = inferRouterOutputs<AppRouter>['run']['overview'];
 export type ClientRun = NonNullable<Overview['run']>;
 export type RunViewData = ClientRun['view'];
-
-/** How long a trainer's "!" shows over them before their battle opens, at least (the battle is being set up meanwhile). */
-const SPOTTED_MS = 1000;
 
 /**
  * The home screen's data (account, latest run, decks, run types) and the run's moves. A move that starts a battle goes to
@@ -57,12 +56,13 @@ function useRunControl() {
         queryClient.invalidateQueries({ queryKey: trpc.decks.unlocked.queryKey() });
         queryClient.invalidateQueries({ queryKey: trpc.decks.list.queryKey() });
       }
-      if (next.gameId && next.gameId !== run?.gameId) {
+      const after = afterRunAction(run, next);
+      if (after === 'battle' && next.gameId) {
         const gameId = next.gameId;
         // Its page loads while the "!" and the transition play.
         void router.preloadRoute({ to: '/game/$gameId', params: { gameId } }).catch(() => {});
         // Once the "!" has shown long enough (at once if the request took longer).
-        const wait = spottedAt.current === null ? 0 : Math.max(0, SPOTTED_MS - (Date.now() - spottedAt.current));
+        const wait = spottedWait(spottedAt.current, Date.now());
         if (opening.current !== null) window.clearTimeout(opening.current);
         opening.current = window.setTimeout(() => {
           opening.current = null;
@@ -73,9 +73,12 @@ function useRunControl() {
             return navigate({ to: '/game/$gameId', params: { gameId } });
           });
         }, wait);
-      } else if (!spottedAt.current) setSpotted(null);
-      // Escaped from the battle (an Escape Rope): back to the run.
-      else if (run?.gameId && !next.gameId) navigate({ to: '/badge' });
+      } else {
+        // The chosen option's mark comes off, unless it's a battle's "!" still showing before its game opens.
+        if (spottedAt.current === null) setSpotted(null);
+        // Escaped from the battle (an Escape Rope): back to the run.
+        if (after === 'escaped') void navigate({ to: '/badge' });
+      }
     },
     onError: () => {
       spottedAt.current = null;
@@ -86,7 +89,7 @@ function useRunControl() {
   const act = useMutation(trpc.run.act.mutationOptions(onRun));
   const choose = useMutation(trpc.run.choose.mutationOptions(onRun));
   // Debug only: a battle chosen and won at once, with no game to open.
-  const skip = useMutation(trpc.run.debugSkipBattle.mutationOptions(onRun));
+  const skip = useMutation(DEBUG_BUILD ? trpc.run.debugSkipBattle.mutationOptions(onRun) : NO_DEBUG);
   // Using an item also changes how many are left.
   const itemUse = useMutation(
     trpc.run.useItem.mutationOptions({
@@ -97,7 +100,7 @@ function useRunControl() {
   const retry = useMutation(trpc.run.retry.mutationOptions(onRun));
   const start = useMutation(trpc.run.start.mutationOptions({ onSuccess: refresh }));
   // Debug only: a locked run type started anyway.
-  const debugStart = useMutation(trpc.run.debugStart.mutationOptions({ onSuccess: refresh }));
+  const debugStart = useMutation(DEBUG_BUILD ? trpc.run.debugStart.mutationOptions({ onSuccess: refresh }) : NO_DEBUG);
 
   const busy = act.isPending || choose.isPending || skip.isPending || itemUse.isPending || retry.isPending || start.isPending || debugStart.isPending;
   const error = act.error ?? choose.error ?? skip.error ?? itemUse.error ?? retry.error ?? start.error ?? debugStart.error;

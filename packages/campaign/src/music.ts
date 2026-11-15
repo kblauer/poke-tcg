@@ -8,6 +8,8 @@ import { battlesFought, isBattleKind, type BattleKind, type EncounterKind } from
 import { routeAt, RUN_TYPE_IDS, runBosses, runType } from './run-types.js';
 import { travelAt } from './routes.js';
 
+export { pickSong } from './pick-song.js';
+
 export type Soundtrack = 'original' | 'remastered';
 export const SOUNDTRACKS: Soundtrack[] = ['original', 'remastered'];
 
@@ -363,13 +365,6 @@ export function gameCornerMusic(): MusicCue {
  */
 export function voltorbFlipMusic(): MusicCue {
   return { key: 'HeartGold & SoulSilver:game-corner', songs: [{ game: 'HeartGold & SoulSilver', title: 'Goldenrod Game Corner' }], seed: 'voltorb-flip', start: true };
-}
-
-/** One of a cue's songs, the same one every time for the same seed. */
-export function pickSong(cue: MusicCue): Song {
-  let hash = 0;
-  for (const c of cue.seed) hash = (hash * 31 + c.charCodeAt(0)) >>> 0;
-  return cue.songs[hash % cue.songs.length]!;
 }
 
 /**

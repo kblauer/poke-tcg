@@ -7,6 +7,7 @@ import { PageHeader } from '../components/PageHeader';
 import { REMINDER_LABELS, reminderOff, setReminderOff, type EndTurnReminder } from '../components/StatusBar';
 import { ThemePicker } from '../components/ThemePicker';
 import { useDebugFlags } from '../hooks/useDebugFlags';
+import { DEBUG_BUILD } from '../utils/debug';
 import { useFontStyle, type FontStyle } from '../hooks/useFontStyle';
 import { useExpTheme, usePokedollarTheme } from '../hooks/useThemedFigures';
 import { useSkipFlips } from '../hooks/useSkipFlips';
@@ -97,7 +98,8 @@ export function SettingsPage() {
           </div>
           <ThemePicker />
         </Section>
-        <DebugSwitches />
+        {/* DEBUG_BUILD first: a production build drops the switches altogether. */}
+        {DEBUG_BUILD && <DebugSwitches />}
       </div>
     </div>
   );

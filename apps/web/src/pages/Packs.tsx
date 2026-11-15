@@ -34,7 +34,8 @@ export function PacksPage() {
   const [lockedNote, setLockedNote] = useState<string | null>(null);
   // A random one of each set's wrappers, picked when the page is opened.
   const [art] = useState(pickPackArt);
-  if (packs.error) return <p className={`${PAGE_WIDTH} text-red-400`}>{packs.error.message}</p>;
+  // A failed refetch (a pack just bought) keeps the page, and the pack being opened, up with what it has.
+  if (packs.error && !packs.data) return <p className={`${PAGE_WIDTH} text-red-400`}>{packs.error.message}</p>;
   if (!packs.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
   const { bank, stardust, price, sets } = packs.data;
 

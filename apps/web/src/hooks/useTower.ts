@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouterState } from '@tanstack/react-router';
 import type { inferRouterOutputs } from '@trpc/server';
 import { useTRPC } from '../lib/trpc';
+import { DEBUG_BUILD, NO_DEBUG } from '../utils/debug';
 
 export type TowerOverview = inferRouterOutputs<AppRouter>['tower']['overview'];
 export type ClientTower = NonNullable<TowerOverview['challenge']>;
@@ -48,7 +49,7 @@ export function useTowerActions() {
   };
   const start = useMutation(trpc.tower.start.mutationOptions(onTower));
   const act = useMutation(trpc.tower.act.mutationOptions(onTower));
-  const skip = useMutation(trpc.tower.debugSkipBattle.mutationOptions(onTower));
+  const skip = useMutation(DEBUG_BUILD ? trpc.tower.debugSkipBattle.mutationOptions(onTower) : NO_DEBUG);
   return {
     busy: start.isPending || act.isPending || skip.isPending,
     start: (deckId: string, startFloor: number) => start.mutateAsync({ deckId, startFloor }),
@@ -56,7 +57,3 @@ export function useTowerActions() {
     skip: (challenge: ClientTower) => skip.mutateAsync({ towerId: challenge.id }),
   };
 }
-
-/** The Play tab's pages: its menu, and its four modes. */
-const PLAY_PATHS = ['/', '/badge', '/tower', '/idle', '/battle'];
-export const isPlayPath = (path: string) => PLAY_PATHS.includes(path);

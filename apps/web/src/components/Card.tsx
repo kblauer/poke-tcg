@@ -12,7 +12,7 @@ function conditionTags(p: InPlayPokemon): { image: string; title: string; amount
   const tags = [];
   if (p.condition === 'asleep') tags.push({ image: '/status/asleep.png', title: "Asleep: flips to wake up between turns; can't attack or retreat", label: 'SLP', className: 'bg-indigo-500' });
   if (p.condition === 'confused') tags.push({ image: '/status/confused.png', title: 'Confused: flips to attack (tails: 30 damage to itself); retreats with no flip', label: 'CNF', className: 'bg-pink-500' });
-  if (p.condition === 'paralyzed') tags.push({ image: '/status/paralyzed.png', title: "Paralyzed: can't attack or retreat until after its owner's next turn", label: 'PAR', className: 'bg-yellow-500 text-slate-900' });
+  if (p.condition === 'paralyzed') tags.push({ image: '/status/paralyzed.png', title: "Paralyzed: can't attack or retreat until after its owner's next turn", label: 'PAR', className: 'bg-yellow-500 text-gray-900' });
   if (p.burned) tags.push({ image: '/status/burned.png', title: 'Burned: 20 damage between turns, then a flip; heads cures it', label: 'BRN', className: 'bg-orange-600' });
   if (p.poison) tags.push({ image: '/status/poisoned.png', title: `Poisoned: ${p.poison} damage between turns`, ...(p.poison > 10 && { amount: p.poison }), label: `PSN${p.poison > 10 ? ` ${p.poison}` : ''}`, className: 'bg-green-600' });
   return tags;
@@ -28,7 +28,7 @@ function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; t
   if (e.destinyBond !== undefined) badges.push({ label: '☠', title: 'Destiny Bond: knocks out the Pokémon that knocks it out next turn', className: 'bg-slate-700' });
   if (e.sandAttack !== undefined) badges.push({ label: 'SND', title: 'Sand-attack: needs heads to attack next turn', className: 'bg-amber-700' });
   // Lt. Surge's Secret Plan: the owner sees the card, marked; the opponent sees a card back.
-  if (p.faceDown) badges.push({ label: '?', title: 'Face down (Secret Plan): treated as a Basic Pokémon until turned over. Click it on your turn to turn it over', className: 'bg-yellow-600 text-slate-900' });
+  if (p.faceDown) badges.push({ label: '?', title: 'Face down (Secret Plan): treated as a Basic Pokémon until turned over. Click it on your turn to turn it over', className: 'bg-yellow-600 text-gray-900' });
   for (const a of p.attached ?? []) {
     const name = cards?.[a.card.defId]?.name;
     if (a.shapeshift) badges.push({ label: '⇄', title: `Shapeshift: treated as ${name ?? 'an Evolution card'}. Click it on your turn to discard that card`, className: 'bg-orange-700' });

@@ -87,7 +87,7 @@ export function SingleBattlePage() {
     }),
   );
 
-  if (decks.error) return <p className={`${PAGE_WIDTH} text-red-400`}>{decks.error.message}</p>;
+  if (decks.error && !decks.data) return <p className={`${PAGE_WIDTH} text-red-400`}>{decks.error.message}</p>;
   if (!decks.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
 
   const playable = decks.data.filter((d) => d.problems.length === 0);
