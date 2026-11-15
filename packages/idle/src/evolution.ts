@@ -14,14 +14,15 @@ export const TRADE_LEVELS: Record<number, number> = { 64: 36, 67: 37, 75: 37, 93
 
 /**
  * The level the evolutions these runs can't do as HGSS does happen at instead (placeholders, the user's, 2026-11-04; we
- * may add friendship later), by the species evolved into: friendship (Crobat, Pikachu, Clefairy, Jigglypuff, Togetic,
+ * may add friendship later), by the species evolved into: friendship (Crobat, Pikachu, Clefairy, Jigglypuff, Marill (Azurill's,
+ * at the other babies' level: it had none, so never evolved; issue #226), Togetic,
  * Blissey, Espeon by day, Umbreon by night, Roselia, Lucario, Chimecho, Lopunny, Snorlax), a trade with a held item
  * (Steelix, Scizor, Kingdra, Politoed, Slowking, Porygon2, Porygon-Z, Electivire, Magmortar, Rhyperior, Dusknoir,
  * Huntail, Gorebyss), a held item by night or day (Weavile, Gliscor, Chansey from Happiny), a Sinnoh place (Magnezone,
  * Probopass, Leafeon, Glaceon) and Beauty (Milotic). Where a Pokémon has two ways, the game's first in its list comes first.
  */
 export const SET_LEVELS: Record<number, number> = {
-  169: 35, 25: 10, 35: 10, 39: 10, 176: 15, 242: 40, 196: 25, 197: 25, 315: 15, 448: 25, 358: 20, 428: 25, 143: 30,
+  169: 35, 25: 10, 35: 10, 39: 10, 183: 10, 176: 15, 242: 40, 196: 25, 197: 25, 315: 15, 448: 25, 358: 20, 428: 25, 143: 30,
   208: 35, 212: 35, 230: 45, 186: 40, 199: 40, 233: 30, 474: 45, 466: 45, 467: 45, 464: 50, 477: 45, 367: 30, 368: 30,
   461: 35, 472: 35, 113: 20, 462: 40, 476: 35, 470: 30, 471: 30, 350: 30,
 };

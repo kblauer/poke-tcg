@@ -1,5 +1,5 @@
 import { prisma } from '@poke-tcg/db';
-import { areas, applyIdleAction, areaIndex, generation, generationOf, IDLE_GENERATIONS, inGeneration, isBaseForm, isOptional, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, starters, visitStore, withPending, type IdleGen, type IdleSettings, type Stats } from '@poke-tcg/idle';
+import { areas, applyIdleAction, areaIndex, generation, generationOf, IDLE_GENERATIONS, inGeneration, regionReady, isBaseForm, isOptional, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, starters, visitStore, withPending, type IdleGen, type IdleSettings, type Stats } from '@poke-tcg/idle';
 import { idleActInput, idleDebugCatchInput, idleDebugNextInput, idleHereInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput, type StartIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
@@ -34,6 +34,7 @@ async function startIdle(userId: string, input: StartIdleInput, debug: boolean) 
   const created = await prisma.$transaction(async (tx) => {
     await lockUser(tx, userId);
     if (await tx.idleRun.findFirst({ where: { ownerId: userId, status: 'ACTIVE' }, select: { id: true } })) throw failed('A run is already under way');
+    if (!regionReady(input.gen)) throw failed(`No ${inGeneration(input.gen, () => generation().region)} run can start yet`);
     const locked = !debug && generationLocked(input.gen, await championsBeaten(userId, tx));
     if (locked) throw failed(locked);
     const runs = await tx.idleRun.count({ where: { ownerId: userId } });
@@ -68,7 +69,7 @@ export const idleRouter = router({
       championsBeaten(ctx.user.id),
     ]);
     const caught = dex.filter((d) => d.caught).map((d) => d.species);
-    const generations = IDLE_GENERATIONS.map((gen) =>
+    const generations = IDLE_GENERATIONS.filter(regionReady).map((gen) =>
       inGeneration(gen, () => {
         const known = (id: number) => id <= generation().species.length;
         return {

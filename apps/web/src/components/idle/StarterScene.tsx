@@ -6,7 +6,7 @@ import { TrimmedSprite } from '../TrimmedSprite';
 import { MapScene } from './AreaScene';
 
 /** Each region's lab (issue #170, step 5): its map, its professor and where the player stands, and the starters' balls on its table. */
-const LABS: Record<1 | 2, { map: string; speaker: string; professor: { sprite: string; x: number; y: number; face: Facing }; player: { x: number; y: number }; balls: { id: number; x: number; y: number }[] }> = {
+const LABS: Record<number, { map: string; speaker: string; professor: { sprite: string; x: number; y: number; face: Facing }; player: { x: number; y: number }; balls: { id: number; x: number; y: number }[] }> = {
   // Professor Oak's lab, the starters' Poké Balls on his table, as FireRed sets them (left to right: Bulbasaur, Squirtle, Charmander).
   1: {
     map: 'PalletTown_ProfessorOaksLab',
@@ -31,7 +31,8 @@ const LABS: Record<1 | 2, { map: string; speaker: string; professor: { sprite: s
  * place (the catch-up's pages). Later runs pick from the Pokédex too (below it).
  */
 export function StarterScene({ gender, busy, onPick, dialogue }: { gender: 'male' | 'female'; busy: boolean; onPick: (species: number) => void; dialogue?: Dialogue | null }) {
-  const lab = LABS[generation().gen];
+  // (Hoenn's to come, issue #226, step 5: no Hoenn run starts until then.)
+  const lab = LABS[generation().gen] ?? LABS[1]!;
   const map = mapView(lab.map);
   // In the balls' order on the table, where they're drawn.
   const three = lab.balls.length ? lab.balls.map((b) => b.id) : starters();
