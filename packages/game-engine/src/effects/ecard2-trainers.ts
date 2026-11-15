@@ -15,7 +15,7 @@ import { isBasicEnergy, isPokemonCard, lookupCard, type Attack, type EnergyType 
 import { discardTheirEnergy, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { energyKept, pokemonAt, powerActive, trainerProof, pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { benchRoom, effectId, energyProtected, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { benchRoom, effectId, energyProtected, inPlayDef, openBenchSlot, pokemonName, isEvolved } from '../status.js';
 import { powerEffect } from './index.js';
 import { swapActive, targetsOf, type EnergyEffect, type TrainerChoiceSpec, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 import { tool } from './neo1-trainers.js';
@@ -235,7 +235,7 @@ export const ECARD2_ENERGY: Record<string, EnergyEffect> = {
   'ecard2-144': ROCKET_ENERGY['base5-17']!,
   'ecard2-145': {
     onAttach: () => {},
-    attachError: (_p, inPlay) => (inPlay.evolvedFrom.length ? null : 'Boost Energy can only be attached to an Evolved Pokémon'),
+    attachError: (_p, inPlay, cards) => (isEvolved(cards, inPlay) ? null : 'Boost Energy can only be attached to an Evolved Pokémon'),
   },
   'ecard2-146': { onAttach: () => {} },
   // Warp Energy: attached from the hand to the Active Pokémon, it switches with one of the player's Benched Pokémon.

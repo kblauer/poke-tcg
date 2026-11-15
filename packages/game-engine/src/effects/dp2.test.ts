@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CardDef, PokemonCardDef } from '../cards.js';
 import { applyAction, inPlayDef, retreatCost, usableAttacks, type GameState, type InPlayPokemon, type Target } from '../index.js';
+import { darkGazed, hasPowerOrBody } from '../powers.js';
 import { act, attack, duel, endTurn, flips, id, mon, settles, C, F, FI, G, L, P, W } from './test-kit.js';
 
 const ash = (s: GameState) => s.players.ash!;
@@ -49,6 +50,116 @@ describe('Pokémon LV.X powers', () => {
     const fire = hand(s, 'misty', s.cards.fire!);
     s = act(s, 'misty', { type: 'ATTACH_ENERGY', cardUid: fire, target: 'active' });
     expect(misty(s).active!.damage).toBe(20);
+  });
+});
+
+describe('an Ability is no Poké-Power (agreed: only effects naming Abilities stop or see one)', () => {
+  /** Ash's Emboar (Inferno Fandango, an Ability he uses) with a Fire Energy in hand. */
+  const emboar = () => {
+    const s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('bw1-20', 'Emboar', F, 150, [], { stage: 'stage2', ...body('Inferno Fandango') }));
+    ash(s).hand = [];
+    hand(s, 'ash', s.cards.fire!);
+    return s;
+  };
+  const fandango = (s: GameState) => act(s, 'ash', { type: 'USE_POWER', source: 'active', choices: { cardUid: ash(s).hand[0]!.uid, to: 'active' } });
+
+  it("Power Cancel isn't offered against it", () => {
+    const s = emboar();
+    put(s, 'misty', 0, mon('dp2-2', 'Alakazam', P, 100, [], { stage: 'stage2', ...body('Power Cancel') }));
+    const after = fandango(s);
+    expect(after.pendingChoice).toBeUndefined();
+    expect(ash(after).active!.energy).toHaveLength(1);
+  });
+
+  it('counts as neither for "a Pokémon that has a Poké-Power or Poké-Body"', () => {
+    const s = emboar();
+    expect(hasPowerOrBody(s.cards, ash(s).active!)).toBe(false);
+    expect(hasPowerOrBody(s.cards, ash(s).active!, 'power')).toBe(false);
+    // A Poké-Body is a body, not a power; a Poké-Power the other way round.
+    const azelf = put(s, 'misty', 0, mon('dp2-4', 'Azelf', P, 70, [], body('Downer Material')));
+    expect([hasPowerOrBody(s.cards, azelf), hasPowerOrBody(s.cards, azelf, 'body'), hasPowerOrBody(s.cards, azelf, 'power')]).toEqual([true, true, false]);
+    const bronzong = put(s, 'misty', 1, mon('dp2-6', 'Bronzong', 'metal', 90, [], { stage: 'stage1', ...body('Miracle Oracle') }));
+    expect([hasPowerOrBody(s.cards, bronzong, 'power'), hasPowerOrBody(s.cards, bronzong, 'body')]).toEqual([true, false]);
+    expect(hasPowerOrBody(s.cards, misty(s).active!)).toBe(false);
+  });
+
+  it("Dark Gaze doesn't stop a Benched Pokémon's Ability", () => {
+    const s = emboar();
+    const benched = put(s, 'ash', 0, mon('bw1-20', 'Emboar', F, 150, [], { stage: 'stage2', ...body('Inferno Fandango') }));
+    put(s, 'misty', 'active', mon('ecard3-32', 'Umbreon', 'darkness', 70, [], { stage: 'stage1', ...body('Dark Gaze') }));
+    expect(darkGazed(benched, s.cards, [ash(s), misty(s)])).toBe(false);
+    // A Benched Poké-Power is stopped.
+    const bronzong = put(s, 'ash', 1, mon('dp2-6', 'Bronzong', 'metal', 90, [], { stage: 'stage1', ...body('Miracle Oracle') }));
+    expect(darkGazed(bronzong, s.cards, [ash(s), misty(s)])).toBe(true);
+  });
+});
+
+// The user's (2026-11-14): Power Cancel and Power Spray are asked whenever a Poké-Power is chosen to be used, its "use it?"
+// question as it's benched too (Set Up, Flash Bite), never for an Ability.
+describe('Power Cancel and Power Spray against a Poké-Power used through its "use it?" question', () => {
+  const uxie = () => mon('dp6-43', 'Uxie', P, 70, [], body('Set Up'));
+  const crobat = () => mon('pl1-47', 'Crobat G', P, 80, [], body('Flash Bite'));
+  /** Ash benches the Pokémon from his hand and says yes to its power; Misty holds Alakazam's Power Cancel, or 3 Pokémon SP and a Power Spray. */
+  const benchAndUse = (def: PokemonCardDef, by: 'cancel' | 'spray') => {
+    const s = duel('charmander', 'onix');
+    ash(s).hand = [];
+    const card = hand(s, 'ash', def);
+    misty(s).hand = [];
+    if (by === 'cancel') {
+      put(s, 'misty', 0, mon('dp2-2', 'Alakazam', P, 100, [], { stage: 'stage2', ...body('Power Cancel') }));
+      cards(s, 'misty', 2);
+    } else {
+      put(s, 'misty', 'active', mon('sp-crobat', 'Crobat G', P, 80, []));
+      put(s, 'misty', 0, mon('sp-luxray', 'Luxray GL', L, 90, []));
+      put(s, 'misty', 1, mon('sp-garchomp', 'Garchomp C', C, 100, []));
+      hand(s, 'misty', trainer('pl1-117', "Team Galactic's Invention G-103 Power Spray"));
+    }
+    const asked = act(s, 'ash', { type: 'PLAY_BENCH', cardUid: card, slot: 0 });
+    expect(asked.pendingChoice).toMatchObject({ kind: 'mayUse', player: 'ash' });
+    const used = act(asked, 'ash', { type: 'RESOLVE_CHOICE', count: 0 });
+    expect(used.pendingChoice).toMatchObject({ kind: 'powerCancel', player: 'misty', ...(by === 'spray' && { spray: true }) });
+    for (const end of settles(used)) expect(end.pendingChoice).toBeUndefined();
+    return used;
+  };
+  /** Misty stops it: 2 cards for Power Cancel, the Power Spray card. */
+  const stop = (s: GameState) => {
+    const spray = misty(s).hand.find((c) => c.defId === 'pl1-117');
+    if (spray) return act(s, 'misty', { type: 'RESOLVE_CHOICE', cardUid: spray.uid });
+    const [a, b] = misty(s).hand;
+    return act(act(s, 'misty', { type: 'RESOLVE_CHOICE', cardUid: a!.uid }), 'misty', { type: 'RESOLVE_CHOICE', cardUid: b!.uid });
+  };
+  const pass = (s: GameState) => act(s, 'misty', { type: 'RESOLVE_CHOICE' });
+
+  for (const by of ['cancel', 'spray'] as const) {
+    it(`Set Up (Uxie): stopped by ${by === 'cancel' ? 'Power Cancel' : 'Power Spray'}, it draws nothing; let through, it draws up to 7`, () => {
+      const stopped = stop(benchAndUse(uxie(), by));
+      expect([ash(stopped).hand.length, stopped.pendingChoice, misty(stopped).hand.length]).toEqual([0, undefined, 0]);
+      const worked = pass(benchAndUse(uxie(), by));
+      expect(ash(worked).hand).toHaveLength(7);
+    });
+
+    it(`Flash Bite (Crobat G): stopped by ${by === 'cancel' ? 'Power Cancel' : 'Power Spray'}, no damage counter; let through, it's placed`, () => {
+      const stopped = stop(benchAndUse(crobat(), by));
+      expect(stopped.pendingChoice).toBeUndefined();
+      const worked = pass(benchAndUse(crobat(), by));
+      expect(worked.pendingChoice).toMatchObject({ kind: 'placeCounters', player: 'ash' });
+    });
+  }
+
+  it("an Ability's on-play question (Sporprise) gets no Power Cancel question", () => {
+    const s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('foongus', 'Foongus', G, 50, []));
+    put(s, 'misty', 0, mon('dp2-2', 'Alakazam', P, 100, [], { stage: 'stage2', ...body('Power Cancel') }));
+    misty(s).hand = [];
+    cards(s, 'misty', 2);
+    const card = hand(s, 'ash', mon('bw4-9', 'Amoonguss', G, 90, [], { stage: 'stage1', evolvesFrom: 'Foongus', ...body('Sporprise') }));
+    s.turn = 3;
+    const asked = act(s, 'ash', { type: 'EVOLVE', cardUid: card, target: 'active' });
+    expect(asked.pendingChoice).toMatchObject({ kind: 'mayUse', power: 'sporprise' });
+    const used = act(asked, 'ash', { type: 'RESOLVE_CHOICE', count: 0 });
+    expect(used.pendingChoice?.kind).not.toBe('powerCancel');
+    expect(misty(used).active!.condition).toBe('confused');
   });
 });
 

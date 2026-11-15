@@ -7,22 +7,21 @@
 // all attack damage, Staraptor's own included, off it until the end of its player's next turn; Metronome copies with the
 // copied attack's discards (as Aquapolis's Copy); Heave discards after the flips, but does nothing with fewer than 2 cards.
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
-import type { PendingChoice, PendingChoiceInput } from '../trainers.js';
 import { hasType, lookupCard, type CardLibrary, type EnergyType } from '../cards.js';
-import { counts, discardTheirEnergy, energyPool, isSpecialEnergy, PRIZE_COUNT, retreatCost, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
-import { discardsLocked } from '../powers.js';
+import { retireStadium, counts, discardTheirEnergy, energyPool, isSpecialEnergy, PRIZE_COUNT, retreatCost, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { clearOnLeavingActive, countersMoved, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution, sameCards } from '../status.js';
+import { clearOnLeavingActive, countersMoved, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution, sameCards, cardsOf } from '../status.js';
 import { amnesia } from './base1.js';
-import { benchedSlots, energyCanMove, energyCards, headsUntilTails, inPlay, leechSeed, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
+import { askAfter, benchedSlots, discardOwnEnergy, energyCanMove, energyCards, headsUntilTails, inPlay, leechSeed, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { copyAttack } from './ecard2.js';
 import { EX1, energyAmount, restNextTurn } from './ex1.js';
 import { discardOwn, energyCardOf, EX2 } from './ex2.js';
 import { EX6 } from './ex6.js';
 import { EX8 } from './ex8.js';
 import { energyCanGo } from './neo3.js';
-import { discardStadium } from './gym2.js';
 import { healUpTo } from './si1.js';
+
+export { discardOwnEnergy };
 
 /** Damage counters on one of the opponent's Pokémon (not attack damage: no Weakness or Resistance), if the attack can affect it. */
 function putCounters(ctx: AttackContext, p: InPlayPokemon | null | undefined, n: number) {
@@ -45,7 +44,7 @@ const ownTargets = (s: { attacker: InPlayPokemon; ownBench: (InPlayPokemon | nul
 
 /** A Pokémon and every card with it, shuffled into its owner's deck (Transback, Blowing Wind). Its place is emptied. */
 export function shuffleIntoDeck(ctx: Pick<AttackContext, 'state' | 'log'>, owner: PlayerState, p: InPlayPokemon) {
-  const cards = [...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...card }) => card), ...(p.attached ?? []).map((a) => a.card)];
+  const cards = cardsOf(p);
   if (owner.active === p) owner.active = null;
   else owner.bench = owner.bench.map((q) => (q === p ? null : q));
   [owner.deck, ctx.state.rngState] = shuffle([...owner.deck, ...cards], ctx.state.rngState);
@@ -72,26 +71,6 @@ const fireInDiscard = (cards: CardLibrary, discard: CardInstance[]) =>
 /** How much Energy of `type` a Pokémon has (Dark Pulse). */
 const typedAmount = (cards: CardLibrary, p: InPlayPokemon, type: 'darkness') => energyPool(p, cards).filter((e) => counts(e, type)).length;
 
-/** A choice for the attacking player once the attack is over, after any already asked. */
-function askAfter(ctx: AttackContext, choice: PendingChoiceInput) {
-  if (ctx.state.pendingChoice) (ctx.state.queuedChoices ??= []).push({ ...choice, player: ctx.me.id } as PendingChoice);
-  else ctx.pend(choice);
-}
-
-/**
- * `count` Energy cards discarded from the attacking Pokémon (only those of `types`, basic or Special, when given): picked by
- * its player once the attack is over when the cards that fit differ (the same-card rule, agreed), otherwise the first ones.
- * Returns how many go.
- */
-export function discardOwnEnergy(ctx: AttackContext, count: number, source: string, types?: EnergyType[]) {
-  const fit = energyCards(ctx.attacker).filter((e) => !types || types.some((t) => energyCardOf(ctx.state.cards, e, t)));
-  const n = Math.min(count, fit.length);
-  if (!n) return 0;
-  if (fit.length <= count || sameCards(ctx.state.cards, fit)) discardOwn(ctx, fit.slice(0, count));
-  else askAfter(ctx, { kind: 'discardAttached', source, target: 'active', count, ...(types && { types }) });
-  return n;
-}
-
 /**
  * `count` Energy cards attached to the attacking Pokémon (only those of `types`, when given) back into the player's hand:
  * picked by its player once the attack is over when the cards that fit differ (the same-card rule, agreed).
@@ -104,7 +83,7 @@ export function returnOwnEnergy(ctx: AttackContext, count: number, source: strin
     ctx.attacker.energy = ctx.attacker.energy.filter((e) => !back.includes(e));
     ctx.me.hand.push(...back.map(({ converted: _c, windless: _w, ...c }) => c));
     ctx.log(`Returned ${back.map((e) => lookupCard(ctx.state.cards, e.defId).name).join(', ')} to the hand.`);
-  } else askAfter(ctx, { kind: 'discardAttached', source, target: 'active', count, toHand: true, ...(types && { types }) });
+  } else askAfter(ctx, { kind: 'discardAttached', source, target: 'active', count, toHand: true, anyEnergy: true, ...(types && { types }) });
   return Math.min(count, fit.length);
 }
 
@@ -197,7 +176,7 @@ export const DP1: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         ctx.hit(10);
         if (ctx.me.deck.length) ctx.pend({ kind: 'pickFromDeck', source: 'Spacial Rend', filter: 'stadium', reveal: true, optional: true });
-        discardStadium(ctx);
+        retireStadium(ctx.state);
       },
     },
     Transback: {
@@ -259,7 +238,6 @@ export const DP1: Record<string, Record<string, AttackEffect>> = {
   'dp1-24': {
     'Wind Wave': {
       run(ctx) {
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         ctx.pend({ kind: 'discardToDeck', source: 'Wind Wave', count: 5, of: 5, filter: 'pokemonOrSupporter' });
       },
     },
@@ -471,7 +449,6 @@ export const DP1: Record<string, Record<string, AttackEffect>> = {
   'dp1-70': {
     Scavenge: {
       run(ctx) {
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         ctx.pend({ kind: 'discardToHand', source: 'Scavenge', count: 1, filter: 'trainer', reveal: true });
       },
     },
@@ -565,7 +542,7 @@ export const DP1: Record<string, Record<string, AttackEffect>> = {
   'dp1-121': {
     'Flare Up': {
       run(ctx) {
-        const fire = discardsLocked([ctx.me, ctx.opp], ctx.state.cards) ? [] : fireInDiscard(ctx.state.cards, ctx.me.discard);
+        const fire = fireInDiscard(ctx.state.cards, ctx.me.discard);
         if (fire.length < 8) return ctx.log("Flare Up did nothing: there aren't 8 Fire Energy cards in your discard pile.");
         const back = fire.slice(0, 8);
         ctx.me.discard = ctx.me.discard.filter((c) => !back.includes(c));

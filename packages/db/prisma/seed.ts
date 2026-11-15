@@ -1,12 +1,16 @@
-// Loads the TCGdex card snapshot (prisma/data/tcgdex-wotc.json: the WOTC era and Generation 3's EX sets), then the hand-made cards TCGdex doesn't
+// Loads the TCGdex card snapshot (prisma/data/tcgdex-wotc.json: the WOTC era, Generations 3 to 5 through Black & White: 63 sets), then the hand-made cards TCGdex doesn't
 // have (prisma/data/custom-cards.json), into the database, with the holo Energy made from the packs' basic Energy
 // (holo-energy.ts).
 // Idempotent: re-running updates existing rows. Refresh the snapshot with `pnpm cards:fetch`.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { assertLocalDatabase } from '../../../scripts/local-guard.mjs';
 import { prisma, type Prisma } from '../src/index.js';
 import { HOLO_ENERGY_SETS, holoEnergyCards, reverseHoloCard } from './holo-energy.js';
 import { CUSTOM_PATH, SNAPSHOT_PATH, type CardSnapshot, type TcgdexCard } from './tcgdex.js';
+
+// First, before any query: a `.env` still pointing at the hosted project must not be seeded by accident (`--remote` or ALLOW_HOSTED_DB=1 opts in).
+assertLocalDatabase();
 
 const KIND = { Pokemon: 'POKEMON', Trainer: 'TRAINER', Energy: 'ENERGY' } as const;
 /** Upserts in flight at once. No transaction: the seed is idempotent, so a partial run is safe to re-run. */

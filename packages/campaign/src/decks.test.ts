@@ -1,7 +1,7 @@
 import { canPayCost, cardImplemented, isBasicPokemon, isPokemonCard, TRAINER_CPU_ENERGY, TRAINER_CPU_PLAYS, TRAINER_CPU_RULES, type PokemonCardDef } from '@poke-tcg/game-engine';
 import { describe, expect, it } from 'vitest';
 import { BOSSES, HOENN_ELITE_FOUR, HOENN_GYMS, JOHTO_ELITE_FOUR, JOHTO_GYMS, SINNOH_ELITE_FOUR, SINNOH_GYMS } from './bosses.js';
-import { DECK_SIZE, deckErrors, expandDeck, GEN1_DECK_RULES, GEN2_DECK_RULES, GEN3_DECK_RULES, GEN4_DECK_RULES, generateDeck, STARTER_DECK, STARTER_DECKS, STARTER_IDS, trainerFavorites } from './decks.js';
+import { DECK_SIZE, deckErrors, expandDeck, GEN1_DECK_RULES, GEN2_DECK_RULES, GEN3_DECK_RULES, GEN4_DECK_RULES, generateDeck, STARTER_DECK, STARTER_DECKS, STARTER_IDS, takesCopy, trainerFavorites } from './decks.js';
 import { GEN2_SETS, GEN3_SETS, GEN4_SETS, nameKey } from './pool.js';
 import { rngFrom } from './random.js';
 import { catalogDef, GEN2_TEST_POOL, GEN3_TEST_POOL, GEN4_TEST_POOL, TEST_POOL, testDef } from './test-pool.js';
@@ -28,6 +28,25 @@ describe('fixed decks', () => {
     expect(deckErrors(swap(['neo4-107', 'neo4-16']), catalogDef)).toEqual([]);
   });
 
+  it("takesCopy keeps a trade's card within the copy limits (4 of a name, 1 Shining, 4 Unown)", () => {
+    const starter = expandDeck(STARTER_DECK);
+    const give = starter.find((id) => testDef(id).kind === 'pokemon')!;
+    const name = testDef(give).name;
+    const other = starter.find((id) => testDef(id).kind === 'pokemon' && testDef(id).name !== name)!;
+    const defs = (id: string) => catalogDef(id);
+    // Swapping a card for another print of its own name is always fine; a fifth copy of another name isn't.
+    expect(takesCopy(starter, give, testDef(give), defs)).toBe(true);
+    const four = [...starter.slice(0, 56), other, other, other, other];
+    expect(takesCopy(four, give, testDef(other), defs)).toBe(false);
+    expect(takesCopy([...four.slice(0, 59), 'neo4-107'], give, catalogDef('neo4-107'), defs)).toBe(false);
+    expect(takesCopy(starter, give, catalogDef('neo4-107'), defs)).toBe(true);
+    const unowns = GEN2_TEST_POOL.filter((c) => isBasicPokemon(c.def) && c.def.name.includes('Unown')).map((c) => c.def.id);
+    expect(unowns.length).toBeGreaterThan(4);
+    const fourUnown = [...starter.slice(0, 56), ...unowns.slice(0, 4)];
+    expect(takesCopy(fourUnown, give, catalogDef(unowns[4]!), defs)).toBe(false);
+    expect(takesCopy([...fourUnown.slice(0, 59), give], unowns[0]!, catalogDef(unowns[4]!), defs)).toBe(true);
+  });
+
   const johto = new Set<string>([...JOHTO_GYMS, ...JOHTO_ELITE_FOUR, 'johto-lance']);
   const hoenn = new Set<string>([...HOENN_GYMS, ...HOENN_ELITE_FOUR, 'wallace']);
   const sinnoh = new Set<string>([...SINNOH_GYMS, ...SINNOH_ELITE_FOUR, 'cynthia']);
@@ -39,11 +58,11 @@ describe('fixed decks', () => {
     expect(deck.filter((id) => !cardImplemented(catalogDef(id)))).toEqual([]);
   });
 
-  // Gen 2's card effects are still to come: its bosses' decks only need to be legal and Gen 2's.
-  it.each([...johto])("%s's deck is a legal 60-card deck of Gen 2 cards, each evolution with its earlier stage", (id) => {
+  it.each([...johto])("%s's deck is a legal 60-card deck of Gen 2 cards the engine fully implements, each evolution with its earlier stage", (id) => {
     const deck = expandDeck(BOSSES[id as keyof typeof BOSSES].deck);
     expect(deckErrors(deck, catalogDef)).toEqual([]);
     expect(deck.filter((c) => !GEN2_SETS.includes(c.split('-')[0]!))).toEqual([]);
+    expect(deck.filter((c) => !cardImplemented(catalogDef(c)))).toEqual([]);
     const names = new Set(deck.map((c) => catalogDef(c).name));
     expect(deck.map(catalogDef).filter((d) => isPokemonCard(d) && d.evolvesFrom && !names.has(d.evolvesFrom)).map((d) => d.name)).toEqual([]);
   });

@@ -1,7 +1,7 @@
 // Downloads the card pool from TCGdex into a JSON snapshot that `prisma/seed.ts` loads into the database: the Wizards of
 // the Coast era (1999–2003), Generation 3's EX series, EX Ruby & Sapphire to EX Power Keepers (2003–2007), Generation 4's
-// Diamond & Pearl and Platinum series (2007–2009), the HeartGold & SoulSilver series with Call of Legends (2010–2011,
-// Gen 2's: each game in its region's generation, the user's), and Generation 5's Black & White series (2011–2013).
+// Diamond & Pearl and Platinum series (2007–2009), the HeartGold & SoulSilver series with Call of Legends (2010–2011;
+// Generation 4's cards too, for Gen 4 runs only, never Gen 2's: the user's), and Generation 5's Black & White series (2011–2013).
 //
 //   pnpm --filter @poke-tcg/db cards:fetch
 //   pnpm --filter @poke-tcg/db cards:fetch -- dp1 dp2     (only these sets, merged into the snapshot: every other card
@@ -42,7 +42,7 @@ export const EX_SETS = ['ex1', 'ex2', 'ex3', 'ex4', 'ex5', 'ex6', 'ex7', 'ex8', 
  */
 export const GEN4_SETS = ['dp1', 'dpp', 'dp2', 'dp3', 'dp4', 'dp5', 'dp6', 'dp7', 'pl1', 'pl2', 'pl3', 'pl4'];
 
-/** The HeartGold & SoulSilver series and Call of Legends, in release order: Gen 2's sets (Johto), with its Black Star Promos. */
+/** The HeartGold & SoulSilver series and Call of Legends, in release order, with its Black Star Promos: Johto's games, but Generation 4's cards (Gen 4 runs only, never Gen 2's). */
 export const HGSS_SETS = ['hgss1', 'hgssp', 'hgss2', 'hgss3', 'hgss4', 'col1'];
 
 /**

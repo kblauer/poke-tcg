@@ -1,7 +1,6 @@
 import { CPU_DIFFICULTIES, DEBUG_CONDITIONS, MAX_BENCH, type AttackChoices, type DebugCommand, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
 import { BERRIES, BOSS_IDS, COSMETIC_IDS, EQUIP_SLOTS, FLAIR_SLOTS, MAX_PACKS_AT_ONCE, PACK_SETS, RUN_TYPE_IDS, STARTER_IDS, TOP_FLOOR, type RunAction, type RunTypeId, type TowerAction } from '@poke-tcg/campaign';
 import { z } from 'zod';
-import { DECK_NAME_LENGTH } from './deck.js';
 import { TRAINER_SPRITES } from './trainer-sprites.js';
 
 export * from './contest.js';
@@ -128,6 +127,25 @@ export const gameActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('CONCEDE') }),
 ]) satisfies z.ZodType<GameAction>;
 
+/**
+ * `covers` for every action at once (#204): each action's schema lists every field of the engine's action of that type,
+ * and every action type has a schema. `satisfies` above doesn't catch an optional field left out (Zod would drop it
+ * without a word, as it would have START_BATTLE's `firstTicket`), so a new field on any action fails to compile here.
+ */
+type KeysOf<T> = T extends unknown ? keyof T : never;
+type ActionOf<A, T> = A extends { type: T } ? A : never;
+type ActionGaps = {
+  [T in GameAction['type']]: [ActionOf<z.infer<typeof gameActionSchema>, T>] extends [never]
+    ? `${T} has no schema`
+    : Exclude<KeysOf<ActionOf<GameAction, T>>, KeysOf<ActionOf<z.infer<typeof gameActionSchema>, T>>> extends infer Missed
+      ? [Missed] extends [never]
+        ? never
+        : `${T} is missing ${Missed & string}`
+      : never;
+}[GameAction['type']];
+const coversActions = (_: [ActionGaps] extends [never] ? true : ActionGaps) => {};
+coversActions(true);
+
 export const gameIdInput = z.object({ gameId: z.uuid() });
 export const submitActionInput = z.object({
   gameId: z.uuid(),
@@ -199,8 +217,7 @@ export const runChooseInput = z.object({
   option: z.number().int().min(0).max(9),
   deckId: z.uuid().optional(),
 });
-/** Saving the automatic run deck once the run is over, under a name of the player's. */
-export const saveRunDeckInput = z.object({ runId: z.uuid(), name: z.string().trim().min(1).max(DECK_NAME_LENGTH) });
+/** A consumable used in the run under way. */
 export const useItemInput = z.object({ runId: z.uuid(), itemId: z.string().min(1).max(64) });
 /** A consumable used from the Inventory: in the run under way, or kept for the next run when there's none. */
 export const useConsumableInput = z.object({ itemId: z.string().min(1).max(64) });

@@ -4,7 +4,7 @@
 // From the text: Night Pokémon Center's Pokémon is chosen before the flips; Pokédex HANDY910is puts the other card on the
 // bottom; Rival's opponent picks 3 of the 5 cards shown (all of them with 3 or fewer), and the deck is shuffled after.
 import { lookupCard } from '../cards.js';
-import { addLog, pokemonName } from '../status.js';
+import { addLog, pokemonName, cleanCard } from '../status.js';
 import { otherHandCards, rivalHand, RIVAL_PICKS, targetsOf, type TrainerEffect } from '../trainers.js';
 import { pokemonAt } from '../powers.js';
 import { BASE1_TRAINERS } from './base1-trainers.js';
@@ -33,7 +33,7 @@ export const DP1_TRAINERS: Record<string, TrainerEffect> = {
         p.damage = 0;
         ctx.log(`Removed all damage counters from ${pokemonName(ctx.state, p)}.`);
       } else if (heads === 0) {
-        const gone = p.energy.map(({ provides: _, ...card }) => card);
+        const gone = p.energy.map(cleanCard);
         if (!gone.length) return;
         p.energy = [];
         ctx.me.discard.push(...gone);
