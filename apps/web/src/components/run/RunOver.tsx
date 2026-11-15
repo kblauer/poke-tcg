@@ -1,6 +1,6 @@
 import CloseIcon from '@mui/icons-material/Close';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { bankablePokedollars, finalBoss, GENERATIONS, ITEMS, RUN_TYPES, runType, type RunType } from '@poke-tcg/campaign';
+import { bankablePokedollars, finalBoss, GENERATIONS, ITEMS, parsePackUnlocks, RUN_TYPES, runType, type RunType } from '@poke-tcg/campaign';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { ClientRun, Overview, RunControl } from '../../hooks/useRun';
 import { ItemShop } from './ItemShop';
@@ -81,7 +81,7 @@ export function RunOver({ current, overview, run }: { current: ClientRun; overvi
   const last = finalBoss(type);
   const won = (view.badges ?? []).map((id) => ITEMS[id]?.name).filter(Boolean);
   // The booster packs the run unlocked (its first battle completed, or beating it), from its log.
-  const packs = view.log.flatMap((line) => line.match(/^Unlocked (.+) booster packs\.$/)?.slice(1) ?? []);
+  const packs = parsePackUnlocks(view.log);
   const packsNote = packs.length > 0 ? ` Unlocked booster packs: ${packs.join(', ')}.` : '';
   const banked = bankablePokedollars(view);
   const { isClosed, toggle } = useClosed(current.id);

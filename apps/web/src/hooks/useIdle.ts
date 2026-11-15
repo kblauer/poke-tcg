@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { TRANSITION_MS } from '../components/BattleTransition';
 import { preloadBattle } from '../components/idle/BattleScreen';
 import { useTRPC } from '../lib/trpc';
+import { DEBUG_BUILD, NO_DEBUG } from '../utils/debug';
 import { shownAfterAction } from '../utils/idleAnswer';
 import { idleSpeed } from '../utils/idleSpeed';
 import type { Facing } from '../utils/overworld';
@@ -45,13 +46,13 @@ export function useIdleActions() {
   const started = { onSuccess: (run: ClientIdleRun) => (setRun(run), void queryClient.invalidateQueries({ queryKey: key })) };
   const start = useMutation(trpc.idle.start.mutationOptions(started));
   // Debug mode's: a region not open yet (the user's, 2026-11-04).
-  const debugStart = useMutation(trpc.idle.debugStart.mutationOptions(started));
+  const debugStart = useMutation(DEBUG_BUILD ? trpc.idle.debugStart.mutationOptions(started) : NO_DEBUG);
   // (Its answer is put on screen by the playback, `acted` or `interrupt`: while a segment plays it's ahead of the screen.)
   const act = useMutation(trpc.idle.act.mutationOptions());
   const settings = useMutation(trpc.idle.settings.mutationOptions({ onSuccess: (s) => queryClient.setQueryData(key, (old) => old && { ...old, settings: s }) }));
-  const warp = useMutation(trpc.idle.debugWarp.mutationOptions({ onSuccess: setRun }));
-  const money = useMutation(trpc.idle.debugMoney.mutationOptions({ onSuccess: setRun }));
-  const sureCatch = useMutation(trpc.idle.debugCatch.mutationOptions({ onSuccess: setRun }));
+  const warp = useMutation(DEBUG_BUILD ? trpc.idle.debugWarp.mutationOptions({ onSuccess: setRun }) : NO_DEBUG);
+  const money = useMutation(DEBUG_BUILD ? trpc.idle.debugMoney.mutationOptions({ onSuccess: setRun }) : NO_DEBUG);
+  const sureCatch = useMutation(DEBUG_BUILD ? trpc.idle.debugCatch.mutationOptions({ onSuccess: setRun }) : NO_DEBUG);
   return {
     busy: start.isPending || debugStart.isPending || act.isPending,
     start: (species: number, shiny: boolean, gen: IdleGen, debug = false) => (debug ? debugStart : start).mutateAsync({ species, shiny, gen }),
@@ -206,7 +207,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
   const queryClient = useQueryClient();
   const key = trpc.idle.overview.queryKey();
   const next = useMutation(trpc.idle.next.mutationOptions());
-  const debugNext = useMutation(trpc.idle.debugNext.mutationOptions());
+  const debugNext = useMutation(DEBUG_BUILD ? trpc.idle.debugNext.mutationOptions() : NO_DEBUG);
   const catchUp = useMutation(trpc.idle.catchUp.mutationOptions());
   const throwMut = useMutation(trpc.idle.throwBall.mutationOptions());
   const resume = useMutation(trpc.idle.resume.mutationOptions());

@@ -7,6 +7,7 @@ import { ItemIcon } from '../components/ItemIcon';
 import { PageHeader } from '../components/PageHeader';
 import { consumableProblem } from '../components/run/BagPanel';
 import { useEscape } from '../hooks/useEscape';
+import { useRun } from '../hooks/useRun';
 import { useTRPC } from '../lib/trpc';
 import { PAGE_WIDTH } from '../utils/layout';
 import { DIALOG, DIALOG_BACKDROP } from '../utils/styles';
@@ -46,14 +47,14 @@ export function InventoryPage() {
   const onEquip = (slot: Parameters<typeof equip.mutate>[0]['slot'], itemId: string | null) => equip.mutateAsync({ slot, itemId }).catch(() => {});
   // The run under way (if any), whose rules say whether a consumable can be used now, and the consumable clicked (asked
   // about first): used in that run, or kept for the next one (run.useConsumable).
-  const overview = useQuery(trpc.run.overview.queryOptions());
+  const { overview } = useRun();
   const [using, setUsing] = useState<OwnedItem | null>(null);
   const useConsumable = useMutation(
     trpc.run.useConsumable.mutationOptions({
       onSettled: () => Promise.all([queryClient.invalidateQueries({ queryKey: trpc.run.inventory.queryKey() }), queryClient.invalidateQueries({ queryKey: trpc.run.overview.queryKey() })]),
     }),
   );
-  if (inventory.error) return <p className={`${PAGE_WIDTH} text-red-400`}>{inventory.error.message}</p>;
+  if (inventory.error && !inventory.data) return <p className={`${PAGE_WIDTH} text-red-400`}>{inventory.error.message}</p>;
   if (!inventory.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
   const { items, equipment, trainerSprite, playerGender, pendingConsumables } = inventory.data;
   const current = overview.data?.run;

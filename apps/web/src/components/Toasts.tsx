@@ -1,6 +1,7 @@
 import { FADE_MS, type Toast } from '../hooks/useToasts';
 
-const toast = 'toast-in rounded-lg px-5 py-3 text-sm font-medium text-slate-900 shadow-lg shadow-black/50';
+// Dark text on amber and red, which no theme changes: gray, not slate (a light theme turns slate-900 near white).
+const toast = 'toast-in rounded-lg px-5 py-3 text-sm font-medium text-gray-900 shadow-lg shadow-black/50';
 
 /**
  * The messages from useToasts in the bottom right of the page, newest at the bottom: amber for warnings

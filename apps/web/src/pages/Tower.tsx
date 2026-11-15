@@ -140,6 +140,8 @@ export function TowerPage() {
   }, [overview.isFetchedAfterMount, data, runOverview.data, attempt]);
 
   if (overview.error && !data) return <p className={`${PAGE_WIDTH} text-red-400`}>{overview.error.message}</p>;
+  // The scene starts only with the run's overview too (its decks): without it the page would stay black.
+  if (runOverview.error && !runOverview.data) return <p className={`${PAGE_WIDTH} text-red-400`}>{runOverview.error.message}</p>;
   const decks = runOverview.data?.decks ?? [];
   const playable = decks.filter((d) => d.problems.length === 0);
   const chosen = playable.find((d) => d.id === deckId)?.id ?? playable.find((d) => d.id === runOverview.data?.lastDeckId)?.id ?? playable[0]?.id ?? null;

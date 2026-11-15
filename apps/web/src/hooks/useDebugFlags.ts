@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '../lib/trpc';
-import { useDebugEnabled } from '../utils/debug';
+import { DEBUG_BUILD, NO_DEBUG, useDebugEnabled } from '../utils/debug';
 
 /**
  * The Settings page's debug switch (debug.flags; only while debugging): `unlockAll`, everything locked unlocked
@@ -12,8 +12,8 @@ export function useDebugFlags() {
   const queryClient = useQueryClient();
   const debug = useDebugEnabled();
   const flags = useQuery({ ...trpc.debug.flags.queryOptions(), enabled: debug });
-  const set = useMutation(trpc.debug.setFlags.mutationOptions({ onSuccess: () => queryClient.invalidateQueries() }));
-  const add = useMutation(trpc.debug.addCurrency.mutationOptions({ onSuccess: () => queryClient.invalidateQueries() }));
+  const set = useMutation(DEBUG_BUILD ? trpc.debug.setFlags.mutationOptions({ onSuccess: () => queryClient.invalidateQueries() }) : NO_DEBUG);
+  const add = useMutation(DEBUG_BUILD ? trpc.debug.addCurrency.mutationOptions({ onSuccess: () => queryClient.invalidateQueries() }) : NO_DEBUG);
   return {
     debug,
     unlockAll: debug && !!flags.data?.unlockAll,
