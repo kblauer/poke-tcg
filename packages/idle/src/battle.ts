@@ -90,7 +90,7 @@ export interface BattleSetup {
   /** The player's bag: item → count. */
   bag: Record<string, number>;
   settings: BattleSettings;
-  /** Badges won: Boulder (1st) raises Attack, Soul (5th) Defense, Volcano (7th) Sp. Atk and Sp. Def by 10% (FireRed's badge boosts). */
+  /** Badges won: Boulder (1st) raises Attack, Thunder (3rd) the player's Speed for turn order, Soul (5th) Defense, Volcano (7th) Sp. Atk and Sp. Def by 10% (FireRed's badge boosts; Emerald's Stone, Dynamo, Balance and Mind Badges). */
   badges: number;
   /** A Gym Leader's, an Elite Four member's or the Champion's battle (the Revive policy's 'boss'). */
   boss?: boolean;
@@ -432,9 +432,9 @@ export class Battle {
     if (this.gen4) return this.speed4(b);
     let s = this.staged(b, 'spe');
     if ((b.ability === 'swift-swim' && this.isWeather('rain')) || (b.ability === 'chlorophyll' && this.isWeather('sun'))) s *= 2;
-    // The 3rd badge's Speed for the player's (FLAG_BADGE03_GET: Emerald's Dynamo Badge; FireRed's Thunder Badge does the
-    // same in the game, not yet here: the user's to decide, issue #226).
-    if (b.side === 0 && this.setup.badges >= 3 && generation().game === 'emerald') s = Math.floor((s * 110) / 100);
+    // The 3rd badge's Speed for the player's (FLAG_BADGE03_GET: FireRed's Thunder Badge, Emerald's Dynamo Badge; the
+    // user's, 2026-11-15: Kanto's added, issue #226).
+    if (b.side === 0 && this.setup.badges >= 3) s = Math.floor((s * 110) / 100);
     if (b.status === 'paralysis') s = Math.floor(s / 4);
     if (b.item && itemData(b.item).hold === 'macho_brace') s = Math.floor(s / 2);
     return s;
@@ -1186,7 +1186,11 @@ export class Battle {
     const shieldDust = this.gen4 ? this.targetHas(ctx.user, ctx.target, 'shield-dust') : ctx.target.ability === 'shield-dust';
     if (onTarget && (!hit.toMon || ctx.target.fainted || ctx.target.hp <= 0 || shieldDust)) return false;
     const c = ctx.user.ability === 'serene-grace' ? chancePercent * 2 : chancePercent;
-    return c >= 100 || this.random16() % 100 < c;
+    // FireRed's Cmd_seteffectwithchance rolls `Random() % 100 <= percentChance`, a point more than the chance (the user's,
+    // 2026-11-15: Kanto as pokefirered has it, issue #226); Emerald's and HGSS's `<`.
+    if (c >= 100) return true;
+    const roll = this.random16() % 100;
+    return generation().game === 'firered' ? roll <= c : roll < c;
   }
 
   // ---- The turn ----

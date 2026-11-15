@@ -104,12 +104,12 @@ describe("Emerald's battles", () => {
     });
   });
 
-  it("give the player's Pokémon the Dynamo Badge's Speed from the 3rd badge (Kanto's Thunder Badge not yet)", () => {
+  it("give the player's Pokémon the 3rd badge's Speed (Emerald's Dynamo Badge; Kanto's Thunder Badge too, as FireRed's)", () => {
     const speeds = (badges: number) => {
       const b = new Battle(setup([mon(4, 30)], [opponentMon(mon(19, 30))], { badges }), rngFrom(1));
       return b.speed(b.active[0]);
     };
     hoenn(() => expect(speeds(3)).toBe(Math.floor((speeds(2) * 110) / 100)));
-    expect(speeds(3)).toBe(speeds(2));
+    expect(speeds(3)).toBe(Math.floor((speeds(2) * 110) / 100));
   });
 });
