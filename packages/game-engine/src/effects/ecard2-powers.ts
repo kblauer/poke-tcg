@@ -12,7 +12,7 @@
 import { isBasicEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyType } from '../cards.js';
 import { afflictionBlocked, counts, energyPool, isEnergyCardOf, type CardInstance, type InPlayPokemon, type PlayerState } from '../engine.js';
 import { attachBlocked, discardsLocked, energyFromHand, ownTargets, pokemonAt, powerActive, type PowerChoiceSpec, type PowerContext, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, effectId, inPlayDef, pokemonName } from '../status.js';
+import { addLog, effectId, inPlayDef, pokemonName, cardsOf } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { powerEffect } from './index.js';
 import { energyCards, onlyActive, onlyBenched, POKE_BODY } from './common.js';
@@ -85,7 +85,7 @@ export const ECARD2_POWERS: Record<string, PowerEffect> = {
       if (!ctx.flip()) return ctx.log('Bubble Turn did nothing.');
       const p = ctx.source;
       const slot = ctx.sourceTarget as number;
-      ctx.me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, converted: _c, windless: _w, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+      ctx.me.hand.push(...cardsOf(p));
       ctx.me.bench[slot] = null;
       ctx.log(`${pokemonName(ctx.state, p)} and every card attached went back to the hand.`);
     },

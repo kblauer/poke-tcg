@@ -47,7 +47,7 @@ export const BW3: Record<string, Record<string, AttackEffect>> = {
   'bw3-21': {
     'Fiery Dance': {
       choices: (s): ChoiceSpec[] => {
-        const energy = s.discardsLocked ? [] : s.ownDiscard.filter((c) => isBasicEnergy(lookupCard(s.cards, c.defId)));
+        const energy = s.ownDiscard.filter((c) => isBasicEnergy(lookupCard(s.cards, c.defId)));
         return energy.length
           ? [
               { kind: 'ownDiscard', min: 1, max: 1, options: energy, prompt: 'Choose a basic Energy card from your discard pile' },

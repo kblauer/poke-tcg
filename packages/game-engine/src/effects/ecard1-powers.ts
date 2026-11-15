@@ -15,7 +15,7 @@ import { lookupCard } from '../cards.js';
 import { afflictionBlocked, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { energyFromHand, energyKept, ownTargets, pokemonAt, powerActive, type PowerChoiceSpec, type PowerContext, type PowerEffect, type PowerSituation } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { clearSpecialConditions, countersMoved, effectId, energyProtected, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
+import { clearSpecialConditions, countersMoved, effectId, energyProtected, hasSpecialCondition, inPlayDef, pokemonName, cardsOf } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { withNonHolo } from './ecard1-prints.js';
 import { energyEffect, powerEffect } from './index.js';
@@ -210,7 +210,7 @@ const HOLO: Record<string, PowerEffect> = {
     use(ctx) {
       const slot = ctx.choices.from as number;
       const p = ctx.me.bench[slot]!;
-      const cards: CardInstance[] = [...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, converted: _c, windless: _w, ...card }) => card), ...(p.attached ?? []).map((a) => a.card)];
+      const cards: CardInstance[] = cardsOf(p);
       [ctx.me.deck, ctx.state.rngState] = shuffle([...ctx.me.deck, ...cards], ctx.state.rngState);
       ctx.me.bench[slot] = null;
       ctx.log(`${pokemonName(ctx.state, p)} and every card attached were shuffled into the deck.`);

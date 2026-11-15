@@ -14,6 +14,7 @@
 import { isBasicEnergy, lookupCard, type CardLibrary } from '../cards.js';
 import { activeLocked, afflictBetweenTurns, type CardInstance, type PlayerState } from '../engine.js';
 import { itemVeiled, trainerProof } from '../powers.js';
+import { isPlasmaPokemon } from '../status.js';
 import type { EnergyEffect, PendingChoice, TrainerContext, TrainerEffect } from '../trainers.js';
 import { otherHandCards, swapActive, targetsOf } from '../trainers.js';
 import { BASE1_TRAINERS } from './base1-trainers.js';
@@ -58,7 +59,7 @@ export const BW8_TRAINERS: Record<string, TrainerEffect> = {
   'bw8-119': {
     blocked(s) {
       if (!s.deckCount) return 'Your deck is empty';
-      return targetsOf(s.me).some((t) => isTeamPlasma(s.cards, (t === 'active' ? s.me.active : s.me.bench[t])!.card)) ? null : 'You have no Team Plasma Pokémon in play';
+      return targetsOf(s.me).some((t) => isPlasmaPokemon(s.cards, (t === 'active' ? s.me.active : s.me.bench[t])!)) ? null : 'You have no Team Plasma Pokémon in play';
     },
     play: (ctx) => ctx.pend({ kind: 'pickFromDeck', source: 'Colress Machine', filter: 'energyNamed', name: 'Plasma Energy', attach: true, attachOnly: { plasma: true } }),
   },

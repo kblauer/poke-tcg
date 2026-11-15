@@ -6,7 +6,6 @@
 // first (rps: the player first, a tie played again; the CPU's hand from the game's random state); Time-Space Distortion takes
 // as many Pokémon as heads, one at a time.
 import { isPokemonCard, lookupCard } from '../cards.js';
-import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { addLog } from '../status.js';
 import { otherHandCards, type EnergyEffect, type TrainerEffect } from '../trainers.js';
@@ -41,7 +40,6 @@ export const DP2_TRAINERS: Record<string, TrainerEffect> = {
     choices: () => [{ kind: 'pick', field: 'pick', options: [0, 1], labels: ['Search your deck', 'Search your discard pile'], prompt: 'Fossil Excavator: where do you search?' }],
     play(ctx) {
       if (ctx.choices.pick === 1) {
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         return ctx.pend({ kind: 'discardToHand', source: 'Fossil Excavator', count: 1, filter: 'fossil', reveal: true });
       }
       ctx.pend({ kind: 'pickFromDeck', source: 'Fossil Excavator', filter: 'fossil', reveal: true, optional: true });
@@ -53,7 +51,6 @@ export const DP2_TRAINERS: Record<string, TrainerEffect> = {
   'dp2-113': {
     blocked: (s) => (s.me.discard.length ? null : 'Your discard pile is empty'),
     play(ctx) {
-      if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
       ctx.pend({ kind: 'discardToDeck', source: 'Night Maintenance', count: 3, of: 3, filter: 'pokemonOrBasicEnergy' });
     },
   },
@@ -94,7 +91,6 @@ export const DP2_TRAINERS: Record<string, TrainerEffect> = {
     play(ctx) {
       const heads = [ctx.flip(), ctx.flip(), ctx.flip()].filter(Boolean).length;
       if (!heads) return ctx.log('Time-Space Distortion found nothing.');
-      if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
       ctx.pend({ kind: 'discardToHand', source: 'Time-Space Distortion', count: heads, reveal: true });
     },
   },

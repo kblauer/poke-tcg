@@ -120,10 +120,12 @@ describe('Triumphant attacks', () => {
     put(s, 'misty', 0, big('Lapras'));
     s = attack(s, 1);
     expect(s.pendingChoice).toMatchObject({ kind: 'moveCounters', fromSide: 'opp' });
+    // (Settled from the question's start: settles asks the CPUs too, and a CPU never has a counter picked up for it.)
+    for (const end of settles(s)) expect(end.pendingChoice).toBeUndefined();
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', target: 'active' });
     const moved = act(s, 'ash', { type: 'RESOLVE_CHOICE', target: 0 });
     expect([misty(moved).active!.damage, misty(moved).bench[0]!.damage]).toEqual([10, 10]);
-    for (const end of settles(s)) expect(end.pendingChoice).toBeUndefined();
+    for (const end of settles(s, 12, { cpus: false })) expect(end.pendingChoice).toBeUndefined();
   });
 
   it('Sudden Delete and Time Control', () => {

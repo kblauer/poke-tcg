@@ -13,7 +13,7 @@ import { hasType, isPokemonCard, lookupCard, namesMatch, typesOf, type EnergyTyp
 import { legendNames, takeLegend } from '../trainers.js';
 import { counts, energyPool, type CardInstance, type Target } from '../engine.js';
 import { nextRandom, shuffle } from '../rng.js';
-import { inPlayDef } from '../status.js';
+import { inPlayDef, cardsOf } from '../status.js';
 import { benchedSlots, damageChosen, energyCards, inPlay, opponentBenchChoice, opponentTargets, same } from './common.js';
 import { DP1, discardOwnEnergy, removeDefenderEnergy, shuffleIntoDeck } from './dp1.js';
 import { DP2 } from './dp2.js';
@@ -76,7 +76,7 @@ const suddenDelete: AttackEffect = {
     const slot = ctx.choices.benchSlot;
     const p = slot === undefined ? null : ctx.opp.bench[slot];
     if (!p || !ctx.canAffect(ctx.opp, p)) return;
-    ctx.opp.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+    ctx.opp.hand.push(...cardsOf(p));
     ctx.opp.bench[slot!] = null;
     ctx.log(`${inPlayDef(ctx.state.cards, p).name} and all cards attached to it went back into the hand.`, ctx.opp.id);
   },

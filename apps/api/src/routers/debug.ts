@@ -4,6 +4,7 @@ import { applyDebug, getPlayerView } from '@poke-tcg/game-engine';
 import { debugAddInput, debugFlagsInput, debugInput, HUMAN_ID } from '@poke-tcg/shared';
 import { loadCardLibrary } from '../cards.js';
 import { DEBUG_AMOUNT, debugFlags, type DebugFlags } from '../debugFlags.js';
+import { storedState } from '../games.js';
 import { env } from '../env.js';
 import { lockUser } from '../runs.js';
 import { debugProcedure, publicProcedure, router } from '../trpc.js';
@@ -41,7 +42,7 @@ export const debugRouter = router({
     const saved = await saveGameState({
       gameId: game.id,
       expectedVersion: game.version,
-      state: next,
+      state: storedState(next),
       version: next.version,
       status: 'ACTIVE',
       winner: next.winner,

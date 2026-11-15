@@ -21,7 +21,6 @@ import { exProof, same } from './ex12.js';
 import { EX13 } from './ex13.js';
 import { damageAt } from './ex14.js';
 import { healEach } from './gym1.js';
-import { discardFree } from './neo3.js';
 import { SI1 } from './si1.js';
 
 /** The player's δ Pokémon in play. */
@@ -105,7 +104,7 @@ export const EX15: Record<string, Record<string, AttackEffect>> = {
     'Trick Tail': {
       run(ctx) {
         ctx.hit(30);
-        if (ctx.me.discard.some((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy') && discardFree(ctx)) ctx.pend({ kind: 'attachFromDiscard', source: 'Trick Tail', count: 1, anyEnergy: true });
+        if (ctx.me.discard.some((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy')) ctx.pend({ kind: 'attachFromDiscard', source: 'Trick Tail', count: 1, anyEnergy: true });
       },
     },
   },

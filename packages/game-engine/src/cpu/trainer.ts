@@ -69,7 +69,8 @@ function decide(state: GameState, cpuId: PlayerId): GameAction | null {
       if (state.pendingChoice) {
         if (state.pendingChoice.player !== cpuId) return null;
         // After the player's Whirlwind, Ram…: the Pokémon it would promote after a Knock Out comes in.
-        if (state.pendingChoice.kind === 'switchIn') return { type: 'RESOLVE_CHOICE', target: promotion(state, cpuId) };
+        // (With no Benched Pokémon, as after Strike and Run found none, there's nothing to switch to: `promotion` would throw.)
+        if (state.pendingChoice.kind === 'switchIn') return benched(turnOf(state, cpuId)).length ? { type: 'RESOLVE_CHOICE', target: promotion(state, cpuId) } : { type: 'RESOLVE_CHOICE' };
         if (state.pendingChoice.kind === 'borrowedTrainer') return borrowedTrainerMove(state, cpuId, trainerCpu);
         return resolveSearch(turnOf(state, cpuId));
       }
