@@ -312,6 +312,8 @@ export const targetsIn = (active: InPlayPokemon | null, bench: (InPlayPokemon | 
 
 /** Card-specific attack behaviour. Attacks without one just deal their base damage. */
 export interface AttackEffect {
+  /** Another set's attack this one is (common.ts's `same`): its getter, so a test can check it finds one (effects/tables.test.ts). */
+  sameAs?: () => AttackEffect | undefined;
   /** Printed text, where TCGdex's text differs from the card. */
   text?: string;
   /** Printed damage (e.g. "10"), where TCGdex leaves it out or has it wrong. */
