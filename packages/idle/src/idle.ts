@@ -709,10 +709,17 @@ function autoBuyBalls(state: IdleState, settings: IdleSettings, events: SegmentE
   state.log.push(`Bought ${count} ${itemData(ball).name}${count === 1 ? '' : 's'} for ₱${count * price}.`);
 }
 
-/** Buys and uses a stone for each party Pokémon that can use one the store sells (auto-evolve), while the money lasts. */
+/**
+ * The species auto-evolve never evolves by a stone (the user's, 2026-11-15): Eevee, whose stones each give another
+ * Pokémon, is left to the player (its stone bought and used from the party menu, USE_STONE).
+ */
+export const NO_AUTO_STONE: readonly number[] = [133];
+
+/** Buys and uses a stone for each party Pokémon that can use one the store sells (auto-evolve), while the money lasts; never Eevee's (NO_AUTO_STONE). */
 function autoStones(state: IdleState, stock: string[], events: SegmentEvent[]) {
   for (let i = 0; i < state.party.length; i++) {
     const mon = state.party[i]!;
+    if (NO_AUTO_STONE.includes(mon.species)) continue;
     const stone = usableStones(mon).find((s) => stock.includes(s));
     if (!stone) continue;
     const price = itemData(stone).price;

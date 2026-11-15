@@ -77,7 +77,7 @@ export const ITEMS: Record<string, ItemData> = {
   'escape-rope': { name: 'Escape Rope', price: 550, pocket: 'items', hold: 'none', holdParam: 0, description: 'Use to escape\ninstantly from a\ncave or a dungeon.' },
   'repel': { name: 'Repel', price: 350, pocket: 'items', hold: 'none', holdParam: 100, description: 'Repels weak wild\nPOKéMON for 100\nsteps.' },
   'sun-stone': { name: 'Sun Stone', price: 2100, pocket: 'items', hold: 'none', holdParam: 0, description: 'Makes certain\nspecies of POKéMON\nevolve.' },
-  'moon-stone': { name: 'Moon Stone', price: 0, pocket: 'items', hold: 'none', holdParam: 0, description: 'Makes certain\nspecies of POKéMON\nevolve.' },
+  'moon-stone': { name: 'Moon Stone', price: 2100, pocket: 'items', hold: 'none', holdParam: 0, description: 'Makes certain\nspecies of POKéMON\nevolve.' },
   'fire-stone': { name: 'Fire Stone', price: 2100, pocket: 'items', hold: 'none', holdParam: 0, description: 'Makes certain\nspecies of POKéMON\nevolve.' },
   'thunder-stone': { name: 'Thunderstone', price: 2100, pocket: 'items', hold: 'none', holdParam: 0, description: 'Makes certain\nspecies of POKéMON\nevolve.' },
   'water-stone': { name: 'Water Stone', price: 2100, pocket: 'items', hold: 'none', holdParam: 0, description: 'Makes certain\nspecies of POKéMON\nevolve.' },

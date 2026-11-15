@@ -28,4 +28,5 @@ export const MARTS: Record<string, string[]> = {
   TrainerHill_Entrance_Pokemart_Basic: ['super-potion', 'antidote', 'paralyze-heal', 'awakening', 'x-speed', 'x-special', 'x-attack', 'x-defend', 'dire-hit', 'guard-spec', 'x-accuracy'],
   TrainerHill_Entrance_Pokemart_Expanded: ['hyper-potion', 'max-potion', 'full-restore', 'full-heal', 'revive', 'x-speed', 'x-special', 'x-attack', 'x-defend', 'dire-hit', 'guard-spec', 'x-accuracy'],
   VerdanturfTown_Mart_Pokemart: ['great-ball', 'nest-ball', 'super-potion', 'antidote', 'paralyze-heal', 'awakening', 'burn-heal', 'ice-heal', 'repel', 'x-special', 'fluffy-tail'],
+  LilycoveCity_DepartmentStore_Stones: ['fire-stone', 'thunder-stone', 'water-stone', 'leaf-stone', 'moon-stone', 'sun-stone'],
 };

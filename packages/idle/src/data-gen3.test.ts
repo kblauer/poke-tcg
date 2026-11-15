@@ -38,7 +38,9 @@ describe("Hoenn's data", () => {
     expect(SPECIES[348]!.evolutions).toEqual([{ method: 'beauty', into: 350, beauty: 170 }]);
     expect(SPECIES[41]!.evolutions).toEqual([{ method: 'friendship', into: 169 }]);
     expect(SPECIES[94]!.evolutions).toEqual([{ method: 'trade_item', into: 208, item: 'metal-coat' }]);
-    expect(SPECIES[132]!.evolutions).toContainEqual({ method: 'friendship_day', into: 196 });
+    // Eevee's Espeon and Umbreon by the Sun and Moon Stones, never by friendship (the user's, 2026-11-15: no time of day).
+    expect(SPECIES[132]!.evolutions).toEqual(expect.arrayContaining([{ method: 'item', into: 196, item: 'sun-stone' }, { method: 'item', into: 197, item: 'moon-stone' }]));
+    expect(SPECIES[132]!.evolutions.some((e) => e.method.startsWith('friendship'))).toBe(false);
     // Every evolution the runs can't do as the game does has its set level (evolution.ts's SET_LEVELS).
     for (const s of SPECIES) for (const e of s.evolutions) if (/^friendship|^trade_item$|^beauty$/.test(e.method)) expect(SET_LEVELS[e.into], `${s.name} into ${e.into}`).toBeDefined();
     inGeneration(3, () => {
@@ -46,6 +48,8 @@ describe("Hoenn's data", () => {
       expect(levelEvolution({ species: 349, level: 30 })).toBe(350);
       expect(stoneEvolution({ species: 271 }, 'water-stone')).toBe(272);
       expect(leavesShedinja(290)).toBe(true);
+      expect(stoneEvolution({ species: 133 }, 'moon-stone')).toBe(197);
+      expect(levelEvolution({ species: 133, level: 100 })).toBeNull();
     });
   });
 
@@ -101,6 +105,9 @@ describe("Hoenn's data", () => {
     for (const t of tables) for (const [, , d] of t.mons) expect(species(d)).toBe(true);
     expect(ENCOUNTERS['ROUTE101']!.land!.mons.map(([, , d]) => d)).toEqual(expect.arrayContaining([261, 263, 265]));
     expect(ENCOUNTERS['GRANITE_CAVE_1F']!.land).toBeDefined();
+    // The stones Lilycove's Department Store sells (the user's: Emerald's marts sell none), the Moon Stone at their price.
+    expect(MARTS['LilycoveCity_DepartmentStore_Stones']).toEqual(['fire-stone', 'thunder-stone', 'water-stone', 'leaf-stone', 'moon-stone', 'sun-stone']);
+    expect(ITEMS['moon-stone']!.price).toBe(ITEMS['fire-stone']!.price);
   });
 
   it('is registered, but no Hoenn run starts before its areas exist (steps 4 to 6)', () => {

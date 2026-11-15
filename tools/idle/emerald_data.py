@@ -4,14 +4,16 @@ engine and file layout; its helpers copied here, the differences noted where the
 - packages/idle/src/data/gen3/species.ts: every species to Deoxys, #1–386 by National Pokédex number (Emerald's own
   numbering, SPECIES_TREECKO 277, mapped by name to include/constants/pokedex.h's NATIONAL_DEX_ order): species_info.h's
   base stats, abilities, base friendship and wild held items, level-up learnsets, evolutions (EVO_ methods named as
-  Johto's data names them, so evolution.ts reads them: Wurmple's `level_pid_lo`/`level_pid_hi`, Feebas's `beauty`), the
+  Johto's data names them, so evolution.ts reads them: Wurmple's `level_pid_lo`/`level_pid_hi`, Feebas's `beauty`; Eevee's
+  Espeon and Umbreon by the Sun and Moon Stones, the user's, Emerald having no time of day), the
   party icons' palettes, Emerald's Pokédex entry and battle picture offsets;
 - moves.ts, abilities.ts, types.ts: as FireRed's (battle_moves.h, abilities.h, battle_main.c's gTypeEffectiveness);
 - items.ts: the items (src/data/items.h's gItems, not FireRed's items.json): name, price, pocket, hold effect, description;
 - encounters.ts: Emerald's wild tables (wild_encounters.json's gWildMonHeaders): land, water, Rock Smash and fishing, by map;
 - trainers.ts: Emerald's trainers (trainers.h, trainer_parties.h), with their class's prize money and whether the game
   battles them as a double battle (`double`: played as a single battle against the party, issue #226);
-- marts.ts: each mart's stock (data/maps/*/scripts.inc's pokemart lists, ended by `pokemartlistend`);
+- marts.ts: each mart's stock (data/maps/*/scripts.inc's pokemart lists, ended by `pokemartlistend`), and the evolution
+  stones Lilycove's Department Store sells here (the user's; Emerald's marts sell none);
 - tms.ts: each TM's and HM's move (include/constants/tms_hms.h's FOREACH_TM and FOREACH_HM, TM01–TM50, HM01–HM08) and
   the machines each species can learn (tmhm_learnsets.h), as firered_tms.py writes Kanto's;
 - apps/web/public/idle/gen3/: the battle sprites (pokemon/front|back/<dex>.png: anim_front.png's first frame, as the
@@ -19,7 +21,7 @@ engine and file layout; its helpers copied here, the differences noted where the
   (trainers/<pic>.png, in their own palettes; Brendan's and May's back pics' first frame) and the battle backgrounds
   (terrain/<name>.png: battle_bg.c's sBattleEnvironmentTable, the 240x112 above the text box; the League's rooms in each
   Elite Four member's palette and the gyms' in theirs).
-Usage: python tools/idle/emerald_data.py <pokeemerald checkout>. Needs Pillow."""
+Usage: python tools/idle/emerald_data.py <pokeemerald checkout> [--no-pics]: --no-pics writes the tables only. Needs Pillow."""
 import json, os, re, sys
 from PIL import Image
 
@@ -215,6 +217,9 @@ SPECIES_NAME_FIXES = {'NIDORAN_F': 'Nidoran♀', 'NIDORAN_M': 'Nidoran♂', 'FAR
 # Emerald's EVO_ methods by the names Johto's data gives them (hgss_data.py), which evolution.ts reads: Wurmple's
 # personality split (Silcoon's the low half), Nincada's pair, and Feebas's Beauty. The rest are EVO_X's own lower case.
 EVO_NAMES = {'EVO_LEVEL_SILCOON': 'level_pid_lo', 'EVO_LEVEL_CASCOON': 'level_pid_hi'}
+# Eevee's day and night friendship evolutions, by a stone instead (the user's, 2026-11-15: Emerald has no time of day,
+# so the stores sell a stone for each, Espeon the Sun Stone's and Umbreon the Moon Stone's, and none evolves by friendship).
+STONE_INSTEAD = {('EVO_FRIENDSHIP_DAY', 'SPECIES_ESPEON'): 'sun-stone', ('EVO_FRIENDSHIP_NIGHT', 'SPECIES_UMBREON'): 'moon-stone'}
 species = []
 for n in range(1, 387):
     c = species_consts[n]
@@ -223,7 +228,9 @@ for n in range(1, 387):
     evos = []
     for method, param, into in evo.get(c, []):
         e = {'method': EVO_NAMES.get(method, method[len('EVO_'):].lower()), 'into': by_const[into]}
-        if method in ('EVO_ITEM', 'EVO_TRADE_ITEM'):
+        if (method, into) in STONE_INSTEAD:
+            e = {'method': 'item', 'into': by_const[into], 'item': STONE_INSTEAD[(method, into)]}
+        elif method in ('EVO_ITEM', 'EVO_TRADE_ITEM'):
             e['item'] = item_key(param)
         elif method == 'EVO_BEAUTY':
             e['beauty'] = int(param)
@@ -271,6 +278,8 @@ for const, f in struct_blocks(read('src/data/items.h'), 'ITEM_').items():
     items[item_key(const)] = {'name': title(name), 'price': num(f['price']), 'pocket': f['pocket'][len('POCKET_'):].lower(),
                                  'hold': f.get('holdEffect', 'HOLD_EFFECT_NONE')[len('HOLD_EFFECT_'):].lower(), 'holdParam': num(f.get('holdEffectParam', '0')),
                                  'description': descriptions.get(f['description'], '')}
+# The Moon Stone at the other stones' price (the game has it at ₱0, never sold; sold at Lilycove's, the user's), as Kanto's.
+items['moon-stone']['price'] = items['fire-stone']['price']
 write('items.ts', 'src/data/items.h, src/data/text/item_descriptions.h',
       "import type { ItemData } from '../../types.js';\n\n/** Every item, by key (ITEM_POKE_BALL: 'poke-ball'): its name, price, pocket, hold effect and description (the game's lines). */\nexport const ITEMS: Record<string, ItemData> = {\n"
       + ''.join(f'  {js(k)}: {js(v)},\n' for k, v in items.items()) + '};\n')
@@ -347,6 +356,9 @@ for d in sorted(os.listdir(os.path.join(SRC, 'data', 'maps'))):
         m = re.search(r'^' + re.escape(label) + r':+\s*(.*?)pokemartlistend', t, re.S | re.M)
         if m:
             marts[label] = [item_key(x) for x in re.findall(r'\.2byte (ITEM_\w+)', m.group(1))]
+# The evolution stones at Lilycove's Department Store (the user's, 2026-11-15: Emerald's marts sell none), as Celadon's in
+# Kanto and Goldenrod's in Johto: all six of Emerald's (the Sun and Moon Stones Eevee's Espeon and Umbreon here too).
+marts['LilycoveCity_DepartmentStore_Stones'] = ['fire-stone', 'thunder-stone', 'water-stone', 'leaf-stone', 'moon-stone', 'sun-stone']
 write('marts.ts', 'data/maps/*/scripts.inc',
       "/** Every Poké Mart's stock, by its list's label (OldaleTown_Mart_Pokemart_Basic), in the game's order. */\nexport const MARTS: Record<string, string[]> = {\n"
       + ''.join(f'  {k}: {js(v)},\n' for k, v in marts.items()) + '};\n')
@@ -387,6 +399,11 @@ open(os.path.join(OUT_TS, 'tms.ts'), 'w', encoding='utf8', newline='\n').write('
 
 
 # ---- Graphics ----
+if '--no-pics' in sys.argv:
+    print(len(species), 'species,', len(moves), 'moves,', len(items), 'items,', len(trainers), 'trainers,', len(marts), 'marts,', len(enc), 'encounter maps (no pictures)')
+    sys.exit()
+
+
 def read_pal(path):
     lines = open(os.path.join(SRC, path)).read().split('\n')
     return [tuple(int(v) for v in l.split()) for l in lines[3:3 + int(lines[2])]]

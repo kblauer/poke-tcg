@@ -80,7 +80,7 @@ export function IdleSettings({ settings, busy, onChange }: { settings: Settings;
       <p className="text-sm text-slate-300">With a full party:</p>
       {toggle('stopWhenFull', 'Stop catching', 'Wild Pokémon are only marked seen.')}
       {toggle('replaceLowest', 'Replace the lowest-level Pokémon', 'Its best stats go to the Pokédex first. With neither, a catch is registered and released.')}
-      {toggle('autoEvolve', 'Auto-evolve with stones', "At Celadon's store, buys a stone for each Pokémon that can use one and uses it at once.")}
+      {toggle('autoEvolve', 'Auto-evolve with stones', "At a store selling stones (Celadon's, Goldenrod's), buys a stone for each Pokémon that can use one and uses it at once. Never Eevee's: buy the stone you want and use it from the party menu.")}
       {toggle('autoGrind', 'Auto-grind before each gym', "Reaching a gym's town, trains on the route before it until your highest-level Pokémon matches the gym's highest (the Elite Four's and Champion's at the Indigo Plateau), then goes into the gym. After a white-out there, trains 2 levels above your highest-level Pokémon, then goes in again.")}
     </div>
   );
