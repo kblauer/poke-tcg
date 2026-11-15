@@ -33,7 +33,7 @@ import { TM_LEARNERS as JOHTO_TM_LEARNERS, TM_MOVES as JOHTO_TM_MOVES } from './
 import { TRAINERS as JOHTO_TRAINERS } from './data/gen2/trainers.js';
 import { TYPE_CHART as JOHTO_TYPE_CHART } from './data/gen2/types.js';
 
-/** The generations a run can be: Kanto's 1 and Johto's 2 (issue #170: its tables and Gen 4's battles so far; no areas yet, so no Johto run starts). */
+/** The generations a run can be: Kanto's 1 and Johto's 2 (issue #170: HGSS's tables and areas, Gen 4's battles; open once a Kanto run has beaten the Champion). */
 export const IDLE_GENERATIONS = [1, 2] as const;
 export type IdleGen = (typeof IDLE_GENERATIONS)[number];
 
