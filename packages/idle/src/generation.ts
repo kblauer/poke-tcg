@@ -71,12 +71,24 @@ export interface Generation {
   starters: readonly number[];
   /** The town a run sets off from (its log's first line): Pallet Town, New Bark Town. */
   home: string;
+  /** The starter scene's map (StarterScene, with no run under way): the professor's lab. */
+  lab: string;
+  /**
+   * Which game the region's screens are drawn as (the page's components: the battle screen, the party menu, the mart,
+   * the Town Map, the player's sprites, the battle's timing): FireRed's GBA screens or HeartGold's DS ones.
+   */
+  look: 'frlg' | 'hgss';
   /** Whose battle rules its battles play by (battle.ts): FireRed's (3) or HeartGold's (4: the physical/special split, Gen 4's damage, effects, abilities and items; and its wild encounters, encounters4.ts). */
   battleRules: 3 | 4;
   /** The town from which every store sells TMs and HMs (Buy TMs, the user's: Kanto's Celadon City, Johto's Goldenrod City, their department stores'). */
   tmShop: string;
   /** The Champion's room (its area's id): beating its boss wins the run. */
   champion: string;
+  /**
+   * The town before the League's rooms (its area's id, and its name in a sentence): where every store sells every item
+   * once reached (storeStock, the user's), where a League battle's end puts the run, and where the Town Map shows the rooms.
+   */
+  league: { town: string; name: string };
   /** The rods (the user's): each got once the run reaches its area, fishing with one of those it has at random each cast. */
   rods: readonly { name: string; town: string }[];
   /**
@@ -107,9 +119,12 @@ const KANTO: Generation = {
   townMapGrid: { image: '/idle/gen1/town-map/kanto.png', imageWidth: 208, imageHeight: 144, x: 16, y: 16, cell: 8, width: 22, height: 15 },
   starters: [1, 4, 7],
   home: 'Pallet Town',
+  lab: 'PalletTown_ProfessorOaksLab',
+  look: 'frlg',
   battleRules: 3,
   tmShop: 'celadon-city',
   champion: 'champion',
+  league: { town: 'indigo-plateau', name: 'the Indigo Plateau' },
   // The user's (2026-10-27): the Old Rod in Vermilion City, the Good Rod Fuchsia City, the Super Rod Cinnabar Island.
   rods: [
     { name: 'Old Rod', town: 'vermilion-city' },
@@ -141,9 +156,12 @@ const JOHTO: Generation = {
   townMapGrid: JOHTO_TOWN_MAP_GRID,
   starters: [152, 155, 158],
   home: 'New Bark Town',
+  lab: 'NewBarkElmsLab1f',
+  look: 'hgss',
   battleRules: 4,
   tmShop: 'goldenrod-city',
   champion: 'lance',
+  league: { town: 'indigo-plateau', name: 'the Indigo Plateau' },
   // HGSS's Old Rod on Route 32 (its Pokémon Center), the Good Rod in Olivine City; the Super Rod, Route 12's in Kanto, at
   // the Indigo Plateau (the user's, 2026-11-04).
   rods: [

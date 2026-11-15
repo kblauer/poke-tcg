@@ -16,8 +16,8 @@ import { MonIcon } from './MonIcon';
 const px = (n: number) => `${(n * 100) / gameSize().w}cqw`;
 const GEN1 = '/idle/gen1';
 const GEN2 = '/idle/gen2';
-/** Whether the battle is Johto's (HeartGold's screen: HgssBattleScene). */
-const isHgss = () => generation().gen === 2;
+/** Whether the battle is drawn as HeartGold's (Johto's: its screen: HgssBattleScene). */
+const isHgss = () => generation().look === 'hgss';
 
 /** The battle background for a battle (battle_bg.c): a League room's or a gym's own, else the terrain under the player. */
 function background(b: BattleSegment): string {

@@ -7,13 +7,13 @@ import { dexGen, generation } from '@poke-tcg/idle';
  * no strip of him fishing on his Pokémon yet).
  */
 export function playerSprites(gender: 'male' | 'female'): { walk: string; surf: string; fish: string; fishSurfing: boolean; fishRight: boolean } {
-  if (generation().gen === 2) return { ...(gender === 'female' ? { walk: 'hgss/heroine', surf: 'hgss/swimheroine', fish: 'hgss/fish_heroine' } : { walk: 'hgss/hero', surf: 'hgss/swimhero', fish: 'hgss/fish_hero' }), fishSurfing: false, fishRight: true };
+  if (generation().look === 'hgss') return { ...(gender === 'female' ? { walk: 'hgss/heroine', surf: 'hgss/swimheroine', fish: 'hgss/fish_heroine' } : { walk: 'hgss/hero', surf: 'hgss/swimhero', fish: 'hgss/fish_hero' }), fishSurfing: false, fishRight: true };
   const base = gender === 'female' ? 'leaf' : 'red';
   return { walk: base, surf: `${base}_surf`, fish: `${base}_fish`, fishSurfing: true, fishRight: false };
 }
 
 /** The shown run's region's Pokémon pictures (front/, back/, shiny/, icon/<id>.png): FireRed's in Kanto, HeartGold's in Johto (tools/idle/hgss_pics.py). */
-export const pokemonPics = () => (generation().gen === 2 ? '/idle/gen2/pokemon' : '/idle/gen1/pokemon');
+export const pokemonPics = () => `/idle/gen${generation().gen}/pokemon`;
 
 /** A Pokédex species' front picture (issue #170, step 6): its generation's (dexGen: FireRed's in Kanto for its 151, HeartGold's for the rest and in Johto). */
 export const dexPic = (id: number, shiny = false) => `/idle/gen${dexGen(id)}/pokemon/${shiny ? 'shiny/' : ''}front/${id}.png`;

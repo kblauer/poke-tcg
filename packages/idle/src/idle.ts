@@ -388,8 +388,8 @@ function newRun(choice: StarterChoice, seed: number): IdleState {
 }
 
 // ---- Towns, stores ----
-/** The area whose reaching stocks every store with every item (the user's): the Indigo Plateau, past Victory Road. */
-export const LEAGUE_TOWN = 'indigo-plateau';
+/** The area whose reaching stocks every store with every item (the user's): the region's League town (the Indigo Plateau, past Victory Road). */
+const leagueTown = () => areaIndex(generation().league.town);
 
 /**
  * The items a town's store sells: its marts' lists (martStock); once the run has reached the Indigo Plateau (the user's),
@@ -397,7 +397,7 @@ export const LEAGUE_TOWN = 'indigo-plateau';
  */
 export function storeStock(town: TownArea, state?: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges'>): string[] {
   const badges = state?.badges.length ?? 0;
-  if (!state || reachedArea(state) < areaIndex(LEAGUE_TOWN)) return martStock(town, badges);
+  if (!state || reachedArea(state) < leagueTown()) return martStock(town, badges);
   const all = [...new Set(areas().filter(isTown).flatMap((t) => martStock(t, badges)))];
   const kind = (item: string) => (BALLS.some(([b]) => b === item) ? 0 : MEDICINE[item] ? 1 : 2);
   return all.sort((a, b) => kind(a) - kind(b) || itemData(a).price - itemData(b).price);
@@ -565,7 +565,7 @@ export function progressOf(state: ProgressState): Progress {
  * with Lorelei (a Stop part way goes on with the same try: further on than the Plateau, the run is at its furthest).
  */
 function leagueToTown<P extends Place>(p: P): P {
-  return areas()[p.area]!.kind === 'league' ? { ...p, area: areaIndex(LEAGUE_TOWN), leg: 0, step: 0 } : p;
+  return areas()[p.area]!.kind === 'league' ? { ...p, area: leagueTown(), leg: 0, step: 0 } : p;
 }
 
 /** Whether the run stands at its furthest place (Continue run goes on from there rather than to it); never while grinding. */
@@ -657,7 +657,7 @@ export function legendError(state: Pick<IdleState, 'reached' | 'area' | 'loop' |
 function leaveLegend(state: IdleState, events: SegmentEvent[]) {
   delete state.loop;
   delete state.stopped;
-  enterArea(state, areaIndex(LEAGUE_TOWN), events);
+  enterArea(state, leagueTown(), events);
 }
 
 /** Enters an area: a town waits for the player; any other starts at its first leg's first step. */
@@ -1603,7 +1603,7 @@ function whiteOut(state: IdleState, out: Segment) {
   }
   const a = areas()[state.area] as WalkArea;
   state.log.push(`Whited out in ${a.name}.`);
-  const back = a.kind === 'gym' ? areaIndex(a.town!) : a.kind === 'league' ? areaIndex('indigo-plateau') : state.area;
+  const back = a.kind === 'gym' ? areaIndex(a.town!) : a.kind === 'league' ? leagueTown() : state.area;
   enterArea(state, back, out.events);
   // Whited out in a trainer grind (the user's): a wild grind near the route's start instead, the trainers it beat still beaten.
   const loop = state.loop;

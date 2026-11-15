@@ -70,7 +70,7 @@ export function MartScene({
   const [stage, setStage] = useState<'hello' | 'again' | 'buy' | 'tms' | 'bye'>('hello');
   const tms = tmShopOpen(run.view);
   // Johto's: HeartGold's buy screen on the DS's two screens (HgssBuyScreen), its clerk's words HGSS's (msg_0040, msg_0435).
-  const hgss = generation().gen === 2;
+  const hgss = generation().look === 'hgss';
   const Buy = hgss ? HgssBuyScreen : BuyScreen;
   if ((stage === 'buy' || stage === 'tms') && !dialogue)
     return (

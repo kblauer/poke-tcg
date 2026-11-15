@@ -1,5 +1,5 @@
 import { idleMusic } from '@poke-tcg/campaign';
-import { areas, cuts, dexSpecies, mapView, showGeneration, TICK_MS, type IdleAction, type IdleGen, type WalkArea } from '@poke-tcg/idle';
+import { areas, cuts, dexSpecies, generation, inGeneration, mapView, showGeneration, TICK_MS, type IdleAction, type IdleGen, type WalkArea } from '@poke-tcg/idle';
 import { useEffect, useState } from 'react';
 import type { Dialogue } from '../components/DialogueBox';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
@@ -95,7 +95,7 @@ export function IdlePage() {
   // the Cycling Road (Route 17), where the game puts the player on the bike.
   const place = active ? (play.place ?? placeOf(active.view)) : null;
   const area = place ? areas()[place.area] : null;
-  let mapName: string | null = active ? null : picked?.gen === 2 ? 'NewBarkElmsLab1f' : 'PalletTown_ProfessorOaksLab';
+  let mapName: string | null = active ? null : inGeneration(picked?.gen, () => generation().lab);
   let surfing = false;
   if (area && 'legs' in area) {
     const leg = area.legs[Math.min(place!.leg, area.legs.length - 1)]!;
@@ -171,7 +171,7 @@ export function IdlePage() {
     <div className={`${PAGE_WIDTH} space-y-4`}>
       <PageHeader
         title="Idle Adventure"
-        info={active && v ? `${v.areaName}${v.phase === 'grinding' ? ` (grinding to Lv. ${v.grindTarget})` : v.loop ? (v.loop.kind === 'fish' ? ' (fishing)' : ' (grinding)') : ''} · ${v.badges.length} badge${v.badges.length === 1 ? '' : 's'} · ₱${commas(v.money)}` : picked?.gen === 2 ? 'Walk Johto from New Bark Town to the Indigo Plateau' : 'Walk Kanto from Pallet Town to the Indigo Plateau'}
+        info={active && v ? `${v.areaName}${v.phase === 'grinding' ? ` (grinding to Lv. ${v.grindTarget})` : v.loop ? (v.loop.kind === 'fish' ? ' (fishing)' : ' (grinding)') : ''} · ${v.badges.length} badge${v.badges.length === 1 ? '' : 's'} · ₱${commas(v.money)}` : inGeneration(picked?.gen, () => `Walk ${generation().region} from ${generation().home} to ${generation().league.name}`)}
         actions={
           active ? (
             <span className="flex items-center gap-2">

@@ -22,11 +22,11 @@ const BOX = { background: '#ffffff', border: `${px(1)} solid ${FRAME.border}`, b
  * The map's picture is drawn where the game draws it: Kanto's at (16, 16) on the screen, its grid's cells from (32, 32);
  * Johto's Pokégear map (232x144, tools/idle/johto_town_map.py) centred under the top bar on HGSS's 256x192.
  */
-const mapAt = () => (generation().gen === 2 ? { x: 12, y: 32 } : { x: 16, y: 16 });
+const mapAt = () => (generation().look === 'hgss' ? { x: 12, y: 32 } : { x: 16, y: 16 });
 const cellX = (x: number) => mapAt().x + townMapGrid().x + x * townMapGrid().cell;
 const cellY = (y: number) => mapAt().y + townMapGrid().y + y * townMapGrid().cell;
 /** The player's icon on the map: FireRed's Red or Leaf, the Pokégear's Ethan or Lyra. */
-const playerIcon = (gender: 'male' | 'female') => (generation().gen === 2 ? `/idle/gen2/town-map/${gender === 'female' ? 'lyra' : 'ethan'}.png` : `/idle/gen1/town-map/${gender === 'female' ? 'leaf' : 'red'}.png`);
+const playerIcon = (gender: 'male' | 'female') => (generation().look === 'hgss' ? `/idle/gen2/town-map/${gender === 'female' ? 'lyra' : 'ethan'}.png` : `/idle/gen1/town-map/${gender === 'female' ? 'leaf' : 'red'}.png`);
 /** The route choice's box: its least width, a choice's height and the gap between them (game pixels). */
 const CHOICE_W = 88;
 const CHOICE_ROW = 14;

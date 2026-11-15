@@ -73,7 +73,7 @@ export function PartyOverlay({
   onReplace?: (uid?: string) => void;
 }) {
   // Johto's: HeartGold's party menu (HgssParty), its slots in the touch screen's two columns.
-  if (generation().gen === 2) return <HgssParty party={party} bag={bag} busy={busy} pending={pending} open={opened} onToggle={onToggle} onAct={onAct} replacing={replacing} onReplace={onReplace} />;
+  if (generation().look === 'hgss') return <HgssParty party={party} bag={bag} busy={busy} pending={pending} open={opened} onToggle={onToggle} onAct={onAct} replacing={replacing} onReplace={onReplace} />;
   return <FireRedParty party={party} bag={bag} busy={busy} pending={pending} open={opened} onToggle={onToggle} onAct={onAct} replacing={replacing} onReplace={onReplace} />;
 }
 

@@ -445,19 +445,28 @@ export const IDLE_JOHTO_MUSIC: Record<Soundtrack, Record<string, Song>> = {
 };
 
 /**
- * The Idle Adventure's music in a run's region (`gen`: Kanto's FireRed and Red albums, Johto's HeartGold and Gold): a map's song (IDLE_MAP_MUSIC, IDLE_JOHTO_MUSIC; Surfing on the water, the bike's on the Cycling Road, where the
+ * Each Idle Adventure region's map songs (by its generation, as the idle package's `IdleGen`), and the song a map with
+ * none listed plays (the region's music's): Kanto's Route 4, Johto's Route 30.
+ */
+const IDLE_REGION_MUSIC: Record<number, { maps: Record<Soundtrack, Record<string, Song>>; fallback: (m: RegionMusic) => string }> = {
+  1: { maps: IDLE_MAP_MUSIC, fallback: (m) => m.routes['Route 4']! },
+  2: { maps: IDLE_JOHTO_MUSIC, fallback: () => 'Route 30' },
+};
+
+/**
+ * The Idle Adventure's music in a run's region (`gen`: Kanto's FireRed and Red albums, Johto's HeartGold and Gold): a map's song (IDLE_REGION_MUSIC; Surfing on the water, the bike's on the Cycling Road, where the
  * page says FireRed plays them), or a battle's: the wild, trainer,
  * gym leader (and Elite Four) or Champion theme, from the start, or the Hall of Fame once the Champion is beaten.
  */
-export function idleMusic(soundtrack: Soundtrack, place: { map: string; surfing?: boolean; cycling?: boolean } | { battle: 'wild' | 'trainer' | 'leader' | 'champion'; id: string } | { won: true }, gen: 1 | 2 = 1): MusicCue {
+export function idleMusic(soundtrack: Soundtrack, place: { map: string; surfing?: boolean; cycling?: boolean } | { battle: 'wild' | 'trainer' | 'leader' | 'champion'; id: string } | { won: true }, gen = 1): MusicCue {
   const m = regionMusic(gen, soundtrack);
   if ('won' in place) return { key: `idle:won:${m.victory}`, songs: [song(m, m.victory)], seed: 'idle' };
   if ('battle' in place) {
     const title = place.battle === 'wild' ? m.trainer[1]! : place.battle === 'trainer' ? m.trainer[0]! : place.battle === 'leader' ? m.gymLeader : m.champion;
     return { key: `idle:battle:${place.id}`, songs: [song(m, title)], seed: place.id, fromStart: true, cut: true };
   }
-  const maps = gen === 2 ? IDLE_JOHTO_MUSIC : IDLE_MAP_MUSIC;
-  const s = place.surfing ? song(m, m.surf) : place.cycling ? song(m, m.bike) : (maps[soundtrack][place.map] ?? song(m, gen === 2 ? 'Route 30' : m.routes['Route 4']!));
+  const region = IDLE_REGION_MUSIC[gen] ?? IDLE_REGION_MUSIC[1]!;
+  const s = place.surfing ? song(m, m.surf) : place.cycling ? song(m, m.bike) : (region.maps[soundtrack][place.map] ?? song(m, region.fallback(m)));
   return { key: `idle:${s.game}:${s.title}`, songs: [s], seed: 'idle' };
 }
 
