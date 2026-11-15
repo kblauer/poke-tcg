@@ -47,10 +47,10 @@ function answer(s: GameState, cpu: (typeof CPUS)[keyof typeof CPUS]) {
 }
 
 describe('STRONG_POWERS', () => {
-  it('lists only Poké-Powers its player uses (the ones Power Cancel is asked against)', () => {
+  it('lists only Poké-Powers its player chooses to use (a Use button or an on-play "use it?" question: the ones Power Cancel is asked against)', () => {
     for (const id of Object.keys(STRONG_POWERS)) {
       const effect = powerEffect(id);
-      expect(effect && isPokePower(effect) && !!effect.use, id).toBe(true);
+      expect(effect && isPokePower(effect) && (!!effect.use || !!effect.onPlayFromHand), id).toBe(true);
     }
   });
 });
@@ -152,6 +152,38 @@ describe.each(Object.entries(CPUS))('%s CPU', (_, cpu) => {
     it('is played against any other power with a second one in the hand', () => {
       const { s } = answer(asked(false, 2), cpu);
       expect([sprayed(s), misty(s).hand.filter((c) => c.defId === 'pl1-117').length]).toEqual([1, 1]);
+    });
+  });
+
+  describe('a strong power used through its "use it?" question (Set Up)', () => {
+    const benched = (by: 'cancel' | 'spray') => {
+      const s = duel('charmander', 'onix');
+      ash(s).hand = [];
+      const uxie = hand(s, 'ash', mon('dp6-43', 'Uxie', P, 70, [], power('Set Up')));
+      misty(s).hand = [];
+      potion(s);
+      if (by === 'cancel') {
+        put(s, 'misty', 0, mon('dp2-2', 'Alakazam', P, 100, [], { stage: 'stage2', ...power('Power Cancel') }));
+        potion(s);
+      } else {
+        put(s, 'misty', 'active', mon('sp-crobat', 'Crobat G', P, 80, []));
+        put(s, 'misty', 0, mon('sp-luxray', 'Luxray GL', 'lightning', 90, []));
+        put(s, 'misty', 1, mon('sp-garchomp', 'Garchomp C', C, 100, []));
+        hand(s, 'misty', { id: 'pl1-117', kind: 'trainer', name: "Team Galactic's Invention G-103 Power Spray", imageUrl: null, text: '' });
+      }
+      const asked = act(act(s, 'ash', { type: 'PLAY_BENCH', cardUid: uxie, slot: 0 }), 'ash', { type: 'RESOLVE_CHOICE', count: 0 });
+      expect(asked.pendingChoice).toMatchObject({ kind: 'powerCancel', player: 'misty' });
+      return asked;
+    };
+
+    it('Power Cancel is paid, even with cards it wants', () => {
+      const { s } = answer(benched('cancel'), cpu);
+      expect([misty(s).discard.length, ash(s).hand.length]).toEqual([2, 0]);
+    });
+
+    it('its last Power Spray is played', () => {
+      const { s } = answer(benched('spray'), cpu);
+      expect([misty(s).discard.filter((c) => c.defId === 'pl1-117').length, ash(s).hand.length]).toEqual([1, 0]);
     });
   });
 

@@ -926,6 +926,20 @@ export function cloneState(state: GameState): GameState {
   return { ...structuredClone(rest), cards };
 }
 
+/**
+ * Power Cancel or Power Spray asked of a power used through its "use it?" question (Set Up, Flash Bite: askPowerCancel's
+ * `mayUse`): that question is answered again, yes if the power wasn't stopped (and isn't asked about twice), else no, so the
+ * power works or does nothing as its own question's answers do.
+ */
+function resumeMayUse(state: GameState, choice: Extract<PendingChoice, { kind: 'mayUse' }>, works: boolean): ActionResult {
+  state.pendingChoice = choice;
+  if (works) state.powerCancelPassed = true;
+  const result = act(state, choice.player, { type: 'RESOLVE_CHOICE', count: works ? 0 : 1 });
+  if (result.ok) delete result.state.powerCancelPassed;
+  delete state.powerCancelPassed;
+  return result;
+}
+
 function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionResult {
   if (!prev.players[playerId]) return fail('Not a player in this game');
   if (prev.phase === 'finished') return fail('Game is over');
@@ -1023,8 +1037,9 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
         // It counts as that Pokémon using its Poké-Power.
         if (pokemonPower(source)?.oncePerTurn) source.powerUsedTurn = state.turn;
         addLog(state, `Played Power Spray: ${inPlayDef(state.cards, source).power?.name ?? 'the Poké-Power'} did nothing.`, other.id);
-        return afterTrainer(state, player, other);
+        return pending.mayUse ? resumeMayUse(state, pending.mayUse, false) : afterTrainer(state, player, other);
       }
+      if (pending.mayUse) return resumeMayUse(state, pending.mayUse, true);
       state.powerCancelPassed = true;
       const error = usePower(state, player, other, pending.target, pending.choices);
       delete state.powerCancelPassed;
@@ -1051,8 +1066,9 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
         // It counts as that Pokémon using its Poké-Power.
         if (pokemonPower(source)?.oncePerTurn) source.powerUsedTurn = state.turn;
         addLog(state, `Power Cancel: discarded 2 cards; ${inPlayDef(state.cards, source).power?.name ?? 'the Poké-Power'} did nothing.`, other.id);
-        return afterTrainer(state, player, other);
+        return pending.mayUse ? resumeMayUse(state, pending.mayUse, false) : afterTrainer(state, player, other);
       }
+      if (pending.mayUse) return resumeMayUse(state, pending.mayUse, true);
       state.powerCancelPassed = true;
       const error = usePower(state, player, other, pending.target, pending.choices);
       delete state.powerCancelPassed;

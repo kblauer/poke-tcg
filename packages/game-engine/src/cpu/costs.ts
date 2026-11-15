@@ -1,6 +1,6 @@
 // The Poké-Powers every CPU difficulty pays Power Cancel against whatever the 2 cards are, and plays its last Power Spray
-// against (the optional-cost rule, agreed 2026-11-14: shared.ts's `optionalCost`). Activated Poké-Powers (not Poké-Bodies, not
-// Abilities) whose use changes a game a lot. By card id; a reprint playing as its first print, or a card sharing its
+// against (the optional-cost rule, agreed 2026-11-14: shared.ts's `optionalCost`). Poké-Powers its player chooses to use (not
+// Poké-Bodies, not Abilities), from the Use button or a "use it?" question, whose use changes a game a lot. By card id; a reprint playing as its first print, or a card sharing its
 // power's effect (Feraligatr's Rain Dance is Blastoise's), counts too.
 import { powerEffect } from '../effects/index.js';
 import type { InPlayPokemon } from '../engine.js';
@@ -16,6 +16,9 @@ export const STRONG_POWERS: Record<string, string> = {
   'dp4-15': 'Cosmic Power', // Claydol
   'hgss4-96': 'Magnetic Draw', // Magnezone Prime
   'dp3-7': 'Telepass', // Gardevoir
+  'dp6-43': 'Set Up', // Uxie (asked as it's benched: its "use it?" question)
+  // Damage counters as it's benched.
+  'pl1-47': 'Flash Bite', // Crobat G
   // Damage moved: off its player's Pokémon, or onto the opponent's.
   'base1-1': 'Damage Swap', // Alakazam
   'ex12-85': 'Shady Move', // Banette ex

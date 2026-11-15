@@ -7,7 +7,7 @@ import { conditionProof, hasType, isBasicEnergy, isBasicPokemon, isLegend, isPok
 import { powerEffect, trainerEffect } from './effects/index.js';
 import { activeLocked, afflictBetweenTurns, conditionLabel, discardTheirEnergy, isEnergyCardOf, isSpecialEnergy, retireStadium, discardTool, evolvesOnto, newInPlay, opponentOf, toolOf, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
 import { nextRandom, shuffle } from './rng.js';
-import { conditionFree, stickyHold, discardsLocked, itemVeiled, offerChainReaction, powerActive, primalLocked, supportersVeiled, trainerProof, trainersBlocked, trainersDusted, pokemonPower, type PowerChoices } from './powers.js';
+import { conditionFree, stickyHold, discardsLocked, itemVeiled, offerChainReaction, powerActive, primalLocked, supportersVeiled, trainerProof, trainersBlocked, trainersDusted, pokemonPower, askPowerCancel, isPokePower, type PowerChoices } from './powers.js';
 import { addLog, baseUid, benchRoom, clearOnLeavingActive, clearSpecialConditions, countersMoved, devolvable, effectId, energyProtected, evolvedHook, flipCoin, inPlayDef, isDelta, isDeltaCard, isPlasmaPokemon, openBenchSlot, removeTopEvolution, sameCards, shapeshiftCard } from './status.js';
 
 /** Answers to a Trainer's questions. Each question names the field it fills. */
@@ -731,6 +731,8 @@ export type PendingChoice = {
       picked: string[];
       /** Power Spray instead: the card played from the hand stops it. */
       spray?: boolean;
+      /** The power is used through its "use it?" question (Set Up, Flash Bite): answered yes again if it isn't stopped (`choices` unused). */
+      mayUse?: Extract<PendingChoice, { kind: 'mayUse' }>;
     }
   | {
       /**
@@ -2897,6 +2899,10 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
       if (answer.count !== 0 && answer.count !== 1) return retry(choice, 'Yes or no');
       const p = atTarget(me, choice.target);
       if (answer.count === 1 || !p) return null;
+      // Power Cancel and Power Spray (the user's, 2026-11-14): a Poké-Power its player chooses to use here (this question is
+      // the Pokémon's own power's, not an Energy card's or a Tool's) is asked about first, as usePower asks it; never an Ability.
+      const effect = pokemonPower(p);
+      if (effect && isPokePower(effect) && (effect.powerName ?? inPlayDef(state.cards, p).power?.name) === choice.source && askPowerCancel(state, me, opp, choice.target, { choices: {}, mayUse: choice })) return null;
       if (choice.power === 'breakwing') {
         // Breakwing: every Pokémon Tool on the opponent's Pokémon discarded.
         for (const q of [opp.active, ...opp.bench]) {
