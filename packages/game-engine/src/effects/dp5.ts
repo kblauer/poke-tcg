@@ -9,6 +9,7 @@ import { isSpecialEnergy, type InPlayPokemon, type Target } from '../engine.js';
 import { inPlayDef, openBenchSlot, cardsOf } from '../status.js';
 import { benchedSlots, energyCards, headsUntilTails, inPlay, opponentBenchChoice, same } from './common.js';
 import { discardOwnEnergy, removeDefenderEnergy } from './dp1.js';
+import { template } from './bw2.js';
 import { DP4 } from './dp4.js';
 import { energyAmount } from './ex1.js';
 import { discardOwn, energyCardOf } from './ex2.js';
@@ -25,6 +26,9 @@ const mine = (ctx: AttackContext, t: Target) => (t === 'active' ? ctx.me.active 
 const benched = (ctx: { me: { bench: (InPlayPokemon | null)[] }; state: { cards: Parameters<typeof inPlayDef>[0] } }, name: string) => ctx.me.bench.some((p) => p && namesMatch(inPlayDef(ctx.state.cards, p).name, name));
 
 export const DP5: Record<string, Record<string, AttackEffect>> = {
+  // Glameow – Call for Family; Rip Claw: the shared wordings, from the printed card (TCGdex has neither attack's name or text;
+  // the seed's TCGDEX_FIXES has them).
+  'dp5-65': { 'Call for Family': template('benchSearch', 0, 'Call for Family'), 'Rip Claw': template('flipDiscardDefenderEnergy', 10, 'Rip Claw') },
   // Articuno – Blizzard: heads, 10 to each of the opponent's Benched Pokémon; tails, to each of the player's.
   'dp5-1': {
     Blizzard: {
