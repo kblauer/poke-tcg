@@ -22,6 +22,7 @@ import { chooseOpponents } from './ex8.js';
 import { devolveIntoDeck, foresight, lateCounters, same } from './ex12.js';
 import { discardFree } from './neo3.js';
 import { healUpTo } from './si1.js';
+import { hasPowerOrBody } from '../powers.js';
 
 /** The player's δ Pokémon in play. */
 const deltas = (ctx: AttackContext) => inPlay(ctx.me).filter((p) => isDelta(ctx.state.cards, p)).length;
@@ -42,7 +43,7 @@ const FOSSILS = ['Claw Fossil', 'Mysterious Fossil', 'Root Fossil', 'Holon Fossi
 const OMANYTE_KABUTO = ['Omanyte', 'Omastar', 'Kabuto', 'Kabutops', 'Kabutops ex'];
 
 /** A printed Poké-Power or Poké-Body (Zzzap). */
-const hasPower = (ctx: AttackContext, p: InPlayPokemon) => !!inPlayDef(ctx.state.cards, p).power;
+const hasPower = (ctx: AttackContext, p: InPlayPokemon) => hasPowerOrBody(ctx.state.cards, p);
 
 export const EX13: Record<string, Record<string, AttackEffect>> = {
   // Armaldo δ – Delta Edge: 20 instead of 70 with a Supporter card in play; Fossil Charge: may discard a Fossil from the hand

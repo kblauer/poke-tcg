@@ -16,6 +16,7 @@ import { activeLock, opponentOf, type CardInstance } from '../engine.js';
 import type { PowerEffect, PowerSituation } from '../powers.js';
 import { inPlayDef, openBenchSlot } from '../status.js';
 import { withNonHolo } from './neo2-prints.js';
+import { hasPowerOrBody } from '../powers.js';
 
 /** Whether every one of `names` is on the player's Bench (Find, Undo). */
 const onBench = (s: Pick<PowerSituation, 'me' | 'cards'>, names: string[]) => {
@@ -26,7 +27,7 @@ const onBench = (s: Pick<PowerSituation, 'me' | 'cards'>, names: string[]) => {
 const benchFull = (s: PowerSituation) => (openBenchSlot(s.me, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null);
 
 /** Pokémon Gaze can choose: the opponent's benched Pokémon with a Pokémon Power. */
-const gazeTargets = (s: PowerSituation) => s.opp.bench.flatMap((p, i) => (p && inPlayDef(s.cards, p).power ? [i] : []));
+const gazeTargets = (s: PowerSituation) => s.opp.bench.flatMap((p, i) => (p && hasPowerOrBody(s.cards, p) ? [i] : []));
 
 const NEO2_HOLO_POWERS: Record<string, PowerEffect> = {
   // Forretress – Spikes: 10 damage to each of the opponent's benched Pokémon that becomes their Active Pokémon during their turn.
