@@ -116,6 +116,17 @@ describe('Unleashed attacks', () => {
     expect([ash(s).active!.energy.map((e) => e.defId), ash(s).hand.filter((c) => c.defId === 'water').length, misty(s).active!.damage]).toEqual([['fire'], 2, 100]);
   });
 
+  it('Stream Pump: a Special Energy card can be the one returned (#204: two different Special Energy cards were a question with nothing to click)', () => {
+    let s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('hgss2-17', 'Kingdra', W, 140, [['Stream Pump', [C], 50]], { stage: 'stage2' }), [id('dce'), id('rainbow')]);
+    put(s, 'misty', 'active', big('Snorlax'));
+    s = attack(s, 0, { boost: true });
+    expect(s.pendingChoice).toMatchObject({ kind: 'discardAttached', toHand: true, anyEnergy: true });
+    const ends = settles(s);
+    const special = (end: GameState) => ash(end).hand.filter((c) => [id('dce'), id('rainbow')].includes(c.defId)).length;
+    expect(ends.map((end) => [special(end), ash(end).active!.energy.length, misty(end).active!.damage])).toEqual([[1, 1, 80], [1, 1, 80]]);
+  });
+
   it("Hydro Launcher: the Active Pokémon's Weakness applies (only Benched Pokémon go without)", () => {
     let s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('hgss2-13', 'Blastoise', W, 130, [['Hydro Launcher', [C], 0]], { stage: 'stage2' }), ['water', 'water']);

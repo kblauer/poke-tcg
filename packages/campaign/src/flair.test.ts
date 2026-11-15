@@ -47,16 +47,28 @@ describe('effects', () => {
     expect(effectFamilies({ ...charmander, type: 'Colorless', dexNumber: 35 })).toEqual(new Set(['normal']));
   });
 
+  it("come from Generation 5's types for #387–649 (Rock and Ground as earth), as Generation 5 had them", () => {
+    const of = (dexNumber: number) => effectFamilies({ ...charmander, type: undefined, dexNumber });
+    expect(of(387)).toEqual(new Set(['grass'])); // Turtwig
+    expect(of(448)).toEqual(new Set(['fighting', 'steel'])); // Lucario
+    expect(of(445)).toEqual(new Set(['dragon', 'earth'])); // Garchomp
+    expect(of(495)).toEqual(new Set(['grass'])); // Snivy
+    expect(of(644)).toEqual(new Set(['dragon', 'electric'])); // Zekrom
+    expect(of(468)).toEqual(new Set(['normal', 'flying'])); // Togekiss, before Fairy
+    expect(of(439)).toEqual(new Set(['psychic'])); // Mime Jr.
+  });
+
   it('only Pokémon, and evolving only for evolved ones', () => {
     expect(effectsFor({ ...plain, kind: 'TRAINER' }, 'effect-play')).toEqual([]);
     expect(effectsFor(charmander, 'effect-evolve')).toEqual([]);
     expect(effectsFor(kabutops, 'effect-evolve').length).toBeGreaterThan(0);
   });
 
-  it('every family has an effect, each at the effect price, and every Pokémon from #1 to #386 has types', () => {
+  it('every family has an effect, each at the effect price, and every Pokémon from #1 to #649 has types, none Fairy', () => {
     const all = new Set(EFFECTS.map((e) => e.family));
     for (const types of SPECIES_TYPES) for (const t of types.split('/')) expect(all.has(t === 'rock' || t === 'ground' ? 'earth' : (t as EffectFamily))).toBe(true);
-    expect(SPECIES_TYPES).toHaveLength(386);
+    expect(SPECIES_TYPES).toHaveLength(649);
+    expect(SPECIES_TYPES.some((types) => types.includes('fairy'))).toBe(false);
     expect(new Set(EFFECTS.map((e) => e.price))).toEqual(new Set([EFFECT_PRICE]));
     expect(flairFor(kabutops, 'effect-ko')).toEqual(effectsFor(kabutops, 'effect-ko'));
   });

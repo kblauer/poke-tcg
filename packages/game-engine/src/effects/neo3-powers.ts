@@ -16,8 +16,8 @@
 // both players', use the attacks of the cards it evolved from, as Recall does. Mimic gives Sudowoodo the Defending
 // Pokémon's attacks besides Slam, with their costs and effects. Submerge makes Lanturn a Water Pokémon until the end of the
 // turn. Magma Pool moves a Fire Energy card (not one used to retreat) whenever Magcargo goes from the Active spot to the
-// Bench, by any effect. Allergic Pollen stops every attack and Pokémon Power from taking or using cards in either discard
-// pile, while Parasect is in play and its power works. Hard Shell makes 20 to 40 damage 10 (10 or less stays). Unown B and Y
+// Bench, by any effect. Allergic Pollen stops every Pokémon Power from taking or using cards in either discard pile, while
+// Parasect is in play and its power works: Pokémon Powers only; never attacks or Trainer cards (the user's, 2026-11-14). Hard Shell makes 20 to 40 damage 10 (10 or less stays). Unown B and Y
 // work while Asleep, Confused or Paralyzed (as printed); Unown K's Keep doesn't.
 import { isBasicEnergy, lookupCard } from '../cards.js';
 import { isEnergyCardOf, type Target } from '../engine.js';
@@ -159,7 +159,9 @@ export const NEO3_POWERS: Record<string, PowerEffect> = {
   // Magcargo – Magma Pool: when it moves from the Active spot to the Bench, a Fire Energy card goes from it to the new Active Pokémon (newActives).
   'neo3-33': { magmaPool: true },
 
-  // Parasect – Allergic Pollen: while it works, attacks and Pokémon Powers can't do anything with cards in discard piles (discardsLocked).
+  // Parasect – Allergic Pollen: while it works, Pokémon Powers can't do anything with cards in discard piles (discardsLocked):
+  // Pokémon Powers only; never attacks or Trainer cards (the user's, 2026-11-14: "Allergic Pollen should not stop attacks",
+  // though the card's text names them; "Trainer cards shouldn't check Pollen").
   'neo3-35': {
     name: 'Allergic Pollen',
     text: "As long as Parasect is in play, cards in any player's discard piles are not affected by attacks or Pokémon Powers. This power stops working if Parasect becomes Asleep, Confused, or Paralyzed.",

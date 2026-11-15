@@ -30,6 +30,7 @@ export * from './game-corner.js';
 export * from './game-corner-map.js';
 export * from './slot-machine.js';
 export * from './roulette.js';
+export * from './game-corner-rounds.js';
 export * from './voltorb-flip.js';
 export * from './whos-that.js';
 export * from './condition.js';

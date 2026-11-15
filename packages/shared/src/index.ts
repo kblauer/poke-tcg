@@ -1,7 +1,6 @@
 import { CPU_DIFFICULTIES, DEBUG_CONDITIONS, MAX_BENCH, type AttackChoices, type DebugCommand, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
-import { BERRIES, BOSS_IDS, COSMETIC_IDS, EQUIP_SLOTS, FLAIR_SLOTS, MAX_PACKS_AT_ONCE, PACK_SETS, RUN_TYPE_IDS, STARTER_IDS, TOP_FLOOR, type RunAction, type RunTypeId, type TowerAction } from '@poke-tcg/campaign';
+import { BERRIES, BOSS_IDS, COIN_OFFERS, COSMETIC_IDS, EQUIP_SLOTS, FLAIR_SLOTS, MAX_BLENDER_RPM, MAX_COOK_FRAMES, MAX_PACKS_AT_ONCE, MIN_COOK_FRAMES, PACK_SETS, ROULETTE_GRID, RUN_TYPE_IDS, SLOT_MACHINES, SLOT_MAX_BET, SLOT_REEL_HEIGHT, STARTER_IDS, TOP_FLOOR, type RunAction, type RunTypeId, type TowerAction } from '@poke-tcg/campaign';
 import { z } from 'zod';
-import { DECK_NAME_LENGTH } from './deck.js';
 import { TRAINER_SPRITES } from './trainer-sprites.js';
 
 export * from './contest.js';
@@ -128,6 +127,25 @@ export const gameActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('CONCEDE') }),
 ]) satisfies z.ZodType<GameAction>;
 
+/**
+ * `covers` for every action at once (#204): each action's schema lists every field of the engine's action of that type,
+ * and every action type has a schema. `satisfies` above doesn't catch an optional field left out (Zod would drop it
+ * without a word, as it would have START_BATTLE's `firstTicket`), so a new field on any action fails to compile here.
+ */
+type KeysOf<T> = T extends unknown ? keyof T : never;
+type ActionOf<A, T> = A extends { type: T } ? A : never;
+type ActionGaps = {
+  [T in GameAction['type']]: [ActionOf<z.infer<typeof gameActionSchema>, T>] extends [never]
+    ? `${T} has no schema`
+    : Exclude<KeysOf<ActionOf<GameAction, T>>, KeysOf<ActionOf<z.infer<typeof gameActionSchema>, T>>> extends infer Missed
+      ? [Missed] extends [never]
+        ? never
+        : `${T} is missing ${Missed & string}`
+      : never;
+}[GameAction['type']];
+const coversActions = (_: [ActionGaps] extends [never] ? true : ActionGaps) => {};
+coversActions(true);
+
 export const gameIdInput = z.object({ gameId: z.uuid() });
 export const submitActionInput = z.object({
   gameId: z.uuid(),
@@ -199,8 +217,7 @@ export const runChooseInput = z.object({
   option: z.number().int().min(0).max(9),
   deckId: z.uuid().optional(),
 });
-/** Saving the automatic run deck once the run is over, under a name of the player's. */
-export const saveRunDeckInput = z.object({ runId: z.uuid(), name: z.string().trim().min(1).max(DECK_NAME_LENGTH) });
+/** A consumable used in the run under way. */
 export const useItemInput = z.object({ runId: z.uuid(), itemId: z.string().min(1).max(64) });
 /** A consumable used from the Inventory: in the run under way, or kept for the next run when there's none. */
 export const useConsumableInput = z.object({ itemId: z.string().min(1).max(64) });
@@ -234,23 +251,35 @@ export const assignCosmeticInput = buyCosmeticInput.extend({ deckIds: z.array(z.
 // The Extras page: a berry by its id; the Berry Blender's top speed in hundredths of an RPM (5 digits on its screen).
 const berryId = z.enum(BERRIES.map((b) => b.id) as [string, ...string[]]);
 export const harvestBerryInput = z.object({ berry: berryId });
-export const blendBerryInput = z.object({ berry: berryId, maxRpm: z.number().int().min(0).max(99999) });
-// A Poffin's cooking: the berry, its time in frames (30 a second; 3 phases of at most 20 seconds) and its spills and burns.
-export const cookPoffinInput = z.object({ berry: berryId, frames: z.number().int().min(1).max(3 * 20 * 30), spills: z.number().int().min(0).max(9999), burns: z.number().int().min(0).max(9999) });
-// The Game Corner: one of the counter's coin offers (COIN_OFFERS, by its coins); a round's bet and payout (coinRoundError checks them).
-export const buyCoinsInput = z.object({ coins: z.union([z.literal(50), z.literal(500)]) });
-export const coinRoundInput = z.object({ game: z.enum(['roulette', 'slots']), bet: z.number().int().min(0).max(6), payout: z.number().int().min(0).max(9999) });
+// A blend's top speed: at most the perfect game's (MAX_BLENDER_RPM).
+export const blendBerryInput = z.object({ berry: berryId, maxRpm: z.number().int().min(0).max(MAX_BLENDER_RPM) });
+// A Poffin's cooking: the berry, its time in frames (30 a second; between the perfect game's and 3 phases of 20 seconds: MIN_COOK_FRAMES, MAX_COOK_FRAMES) and its spills and burns.
+export const cookPoffinInput = z.object({ berry: berryId, frames: z.number().int().min(MIN_COOK_FRAMES).max(MAX_COOK_FRAMES), spills: z.number().int().min(0).max(9999), burns: z.number().int().min(0).max(9999) });
+// The Game Corner: one of the counter's coin offers (COIN_OFFERS, by its coins). A slot machine sat at; a spin's bet (a
+// Replay's free spin is the API's to give, never asked for); its reels' stops (each one's offset as its stop was decided,
+// playSlotSpin plays them). A roulette table sat at, at the player's hour; a ball's bet (a grid selection) and the wheel's
+// angle as the spin starts. No payout is ever sent: the API pays what it plays (game-corner-rounds.ts).
+export const buyCoinsInput = z.object({ coins: z.literal(COIN_OFFERS.map((o) => o.coins)) });
+export const slotSitInput = z.object({ machine: z.number().int().min(0).max(SLOT_MACHINES - 1) });
+export const slotSpinInput = z.object({ bet: z.number().int().min(1).max(SLOT_MAX_BET) });
+export const slotStopsInput = z.object({ stops: z.array(z.number().int().min(0).max(SLOT_REEL_HEIGHT - 1)).length(3) });
+export const rouletteSitInput = z.object({ table: z.union([z.literal(0), z.literal(1)]), hours: z.number().int().min(0).max(23) });
+export const rouletteBallInput = z.object({ selection: z.number().int().min(1).max(ROULETTE_GRID.length - 1), wheelAngle: z.number().int().min(0).max(359) });
 // Voltorb Flip: the next board (`restart` when the game is entered: a new session, from Lv. 1); a round's end, its cards
 // flipped in order and how it ended (settleRound checks them against the board).
 export const voltorbRoundInput = z.object({ restart: z.boolean() });
-export const voltorbSettleInput = z.object({ flips: z.array(z.number().int().min(0).max(24)).max(25), outcome: z.enum(['quit', 'won', 'lost']) });
+export const voltorbFlipInput = z.object({ card: z.number().int().min(0).max(24) });
+export const voltorbSettleInput = z.object({ outcome: z.enum(['quit', 'won', 'lost']) });
 
 /** Who's That Pokémon?: a typed name (a Pokémon's, at most 30 characters), a run's event, the Extras mode's games and leaderboards. */
 const whosThatGuess = z.string().max(30);
 export const whosThatRunInput = z.object({ runId: z.uuid(), expectedVersion: z.number().int().min(0) });
 export const whosThatRunGuessInput = z.object({ runId: z.uuid(), guess: whosThatGuess });
 export const whosThatStartInput = z.object({ daily: z.boolean() });
-export const whosThatGuessInput = z.object({ gameId: z.uuid(), guess: whosThatGuess });
+// `index`: the round the player sees, so a move that arrives after the game has moved on changes nothing.
+const whosThatIndex = z.number().int().min(0).max(99);
+export const whosThatGuessInput = z.object({ gameId: z.uuid(), index: whosThatIndex, guess: whosThatGuess });
+export const whosThatPassInput = z.object({ gameId: z.uuid(), index: whosThatIndex });
 export const whosThatGameInput = z.object({ gameId: z.uuid() });
 export const whosThatBoardInput = z.object({ board: z.enum(['average', 'fastest', 'daily']) });
 

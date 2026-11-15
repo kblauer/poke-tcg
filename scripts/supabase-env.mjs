@@ -4,12 +4,13 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { assertLocalDatabase, isLocalUrl } from './local-guard.mjs';
 
 const shell = process.platform === 'win32';
 
 export const readText = (file) => (existsSync(file) ? readFileSync(file, 'utf8') : '');
 export const envValue = (text, key) => text.match(new RegExp(`^${key}=(.*)$`, 'm'))?.[1]?.trim().replace(/^"(.*)"$/, '$1') ?? '';
-export const isLocalUrl = (url) => /@(127\.0\.0\.1|localhost):/.test(url);
+export { isLocalUrl };
 
 /** The settings that say which database and Supabase the servers use: everything else in `.env` is the same either way. */
 export const DB_KEYS = ['DATABASE_URL', 'DIRECT_URL', 'SUPABASE_URL', 'SUPABASE_JWT_SECRET', 'VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'];
@@ -100,6 +101,9 @@ export async function localEnv(root, { step = () => {}, quiet = false } = {}) {
   await run('npx', ['supabase', 'start'], root, cliEnv, quiet);
   step('Reading its settings');
   const status = JSON.parse(await run('npx', ['supabase', 'status', '-o', 'json'], root, cliEnv, true));
+  // Never fall back to `.env`'s database: without a local DB_URL, the migrations and the seed below would run against whatever it holds.
+  if (!isLocalUrl(status.DB_URL)) throw new Error('`supabase status` gave no local database URL: not migrating or seeding anything.');
+  assertLocalDatabase({ DATABASE_URL: status.DB_URL, DIRECT_URL: status.DB_URL }, []);
   // The local stack signs user tokens with ES256 and serves a JWKS, so SUPABASE_JWT_SECRET stays empty (auth.ts checks the JWKS).
   const local = { DATABASE_URL: status.DB_URL, DIRECT_URL: status.DB_URL, SUPABASE_URL: status.API_URL, SUPABASE_JWT_SECRET: '', VITE_SUPABASE_URL: status.API_URL, VITE_SUPABASE_ANON_KEY: status.ANON_KEY };
 

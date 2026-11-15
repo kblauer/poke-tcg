@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { poffinMusic } from './music.js';
 import { BERRIES } from './berries.js';
 import { POFFIN_BERRY_DATA } from './berry-data-gen4.js';
-import { batterScale, cookFrame, cookTime, makePoffin, MAX_SPEED, newCookGame, PHASE_FRAMES, poffinLevel, poffinName, POT_CENTER, strokeLength, wrongWay, type CookGame, type Random32 } from './poffin-cooking.js';
+import { batterScale, cookFrame, cookTime, makePoffin, MAX_COOK_FRAMES, MAX_SPEED, MIN_COOK_FRAMES, newCookGame, PHASE_FRAMES, poffinLevel, poffinName, POT_CENTER, strokeLength, wrongWay, type CookGame, type Random32 } from './poffin-cooking.js';
 
 /** A seeded MTRNG_Next stand-in (0 to 2³² − 1). */
 const random32 = (seed: number): Random32 => {
@@ -106,6 +106,33 @@ describe('Poffin cooking', () => {
     }
     expect(game.over).toBe(true);
     expect(game.frames).toBeLessThanOrEqual(PHASE_FRAMES * 3);
+  });
+
+  it('takes MIN_COOK_FRAMES in the perfect game and MAX_COOK_FRAMES left alone: the times the API takes', () => {
+    // The arrow never changes (every draw 0: anticlockwise, whose first lap counts at the first turn), and each frame
+    // the stylus goes wherever on the screen leaves the batter fastest its way, short of the speed that spills.
+    const random = () => 0;
+    const game = newCookGame(random);
+    const points: { x: number; y: number }[] = [];
+    for (let x = -90; x <= 90; x++) for (let y = -90; y <= 90; y++) if (Math.hypot(x, y) <= 90) points.push({ x: POT_CENTER.x + x, y: POT_CENTER.y + y });
+    while (!game.over) {
+      let best = points[0]!;
+      let fastest = Infinity;
+      for (const p of points) {
+        const tried: CookGame = { ...game, touch: { ...game.touch } };
+        cookFrame(tried, p, random);
+        if (tried.speed > -MAX_SPEED && tried.speed < fastest) {
+          fastest = tried.speed;
+          best = p;
+        }
+      }
+      cookFrame(game, best, random);
+    }
+    expect([game.frames, game.spills, game.burns]).toEqual([MIN_COOK_FRAMES, 0, 0]);
+
+    const idle = newCookGame(random);
+    while (!idle.over) cookFrame(idle, null, random);
+    expect(idle.frames).toBe(MAX_COOK_FRAMES);
   });
 
   it("makes the Poffin the game does", () => {

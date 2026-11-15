@@ -7,7 +7,7 @@
 import { typeName, type BattleRule, type CardDef, type CpuDifficulty, type EnergyType, type PlayerId } from '@poke-tcg/game-engine';
 import { isBattleKind, isBossKind, type BattleKind, type EncounterKind } from './battle-kinds.js';
 import { boss, bossLabel, type BossId, type BossKind } from './bosses.js';
-import { expandDeck, generateDeck, trainerFavorites } from './decks.js';
+import { expandDeck, generateDeck, takesCopy, trainerFavorites } from './decks.js';
 import { activeEffects, battleRules, effectTotal, item, ITEMS, MAX_CONSUMABLES_PER_RUN, type ActiveEffect } from './items.js';
 import { byId, DECK_TYPES, offerable, PRICES, rarityWeight, type PoolCard, type Rarity } from './pool.js';
 import { between, chance, pick, random, rngFrom, sample, seed, weighted, type Rng } from './random.js';
@@ -367,6 +367,23 @@ export function withConsumablesBefore(prev: RunState, entries: readonly string[]
 }
 
 /**
+ * Whether the step at `position` is a segment's own Pokémon Center (`center`: the Gym Challenge's, after the fourth leader), made
+ * by createRun and not rolled: the walk below counts the steps the way createRun lays them out.
+ */
+export function isFixedCenter(typeId: RunTypeId, position: number): boolean {
+  let at = 0;
+  for (const segment of runType(typeId).segments) {
+    at += segment.steps;
+    if (segment.center) {
+      if (at === position) return true;
+      at += 1;
+    }
+    for (const id of segment.bosses) at += boss(id).gym && segment.gymTrainers !== false ? 2 : 1;
+  }
+  return false;
+}
+
+/**
  * A new run of `typeId` with the deck (`deckName`: the account deck it came from). The map is fixed by the seed; what's in
  * each encounter is rolled when it's entered.
  */
@@ -488,7 +505,10 @@ function rollEncounter(rng: Rng, state: RunState, option: MapEncounter, pool: re
       const known = yours.filter((id) => cards.has(id));
       const wanted = known.filter((id) => offerable([cards.get(id)!]).length);
       const give = pick(rng, wanted.length ? wanted : known.length ? known : yours);
-      const get = offerCards(rng, pool.filter((c) => c.def.id !== give), 1, cards.get(give)?.rarity)[0]!;
+      // One the deck can still take: the trade never leaves it with a fifth Pikachu, a second Shining Pokémon or a fifth Unown.
+      const others = pool.filter((c) => c.def.id !== give);
+      const legal = others.filter((c) => takesCopy(state.deck, give, c.def, (id) => cards.get(id)?.def));
+      const get = offerCards(rng, legal.length ? legal : others, 1, cards.get(give)?.rarity)[0]!;
       return { kind: 'trade', give, get };
     }
     case 'event':
@@ -669,7 +689,8 @@ function battleOver({ state, rng, pool, effects, fail, done }: ActionContext, ac
 
 /** USE_ITEM: a consumable put in effect for its battles (one at a time), or a misc item's use: escape a battle, reveal or re-roll the step's encounters, heal, sell a Nugget. */
 function useItem({ state, rng, pool, name, fail, ok, done }: ActionContext, action: Extract<RunSystemAction, { type: 'USE_ITEM' }>): RunResult {
-  const def = item(action.itemId);
+  const def = ITEMS[action.itemId];
+  if (!def) return fail(`Unknown item: ${action.itemId}`);
   if (def.category === 'consumable') {
     if (state.consumablesUsed >= MAX_CONSUMABLES_PER_RUN) return fail(`Only ${MAX_CONSUMABLES_PER_RUN} consumables can be used per run`);
     if (currentGameId(state)) return fail('Use consumables before a battle starts');
@@ -717,6 +738,8 @@ function useItem({ state, rng, pool, name, fail, ok, done }: ActionContext, acti
     case 'reroll': {
       if (notOnMap) return notOnMap;
       if (step!.options.some((o) => o.kind === 'gymTrainer' || isBossKind(o.kind))) return fail(`${def.name} doesn't work at a gym`);
+      // The Gym Challenge's Pokémon Center is part of the run's layout (8 leaders back to back), not a roll to change.
+      if (isFixedCenter(state.type, state.position)) return fail(`${def.name} doesn't work at the Pokémon Center`);
       // Rolled as the step was when the run was made: the route's own trainers (no Swimmers on land), and a surfed route's
       // spot at sea or its land battle always a battle, a spot ashore never one.
       const { pool: trainers, landBattle, atSea, ashore } = poolAt(runType(state.type), state.position);

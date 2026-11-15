@@ -3,7 +3,9 @@ import { areaById, areas, type TownArea } from './areas.js';
 import { catchTextFrame, HGSS_SHAKES_AT, INTRO_MS, introMs } from './battle-timing.js';
 import { leavesShedinja, levelEvolution, stoneEvolution } from './evolution.js';
 import { inGeneration } from './generation.js';
-import { catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, simulateSegment, storeStock, tmShopOpen, type IdleState } from './idle.js';
+import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, simulateSegment, storeStock, tmShopOpen, type IdleState } from './idle.js';
+import { createMon } from './mon.js';
+import { rngFrom } from '@poke-tcg/campaign';
 
 // A Johto run (issue #170, step 4e): HGSS's evolutions, Johto's stores and prizes, and whole runs to Lance.
 const johto = <T>(run: () => T) => inGeneration(2, run);
@@ -97,6 +99,29 @@ describe("Johto's run", () => {
     const offline = catchUp(createIdleRun({ species: 152 }, 6, 2), DEFAULT_IDLE_SETTINGS, new Set(), 60 * 60 * 1000);
     expect(offline.state.clock).toBeGreaterThan(50 * 60 * 1000);
     expect(offline.summary.battles).toBeGreaterThan(10);
+  }, 60000);
+
+  // A Trainer grind holds until Continue run (the agreed rule), whatever the time of day: a route with a trainer there only
+  // at night (Policeman Keith in Ilex Forest, Route 35's) went on to the next gym by day (#204).
+  it('keeps a Trainer grind on a route with a night-only trainer going over a whole day', () => {
+    for (const id of ['ilex-forest', 'route-35']) {
+      const index = johto(() => areas().findIndex((a) => a.id === id));
+      const base = createIdleRun({ species: 155 }, 4, 2);
+      const party = [johto(() => createMon(rngFrom(1), { species: 157, level: 100 }))];
+      const start: IdleState = { ...base, area: index, leg: 0, step: 0, phase: 'walking', beaten: [], party, reached: index, progress: { area: index, leg: 0, step: 0, beaten: [] } };
+      const r = applyIdleAction(start, { type: 'TRAINER_GRIND' });
+      expect(r.ok, id).toBe(true);
+      let s = (r as { state: IdleState }).state;
+      const caught = new Set<number>();
+      for (let i = 0; i < 20000 && (s.clock ?? 0) < 3 * 60 * 60 * 1000; i++) {
+        const n = simulateSegment(s, { ...DEFAULT_IDLE_SETTINGS, autoGrind: false }, caught)!;
+        expect(n.segment.durationMs, id).toBeGreaterThan(0);
+        s = n.state;
+        expect(s.area, `${id} after ${i} segments, ${s.log.at(-1)}`).toBe(index);
+        expect(s.loop, id).toBeDefined();
+      }
+      expect(s.clock, id).toBeGreaterThanOrEqual(3 * 60 * 60 * 1000);
+    }
   }, 60000);
 
   // Step 7 (issue #170): whole runs with each starter, as a player who leaves it be (towns going on by themselves,

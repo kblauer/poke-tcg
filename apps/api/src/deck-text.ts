@@ -1,6 +1,7 @@
 // Deck lists as text, the way decklist sites and the online game write them: a line per card, "<copies> <name> <set
 // code> <number>" ("4 Lickitung JU 38"), under optional section headers ("Pokémon: 15"). The set code and number are
 // optional ("4 Lickitung" takes the earliest print of the name). Imported like a share code (decks.importCode).
+import { PACK_SETS } from '@poke-tcg/campaign';
 import { DECK_SIZE } from '@poke-tcg/shared';
 import { catalogRows } from './cards.js';
 import type { DeckList } from './deck-codes.js';
@@ -26,8 +27,14 @@ const SET_CODES: Record<string, string[]> = {
   ecard3: ['SK'],
 };
 
-/** A set code (any case) to its TCGdex set id. */
-const SET_IDS = new Map(Object.entries(SET_CODES).flatMap(([id, codes]) => [id, ...codes].map((code) => [code.toUpperCase(), id] as const)));
+/**
+ * A set code (any case) to its TCGdex set id: the codes above, each set's own id, and every pack set's id (the Generation 3 to 5
+ * sets have no decklist code here, so "4 Pikachu ex1 74" and "dp1", "hgss1", "bw1" are the ids themselves; deck-text.test.ts checks every one).
+ */
+const SET_IDS = new Map([
+  ...PACK_SETS.map((id) => [id.toUpperCase(), id] as const),
+  ...Object.entries(SET_CODES).flatMap(([id, codes]) => [id, ...codes].map((code) => [code.toUpperCase(), id] as const)),
+]);
 
 /** One card line: copies, name, and the set and number when given. */
 export interface DeckTextLine {
@@ -41,7 +48,7 @@ export interface DeckTextLine {
 /** "4 Lickitung JU 38", "4x Lickitung", "* 4 Lickitung JU 38" (the online game's export). */
 const CARD_LINE = /^\*?\s*(\d{1,2})x?\s+(.+?)\s*$/i;
 /** A set code and number at the end of a card's name ("JU 38", "AQ H1"). */
-const SET_AND_NUMBER = /^(.+?)\s+([A-Za-z][A-Za-z0-9]{0,4})\s+([A-Za-z]{0,2}\d{1,3}[a-z]?)$/;
+const SET_AND_NUMBER = /^(.+?)\s+([A-Za-z][A-Za-z0-9]{0,5})\s+([A-Za-z]{0,2}\d{1,3}[a-z]?)$/;
 
 /**
  * The card lines of a text deck list, or null if it isn't one. Headers ("Pokémon: 15", "Total Cards: 60") and blank

@@ -10,7 +10,7 @@
 import { isPokemonCard, lookupCard, type Attack } from '../cards.js';
 import { activeLocked, type CardInstance, type Target } from '../engine.js';
 import { trainerProof } from '../powers.js';
-import { openBenchSlot, pokemonName } from '../status.js';
+import { openBenchSlot, pokemonName, isEvolved } from '../status.js';
 import { def, otherHandCards, own, swapActive, targetsOf, type EnergyEffect, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 import { ECARD1_TRAINERS } from './ecard1-trainers.js';
 
@@ -173,6 +173,6 @@ export const EX4_ENERGY: Record<string, EnergyEffect> = {
   // Double Rainbow Energy: only on an Evolved Pokémon (not a Pokémon-ex); every type, 2 at a time; 10 less damage from its Pokémon (attacks.ts).
   'ex4-88': {
     onAttach: () => {},
-    attachError: (pokemon, inPlay) => (inPlay.evolvedFrom.length && !pokemon.ex ? null : 'Double Rainbow Energy can only be attached to an Evolved Pokémon (not a Pokémon-ex)'),
+    attachError: (pokemon, inPlay, cards) => (isEvolved(cards, inPlay) && !pokemon.ex ? null : 'Double Rainbow Energy can only be attached to an Evolved Pokémon (not a Pokémon-ex)'),
   },
 };

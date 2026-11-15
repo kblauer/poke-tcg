@@ -1,6 +1,6 @@
 // Shared setup for effect tests: Base Set, Jungle and Fossil card fixtures and a ready-to-play duel. Not exported from the package.
 import type { CardLibrary, EnergyType, PokemonCardDef } from '../cards.js';
-import { applyAction, createGame, type AttackChoices, type GameAction, type GameState, type InPlayPokemon } from '../index.js';
+import { applyAction, cpuFor, CPU_DIFFICULTIES, createGame, runCpu, type AttackChoices, type GameAction, type GameState, type InPlayPokemon } from '../index.js';
 import { nextRandom } from '../rng.js';
 import { pendingChoiceView, resolveTrainerChoices, trainerSituation, type TrainerChoices } from '../trainers.js';
 
@@ -664,23 +664,65 @@ export function choiceAnswers(state: GameState): GameAction[] {
   }
 }
 
+/** What cpusAnswer found, one line a difficulty that can't be asked (cpu/choices.test.ts lists them for its known gaps). */
+export function cpuGaps(state: GameState): string[] {
+  const asked = state.pendingChoice;
+  if (!asked) throw new Error('Nothing is being asked');
+  const gaps: string[] = [];
+  for (const difficulty of CPU_DIFFICULTIES) {
+    // Its last move and the state it was made in, to say what the engine refused.
+    let last: [GameState, GameAction] | undefined;
+    const decide = (s: GameState, player: string) => {
+      const action = cpuFor(difficulty)(s, player);
+      if (action) last = [s, action];
+      return action;
+    };
+    try {
+      const after = runCpu(state, asked.player, decide).state;
+      if (after.pendingChoice?.player === asked.player) gaps.push(`${difficulty}: left ${after.pendingChoice.source} (${after.pendingChoice.kind}) unanswered`);
+    } catch (e) {
+      const refused = last && applyAction(last[0], asked.player, last[1]);
+      gaps.push(`${difficulty}: ${(e as Error).message}${refused && !refused.ok ? ` ${JSON.stringify(last![1])}: "${refused.error}"` : ''}`);
+    }
+  }
+  return gaps;
+}
+
+/**
+ * Every CPU difficulty can be asked this question: from the same state, runCpu for the player asked must not throw (an
+ * illegal answer, a loop: the server would concede for it) and must leave that player nothing to answer. Run by settles,
+ * so every question with a settles test is checked for the CPUs too (#204).
+ */
+export function cpusAnswer(state: GameState): void {
+  const asked = state.pendingChoice!;
+  const gaps = cpuGaps(state);
+  if (gaps.length) throw new Error(`${asked.source} (${asked.kind}): the CPU can't be asked it: ${gaps.join('; ')}`);
+}
+
 /**
  * A choice always terminates: follows every legal answer to the pending choice (choiceAnswers), then from each question
  * that leads to the last answer accepted (nothing, where it's allowed: a search for "any number" ends when the player
  * stops), whoever they're for, and throws if a path is still asking after `steps` answers, or if no answer at all is
  * accepted (the hangs fixed in #101: a held Active Pokémon's switchIn, Peal of Thunder). Returns the states reached with
- * no choice left.
+ * no choice left. The CPUs are asked the same question too (cpusAnswer; `cpus: false` only for a state no CPU can be in,
+ * such as halfway through a question it answers differently).
  */
-export function settles(state: GameState, steps = 12): GameState[] {
+export function settles(state: GameState, steps = 12, { cpus = true }: { cpus?: boolean } = {}): GameState[] {
   const start = state.pendingChoice;
   if (!start) throw new Error('Nothing is being asked');
+  if (cpus) cpusAnswer(state);
   const done: GameState[] = [];
   const follow = (s: GameState, depth: number) => {
     const pending = s.pendingChoice;
     if (!pending) return void done.push(s);
     if (depth >= steps) throw new Error(`${start.source}: still asking (${pending.source}: ${pending.kind}) after ${steps} answers`);
-    const accepted = choiceAnswers(s).map((a) => applyAction(s, pending.player, a)).filter((r) => r.ok);
-    if (!accepted.length) throw new Error(`${pending.source} (${pending.kind}): no answer is accepted`);
+    const answers = choiceAnswers(s);
+    const results = answers.map((a) => applyAction(s, pending.player, a));
+    const accepted = results.filter((r) => r.ok);
+    if (!accepted.length) {
+      const refused = results.map((r, i) => `${JSON.stringify(answers[i])}: "${r.ok ? '' : r.error}"`);
+      throw new Error(`${pending.source} (${pending.kind}): no answer is accepted (${refused.join('; ')})`);
+    }
     for (const r of accepted.slice(depth ? -1 : 0)) if (r.ok) follow(r.state, depth + 1);
   };
   follow(state, 0);

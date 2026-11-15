@@ -1,4 +1,4 @@
-import { CONTEST_CATEGORIES, PLAYER, type ContestState } from '@poke-tcg/campaign';
+import { CONTEST_CATEGORIES, PLAYER, type ContestView } from '@poke-tcg/campaign';
 import { animCell, Cell, DsScreen, Layer, MessageBox, MonSprite, useGfx, useTicks } from './ds';
 import { rankName, RibbonIcon } from './contestUi';
 
@@ -22,7 +22,7 @@ const ORNAMENTS = [
  * (each round against its best) to its placing badge; then the winner on the stage, and the rank's ribbon if it's the
  * player's (kept on its Pokédex entry). Back to the lobby leaves.
  */
-export function ContestResults({ contest, ribbon, busy, onLeave }: { contest: ContestState; ribbon: string | null; busy: boolean; onLeave: () => void }) {
+export function ContestResults({ contest, ribbon, busy, onLeave }: { contest: ContestView; ribbon: string | null; busy: boolean; onLeave: () => void }) {
   const gfx = useGfx();
   const ticks = useTicks();
   const result = contest.result!;

@@ -1,4 +1,4 @@
-import { afterFlip, boardTotals, displayLevel, MAX_COINS, maxPayout, VOLTORB, voltorbFlipMusic, type VoltorbBoard, type VoltorbCard } from '@poke-tcg/campaign';
+import { afterFlip, displayLevel, MAX_COINS, VOLTORB, voltorbFlipMusic, type VoltorbBoardView, type VoltorbCard } from '@poke-tcg/campaign';
 import { useEffect, useRef, useState } from 'react';
 import { useMusicCue } from '../MusicPlayer';
 import { loadVolume } from './minigameSound';
@@ -6,8 +6,10 @@ import { MinigameVolume } from './MinigameVolume';
 import { VOLTORB_FLIP_TEXT } from './voltorbFlipText';
 import { EFFECTS, FANFARES, VoltorbFlipSound, type VoltorbFlipSoundName } from './voltorbFlipSound';
 
-/** The API's next board (extras.voltorbRound): none while the Coin Case is full. */
-export type VoltorbRound = { full: true; coins: number } | { full: false; coins: number; board: VoltorbBoard; levelsGained: number };
+/** The API's next board (extras.voltorbRound): its level and the numbers beside it, never its cards; none while the Coin Case is full. */
+export type VoltorbRound = { full: true; coins: number } | { full: false; coins: number; board: VoltorbBoardView; levelsGained: number };
+/** A card flipped by the API (extras.voltorbFlip): the card, whether it won the round, and the whole board once it has ended the round. */
+export type VoltorbFlipped = { card: VoltorbCard; won: boolean; cards: VoltorbCard[] | null };
 
 const W = 256;
 const SCREEN_H = 192;
@@ -158,11 +160,12 @@ interface Scene {
   wfState: number;
   taskState: number;
   next: number | null;
-  // The round (VoltorbFlipGameState): the board, the cards flipped (in order) and their memos, the coins.
-  board: VoltorbBoard | null;
+  // The round (VoltorbFlipGameState): the board (its numbers: its cards are the API's), the cards the API has shown (one
+  // as it's flipped, all once the round is over), the cards flipped and their memos, the coins.
+  board: VoltorbBoardView | null;
+  cards: (VoltorbCard | null)[];
   flipped: boolean[];
   memo: number[];
-  flips: number[];
   payout: number;
   level: number;
   levelsGained: number;
@@ -188,7 +191,7 @@ interface Scene {
   // What's drawn: each card's tiles, the numbers beside the board (none: zeros), the memo marks, the sprites, the top
   // screen, the windows and menus, and the screens' brightness and fades.
   cardTile: number[];
-  totals: ReturnType<typeof boardTotals> | null;
+  totals: VoltorbBoardView['totals'] | null;
   marks: number[];
   sprites: Sprite[];
   top: 'coins' | 'howto' | 'hint' | 'memo';
@@ -204,8 +207,10 @@ interface Scene {
   // Input this frame (gSystem.newKeys, System_GetTouchNew).
   touch: { x: number; y: number } | null;
   keys: Set<Key>;
-  // The API: the next board once it comes, the settling of a round, or what stopped the game.
+  // The API: the next board once it comes, the settling of a round, the card being flipped once it comes (whether it
+  // won the round), or what stopped the game.
   round: VoltorbRound | null;
+  flip: { won: boolean } | null;
   failure: string | null;
 }
 
@@ -240,10 +245,11 @@ type Images = Record<(typeof PICTURES)[number], HTMLImageElement>;
  * Voltorb Flip's screen (VoltorbFlip's), as HeartGold and SoulSilver play it at the Goldenrod Game Corner, ported frame by
  * frame from the pokeheartgold decompilation's src/voltorb_flip/: the DS's two screens, the task engine and its
  * workflows (the menu, Game Info's three screens, the board, flipping, the memo, quitting, winning, the payout and the
- * reveal), its sprites, animations and sounds. The API makes each board (`onRound`) and settles each round (`onSettle`);
- * Quit at the menu leaves the game (`onExit`). Auto play plays HeartGold and SoulSilver's Game Corner music.
+ * reveal), its sprites, animations and sounds. The API makes each board (`onRound`), keeps its cards and flips each one
+ * asked for (`onFlip`: a card stays face down until its answer comes), and settles each round (`onSettle`, which gives
+ * the cards for the reveal); Quit at the menu leaves the game (`onExit`). Auto play plays HeartGold and SoulSilver's Game Corner music.
  */
-export function VoltorbFlipScreen({ playerName, onRound, onSettle, onExit }: { playerName: string; onRound: (restart: boolean) => Promise<VoltorbRound>; onSettle: (flips: number[], outcome: Outcome) => Promise<{ coins: number }>; onExit: () => void }) {
+export function VoltorbFlipScreen({ playerName, onRound, onFlip, onSettle, onExit }: { playerName: string; onRound: (restart: boolean) => Promise<VoltorbRound>; onFlip: (card: number) => Promise<VoltorbFlipped>; onSettle: (outcome: Outcome) => Promise<{ coins: number; cards: VoltorbCard[] }>; onExit: () => void }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const scene = useRef<Scene | null>(null);
   const sheets = useRef<Sheets | null>(null);
@@ -258,8 +264,8 @@ export function VoltorbFlipScreen({ playerName, onRound, onSettle, onExit }: { p
   };
   const [volume, setVolume] = useState(loadVolume);
   useMusicCue(stage === 'play' || stage === 'fadeIn' ? voltorbFlipMusic() : null);
-  const calls = useRef({ onRound, onSettle, onExit, playerName });
-  calls.current = { onRound, onSettle, onExit, playerName };
+  const calls = useRef({ onRound, onFlip, onSettle, onExit, playerName });
+  calls.current = { onRound, onFlip, onSettle, onExit, playerName };
 
   useEffect(() => {
     const s = new VoltorbFlipSound(loadVolume());
@@ -341,9 +347,9 @@ export function VoltorbFlipScreen({ playerName, onRound, onSettle, onExit }: { p
       taskState: 0,
       next: null,
       board: null,
+      cards: Array(25).fill(null),
       flipped: Array(25).fill(false),
       memo: Array(25).fill(0),
-      flips: [],
       payout: 0,
       level: 7,
       levelsGained: 0,
@@ -381,6 +387,7 @@ export function VoltorbFlipScreen({ playerName, onRound, onSettle, onExit }: { p
       touch: null,
       keys: new Set(),
       round,
+      flip: null,
       failure: null,
     };
   }
@@ -710,7 +717,7 @@ export function VoltorbFlipScreen({ playerName, onRound, onSettle, onExit }: { p
 
   // --- The board's drawing (BG0's cards, BG2's numbers and marks) and its flips ---
 
-  const cardType = (s: Scene, id: number): VoltorbCard => s.board?.cards[id] ?? 1;
+  const cardType = (s: Scene, id: number): VoltorbCard => s.cards[id] ?? 1;
   /** DrawCardFaceUp's tiles for each step: the back at 45°, edge on, the face at 45°, the face. */
   const faceUpTile = (type: VoltorbCard, step: number) => [119, 26, FACE_TILES[type]![0]!, FACE_TILES[type]![1]!][step]!;
   /** DrawCardFaceDown's: the face at 45°, edge on, the back at 45°, the back. */
@@ -745,7 +752,7 @@ export function VoltorbFlipScreen({ playerName, onRound, onSettle, onExit }: { p
   }
   /** VoltorbFlip_PrintBoardVoltorbsAndPoints: the numbers beside the board (zeros between rounds), the marks cleared. */
   function printTotals(s: Scene) {
-    s.totals = s.board ? boardTotals(s.board.cards) : null;
+    s.totals = s.board ? s.board.totals : null;
     s.marks = Array(25).fill(0);
   }
 
@@ -838,15 +845,37 @@ export function VoltorbFlipScreen({ playerName, onRound, onSettle, onExit }: { p
 
   // --- The API ---
 
-  /** A round's end: settled, then the next board asked for; the game waits for both at its next round (COIN_CASE_FULL). */
+  /** A round's end: settled (its cards come back, for the reveal), then the next board asked for; the game waits for both at its next round (COIN_CASE_FULL). */
   function settle(s: Scene, outcome: Outcome) {
     s.round = null;
-    const flips = [...s.flips];
     calls.current
-      .onSettle(flips, outcome)
-      .then(() => calls.current.onRound(false))
+      .onSettle(outcome)
+      .then((settled) => {
+        s.cards = [...settled.cards];
+        return calls.current.onRound(false);
+      })
       .then((round) => (s.round = round))
       .catch((e: Error) => (s.failure = e.message));
+  }
+  /** A card asked of the API (not in the game: its cards are in memory): `flip` once it comes, with the whole board if it ended the round. */
+  function askFlip(s: Scene, id: number) {
+    s.flip = null;
+    calls.current
+      .onFlip(id)
+      .then((flipped) => {
+        if (flipped.cards) s.cards = [...flipped.cards];
+        s.cards[id] = flipped.card;
+        s.flip = { won: flipped.won };
+      })
+      .catch((e: Error) => (s.failure = e.message));
+  }
+  /** The API failed while the game waited for it: the game stops, saying why. */
+  function stopOnFailure(s: Scene) {
+    if (s.failure && s.stage !== 'failed') {
+      s.stage = 'failed';
+      setStage('failed');
+      setFailure(s.failure);
+    }
   }
 
   // --- The workflows (sVoltorbFlipWorkflows) ---
@@ -863,11 +892,7 @@ export function VoltorbFlipScreen({ playerName, onRound, onSettle, onExit }: { p
     [COIN_CASE_FULL]: {
       // The board from the API (not in the game: its board is made at once).
       setup: (s) => {
-        if (s.failure && s.stage !== 'failed') {
-          s.stage = 'failed';
-          setStage('failed');
-          setFailure(s.failure);
-        }
+        stopOnFailure(s);
         if (!s.round) return false;
         s.coins = s.round.coins;
         return true;
@@ -884,6 +909,7 @@ export function VoltorbFlipScreen({ playerName, onRound, onSettle, onExit }: { p
       begin: (s) => {
         const round = s.round as Extract<VoltorbRound, { full: false }>;
         s.board = round.board;
+        s.cards = Array(25).fill(null);
         s.level = round.board.level;
         s.levelsGained = round.levelsGained;
         enqueue(s, SELECT_MAIN_MENU);
@@ -994,11 +1020,13 @@ export function VoltorbFlipScreen({ playerName, onRound, onSettle, onExit }: { p
     },
     [FLIP_CARD]: {
       // VoltrbFlipWorkflow_CardFlipEffect_SetUp: when the card's row and column both hide Voltorbs and three in four of
-      // the cards left in either are Voltorbs, "Is this what you're expecting?!" and a fanfare.
+      // the cards left in either are Voltorbs, "Is this what you're expecting?!" and a fanfare. The card is asked of the
+      // API here (not in the game), and the flip starts once it's come.
       setup: (s) => {
         if (s.taskState === 0) {
           const id = s.focus;
-          const t = boardTotals(s.board!.cards);
+          askFlip(s, id);
+          const t = s.board!.totals;
           const col = id % 5;
           const row = Math.floor(id / 5);
           const inCol = t.voltorbsPerCol[col]!;
@@ -1014,7 +1042,8 @@ export function VoltorbFlipScreen({ playerName, onRound, onSettle, onExit }: { p
           s.taskState++;
           return false;
         }
-        return !fanfarePlaying();
+        stopOnFailure(s);
+        return !fanfarePlaying() && s.flip !== null;
       },
       begin: (s) => {
         setFlipAnim(s, s.focus, 'single');
@@ -1034,7 +1063,6 @@ export function VoltorbFlipScreen({ playerName, onRound, onSettle, onExit }: { p
             flip.y = (Math.floor(id / 5) * 4 + 1) * 8 + 12;
             s.flipped[id] = true;
             s.memo[id] = 0;
-            s.flips.push(id);
             if (type === VOLTORB) {
               setAnim(s, S_FLIP, 1);
               play('se_gs_coin_hazure');
@@ -1069,7 +1097,7 @@ export function VoltorbFlipScreen({ playerName, onRound, onSettle, onExit }: { p
         if (cardType(s, s.focus) === VOLTORB) {
           settle(s, 'lost');
           enqueue(s, REVEAL_BOARD);
-        } else if (s.payout === maxPayout(s.board!.cards)) enqueue(s, WIN_ROUND);
+        } else if (s.flip?.won) enqueue(s, WIN_ROUND);
         else enqueue(s, AWAIT_BOARD_INTERACT);
         clearBg3(s);
       },
@@ -1116,6 +1144,11 @@ export function VoltorbFlipScreen({ playerName, onRound, onSettle, onExit }: { p
       main: (s) => {
         switch (s.taskState) {
           case 0:
+            // A quit round's cards come with its settling (a lost or won one's came with its last flip).
+            if (s.cards.includes(null)) {
+              stopOnFailure(s);
+              return false;
+            }
             setFlipAnim(s, 0, 'reveal');
             play('se_gs_paneru_mekuru');
             s.taskState++;
@@ -1142,7 +1175,6 @@ export function VoltorbFlipScreen({ playerName, onRound, onSettle, onExit }: { p
         s.board = null;
         s.flipped = Array(25).fill(false);
         s.memo = Array(25).fill(0);
-        s.flips = [];
         s.payout = 0;
         setBoardFocused(s, false);
         setGridCursor0(s);

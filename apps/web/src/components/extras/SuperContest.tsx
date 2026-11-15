@@ -1,4 +1,4 @@
-import { canEnter, CONTEST_CATEGORIES, CONTEST_RANKS, CONTEST_SCARVES, FLAVORS, natureFlavors, NATURES, ribbonId, type ContestState } from '@poke-tcg/campaign';
+import { canEnter, CONTEST_CATEGORIES, CONTEST_RANKS, CONTEST_SCARVES, FLAVORS, natureFlavors, NATURES, ribbonId, type ContestView } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useToasts } from '../../hooks/useToasts';
@@ -227,7 +227,7 @@ export function SuperContest() {
   // The acting's last turn is played back before the results show (ActingRound's onFinished).
   const [actingDone, setActingDone] = useState(false);
   const finishActing = useCallback(() => setActingDone(true), []);
-  const setContest = (contest: ContestState | null) => queryClient.setQueryData(trpc.contest.overview.queryKey(), (old) => (old ? { ...old, contest } : old));
+  const setContest = (contest: ContestView | null) => queryClient.setQueryData(trpc.contest.overview.queryKey(), (old) => (old ? { ...old, contest } : old));
   const onError = (e: { message: string }) => toasts.push('error', e.message);
   const start = useMutation(trpc.contest.start.mutationOptions({ onSuccess: (c) => (setRibbon(null), setActingDone(false), setContest(c)), onError }));
   const visual = useMutation(trpc.contest.visual.mutationOptions({ onSuccess: setContest, onError }));

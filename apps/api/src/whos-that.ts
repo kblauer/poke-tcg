@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { inflateSync } from 'node:zlib';
 import { shapeFromMask, WHOS_THAT_CARDS, type WhosThatCard, type WhosThatShape } from '@poke-tcg/campaign';
+import type { WhosThatGame } from '@poke-tcg/db';
 import { TRPCError } from '@trpc/server';
 import { catalogIndex } from './catalog.js';
 
@@ -63,6 +64,17 @@ export async function cardShape(cardId: string): Promise<WhosThatShape> {
     return shape;
   }
   throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `No silhouette for ${cardId}` });
+}
+
+/**
+ * What the browser gets of an Extras game's round: the Pokémon's shape, never its card, and not even its shape until its
+ * clock has started (`shape: null` while the one before is revealed, `shownAt` still to come: the browser asks again
+ * then, `whosThat.round`), or it could be studied ahead for a time near 0. `elapsedMs`: how long it's been shown
+ * (negative: how long until it is).
+ */
+export async function whosThatRound(game: Pick<WhosThatGame, 'id' | 'day' | 'index' | 'cards' | 'shownAt'>, now: number, shapeOf: (cardId: string) => Promise<WhosThatShape> = cardShape) {
+  const elapsedMs = now - game.shownAt.getTime();
+  return { gameId: game.id, daily: game.day !== null, index: game.index, total: game.cards.length, shape: elapsedMs < 0 ? null : await shapeOf(game.cards[game.index]!), elapsedMs };
 }
 
 /** The cards the game picks from (WHOS_THAT_CARDS), with their names: those in the catalog. */

@@ -14,8 +14,13 @@ export interface RouletteScreenProps {
   table: 0 | 1;
   /** The account's coins as the screen opens: the screen keeps its own count from here, as the game does. */
   coins: number;
-  /** A round over: the coins bet and the coins paid back (0 for a loss). The Game Corner settles it (`extras.coinRound`), in order. */
-  onRound: (bet: number, payout: number) => void;
+  /** The hour the table was sat at (the API's sitting has it too): the game reads the clock then. */
+  hours: number;
+  /**
+   * A ball bet on `selection` with the wheel at `wheelAngle` as the spin starts: the API takes the bet, plays the ball and
+   * pays it (`extras.rouletteBall`), and gives the Random() values its roll takes; null if it failed.
+   */
+  onBall: (selection: number, wheelAngle: number) => Promise<number[] | null>;
   /** The player left the table. */
   onExit: () => void;
 }
@@ -23,7 +28,7 @@ export interface RouletteScreenProps {
 // The GBA's screen, drawn SCALE times over on the canvas so the text stays crisp when it's scaled to fit.
 const SCALE = 4;
 const FRAME_MS = 1000 / 60;
-/** The game's Random(): 0-65535. */
+/** The game's Random() (0-65535) past the API's draws (a ball it couldn't draw: it rolls, but isn't the API's and isn't paid). */
 const random16 = () => Math.floor(Math.random() * 0x10000);
 
 // The standard text palette's colours (graphics/interface/std_menu.pal): dark grey on a light grey shadow.
@@ -87,9 +92,11 @@ function shadowText(ctx: CanvasRenderingContext2D, text: string, x: number, y: n
  * second and drawn as the GBA draws it (the wheel an affine BG turned with the wheel, the grid a BG sliding off and on,
  * the sprites with their priorities, Shroomish's shadow see-through, the palettes flashing and fading). Arrows (the
  * D-pad), Z, Enter or Space (A), X, Backspace or Escape (B); a click on a square bets on it, on YES or NO answers; the
- * buttons under the screen are the GBA's for touch. Each ball's bet and payout go to `onRound`, leaving to `onExit`.
+ * buttons under the screen are the GBA's for touch. Each ball is the API's: asked for as the spin starts (`onBall`, with
+ * the bet and the wheel's angle), the frames held before the roll (Task_InitBallRoll) till its draws are here, the roll
+ * then played with them as its Random(). Leaving goes to `onExit`.
  */
-export function RouletteScreen({ table, coins, onRound, onExit }: RouletteScreenProps) {
+export function RouletteScreen({ table, coins, hours, onBall, onExit }: RouletteScreenProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const game = useRef<RouletteGame | null>(null);
   const pending = useRef<RouletteInput>({});
@@ -99,12 +106,13 @@ export function RouletteScreen({ table, coins, onRound, onExit }: RouletteScreen
   const hold = useMusicHold();
   const holdRef = useRef(hold);
   holdRef.current = hold;
-  const onRoundRef = useRef(onRound);
-  onRoundRef.current = onRound;
+  const onBallRef = useRef(onBall);
+  onBallRef.current = onBall;
   const onExitRef = useRef(onExit);
   onExitRef.current = onExit;
   // The coins as the screen opened: the game counts from them (a later change of the prop is the Game Corner's settling).
   const startCoins = useRef(coins);
+  const startHours = useRef(hours);
 
   // The sounds (rouletteSound.ts), made with the screen and closed with it; their volume, the slider under the screen.
   const sound = useRef<RouletteSound | null>(null);
@@ -157,10 +165,14 @@ export function RouletteScreen({ table, coins, onRound, onExit }: RouletteScreen
     Promise.all([loadAssets(), document.fonts?.load(FONT).catch(() => undefined)])
       .then(([assets]) => {
         if (stopped) return;
-        const g = newRouletteGame(table, startCoins.current, new Date().getHours());
+        const g = newRouletteGame(table, startCoins.current, startHours.current);
         game.current = g;
         const palette = initialPalette(assets.data);
         setLoading(false);
+        // The ball's Random() values from the API, in the order its roll takes them; whether they're being asked for.
+        let draws: number[] = [];
+        const asking = { now: false };
+        const random = () => draws.shift() ?? random16();
         let last = performance.now();
         let spare = 0;
         const loop = (t: number) => {
@@ -168,15 +180,28 @@ export function RouletteScreen({ table, coins, onRound, onExit }: RouletteScreen
           spare = Math.min(spare + t - last, 250);
           last = t;
           while (spare >= FRAME_MS && g.task !== 'gone') {
+            // The ball asked for as the spin starts (the bet placed, the wheel's angle now), the roll held till it's here.
+            if (g.task === 'startSpin' && !asking.now) {
+              asking.now = true;
+              draws = [];
+              const done = (d: number[] | null) => {
+                draws = d ?? [];
+                asking.now = false;
+              };
+              onBallRef.current(g.betSelection, g.wheelAngle).then(done, () => done(null));
+            }
+            if (g.task === 'initBallRoll' && asking.now) {
+              spare = 0;
+              break;
+            }
             const input = pending.current;
             pending.current = {};
-            for (const e of rouletteFrame(g, input, random16, palette)) {
+            for (const e of rouletteFrame(g, input, random, palette)) {
               if (e.type === 'sound') sound.current?.start(e.name);
               else if (e.type === 'stopSound') sound.current?.stop(e.name);
               else if (e.type === 'cry') sound.current?.start(`cry_${e.species}`);
               else if (e.type === 'fanfare') holdRef.current(true);
               else if (e.type === 'fanfareEnd') holdRef.current(false);
-              else if (e.type === 'round') onRoundRef.current(e.bet, e.payout);
               else if (e.type === 'exit') {
                 holdRef.current(false);
                 sound.current?.stopAll();

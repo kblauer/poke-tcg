@@ -8,10 +8,10 @@
 // copy before the flips. Group Attack asks how many Koga's Zubat to bench (up to the room on the Bench) before searching.
 import { targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { hasType, isBasicPokemon, isTrainerCard, lookupCard } from '../cards.js';
-import { activeLocked, discardTheirEnergy, isEnergyCardOf, newInPlay, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
+import { retireStadium, activeLocked, discardTheirEnergy, isEnergyCardOf, newInPlay, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { energyKept, evolutionBlocked } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { benchRoom, energyProtected, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { benchRoom, energyProtected, inPlayDef, openBenchSlot, pokemonName, cardsOf as allCardsOf, cleanCard } from '../status.js';
 import { amnesia, metronome } from './base1.js';
 import {
   benchedSlots,
@@ -41,15 +41,6 @@ const onceInPlay = (ctx: AttackContext, name: string) => {
   effects.usedOnce = [...(effects.usedOnce ?? []), name];
 };
 
-/** A Stadium in play is discarded, to its owner's discard pile (Detonate, Mega Thrash). */
-export function discardStadium(ctx: AttackContext) {
-  const stadium = ctx.state.stadium;
-  if (!stadium) return;
-  ctx.state.players[stadium.owner]!.discard.push(stadium.card);
-  ctx.state.stadium = null;
-  ctx.log(`${lookupCard(ctx.state.cards, stadium.card.defId).name} was discarded.`, stadium.owner);
-}
-
 /** Heals up to `amount` from every damaged Pokémon of `player`. */
 function healAll(ctx: AttackContext, player: PlayerState, amount: number) {
   for (const p of [player.active, ...player.bench]) {
@@ -69,7 +60,7 @@ export function returnSelf(ctx: AttackContext) {
   if (ctx.me.active !== p) return;
   const locked = activeLocked(ctx.state, ctx.me.id);
   if (locked) return ctx.log(`${locked}.`);
-  ctx.me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+  ctx.me.hand.push(...allCardsOf(p));
   ctx.me.active = null;
   ctx.log(`${pokemonName(ctx.state, p)} and all cards attached to it returned to the hand.`);
 }
@@ -461,7 +452,7 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
         ctx.benchDamage(ctx.opp, 10);
         ctx.benchDamage(ctx.me, 10);
         ctx.selfDamage(50);
-        discardStadium(ctx);
+        retireStadium(ctx.state);
       },
     },
   },
@@ -471,7 +462,7 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         ctx.hit(60);
         ctx.selfDamage(20);
-        discardStadium(ctx);
+        retireStadium(ctx.state);
       },
     },
   },
@@ -577,7 +568,7 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
     Messenger: {
       run(ctx) {
         const p = ctx.attacker;
-        const cards = [...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card)];
+        const cards = allCardsOf(p);
         ctx.me.deck.unshift(...cards);
         ctx.me.active = null;
         ctx.log(`Put ${ctx.attackerDef.name} and all cards attached to it on top of the deck.`);
@@ -1005,7 +996,7 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
         ctx.after(() => {
           const p = ctx.attacker;
           if (ctx.me.active !== p) return;
-          ctx.me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c));
+          ctx.me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(cleanCard));
           ctx.me.discard.push(...(p.attached ?? []).map((a) => a.card));
           ctx.me.active = null;
           ctx.log(`${pokemonName(ctx.state, p)} and its Energy cards returned to the hand.`);

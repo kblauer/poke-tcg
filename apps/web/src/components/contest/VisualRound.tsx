@@ -1,4 +1,4 @@
-import { ACCESSORIES, ACCESSORY_LIMIT, accessoryCopies, BACKDROPS, CONTEST_CATEGORIES, CONTEST_THEMES, DRESS_SECONDS, type ContestState } from '@poke-tcg/campaign';
+import { ACCESSORIES, ACCESSORY_LIMIT, accessoryCopies, BACKDROPS, CONTEST_CATEGORIES, CONTEST_THEMES, DRESS_SECONDS, type ContestView } from '@poke-tcg/campaign';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Cell, DsScreen, Layer, MessageBox, SCALE, useGfx, useTicks } from './ds';
 import { contestPic, rankName } from './contestUi';
@@ -108,7 +108,7 @@ function casePlaces(page: number, sizes: Size[]) {
  * on its button) and the stage. Drag an accessory onto the Pokémon; drag it back to the case to take it off. Only those
  * touching it (or touching one that does) count. The case holds every accessory (a choice: Platinum's are won and found).
  */
-export function VisualRound({ contest, busy, onDone }: { contest: ContestState; busy: boolean; onDone: (outfit: number[]) => void }) {
+export function VisualRound({ contest, busy, onDone }: { contest: ContestView; busy: boolean; onDone: (outfit: number[]) => void }) {
   const me = contest.entrants[0]!;
   const gfx = useGfx();
   const sizes = useAccessorySizes();

@@ -85,10 +85,10 @@ export function reverseHoloCard(card: TcgdexCard, official: number): TcgdexCard 
  * The sets whose basic Energy packs give out: each pack set's own, or the closest earlier set's of its generation (the API
  * picks by release date, `packEnergy`). Base Set covers Jungle, Fossil and the promos; Base Set 2 Team Rocket; Gym Heroes
  * and Gym Challenge the later Gen 1 sets (Legendary Collection); Neo Genesis and Expedition Gen 2's; EX Ruby & Sapphire,
- * EX Emerald, EX Holon Phantoms and EX Power Keepers Gen 3's; Black & White Gen 5's. Every set with its own basic Energy must be here, or its
+ * EX Emerald, EX Holon Phantoms and EX Power Keepers Gen 3's; Diamond & Pearl, HeartGold & SoulSilver and Call of Legends Gen 4's; Black & White Gen 5's. Every set with its own basic Energy must be here, or its
  * packs' Energy is never holo. Add a set here when a pack set with its own basic Energy is added (and re-seed).
  */
-export const HOLO_ENERGY_SETS = ['base1', 'base4', 'gym1', 'gym2', 'neo1', 'ecard1', 'ex1', 'ex9', 'ex13', 'ex16', 'bw1'];
+export const HOLO_ENERGY_SETS = ['base1', 'base4', 'gym1', 'gym2', 'neo1', 'ecard1', 'ex1', 'ex9', 'ex13', 'ex16', 'dp1', 'hgss1', 'col1', 'bw1'];
 
 /** The holo versions of a basic Energy card: the same card in each style, marked with `holoEnergy` and as holo. */
 export function holoEnergyCards(card: TcgdexCard): TcgdexCard[] {

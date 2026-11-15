@@ -161,6 +161,19 @@ export interface ContestState {
   result?: ContestResult;
 }
 
+/**
+ * What the browser gets of a contest: never its RNG (with it and actingTurn, which the browser has, every turn of the
+ * Acting Competition could be played ahead, the CPUs' choices included), and the dance's CPU seeds only while the dance
+ * is on (DanceRound dances the CPUs with them as the player presses). Everything the API returns of a contest goes
+ * through contestView.
+ */
+export type ContestView = Omit<ContestState, 'rng'>;
+
+export function contestView(state: ContestState): ContestView {
+  const { rng: _, danceSeeds, ...view } = state;
+  return state.phase === 'dance' ? { ...view, danceSeeds } : view;
+}
+
 function draw(state: ContestState): number {
   const [v, s] = lcrng(state.rng);
   state.rng = s;
@@ -487,7 +500,7 @@ export function playerSteps(t: DanceTiming, cycle: number, presses: readonly Dan
  * with its timing spread and its chance of a wrong move), every step judged. `seeds` are the CPU dancers' RNGs, kept
  * through the lead's turn.
  */
-export function danceCycle(state: ContestState, cycle: number, presses: readonly DancePress[], seeds: { s: number }[]): DanceStep[] {
+export function danceCycle(state: ContestView, cycle: number, presses: readonly DancePress[], seeds: { s: number }[]): DanceStep[] {
   const t = danceTiming(state.rank, state.category);
   const leader = DANCE_LEADS[Math.trunc(cycle / t.cycles)]!;
   const half = t.cycleFrames >> 1;
@@ -559,7 +572,7 @@ export function danceCycle(state: ContestState, cycle: number, presses: readonly
 }
 
 /** The whole dance (all 8 cycles) danced with the player's presses: every step, and each contestant's score (Excellent 2, Good 1). */
-export function danceAll(state: ContestState, presses: readonly DancePress[]): { steps: DanceStep[][]; score: number[] } {
+export function danceAll(state: ContestView, presses: readonly DancePress[]): { steps: DanceStep[][]; score: number[] } {
   const t = danceTiming(state.rank, state.category);
   const steps: DanceStep[][] = [];
   for (let turn = 0; turn < DANCE_LEADS.length; turn++) {

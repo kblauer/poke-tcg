@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { random, rngFrom } from './random.js';
-import { afterFlip, afterRoundSummary, BOARD_CONFIGS, boardTotals, displayLevel, levelsGained, maxPayout, newBoard, newVoltorbFlipState, nextLevel, settleRound, VOLTORB, voltorbFlipStateOf, type RoundSummary, type VoltorbBoard, type VoltorbCard, type VoltorbFlipState } from './voltorb-flip.js';
+import { afterFlip, afterRoundSummary, BOARD_CONFIGS, boardTotals, boardView, displayLevel, flipCard, leaveRound, levelsGained, maxPayout, newBoard, newVoltorbFlipState, nextLevel, roundOver, settleRound, VOLTORB, voltorbFlipStateOf, type RoundSummary, type VoltorbBoard, type VoltorbCard, type VoltorbFlipState } from './voltorb-flip.js';
 
 const rand = (seed: number) => {
   const rng = rngFrom(seed);
@@ -100,5 +100,100 @@ describe('Voltorb Flip', () => {
     expect(s.history[0]!.cardsFlipped).toBe(6);
     expect(voltorbFlipStateOf(null)).toEqual(newVoltorbFlipState());
     expect(voltorbFlipStateOf(JSON.parse(JSON.stringify(s)))).toEqual(s);
+  });
+});
+
+describe('Voltorb Flip: the cards stay on the API', () => {
+  const board: VoltorbBoard = { boardId: 0, level: 7, cards: [3, 2, 4, 1, 1, ...Array<VoltorbCard>(20).fill(1)] };
+  const inPlay = (flips: number[] = []): VoltorbFlipState => ({ ...newVoltorbFlipState(), board, flips });
+  /** Every list of 25 cards anywhere in a value sent to the browser. */
+  const cardLists = (value: unknown): unknown[] => (Array.isArray(value) ? [...(value.length === 25 ? [value] : []), ...value.flatMap(cardLists)] : value && typeof value === 'object' ? Object.values(value).flatMap(cardLists) : []);
+
+  it("a board's view holds its level and the numbers beside it, no cards", () => {
+    for (let seed = 1; seed <= 50; seed++) {
+      const made = newBoard(newVoltorbFlipState(), rand(seed));
+      const view = boardView(made);
+      expect(view).toEqual({ level: made.level, totals: boardTotals(made.cards) });
+      expect(cardLists(view)).toEqual([]);
+      expect(JSON.stringify(view)).not.toContain('cards');
+    }
+  });
+
+  it('a flip shows its card alone and keeps the flip; the board comes only with the flip that ends the round', () => {
+    const first = flipCard(inPlay(), 3);
+    expect(first).toEqual({ state: inPlay([3]), card: 1, over: null, cards: null });
+    expect(cardLists({ ...first, state: null })).toEqual([]);
+    expect(flipCard(inPlay([3]), 0)).toMatchObject({ card: 3, over: null, cards: null });
+    expect(flipCard(inPlay([3, 0]), 1)).toEqual({ state: inPlay([3, 0, 1]), card: 2, over: 'won', cards: board.cards });
+    expect(flipCard(inPlay([3, 0]), 2)).toEqual({ state: inPlay([3, 0, 2]), card: VOLTORB, over: 'lost', cards: board.cards });
+  });
+
+  it('turns down a card flipped already, one off the board, a flip with no board and any flip once the round is over', () => {
+    expect(flipCard(inPlay([3]), 3)).toEqual({ error: 'Each card can be flipped once' });
+    expect(flipCard(inPlay(), 25)).toEqual({ error: 'Each card can be flipped once' });
+    expect(flipCard(inPlay(), 1.5)).toEqual({ error: 'Each card can be flipped once' });
+    expect(flipCard(newVoltorbFlipState(), 0)).toEqual({ error: 'No round is being played' });
+    expect(flipCard(inPlay([2]), 0)).toEqual({ error: 'The round is over' });
+    expect(flipCard(inPlay([0, 1]), 3)).toEqual({ error: 'The round is over' });
+  });
+
+  it('knows how the flips kept have ended the round', () => {
+    expect(roundOver(board, [])).toBeNull();
+    expect(roundOver(board, [3, 0])).toBeNull();
+    expect(roundOver(board, [0, 1])).toBe('won');
+    expect(roundOver(board, [0, 2])).toBe('lost');
+  });
+
+  it('a round left with cards flipped is ended as it stands: quit with its coins, or lost or won', () => {
+    expect(leaveRound(inPlay())).toEqual({ state: inPlay(), payout: 0 });
+    expect(leaveRound(newVoltorbFlipState())).toEqual({ state: newVoltorbFlipState(), payout: 0 });
+    const quit = leaveRound(inPlay([0, 3]));
+    expect(quit.payout).toBe(3);
+    expect(quit.state).toMatchObject({ board: null, flips: [], head: 1 });
+    expect(quit.state.history[0]).toEqual({ outcome: 'quit', cardsFlipped: 2, boardId: 0, level: 7 });
+    expect(leaveRound(inPlay([0, 2]))).toMatchObject({ payout: 0, state: { board: null, flips: [] } });
+    expect(leaveRound(inPlay([0, 2])).state.history[0]!.outcome).toBe('lost');
+    expect(leaveRound(inPlay([0, 1])).payout).toBe(6);
+  });
+
+  it('a saved session keeps its flips; one saved before flips were kept has none', () => {
+    expect(voltorbFlipStateOf(JSON.parse(JSON.stringify(inPlay([3, 0]))))).toEqual(inPlay([3, 0]));
+    const { flips: _, ...old } = inPlay();
+    expect(voltorbFlipStateOf(JSON.parse(JSON.stringify(old)))).toEqual(inPlay());
+  });
+
+  it('over 500 boards: any round played a flip at a time settles as it ended, and no altered one does', () => {
+    for (let seed = 1; seed <= 500; seed++) {
+      const rng = rngFrom(seed);
+      let s: VoltorbFlipState = { ...newVoltorbFlipState(), board: null };
+      s = { ...s, board: newBoard(withRounds({ outcome: 'won', boardId: boardOf(1 + (seed % 8)) }), rand(seed)) };
+      const cards = s.board!.cards;
+      const order = cards.map((_, i) => i).sort(() => random(rng) - 0.5);
+      // Some rounds stop early (quit), the others go on to a Voltorb or the last 2 or 3.
+      const stopAt = seed % 3 === 0 ? 1 + Math.floor(random(rng) * 4) : 25;
+      let over: 'won' | 'lost' | null = null;
+      for (const id of order.slice(0, stopAt)) {
+        const flipped = flipCard(s, id);
+        if ('error' in flipped) throw new Error(flipped.error);
+        expect(flipped.card).toBe(cards[id]);
+        expect(flipped.cards).toBe(flipped.over ? cards : null);
+        s = flipped.state;
+        over = flipped.over;
+        if (over) break;
+      }
+      const outcome = over ?? 'quit';
+      const settled = settleRound(s.board!, s.flips, outcome);
+      if ('error' in settled) throw new Error(`${seed}: ${settled.error}`);
+      expect(settled.payout).toBe(outcome === 'lost' ? 0 : s.flips.reduce((p, id) => afterFlip(p, cards[id]!), 0));
+      expect(leaveRound(s).payout).toBe(settled.payout);
+      // Another ending than the one played, a flip repeated, and (unless it was quit) a flip more are all turned down.
+      for (const other of (['quit', 'won', 'lost'] as const).filter((o) => o !== outcome)) expect(settleRound(s.board!, s.flips, other)).toHaveProperty('error');
+      expect(settleRound(s.board!, [...s.flips, s.flips[0]!], outcome)).toHaveProperty('error');
+      const unflipped = order.find((id) => !s.flips.includes(id))!;
+      if (over) {
+        expect(settleRound(s.board!, [...s.flips, unflipped], outcome)).toHaveProperty('error');
+        expect(flipCard(s, unflipped)).toEqual({ error: 'The round is over' });
+      }
+    }
   });
 });

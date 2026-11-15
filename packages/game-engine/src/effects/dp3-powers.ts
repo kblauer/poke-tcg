@@ -10,7 +10,7 @@
 import { hasType, isBasicEnergy, lookupCard, type CardLibrary } from '../cards.js';
 import { afflictBetweenTurns, counts, energyPool, isEnergyCardOf, opponentOf, type GameState, type InPlayPokemon, type PlayerId } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, countersMoved, inPlayDef, pokemonName } from '../status.js';
+import { addLog, countersMoved, inPlayDef, pokemonName, cleanCard } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { inPlay, onlyActive, onlyBenched, POKE_BODY, targetOf } from './common.js';
 import { roughSkin } from './ex1-powers.js';
@@ -297,7 +297,7 @@ export const DP3_POWERS: Record<string, PowerEffect> = {
     blocked: (s) => onlyBenched(s, 'Unown Z') ?? (s.counts.deck ? 'You still have cards in your deck' : null),
     use(ctx) {
       const unown = ctx.source;
-      ctx.me.discard.push(...unown.energy.map(({ provides: _, ...card }) => card), ...(unown.attached ?? []).map((a) => a.card));
+      ctx.me.discard.push(...unown.energy.map(cleanCard), ...(unown.attached ?? []).map((a) => a.card));
       ctx.me.bench = ctx.me.bench.map((p) => (p === unown ? null : p));
       ctx.me.deck.unshift(unown.card);
       ctx.log('Put Unown Z on top of the deck.');

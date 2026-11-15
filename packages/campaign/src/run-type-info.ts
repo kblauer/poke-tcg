@@ -200,9 +200,6 @@ export const RUN_TYPE_INFO = {
 export type RunTypeId = keyof typeof RUN_TYPE_INFO;
 export const RUN_TYPE_IDS = Object.keys(RUN_TYPE_INFO) as RunTypeId[];
 
-/** The run a new account starts in. */
-export const FIRST_RUN: RunTypeId = 'celadon';
-
 /** A run type without its maps (runType, run-types.ts, has them). */
 export const runTypeInfo = (id: string): RunTypeInfo => {
   const type = (RUN_TYPE_INFO as Record<string, RunTypeInfo>)[id];

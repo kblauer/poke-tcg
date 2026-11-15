@@ -1,10 +1,10 @@
 // Building blocks for attack effects that many cards share.
 import { targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import type { PendingChoice } from '../trainers.js';
+import type { PendingChoice, PendingChoiceInput } from '../trainers.js';
 import type { PowerEffect, PowerSituation } from '../powers.js';
 import { isBasicEnergy, lookupCard, type CardLibrary, type EnergyType } from '../cards.js';
-import { counts, energyPool, type Affliction, type InPlayPokemon, type PlayerState, type PoolEnergy, type Target } from '../engine.js';
-import { energyProtected, openBenchSlot, pokemonName } from '../status.js';
+import { counts, energyPool, isEnergyCardOf, type Affliction, type CardInstance, type InPlayPokemon, type PlayerState, type PoolEnergy, type Target } from '../engine.js';
+import { energyProtected, evolvedFromHand, openBenchSlot, pokemonName, sameCards } from '../status.js';
 
 /** Every Pokémon in play on a side. */
 export const inPlay = (side: Pick<PlayerState, 'active' | 'bench'>) => [side.active, ...side.bench].filter((p): p is InPlayPokemon => !!p);
@@ -17,6 +17,40 @@ export const energyCards = (p: InPlayPokemon) => p.energy.filter((e) => !e.provi
 
 /** Basic Energy cards attached to a Pokémon (not a Pokémon attached as Energy). */
 export const basicEnergyOn = (cards: CardLibrary, p: InPlayPokemon) => p.energy.filter((e) => !e.provides && isBasicEnergy(lookupCard(cards, e.defId)));
+
+/** An Energy card of `type`, basic or Special (Darkness Energy, Metal Energy), wherever it is (Lightning Burst, Super Connectivity). */
+export const energyCardOf = (cards: CardLibrary, e: CardInstance, type: EnergyType) => {
+  const d = lookupCard(cards, e.defId);
+  return isEnergyCardOf(e, cards, type) || (!e.provides && !e.windless && !e.colorlessOnly && d.kind === 'energy' && d.energyType === type);
+};
+
+/** Discards these Energy cards from the attacker. */
+export function discardOwn(ctx: AttackContext, cards: CardInstance[]) {
+  if (!cards.length) return;
+  ctx.attacker.energy = ctx.attacker.energy.filter((e) => !cards.includes(e));
+  ctx.me.discard.push(...cards);
+  ctx.log(`Discarded ${cards.map((c) => lookupCard(ctx.state.cards, c.defId).name).join(', ')} from ${ctx.attackerDef.name}.`);
+}
+
+/** A choice for the attacking player once the attack is over, after any already asked. */
+export function askAfter(ctx: AttackContext, choice: PendingChoiceInput) {
+  if (ctx.state.pendingChoice) (ctx.state.queuedChoices ??= []).push({ ...choice, player: ctx.me.id } as PendingChoice);
+  else ctx.pend(choice);
+}
+
+/**
+ * `count` Energy cards discarded from the attacking Pokémon (only those of `types`, basic or Special, when given): picked by
+ * its player once the attack is over when the cards that fit differ (the same-card rule, agreed), otherwise the first ones.
+ * Returns how many go.
+ */
+export function discardOwnEnergy(ctx: AttackContext, count: number, source: string, types?: EnergyType[]) {
+  const fit = energyCards(ctx.attacker).filter((e) => !types || types.some((t) => energyCardOf(ctx.state.cards, e, t)));
+  const n = Math.min(count, fit.length);
+  if (!n) return 0;
+  if (fit.length <= count || sameCards(ctx.state.cards, fit)) discardOwn(ctx, fit.slice(0, count));
+  else askAfter(ctx, { kind: 'discardAttached', source, target: 'active', count, ...(types && { types }) });
+  return n;
+}
 
 /** A Poké-Body: always on, whatever its Pokémon's Special Conditions. */
 export const POKE_BODY = { ignoresConditions: true, body: true } as const;
@@ -36,12 +70,24 @@ export const fromDiscard = (to: 'hand' | 'deckBottom'): PowerEffect => ({
   },
 });
 
+/**
+ * "When you play this from your hand to evolve 1 of your (Active) Pokémon, you may …": a yes-or-no question as it evolves
+ * (`mayUse`), never as it's benched or levelled up (evolvedFromHand). The one helper for it: the copies each set had missed the level-up.
+ */
+export const onEvolveMay = (power: Extract<PendingChoice, { kind: 'mayUse' }>['power'], source: string, activeOnly = false): PowerEffect => ({
+  onPlayFromHand(state, owner, pokemon) {
+    if (!evolvedFromHand(pokemon) || (activeOnly && owner.active !== pokemon)) return;
+    state.pendingChoice = { player: owner.id, source, kind: 'mayUse', power, target: targetOf(owner, pokemon) };
+  },
+});
+
 /** "If [it] is your Active Pokémon" / "on your Bench": why a power can't be used from where its Pokémon is. */
 export const onlyActive = (s: PowerSituation, name: string) => (s.source === 'active' ? null : `${name} must be your Active Pokémon`);
 export const onlyBenched = (s: PowerSituation, name: string) => (s.source !== 'active' ? null : `${name} must be on your Bench`);
 
 /** Another set's attack, read when used (the effect tables can't be read while the modules load). */
 export const same = (get: () => AttackEffect | undefined): AttackEffect => ({
+  sameAs: get,
   blocked: (s) => get()?.blocked?.(s) ?? null,
   choices: (s, c) => get()?.choices?.(s, c) ?? [],
   run: (ctx) => get()?.run(ctx),

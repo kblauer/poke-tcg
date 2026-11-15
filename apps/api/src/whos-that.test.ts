@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { shapePixels, WHOS_THAT_CARDS } from '@poke-tcg/campaign';
 import { describe, expect, it } from 'vitest';
-import { cardShape, maskAlpha } from './whos-that.js';
+import { cardShape, maskAlpha, whosThatRound } from './whos-that.js';
 
 const mask = (id: string) => readFile(new URL(`../../web/public/holo-masks/${id}.png`, import.meta.url));
 
@@ -29,5 +29,22 @@ describe("Who's That Pokémon? masks", () => {
       expect(pixels).toHaveLength(shape.width * shape.height);
       expect(pixels.some((p) => p === 1)).toBe(true);
     }
+  });
+});
+
+describe("an Extras game's round (whosThatRound)", () => {
+  const game = { id: 'g', day: null, index: 1, cards: ['base1-4', 'base1-2'], shownAt: new Date(10_000) };
+  const shapeOf = async (cardId: string) => ({ width: 1, height: 1, x: 0, y: 0, runs: cardId });
+
+  it("holds no shape before the Pokémon's clock starts (a passed one still revealed)", async () => {
+    const round = await whosThatRound(game, 9_999, shapeOf);
+    expect(round).toEqual({ gameId: 'g', daily: false, index: 1, total: 2, shape: null, elapsedMs: -1 });
+  });
+
+  it('has the shape from then on, and never the card', async () => {
+    const round = await whosThatRound(game, 10_250, shapeOf);
+    expect(round.shape?.runs).toBe('base1-2');
+    expect(round.elapsedMs).toBe(250);
+    expect(Object.keys(round).sort()).toEqual(['daily', 'elapsedMs', 'gameId', 'index', 'shape', 'total']);
   });
 });
