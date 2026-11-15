@@ -219,9 +219,6 @@ export function routeAt(type: Pick<RunType, 'routes'>, position: number): { rout
   return null;
 }
 
-/** The run a new account starts in. */
-export const FIRST_RUN: RunTypeId = 'celadon';
-
 export const runType = (id: string): RunType => {
   const type = (RUN_TYPES as Record<string, RunType>)[id];
   if (!type) throw new Error(`Unknown run type: ${id}`);

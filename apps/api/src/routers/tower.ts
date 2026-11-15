@@ -2,6 +2,7 @@ import { BP_PACK_PRICE, towerGameId } from '@poke-tcg/campaign';
 import { prisma } from '@poke-tcg/db';
 import { startTowerInput, towerActInput, towerIdInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
+import { userRow } from '../auth.js';
 import { unlocksAll } from '../debugFlags.js';
 import { debugWinGame } from '../games.js';
 import { advanceTower, clientTower, latestTower, loadOwnTower, settleTowerBattle, startTower, towerStarts } from '../towers.js';
@@ -17,7 +18,7 @@ export const towerRouter = router({
   overview: protectedProcedure.query(async ({ ctx }) => {
     const tower = await latestTower(ctx.user.id);
     // Read after settling: a battle just won may have raised it.
-    const { towerBest: best, bp } = await prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { towerBest: true, bp: true } });
+    const { towerBest: best, bp } = await userRow(ctx.user, { towerBest: true, bp: true });
     return { challenge: tower && (await clientTower(tower)), best, startFloors: towerStarts(best, await unlocksAll(ctx.user.id)), bp, packPrice: BP_PACK_PRICE };
   }),
 

@@ -1,7 +1,7 @@
 // Booster packs, bought with the ₱ in the bank. Each is 11 cards from one set with the generally accepted
 // WOTC-era make-up (averaged over the sets, not each set's own odds): 1 rare (holo about 1 pack in 3),
 // 3 uncommons and 6 commons, all different (each of those now and then a rare instead: EXTRA_RARE_CHANCES), plus 1 basic Energy: the set's own, or the closest earlier set's, and
-// about 1 pack in 50 a holo Energy instead (found only in packs). An EX, Gen 4 or Gen 5 set's pack has a reverse holo in place of one common
+// 4% of packs a holo Energy instead (found only in packs). An EX, Gen 4 or Gen 5 set's pack has a reverse holo in place of one common
 // (agreed with the user). Opening one unlocks its cards.
 import { BASIC_ENERGY, EX_SETS, GEN2_SETS, GEN4_SETS, GEN5_SETS, type Rarity } from './pool.js';
 import { chance, pick, sample, type Rng } from './random.js';
