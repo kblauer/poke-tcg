@@ -1,5 +1,5 @@
 import { CPU_DIFFICULTIES, DEBUG_CONDITIONS, MAX_BENCH, type AttackChoices, type DebugCommand, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
-import { BERRIES, BOSS_IDS, COIN_OFFERS, COSMETIC_IDS, EQUIP_SLOTS, FLAIR_SLOTS, MAX_BLENDER_RPM, MAX_COOK_FRAMES, MAX_PACKS_AT_ONCE, MIN_COOK_FRAMES, PACK_SETS, RUN_TYPE_IDS, STARTER_IDS, TOP_FLOOR, type RunAction, type RunTypeId, type TowerAction } from '@poke-tcg/campaign';
+import { BERRIES, BOSS_IDS, COIN_OFFERS, COSMETIC_IDS, EQUIP_SLOTS, FLAIR_SLOTS, MAX_BLENDER_RPM, MAX_COOK_FRAMES, MAX_PACKS_AT_ONCE, MIN_COOK_FRAMES, PACK_SETS, ROULETTE_GRID, RUN_TYPE_IDS, SLOT_MACHINES, SLOT_MAX_BET, SLOT_REEL_HEIGHT, STARTER_IDS, TOP_FLOOR, type RunAction, type RunTypeId, type TowerAction } from '@poke-tcg/campaign';
 import { z } from 'zod';
 import { TRAINER_SPRITES } from './trainer-sprites.js';
 
@@ -255,9 +255,16 @@ export const harvestBerryInput = z.object({ berry: berryId });
 export const blendBerryInput = z.object({ berry: berryId, maxRpm: z.number().int().min(0).max(MAX_BLENDER_RPM) });
 // A Poffin's cooking: the berry, its time in frames (30 a second; between the perfect game's and 3 phases of 20 seconds: MIN_COOK_FRAMES, MAX_COOK_FRAMES) and its spills and burns.
 export const cookPoffinInput = z.object({ berry: berryId, frames: z.number().int().min(MIN_COOK_FRAMES).max(MAX_COOK_FRAMES), spills: z.number().int().min(0).max(9999), burns: z.number().int().min(0).max(9999) });
-// The Game Corner: one of the counter's coin offers (COIN_OFFERS, by its coins); a round's bet and payout (coinRoundError checks them).
+// The Game Corner: one of the counter's coin offers (COIN_OFFERS, by its coins). A slot machine sat at; a spin's bet (a
+// Replay's free spin is the API's to give, never asked for); its reels' stops (each one's offset as its stop was decided,
+// playSlotSpin plays them). A roulette table sat at, at the player's hour; a ball's bet (a grid selection) and the wheel's
+// angle as the spin starts. No payout is ever sent: the API pays what it plays (game-corner-rounds.ts).
 export const buyCoinsInput = z.object({ coins: z.literal(COIN_OFFERS.map((o) => o.coins)) });
-export const coinRoundInput = z.object({ game: z.enum(['roulette', 'slots']), bet: z.number().int().min(0).max(6), payout: z.number().int().min(0).max(9999) });
+export const slotSitInput = z.object({ machine: z.number().int().min(0).max(SLOT_MACHINES - 1) });
+export const slotSpinInput = z.object({ bet: z.number().int().min(1).max(SLOT_MAX_BET) });
+export const slotStopsInput = z.object({ stops: z.array(z.number().int().min(0).max(SLOT_REEL_HEIGHT - 1)).length(3) });
+export const rouletteSitInput = z.object({ table: z.union([z.literal(0), z.literal(1)]), hours: z.number().int().min(0).max(23) });
+export const rouletteBallInput = z.object({ selection: z.number().int().min(1).max(ROULETTE_GRID.length - 1), wheelAngle: z.number().int().min(0).max(359) });
 // Voltorb Flip: the next board (`restart` when the game is entered: a new session, from Lv. 1); a round's end, its cards
 // flipped in order and how it ended (settleRound checks them against the board).
 export const voltorbRoundInput = z.object({ restart: z.boolean() });

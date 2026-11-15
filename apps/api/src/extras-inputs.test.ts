@@ -1,5 +1,5 @@
-import { BERRIES, COIN_OFFERS, MAX_BLENDER_RPM, MAX_COOK_FRAMES, MIN_COOK_FRAMES } from '@poke-tcg/campaign';
-import { blendBerryInput, buyCoinsInput, cookPoffinInput, harvestBerryInput, voltorbSettleInput, whosThatGuessInput, whosThatPassInput } from '@poke-tcg/shared';
+import { BERRIES, COIN_OFFERS, MAX_BLENDER_RPM, MAX_COOK_FRAMES, MIN_COOK_FRAMES, SLOT_MACHINES, SLOT_REEL_HEIGHT } from '@poke-tcg/campaign';
+import { blendBerryInput, buyCoinsInput, cookPoffinInput, harvestBerryInput, rouletteBallInput, rouletteSitInput, slotSitInput, slotSpinInput, slotStopsInput, voltorbSettleInput, whosThatGuessInput, whosThatPassInput } from '@poke-tcg/shared';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -39,6 +39,21 @@ describe("the Extras modes' inputs", () => {
 
   it("takes no flips with a Voltorb Flip round's settling: the API kept them", () => {
     expect(voltorbSettleInput.parse({ outcome: 'quit', flips: [0, 1, 2] })).toEqual({ outcome: 'quit' });
+  });
+
+  it("takes no payout from the Game Corner, and no free spin asked for: the API pays what it plays", () => {
+    expect(ok(slotSpinInput, { bet: 0 })).toBe(false);
+    expect(ok(slotSpinInput, { bet: 4 })).toBe(false);
+    expect(slotSpinInput.parse({ bet: 3, payout: 1500 })).toEqual({ bet: 3 });
+    expect(slotStopsInput.parse({ stops: [0, 8, 496], payout: 300 })).toEqual({ stops: [0, 8, 496] });
+    expect(ok(slotStopsInput, { stops: [0, 8] })).toBe(false);
+    expect(ok(slotStopsInput, { stops: [0, 8, SLOT_REEL_HEIGHT] })).toBe(false);
+    expect(ok(slotSitInput, { machine: SLOT_MACHINES })).toBe(false);
+    expect(rouletteBallInput.parse({ selection: 6, wheelAngle: 90, payout: 72 })).toEqual({ selection: 6, wheelAngle: 90 });
+    expect(ok(rouletteBallInput, { selection: 0, wheelAngle: 90 })).toBe(false);
+    expect(ok(rouletteBallInput, { selection: 6, wheelAngle: 360 })).toBe(false);
+    expect(ok(rouletteSitInput, { table: 2, hours: 9 })).toBe(false);
+    expect(ok(rouletteSitInput, { table: 1, hours: 24 })).toBe(false);
   });
 
   it("needs the round with a Who's That Pokémon? guess or pass", () => {

@@ -59,7 +59,8 @@ model User {
   bp            Int             @default(0)
   /// The Game Corner's Coin Case: coins bought with banked ₱ and played at the roulette and the slots, or won at Voltorb Flip (at most 9999).
   coins         Int             @default(0)
-  /// Voltorb Flip's session (the campaign package's VoltorbFlipState): its last 5 rounds, for the level, and the board in play.
+  /// Voltorb Flip's session (the campaign package's VoltorbFlipState): its last 5 rounds, for the level, and the board in play;
+  /// beside it, under `gameCorner`, the Game Corner's sittings (game-corner-rounds.ts' GameCornerState: the slot spin drawn, the roulette board). Never sent to the browser.
   voltorbFlip   Json            @default("{}")
   /// The Super Contest under way (the campaign package's ContestState, README: Super Contests); {} when none is.
   contest       Json            @default("{}")
