@@ -1593,6 +1593,20 @@ export function askChoice(state: GameState, choice: PendingChoice, pollen = fals
 const powerSprayer = (state: GameState, player: PlayerState) =>
   !trainersLocked(player, state.turn) && player.hand.some((c) => trainerEffect(c.defId)?.powerSpray) && [player.active, ...player.bench].filter((p) => p && isPokemonSP(inPlayDef(state.cards, p).name)).length >= 3;
 
+/**
+ * Power Cancel (the opponent may stop a Poké-Power, not a Poké-Body, with 2 cards from their hand), else Power Spray (with 3
+ * or more Pokémon SP in play, played from the hand): asked of `opp` before `me`'s Poké-Power at `source` does anything, unless
+ * already answered (`powerCancelPassed`). `resume`: how the power goes on if it isn't stopped (usePower's `choices`, or the
+ * "use it?" question answered yes: `mayUse`, the user's, 2026-11-14). True when asked. The caller checks isPokePower.
+ */
+export function askPowerCancel(state: GameState, me: PlayerState, opp: PlayerState, source: Target, resume: Pick<Extract<PendingChoice, { kind: 'powerCancel' }>, 'choices' | 'mayUse'>): boolean {
+  if (state.powerCancelPassed) return false;
+  if (opp.hand.length >= 2 && powerCanceller(state, opp, me)) state.pendingChoice = { player: opp.id, source: 'Power Cancel', kind: 'powerCancel', target: source, picked: [], ...resume };
+  else if (powerSprayer(state, opp)) state.pendingChoice = { player: opp.id, source: 'Power Spray', kind: 'powerCancel', target: source, picked: [], spray: true, ...resume };
+  else return false;
+  return true;
+}
+
 export function usePower(state: GameState, me: PlayerState, opp: PlayerState, sourceTarget: Target, given: PowerChoices): string | null {
   const situation: PowerSituation = { me, opp, counts: situationCounts(me, opp), source: sourceTarget, cards: state.cards, turn: state.turn, stadium: state.stadium?.card ?? null };
   const error = powerError(situation);
@@ -1602,16 +1616,7 @@ export function usePower(state: GameState, me: PlayerState, opp: PlayerState, so
   const source = pokemonAt(me, sourceTarget)!;
   const def = inPlayDef(state.cards, source);
   const effect = pokemonPower(source)!;
-  // Power Cancel: the opponent may stop a Poké-Power (not a Poké-Body) with 2 cards from their hand, before it does anything.
-  if (isPokePower(effect) && !state.powerCancelPassed && opp.hand.length >= 2 && powerCanceller(state, opp, me)) {
-    state.pendingChoice = { player: opp.id, source: 'Power Cancel', kind: 'powerCancel', target: sourceTarget, choices: resolved.choices, picked: [] };
-    return null;
-  }
-  // Power Spray: the opponent, with 3 or more Pokémon SP in play, may play it from their hand to stop a Poké-Power.
-  if (isPokePower(effect) && !state.powerCancelPassed && powerSprayer(state, opp)) {
-    state.pendingChoice = { player: opp.id, source: 'Power Spray', kind: 'powerCancel', target: sourceTarget, choices: resolved.choices, picked: [], spray: true };
-    return null;
-  }
+  if (isPokePower(effect) && askPowerCancel(state, me, opp, sourceTarget, { choices: resolved.choices })) return null;
   const powerName = effect.powerName ?? def.power!.name;
   addLog(state, `${def.name} used ${powerName}.`, me.id);
   if (effect.oncePerTurn) source.powerUsedTurn = state.turn;
