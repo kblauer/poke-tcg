@@ -529,7 +529,7 @@ export const DP4: Record<string, Record<string, AttackEffect>> = {
     'Sol Charge': {
       choices: (s): ChoiceSpec[] => {
         const options = benchedSlots(s.ownBench);
-        return options.length && !s.discardsLocked ? [{ kind: 'ownBench', options, prompt: 'Choose one of your Benched Pokémon to attach a basic Energy card to' }] : [];
+        return options.length ? [{ kind: 'ownBench', options, prompt: 'Choose one of your Benched Pokémon to attach a basic Energy card to' }] : [];
       },
       run(ctx) {
         ctx.hit(20);
@@ -543,7 +543,6 @@ export const DP4: Record<string, Record<string, AttackEffect>> = {
   'dp4-91': {
     'Hidden Power': {
       choices(s, c): ChoiceSpec[] {
-        if (s.discardsLocked) return [];
         const own = s.ownDiscard ?? [];
         const opp = s.opponentDiscard ?? [];
         const sides = [...(own.length ? ['own' as const] : []), ...(opp.length ? ['opponent' as const] : [])];

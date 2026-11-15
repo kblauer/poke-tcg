@@ -1,11 +1,11 @@
 // Pokémon Powers: legality, the questions a power asks, and the context power effects run with.
 // Card-specific behaviour lives in effects/ (POWERS), next to the attack effects.
 import type { AttackContext, AttackSituation } from './attacks.js';
-import { hasType, holonEnergy, isBasicEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { isBasicInPlay, hasType, holonEnergy, isBasicEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { powerEffect, trainerEffect } from './effects/index.js';
 import { counts, energyPool, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
-import { addLog, clearSpecialConditions, effectId, evolvedFromName, flipCoin, hasSpecialCondition, isDelta, lakeTrio, pokemonName, inPlayDef, sameCards, specialConditionLabel } from './status.js';
-import { evolvesFromEevee, isPokemonSP, trainersLocked, type PendingChoice, type PendingChoiceInput } from './trainers.js';
+import { addLog, clearSpecialConditions, effectId, evolvedFromName, flipCoin, hasSpecialCondition, isDelta, lakeTrio, levelledUp, pokemonName, inPlayDef, sameCards, specialConditionLabel, isEvolved } from './status.js';
+import { evolvesFromEevee, isPokemonSP, pendingChoiceView, trainersLocked, type PendingChoice, type PendingChoiceInput } from './trainers.js';
 
 /** Answers to a power's questions. Each question names the field it fills. */
 export interface PowerChoices {
@@ -342,7 +342,7 @@ export interface PowerEffect {
   mimic?: boolean;
   /** Magma Pool: when it moves from the Active spot to the Bench, a Fire Energy card goes from it to the new Active Pokémon (engine.ts, newActives). */
   magmaPool?: boolean;
-  /** Allergic Pollen: attacks and Pokémon Powers can't do anything with the cards in either discard pile (discardsLocked). */
+  /** Allergic Pollen: Pokémon Powers can't do anything with the cards in either discard pile (discardsLocked). Pokémon Powers only; never attacks or Trainer cards (the user's, 2026-11-14). */
   allergicPollen?: boolean;
   /** Unown K's Keep: the opponent's attacks, Pokémon Powers and Trainer cards can't discard Energy cards from its owner's Pokémon with Unown in their names (energyKept). */
   keep?: boolean;
@@ -849,12 +849,12 @@ export function auraStops(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sid
       const reaches =
         (active && !!effect.overpoweringFang && !d.ex) ||
         (active && !!effect.wiseAura && !d.ex && !body) ||
-        (active && !!effect.intimidatingRing && side !== owner && !body && d.stage === 'basic') ||
+        (active && !!effect.intimidatingRing && side !== owner && !body && isBasicInPlay(d)) ||
         (active && !!effect.stench && !body) ||
-        (active && !!effect.intimidatingArmor && side !== owner && d.stage === 'basic') ||
-        (!!effect.rearSensor && owner?.active === pokemon && !body && d.stage === 'basic' && !d.ex) ||
+        (active && !!effect.intimidatingArmor && side !== owner && isBasicInPlay(d)) ||
+        (!!effect.rearSensor && owner?.active === pokemon && !body && isBasicInPlay(d) && !d.ex) ||
         (!!effect.shade && !body && !d.ex && hasType(d, effect.shade.type) && has(effect.shade.partner)) ||
-        (!!effect.dualAura && body && !d.ex && pokemon.evolvedFrom.length > 0 && (has(effect.dualAura) || has(`${effect.dualAura} ex`))) ||
+        (!!effect.dualAura && body && !d.ex && isEvolved(cards, pokemon) && (has(effect.dualAura) || has(`${effect.dualAura} ex`))) ||
         (!!effect.extraLiquid && !body && !!d.ex) ||
         (!!effect.deltaReserve && !body && !isDelta(cards, pokemon) && a.energy.some((e) => !e.provides && !e.windless && lookupCard(cards, e.defId).name.startsWith('Holon Energy'))) ||
         (!!effect.damageBind && !body && pokemon.damage > 0) ||
@@ -1028,7 +1028,7 @@ export function powerActive(pokemon: InPlayPokemon, cards: CardLibrary, sides: S
   if (pokemon.effects?.noPokePowers !== undefined && !effect?.body) return false;
   if (lazied(pokemon, cards, sides) || auraStops(pokemon, cards, sides)) return false;
   // Stages of Evolution: only while it's an Evolved Pokémon.
-  if (effect?.evolvedOnly && !pokemon.evolvedFrom.length) return false;
+  if (effect?.evolvedOnly && !isEvolved(cards, pokemon)) return false;
   // Space Center (Poké-Bodies) and Battle Frontier (both) switch off the powers of the Pokémon they name (refreshHideout).
   if (pokemon.stadiumMuted === 'all' || (pokemon.stadiumMuted === 'bodies' && effect?.body) || (pokemon.stadiumMuted === 'powers' && !effect?.body)) return false;
   // Imprison: a Pokémon with an Imprison marker can't use Poké-Powers or Poké-Bodies. Seal Off: for a turn.
@@ -1141,7 +1141,8 @@ export function stickyGoo(sides: Sides, cards: CardLibrary): number {
  */
 export function playedFromHand(state: GameState, owner: PlayerState, pokemon: InPlayPokemon) {
   const sides = state.playerOrder.map((id) => state.players[id]!);
-  const effect = pokemonPower(pokemon);
+  // A Pokémon LV.X put onto its Pokémon: only its own power reacts, never its previous level's again (levelling up isn't evolving).
+  const effect = levelledUp(state.cards, pokemon) ? powerEffect(effectId(pokemon)) : pokemonPower(pokemon);
   // Dark Gaze: a Benched Pokémon's Poké-Power doesn't work as it's played either.
   if (effect?.onPlayFromHand && powerActive(pokemon, state.cards, sides) && !darkGazed(pokemon, state.cards, sides)) {
     addLog(state, `${powerOf(pokemon, state.cards)!.name}!`, owner.id);
@@ -1165,7 +1166,10 @@ const anyWorking = (sides: Sides, cards: CardLibrary, has: (effect: PowerEffect)
 /** Prehistoric Memory is working: every Evolved Pokémon can use the attacks of the cards it evolved from (as with Recall). */
 export const prehistoricMemory = (sides: Sides, cards: CardLibrary) => anyWorking(sides, cards, (e) => e.prehistoricMemory);
 
-/** Allergic Pollen is working: attacks and Pokémon Powers can't do anything with cards in discard piles. */
+/**
+ * Allergic Pollen is working: Pokémon Powers can't do anything with cards in discard piles. Pokémon Powers only; never attacks
+ * or Trainer cards (the user's, 2026-11-14: "Allergic Pollen should not stop attacks", "Trainer cards shouldn't check Pollen").
+ */
 export const discardsLocked = (sides: Sides, cards: CardLibrary) => anyWorking(sides, cards, (e) => e.allergicPollen);
 
 /**
@@ -1563,6 +1567,28 @@ export function stickyHold(state: GameState, side: PlayerState, slot: number) {
   else state.pendingChoice = choice;
 }
 
+/** The questions about cards in a discard pile, whatever they show first (the rest are known by their view: pickFromDiscard). */
+const DISCARD_PILE_KINDS: readonly PendingChoice['kind'][] = ['discardToHand', 'attachFromDiscard', 'discardToBench', 'discardToDeck', 'darknessRestore'];
+
+/**
+ * Asks `choice`: what every `pend` (an attack's, a power's, a Trainer's) does. A Sticky Hold question a switch just left
+ * (stickyHold) is asked after it, never overwritten: an effect that switches and then asks goes through this, never
+ * `state.pendingChoice = …`.
+ * `pollen`: the question is a Pokémon Power's, so Allergic Pollen stops one about cards in a discard pile here, said in the log
+ * and not asked: the one place the lock is enforced for questions, whatever the power checked itself. Never an attack's (the
+ * user's, 2026-11-14: "Allergic Pollen should not stop attacks"), a Trainer card's, nor an Ability's (an Ability's question
+ * about a discard pile is not stopped by Allergic Pollen: the user's, 2026-11-14, so the powers' `pend` passes
+ * `!effect.ability`). A power that takes cards from a discard pile with no question still checks `discardsLocked`.
+ */
+export function askChoice(state: GameState, choice: PendingChoice, pollen = false) {
+  if (pollen && discardsLocked(state.playerOrder.map((id) => state.players[id]!), state.cards) && (DISCARD_PILE_KINDS.includes(choice.kind) || pendingChoiceView(state, choice).kind === 'pickFromDiscard')) {
+    return addLog(state, `Allergic Pollen: cards in discard piles are not affected (${choice.source}).`, choice.player);
+  }
+  const held = state.pendingChoice?.source === 'Sticky Hold' ? state.pendingChoice : null;
+  state.pendingChoice = choice;
+  if (held) (state.queuedChoices ??= []).push(held);
+}
+
 /** The player holds Power Spray and has 3 or more Pokémon SP in play, so may play it during the opponent's turn. */
 const powerSprayer = (state: GameState, player: PlayerState) =>
   !trainersLocked(player, state.turn) && player.hand.some((c) => trainerEffect(c.defId)?.powerSpray) && [player.active, ...player.bench].filter((p) => p && isPokemonSP(inPlayDef(state.cards, p).name)).length >= 3;
@@ -1607,7 +1633,7 @@ export function usePower(state: GameState, me: PlayerState, opp: PlayerState, so
     log: (text) => addLog(state, text, me.id),
     flip: () => flipCoin(state, def.power!.name, me.id),
     pend: (choice) => {
-      state.pendingChoice = { ...choice, player: me.id } as PendingChoice;
+      askChoice(state, { ...choice, player: me.id } as PendingChoice, !effect.ability);
     },
   });
   // Darkness Drive: the opponent's working Tyranitar takes a basic Darkness Energy card from their discard pile.
@@ -1669,7 +1695,7 @@ export function useCardPower(state: GameState, me: PlayerState, opp: PlayerState
     log: (text) => addLog(state, text, me.id),
     flip: () => flipCoin(state, def.power!.name, me.id),
     pend: (choice) => {
-      state.pendingChoice = { ...choice, player: me.id } as PendingChoice;
+      askChoice(state, { ...choice, player: me.id } as PendingChoice, !effect.ability);
     },
   });
   return null;

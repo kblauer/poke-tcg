@@ -8,7 +8,7 @@
 // go on any of the player's Pokémon it fits.
 import type { AttackContext, AttackEffect, AttackSituation, ChoiceSpec } from '../attacks.js';
 import { targetsIn } from '../attacks.js';
-import { lookupCard, type Attack, type CardLibrary, type EnergyType } from '../cards.js';
+import { isBasicInPlay, lookupCard, type Attack, type CardLibrary, type EnergyType } from '../cards.js';
 import { canPayCost, energyPool, toolOf, type CardInstance } from '../engine.js';
 import { powerActive } from '../powers.js';
 import { shuffle } from '../rng.js';
@@ -22,7 +22,6 @@ import { notNextTurn, snipe } from './ex6.js';
 import { chooseOpponents, dragOff, EX8 } from './ex8.js';
 import { derail, EX12, exProof, same } from './ex12.js';
 import { discardFromAttacker, healEach } from './gym1.js';
-import { discardFree } from './neo3.js';
 
 /** The Pokémon at the target of the opponent's side. */
 const oppAt = (ctx: AttackContext, t: ReturnType<typeof targetsIn>[number]) => (t === 'active' ? ctx.opp.active : ctx.opp.bench[t]) ?? null;
@@ -40,7 +39,7 @@ const starLight = (cost: EnergyType[]) => (s: AttackSituation): EnergyType[] | n
 /** "Put any 1 card from your discard pile into your hand" (Psychic Select). */
 export const anyCardBack = (source: string): AttackEffect => ({
   run(ctx) {
-    if (ctx.me.discard.length && discardFree(ctx)) ctx.pend({ kind: 'discardToHand', source, count: 1, filter: 'any' });
+    if (ctx.me.discard.length) ctx.pend({ kind: 'discardToHand', source, count: 1, filter: 'any' });
   },
 });
 
@@ -57,7 +56,7 @@ export const EX14: Record<string, Record<string, AttackEffect>> = {
     'Night Murmurs': {
       run(ctx) {
         ctx.hit(30);
-        if (ctx.defenderDef.stage === 'basic') ctx.inflict('confused');
+        if (isBasicInPlay(ctx.defenderDef)) ctx.inflict('confused');
       },
     },
   },
@@ -184,7 +183,7 @@ export const EX14: Record<string, Record<string, AttackEffect>> = {
   'ex14-91': {
     Upstream: {
       run(ctx) {
-        const energy = discardFree(ctx) ? ctx.me.discard.filter((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy') : [];
+        const energy = ctx.me.discard.filter((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy');
         ctx.hit(10 * energy.length);
         if (!energy.length) return;
         ctx.me.discard = ctx.me.discard.filter((c) => !energy.includes(c));

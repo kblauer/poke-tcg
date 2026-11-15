@@ -10,7 +10,7 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch, typesOf } from '../cards.js';
 import { energyPool, type InPlayPokemon, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { devolvable, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
+import { devolvable, inPlayDef, pokemonName, removeTopEvolution, isEvolved } from '../status.js';
 import { FOSSIL_NAMES } from '../trainers.js';
 import { benchedSlots, damageChosen, energyCards, headsUntilTails, inPlay, opponentTargets, same } from './common.js';
 import { DP3 } from './dp3.js';
@@ -200,7 +200,7 @@ export const PL4: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         ctx.hit(20);
         if (!hasTool(ctx.attacker)) return;
-        for (const slot of benchedSlots(ctx.opp.bench)) if (!ctx.opp.bench[slot]!.evolvedFrom.length) ctx.damageBenched(ctx.opp, slot, 20);
+        for (const slot of benchedSlots(ctx.opp.bench)) if (!isEvolved(ctx.state.cards, ctx.opp.bench[slot]!)) ctx.damageBenched(ctx.opp, slot, 20);
       },
     },
   },
@@ -277,7 +277,7 @@ export const PL4: Record<string, Record<string, AttackEffect>> = {
       run: (ctx) => damageChosen(ctx, ctx.choices.oppTarget ?? 'active', hasNamed(ctx, 'Wormadam Plant Cloak') ? 40 : 10),
     },
     'Serve Trash': {
-      choices: (s): ChoiceSpec[] => ((s.opponentDiscard ?? []).length && !s.discardsLocked ? [{ kind: 'oppDiscard', options: s.opponentDiscard!, prompt: "Serve Trash: choose a card from your opponent's discard pile to put on top of their deck" }] : []),
+      choices: (s): ChoiceSpec[] => ((s.opponentDiscard ?? []).length ? [{ kind: 'oppDiscard', options: s.opponentDiscard!, prompt: "Serve Trash: choose a card from your opponent's discard pile to put on top of their deck" }] : []),
       run(ctx) {
         ctx.hit(30);
         const card = ctx.opp.discard.find((c) => c.uid === ctx.choices.oppDiscardUid);

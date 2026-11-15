@@ -6,7 +6,7 @@
 // Pokémon the opponent's attack's damage Knocks Out (each Exp. Share one, the Tool staying); Pokémon Center heals 20 from one
 // Benched Pokémon, once during each player's turn; Skyarrow Bridge takes 1 off every Basic Pokémon's Retreat Cost, both
 // players'; Prism Energy is every type, 1 at a time, only on a Basic Pokémon (not a Restored Pokémon), Colorless otherwise.
-import { isBasicPokemon } from '../cards.js';
+import { isBasicInPlay } from '../cards.js';
 import type { EnergyEffect, TrainerEffect } from '../trainers.js';
 import { tool } from './neo1-trainers.js';
 
@@ -41,7 +41,7 @@ export const BW4_TRAINERS: Record<string, TrainerEffect> = {
     },
   },
   // Skyarrow Bridge (Stadium): each Basic Pokémon in play retreats for 1 less.
-  'bw4-91': { stadium: true, retreatModifier: (p) => (isBasicPokemon(p) ? -1 : 0) },
+  'bw4-91': { stadium: true, retreatModifier: (p) => (isBasicInPlay(p) ? -1 : 0) },
 };
 
 export const BW4_ENERGY: Record<string, EnergyEffect> = {

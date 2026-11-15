@@ -24,7 +24,7 @@ import { benchMany, benchWhere, discardFromAttacker, noRetreat, removalFlip } fr
 import { flipForMore } from './jungle.js';
 import { NEO1, damageOpponent, opponentTargets, swift } from './neo1.js';
 import { NEO4 } from './neo4.js';
-import { discardFree, energyCanGo, reachesDefender } from './neo3.js';
+import { energyCanGo, reachesDefender } from './neo3.js';
 import { flipOrNothing } from './rocket.js';
 import { healUpTo } from './si1.js';
 
@@ -410,7 +410,7 @@ export const ECARD3: Record<string, Record<string, AttackEffect>> = {
     'Star Back': {
       run(ctx) {
         ctx.hit(40);
-        if (ctx.me.discard.some((c) => isBasicEnergy(lookupCard(ctx.state.cards, c.defId))) && discardFree(ctx)) ctx.pend({ kind: 'attachFromDiscard', source: 'Star Back', count: 1 });
+        if (ctx.me.discard.some((c) => isBasicEnergy(lookupCard(ctx.state.cards, c.defId)))) ctx.pend({ kind: 'attachFromDiscard', source: 'Star Back', count: 1 });
       },
     },
   },
@@ -450,7 +450,7 @@ export const ECARD3: Record<string, Record<string, AttackEffect>> = {
     'Warp Hole': {
       run(ctx) {
         ctx.hit(30);
-        if (ctx.me.discard.length && ctx.flip() && discardFree(ctx)) ctx.pend({ kind: 'pickFromDiscard', source: 'Warp Hole' });
+        if (ctx.me.discard.length && ctx.flip()) ctx.pend({ kind: 'pickFromDiscard', source: 'Warp Hole' });
       },
     },
   },
@@ -524,7 +524,7 @@ export const ECARD3: Record<string, Record<string, AttackEffect>> = {
   'ecard3-48': {
     'Energy Recycle': {
       run(ctx) {
-        if (ctx.me.discard.some((c) => isBasicEnergy(lookupCard(ctx.state.cards, c.defId))) && discardFree(ctx)) ctx.pend({ kind: 'discardToDeck', source: 'Energy Recycle', count: 1, of: 1, filter: 'basicEnergy' });
+        if (ctx.me.discard.some((c) => isBasicEnergy(lookupCard(ctx.state.cards, c.defId)))) ctx.pend({ kind: 'discardToDeck', source: 'Energy Recycle', count: 1, of: 1, filter: 'basicEnergy' });
       },
     },
   },

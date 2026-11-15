@@ -54,8 +54,6 @@ interface Rule {
   allowed: Record<string, [number, string]>;
 }
 
-const BENCH = '#204 area 4: Bench room checked by hand (Narrow Gym, Giant Stump, Dittobolic)';
-const STADIUM = '#204 areas 3 and 4: the Stadium discarded by hand (a Dusknoir LV.X played as one goes to the discard pile)';
 const TYPE = '#204 area 3: one printed type compared (dual types, Kecleon)';
 
 const RULES: Rule[] = [
@@ -63,13 +61,6 @@ const RULES: Rule[] = [
     name: 'Bench room by hand: use openBenchSlot/benchRoom (they know Narrow Gym, Giant Stump and Dittobolic)',
     pattern: /bench\.(?:indexOf\(null\)|includes\(null\)|some\(\((\w+)\) => !\1\)|findIndex\(\((\w+)\) => !\2\)|every\(Boolean\)|every\(\((\w+)\) => \3\))/,
     allowed: {
-      'effects/dp1-powers.ts > dp1-67': [1, BENCH], // Unown C
-      'effects/dp4-powers.ts > dp4-71': [1, BENCH], // Scent Conduct
-      'effects/dp5-powers.ts > fossilCall': [1, BENCH], // Ancient Guidance, Call Up
-      'effects/dp5.ts > dp5-97': [1, BENCH], // Garchomp LV.X's Restore
-      'effects/dp6-powers.ts > dp6-67': [1, BENCH], // Cast-off Shell
-      'effects/dp6-powers.ts > dp6-83': [1, BENCH],
-      'effects/pl3-powers.ts > pl3-29': [1, BENCH], // Darkness Restore (the opponent's Bench)
       'engine.ts > PLAY_BENCH': [1, 'right as it is: only which message to give, after openBenchSlot found no room'],
     },
   },
@@ -78,22 +69,16 @@ const RULES: Rule[] = [
     pattern: /\bstate\.stadium = (?:null|undefined)/,
     skip: /^engine\.ts$/,
     allowed: {
-      'attacks.ts > performAttack': [1, STADIUM], // Holon Circle
-      'effects/gym2.ts > discardStadium': [1, STADIUM], // and Spacial Rend, Pulse Barrier through it
-      'effects/ex4.ts > knockOver': [1, STADIUM],
-      'effects/ex5.ts > ex5-84': [1, STADIUM],
-      'effects/ex10.ts > ex10-111': [1, STADIUM],
-      'effects/ex13.ts > ex13-50': [1, STADIUM],
-      'effects/ex14-trainers.ts > ex14-85': [1, STADIUM],
-      'effects/ex16.ts > ex16-99': [1, STADIUM],
-      'effects/pl2-powers.ts > pl2-107': [1, '#204 area 4: Sand Reset shuffles the Stadium into the deck (which is right for Ectoplasm needs a ruling)'],
+      'effects/pl2-powers.ts > pl2-107': [1, "right as it is: Sand Reset shuffles the Stadium into its player's deck, Ectoplasm's Dusknoir LV.X too (the user's, 2026-11-14)"],
       'effects/hgss3-trainers.ts > hgss3-THREE': [1, "right as it is: Alph Lithograph puts the Stadium into its owner's hand, where retireStadium would discard a Trainer"],
     },
   },
   {
     name: "An in-play Pokémon's power read with powerEffect(effectId(p)): use pokemonPower(p) (a LV.X has its previous level's too)",
     pattern: /powerEffect\(effectId\(/,
-    allowed: {},
+    allowed: {
+      'powers.ts > playedFromHand': [1, "right as it is: a Pokémon LV.X just put on reacts with its own power only, never its previous level's again (#215, levelling up isn't evolving)"],
+    },
   },
   {
     name: 'applyWeaknessResistance with one type: pass typesOf(…) (dual types, Kecleon)',

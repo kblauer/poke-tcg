@@ -126,7 +126,7 @@ export const HGSS2: Record<string, Record<string, AttackEffect>> = {
   // Ninetales – Heat Acceleration: up to 3 Fire Energy cards from the discard pile attached to one of the player's Pokémon.
   'hgss2-20': {
     'Heat Acceleration': {
-      choices: (s): ChoiceSpec[] => (s.ownDiscard.some((c) => energyCardOf(s.cards, c, 'fire')) && !s.discardsLocked ? [{ kind: 'ownPokemon', options: ['active', ...benchedSlots(s.ownBench)], prompt: 'Heat Acceleration: choose one of your Pokémon to attach Fire Energy cards to' }] : []),
+      choices: (s): ChoiceSpec[] => (s.ownDiscard.some((c) => energyCardOf(s.cards, c, 'fire')) ? [{ kind: 'ownPokemon', options: ['active', ...benchedSlots(s.ownBench)], prompt: 'Heat Acceleration: choose one of your Pokémon to attach Fire Energy cards to' }] : []),
       run(ctx) {
         const t = ctx.choices.ownTarget;
         if (t !== undefined && ctx.me.discard.some((c) => energyCardOf(ctx.state.cards, c, 'fire'))) ctx.pend({ kind: 'attachFromDiscard', source: 'Heat Acceleration', count: 3, target: t, type: 'fire', optional: true });

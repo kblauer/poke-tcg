@@ -14,7 +14,7 @@ import { isBasicEnergy, isPokemonCard, isTrainerCard, lookupCard, type Attack, t
 import type { InPlayPokemon, PlayerState, Target } from '../engine.js';
 import { pokemonAt, powerActive, pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { addLog, effectId, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { addLog, effectId, inPlayDef, openBenchSlot, pokemonName, isEvolved } from '../status.js';
 import { swapActive, targetsOf, type EnergyEffect, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 import { targetOf } from './common.js';
 import { powerEffect, trainerEffect } from './index.js';
@@ -44,7 +44,7 @@ const machine = (what: string, fits: (s: TrainerSituation, p: InPlayPokemon) => 
 
 /** A Miracle Sphere: for an Evolved Pokémon of one of `types`. */
 const sphere = (types: EnergyType[], technicalMachine: Attack) =>
-  machine(`Evolved ${types.map((t) => t[0]!.toUpperCase() + t.slice(1)).join(', ')} Pokémon`, (s, p) => p.evolvedFrom.length > 0 && types.includes(inPlayDef(s.cards, p).type), technicalMachine);
+  machine(`Evolved ${types.map((t) => t[0]!.toUpperCase() + t.slice(1)).join(', ')} Pokémon`, (s, p) => isEvolved(s.cards, p) && types.includes(inPlayDef(s.cards, p).type), technicalMachine);
 
 /** A Mystery Plate: for any Pokémon. */
 const plate = (technicalMachine: Attack) => machine('Pokémon', () => true, technicalMachine);
@@ -271,7 +271,7 @@ export const ECARD3_ENERGY: Record<string, EnergyEffect> = {
   // Retro Energy: attached to an Evolved Pokémon, it may lose up to 2 damage counters and devolve.
   'ecard3-144': {
     onAttach(state, owner, pokemon) {
-      if (!pokemon.evolvedFrom.length) return;
+      if (!isEvolved(state.cards, pokemon)) return;
       state.pendingChoice = { player: owner.id, source: 'Retro Energy', kind: 'mayUse', power: 'retroEnergy', target: targetOf(owner, pokemon) };
     },
   },

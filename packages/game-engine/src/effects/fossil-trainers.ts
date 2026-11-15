@@ -3,11 +3,8 @@
 // rules (not a starting Active or opening-hand Basic, no prize when Knocked Out), and Omanyte, Kabuto
 // and Aerodactyl evolve from it, Pokémon Breeder included.
 import type { CardInstance } from '../engine.js';
-import { pokemonName } from '../status.js';
+import { pokemonName, cardsOf } from '../status.js';
 import { targetsOf, type TrainerEffect } from '../trainers.js';
-
-/** A card leaving play: an Electrode attached as Energy (Buzzap) is a Pokémon card again. */
-const asCard = ({ provides: _, ...card }: CardInstance): CardInstance => card;
 
 export const FOSSIL_TRAINERS: Record<string, TrainerEffect> = {
   // Mr. Fuji: shuffle a benched Pokémon and all cards attached to it into your deck.
@@ -20,7 +17,7 @@ export const FOSSIL_TRAINERS: Record<string, TrainerEffect> = {
       const slot = ctx.choices.target as number;
       const p = ctx.me.bench[slot]!;
       ctx.me.bench[slot] = null;
-      ctx.shuffleIntoDeck(ctx.me, [...p.evolvedFrom, p.card, ...p.energy.map(asCard), ...(p.attached ?? []).map((a) => a.card)]);
+      ctx.shuffleIntoDeck(ctx.me, cardsOf(p));
       ctx.log(`Shuffled ${pokemonName(ctx.state, p)} and its cards into the deck.`);
     },
   },

@@ -9,9 +9,8 @@
 // Destruction does nothing with a Special Energy card attached to Electrode.
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { targetsIn } from '../attacks.js';
-import { hasType, isBasicEnergy, lookupCard, typesOf } from '../cards.js';
-import { counts, energyPool, energyProvided, evolvesOnto, isEnergyCardOf, isSpecialEnergy, type CardInstance } from '../engine.js';
-import { discardsLocked } from '../powers.js';
+import { isBasicInPlay, hasType, isBasicEnergy, lookupCard, typesOf } from '../cards.js';
+import { retireStadium, counts, energyPool, energyProvided, evolvesOnto, isEnergyCardOf, isSpecialEnergy, type CardInstance } from '../engine.js';
 import { shuffle } from '../rng.js';
 import { inPlayDef, pokemonName } from '../status.js';
 import { benchedSlots, energyCanMove, opponentBenchChoice } from './common.js';
@@ -197,7 +196,6 @@ export const EX5: Record<string, Record<string, AttackEffect>> = {
   'ex5-17': {
     Chime: {
       run(ctx) {
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         ctx.pend({ kind: 'supernatural', source: 'Chime', fromDiscard: true });
       },
     },
@@ -240,7 +238,6 @@ export const EX5: Record<string, Record<string, AttackEffect>> = {
   'ex5-26': {
     Sunshine: {
       run(ctx) {
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         ctx.pend({ kind: 'discardToHand', source: 'Sunshine', count: 1, filter: 'stadium', reveal: true });
       },
     },
@@ -300,7 +297,7 @@ export const EX5: Record<string, Record<string, AttackEffect>> = {
   'ex5-32': {
     'Coral Glow': {
       run(ctx) {
-        const basics = inPlay(ctx.opp).filter((p) => inPlayDef(ctx.state.cards, p).stage === 'basic').length;
+        const basics = inPlay(ctx.opp).filter((p) => isBasicInPlay(inPlayDef(ctx.state.cards, p))).length;
         const max = Math.min(basics, Math.max(0, 10 - ctx.me.hand.length));
         if (max && ctx.me.deck.length) ctx.pend({ kind: 'drawCount', source: 'Coral Glow', max });
       },
@@ -575,8 +572,7 @@ export const EX5: Record<string, Record<string, AttackEffect>> = {
         }
         const stadium = ctx.state.stadium;
         if (stadium && stadium.owner === ctx.opp.id) {
-          ctx.opp.discard.push(stadium.card);
-          ctx.state.stadium = null;
+          retireStadium(ctx.state);
           discarded++;
         }
         if (!discarded) return ctx.log('Your opponent has no Trainer cards in play.');

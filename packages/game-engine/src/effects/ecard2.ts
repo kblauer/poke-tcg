@@ -14,7 +14,7 @@ import { pokemonOn, targetsIn, type AttackContext, type AttackEffect, type Attac
 import { isBasicEnergy, isPokemonCard, lookupCard, type Attack } from '../cards.js';
 import { canPayCost, counts, energyPool, isEnergyCardOf, isSpecialEnergy, type CardInstance, type InPlayPokemon } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { effectId, inPlayDef, pokemonName } from '../status.js';
+import { effectId, inPlayDef, pokemonName, isEvolved } from '../status.js';
 import {
   benchedSlots,
   benchTarget,
@@ -40,7 +40,7 @@ import { attackEffect, trainerEffect } from './index.js';
 import { flipForMore } from './jungle.js';
 import { damageOpponent, opponentTargets, swift } from './neo1.js';
 import { evolutionsOf } from './neo2.js';
-import { attachFromDiscard, discardFree, energyCanGo, notNextTurn, reachesDefender } from './neo3.js';
+import { attachFromDiscard, energyCanGo, notNextTurn, reachesDefender } from './neo3.js';
 import { flipOrNothing } from './rocket.js';
 import { eitherCondition } from './si1.js';
 
@@ -578,7 +578,7 @@ export const ECARD2: Record<string, Record<string, AttackEffect>> = {
   // Pupitar – Thrash.
   'ecard2-56': { Thrash: thrash(30) },
   // Scyther – Quick Turn; Cross-Cut: 20 more against an Evolved Pokémon.
-  'ecard2-57': { 'Quick Turn': perHeads(2, 10), 'Cross-Cut': { run: (ctx) => void ctx.hit(ctx.defender.evolvedFrom.length ? 40 : 20) } },
+  'ecard2-57': { 'Quick Turn': perHeads(2, 10), 'Cross-Cut': { run: (ctx) => void ctx.hit(isEvolved(ctx.state.cards, ctx.defender) ? 40 : 20) } },
   // Seadra – Water Bullet: a coin for each Water Energy, 10 more for each heads.
   'ecard2-58': { 'Water Bullet': { run: (ctx) => void ctx.hit(30 + 10 * ctx.flips(energyOf(ctx, ctx.attacker, 'water'))) } },
   // Seaking – Flail; Undulate.
@@ -775,7 +775,7 @@ export const ECARD2: Record<string, Record<string, AttackEffect>> = {
   'ecard2-93': {
     Charge: {
       run(ctx) {
-        if (discardFree(ctx)) attachFromDiscard(ctx, (c) => isEnergyCardOf(c, ctx.state.cards, 'lightning') && isBasicEnergy(lookupCard(ctx.state.cards, c.defId)));
+        attachFromDiscard(ctx, (c) => isEnergyCardOf(c, ctx.state.cards, 'lightning') && isBasicEnergy(lookupCard(ctx.state.cards, c.defId)));
       },
     },
   },
@@ -837,7 +837,7 @@ export const ECARD2: Record<string, Record<string, AttackEffect>> = {
     'Fishing Tail': {
       run(ctx) {
         const fits = (c: CardInstance) => isPokemonCard(lookupCard(ctx.state.cards, c.defId)) || isBasicEnergy(lookupCard(ctx.state.cards, c.defId));
-        if (ctx.me.discard.some(fits) && discardFree(ctx)) ctx.pend({ kind: 'discardToHand', source: 'Fishing Tail', count: 1, filter: 'pokemonOrBasicEnergy', reveal: true });
+        if (ctx.me.discard.some(fits)) ctx.pend({ kind: 'discardToHand', source: 'Fishing Tail', count: 1, filter: 'pokemonOrBasicEnergy', reveal: true });
       },
     },
   },

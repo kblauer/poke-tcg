@@ -87,10 +87,7 @@ function nextRunAction(s: RunState, rng: Rng, pool: readonly PoolCard[], games: 
  * Faults the played runs show today, by their line, each with where it was reported. A run may show only these, and each
  * must still be seen in some run, so a fix takes its entry out.
  */
-const KNOWN: Record<string, string> = {
-  '{"type":"USE_ITEM","itemId":"no-such-item"}: threw: Unknown item: no-such-item':
-    'found by this test, not in #204: USE_ITEM with an id that is no item throws where every other action is refused (the API sends only ids from the inventory)',
-};
+const KNOWN: Record<string, string> = {};
 
 describe('every run type, played through with its own generation’s pool', () => {
   const seen = new Set<string>();

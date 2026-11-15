@@ -205,32 +205,7 @@ const FIXTURES: { [K in Kind]: Fixture<K> | NotYet } = {
  * Fixtures that don't settle today, by `kind/board#index` (the index of the kind's fixture), each with where it was
  * reported. Every entry is asserted to still fail: take it out with its fix.
  */
-const NOTHING_TO_CLICK =
-  'found by this test, not in #204: asked with nothing to click, no answer is accepted, not even nothing (a hang, were a card to ask it so; the cards that ask it were not all read, and those read check first)';
-const KNOWN: Record<string, string> = {
-  'saffron/bare#0': NOTHING_TO_CLICK,
-  'narrowGym/bare#0': NOTHING_TO_CLICK,
-  'revealEnergy/bare#0': NOTHING_TO_CLICK,
-  'devolveOwn/bare#0': NOTHING_TO_CLICK,
-  'powerPlant/bare#0': NOTHING_TO_CLICK,
-  'returnUnown/bare#0': NOTHING_TO_CLICK,
-  'shuffleFromHand/bare#0': NOTHING_TO_CLICK,
-  'doubleGust/bare#0': NOTHING_TO_CLICK,
-  'fastStream/bare#0': NOTHING_TO_CLICK,
-  'handToDeck/bare#0': NOTHING_TO_CLICK,
-  'handToPrize/bare#0': NOTHING_TO_CLICK,
-  'beforeAttack/bare#2': NOTHING_TO_CLICK,
-  'rival/bare#0': NOTHING_TO_CLICK,
-  'switchIn/bare#0': NOTHING_TO_CLICK,
-  'benchDamage/bare#0': NOTHING_TO_CLICK,
-  'discardAttached/bare#0': NOTHING_TO_CLICK,
-  'marley/bare#0': NOTHING_TO_CLICK,
-  'marley/bare#1': NOTHING_TO_CLICK,
-  'lostCyclone/bare#0': NOTHING_TO_CLICK,
-  'moveCounters/bare#2': NOTHING_TO_CLICK,
-  'oppBenchPick/bare#0': NOTHING_TO_CLICK,
-  'skillHack/bare#0': NOTHING_TO_CLICK,
-};
+const KNOWN: Record<string, string> = {};
 
 const ROWS = (Object.keys(FIXTURES) as Kind[]).flatMap((kind) => {
   const fixture = FIXTURES[kind] as Fixture<Kind> | NotYet;

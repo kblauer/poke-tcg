@@ -9,7 +9,7 @@
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { targetsIn } from '../attacks.js';
 import { isBasicEnergy, lookupCard } from '../cards.js';
-import { energyProvided, isEnergyCardOf, type CardInstance, type Target } from '../engine.js';
+import { retireStadium, energyProvided, isEnergyCardOf, type CardInstance, type Target } from '../engine.js';
 import { pokemonAt } from '../powers.js';
 import { clearSpecialConditions, devolvable, openBenchSlot, pokemonName } from '../status.js';
 import { benchedSlots, energyCanMove, opponentSwitches } from './common.js';
@@ -57,9 +57,7 @@ export const knockOver = (damage: number): AttackEffect => ({
     ctx.hit(damage);
     const stadium = ctx.state.stadium;
     if (!ctx.choices.boost || !stadium) return;
-    ctx.state.players[stadium.owner]!.discard.push(stadium.card);
-    ctx.state.stadium = null;
-    ctx.log(`Discarded ${lookupCard(ctx.state.cards, stadium.card.defId).name}.`);
+    retireStadium(ctx.state);
   },
 });
 
