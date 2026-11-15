@@ -7,14 +7,15 @@ import { useToasts } from '../../hooks/useToasts';
 import { useWindowFill } from '../../hooks/useWindowFill';
 import { useTRPC } from '../../lib/trpc';
 import { BUTTON, PANEL_HEADING } from '../../utils/styles';
-import { seconds } from '../../utils/whosThat';
+import { autoPassDue, seconds } from '../../utils/whosThat';
 import { Toasts } from '../Toasts';
 import { NamingScreen, primeKeyboard } from '../whos-that/NamingScreen';
 import { WhosThatScreen } from '../whos-that/WhosThatScreen';
 
 type Outputs = inferRouterOutputs<AppRouter>['whosThat'];
 type Round = Outputs['start'];
-type Moved = Outputs['pass'];
+type Move = Outputs['pass'];
+type Moved = Extract<Move, { correct: true }>;
 type Results = NonNullable<Moved['results']>;
 type Board = 'average' | 'fastest' | 'daily';
 
@@ -53,10 +54,15 @@ export function WhosThat() {
   const [results, setResults] = useState<Results | null>(null);
   const [now, setNow] = useState(() => Date.now());
   // A passed Pokémon being revealed (its shape, card and name) until `until`, and the game's results if it was the last.
-  const [reveal, setReveal] = useState<{ shape: Round['shape']; cardId: string; answer: string; until: number; results: Results | null } | null>(null);
+  const [reveal, setReveal] = useState<{ shape: NonNullable<Round['shape']>; cardId: string; answer: string; until: number; results: Results | null } | null>(null);
   const revealing = reveal !== null && now < reveal.until;
   // The Pokémon a pass was asked for when its time ran out, so it's asked once.
   const autoPassed = useRef<string | null>(null);
+  // The round as it is now, for answers that come back later; the next Pokémon's shape being asked for, and when to ask again after a failure.
+  const current = useRef(round);
+  current.current = round;
+  const asking = useRef(false);
+  const askAfter = useRef(0);
 
   const show = (next: Round) => {
     setRound(next);
@@ -71,9 +77,16 @@ export function WhosThat() {
   /** The Pokémon on screen named or passed (a pass is revealed first, the next one's clock starting after it). */
   const moveOn = (r: Moved) => {
     setDone((d) => [...d, { cardId: r.cardId, answer: r.answer, timeMs: r.timeMs, passed: r.passed }]);
-    if (r.passed && round) setReveal({ shape: round.shape, cardId: r.cardId, answer: r.answer, until: Date.now() + WHOS_THAT_REVEAL_MS, results: r.results });
+    const shape = r.passed ? round?.shape : null;
+    if (shape) setReveal({ shape, cardId: r.cardId, answer: r.answer, until: Date.now() + WHOS_THAT_REVEAL_MS, results: r.results });
     if (r.next) show(r.next);
-    else if (r.results && !r.passed) finish(r.results);
+    else if (r.results && !shape) finish(r.results);
+  };
+  /** A move the server took: the game moved on, or (sent for a round the game had left, `stale`) the round it's on shown if this isn't it. */
+  const moved = (r: Move) => {
+    if (r.correct) moveOn(r);
+    else if (r.round && r.round.gameId === current.current?.gameId && r.round.index !== current.current.index) show(r.round);
+    return r.correct;
   };
   const onError = (err: { message: string }) => toasts.push('error', err.message);
   const start = useMutation(
@@ -88,7 +101,7 @@ export function WhosThat() {
     }),
   );
   const guess = useMutation(trpc.whosThat.guess.mutationOptions({ onError }));
-  const pass = useMutation(trpc.whosThat.pass.mutationOptions({ onSuccess: moveOn, onError }));
+  const pass = useMutation(trpc.whosThat.pass.mutationOptions({ onSuccess: moved, onError }));
 
   useEffect(() => {
     if (!round) return;
@@ -115,21 +128,39 @@ export function WhosThat() {
     return () => view.removeEventListener('resize', onResize);
   }, [playing]);
 
-  // Not named in WHOS_THAT_PASS_MS: passed (the server counts any later guess as a pass too).
+  // The next Pokémon after a pass: its shape comes only once its clock has started (`whosThat.round`), so it's asked for
+  // when the reveal is over (and a second later if that fails).
   useEffect(() => {
-    if (!round || revealing || reveal?.results || pass.isPending || now - shownAt < WHOS_THAT_PASS_MS) return;
+    if (!round || round.shape || now < shownAt || now < askAfter.current || asking.current) return;
+    asking.current = true;
+    queryClient
+      .fetchQuery(trpc.whosThat.round.queryOptions({ gameId: round.gameId }, { staleTime: 0 }))
+      .then((r) => {
+        if (current.current?.gameId === r.gameId && !current.current.shape) show(r);
+      })
+      .catch((err: { message: string }) => {
+        askAfter.current = Date.now() + 1000;
+        onError(err);
+      })
+      .finally(() => {
+        asking.current = false;
+      });
+    // show and onError only read setters and the toasts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [round, now, shownAt, queryClient, trpc]);
+
+  // Not named in WHOS_THAT_PASS_MS: passed (the server counts any later guess as a pass too), unless a move is on its way.
+  useEffect(() => {
+    if (!round || !autoPassDue({ shown: round.shape !== null, revealing: revealing || !!reveal?.results, busy: pass.isPending || guess.isPending, elapsedMs: now - shownAt })) return;
     const key = `${round.gameId}:${round.index}`;
     if (autoPassed.current === key) return;
     autoPassed.current = key;
-    pass.mutate({ gameId: round.gameId });
-  }, [round, revealing, reveal, pass, now, shownAt]);
+    pass.mutate({ gameId: round.gameId, index: round.index });
+  }, [round, revealing, reveal, pass, guess.isPending, now, shownAt]);
 
   const send = async (text: string) => {
-    if (!round || revealing) return false;
-    const r = await guess.mutateAsync({ gameId: round.gameId, guess: text });
-    if (!r.correct) return false;
-    moveOn(r);
-    return true;
+    if (!round?.shape || revealing) return false;
+    return moved(await guess.mutateAsync({ gameId: round.gameId, index: round.index, guess: text }));
   };
   const elapsed = Math.min(WHOS_THAT_PASS_MS, Math.max(0, now - shownAt));
 
@@ -155,13 +186,13 @@ export function WhosThat() {
               {revealing ? <WhosThatScreen shape={reveal.shape} reveal={{ cardId: reveal.cardId, answer: reveal.answer }} /> : <WhosThatScreen shape={round.shape} />}
             </Fit>
             <Fit ratio={3 / 2} grow={11}>
-              <NamingScreen round={`${round.gameId}:${round.index}`} onSubmit={send} disabled={revealing} />
+              <NamingScreen round={`${round.gameId}:${round.index}`} onSubmit={send} disabled={revealing || !round.shape} />
             </Fit>
             <div ref={skipRow} className="flex items-start justify-between gap-3">
               <DoneList done={done} />
               <div className="ml-auto flex shrink-0 items-center gap-2">
                 <span className="text-xs text-slate-400">Type SKIP to pass</span>
-                <button className={BUTTON} disabled={pass.isPending || revealing} onClick={() => pass.mutate({ gameId: round.gameId })}>
+                <button className={BUTTON} disabled={pass.isPending || revealing || !round.shape} onClick={() => pass.mutate({ gameId: round.gameId, index: round.index })}>
                   Skip
                 </button>
               </div>

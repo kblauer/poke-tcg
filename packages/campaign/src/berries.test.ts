@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { BERRIES } from './berries.js';
-import { blenderFrame, blenderRanking, blenderTempo, makePokeblock, newBlenderGame, opponentBerries, pokeblockLevel, proximity, speedToRpm, type Random16 } from './berry-blender.js';
+import { blenderFrame, blenderRanking, blenderTempo, makePokeblock, MAX_BLENDER_RPM, newBlenderGame, opponentBerries, pokeblockLevel, proximity, speedToRpm, type Random16 } from './berry-blender.js';
 import { BERRY_FARM_MAP } from './berry-farm-map.js';
 import { berriesOf, FARM_TREES, farmOf, farmView, GROW_MS, harvest, harvestAll, RIPE, stageAt } from './berry-farm.js';
 import { blenderMusic, SOUNDTRACKS } from './music.js';
@@ -124,6 +124,21 @@ describe('the Berry Blender', () => {
     expect(game.maxRpm).toBeGreaterThan(speedToRpm(128));
     expect(game.scores.slice(1).every(([best, good]) => best + good > 0)).toBe(true);
     expect(blenderRanking(game.scores)[0]).toBe(0);
+  });
+
+  it('reaches MAX_BLENDER_RPM, the top speed the API takes, in the perfect game and no other tried', () => {
+    // The player presses on every frame the arrow is in their Best range, and in their Good range while the blender is
+    // under `goodUnder`; `roll` is every Random() of the people's (65535: a Best at every pass).
+    const play = (goodUnder: number, roll: number) => {
+      const game = newBlenderGame();
+      while (!game.over) {
+        const score = proximity((game.arrowPos + game.speed) & 0xffff, 0);
+        blenderFrame(game, score === 'best' || (score === 'good' && game.speed < goodUnder), () => roll);
+      }
+      return game.maxRpm;
+    };
+    expect(play(1500, 65535)).toBe(MAX_BLENDER_RPM);
+    for (const goodUnder of [0, 500, 1000, 1500, 99999]) for (const roll of [65535, 60000, 45000, 30000, 0]) expect(play(goodUnder, roll)).toBeLessThanOrEqual(MAX_BLENDER_RPM);
   });
 
   it('speeds the music up above 1500, set only on a Miss or a score of LADDIE\'s, as the game does', () => {

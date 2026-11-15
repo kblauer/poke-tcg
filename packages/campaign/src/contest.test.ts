@@ -22,6 +22,7 @@ import {
   type DancePress,
 } from './contest.js';
 import { CONTEST_ENTRANTS } from './contest-data.js';
+import { contestView } from './contest.js';
 
 const player = (moves = ['thunder-shock', 'quick-attack', 'thunderbolt', 'agility'], condition: Condition = [120, 40, 40, 40, 60, 100]) => ({ species: 25, name: 'Pikachu', trainer: 'Red', moves, condition });
 
@@ -238,5 +239,30 @@ describe('the results', () => {
   it('weighs each round against its best', () => {
     expect(roundPoints([12, 6, 0, 3], 3333)).toEqual([33, 17, 0, 8]);
     expect(roundPoints([0, 0, 0, 0], 3333)).toEqual([0, 0, 0, 0]);
+  });
+});
+
+describe('what the browser gets (contestView)', () => {
+  it('never holds the RNG, and the dance seeds only while the dance is on, at every phase', () => {
+    for (let seed = 1; seed <= 5; seed++) {
+      const start = createContest({ rank: 0, category: 0, player: player(), postgame: false }, seed);
+      const dance = finishVisual(start, []) as ContestState;
+      const states = [start, dance];
+      let s = finishDance(dance, []) as ContestState;
+      while (s.phase === 'acting') {
+        states.push(s);
+        s = actingTurn(s, s.entrants[PLAYER]!.moves.find((m) => canUseMove(s.acting!, PLAYER, m))!, 1) as ContestState;
+      }
+      states.push(s);
+      expect(states.map((x) => x.phase)).toEqual(['visual', 'dance', 'acting', 'acting', 'acting', 'acting', 'results']);
+      for (const state of states) {
+        const view = contestView(state);
+        expect(view).not.toHaveProperty('rng');
+        expect(JSON.stringify(view)).not.toContain('"rng"');
+        expect('danceSeeds' in view).toBe(state.phase === 'dance');
+        expect({ ...view, rng: state.rng, danceSeeds: state.danceSeeds }).toEqual(state);
+      }
+      expect(typeof start.rng).toBe('number');
+    }
   });
 });

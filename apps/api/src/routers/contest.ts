@@ -1,4 +1,5 @@
-import { actingTurn, canEnter, conditionOf, contestMove, createContest, feedPoffin, feedPokeblock, finishDance, finishVisual, PLAYER, poffinLevel, pokeblockLevel, ribbonId, type ContestState, type PokeblockColor } from '@poke-tcg/campaign';
+import { randomInt } from 'node:crypto';
+import { actingTurn, canEnter, conditionOf, contestMove, contestView, createContest, feedPoffin, feedPokeblock, finishDance, finishVisual, PLAYER, poffinLevel, pokeblockLevel, ribbonId, type ContestState, type PokeblockColor } from '@poke-tcg/campaign';
 import { prisma } from '@poke-tcg/db';
 import { dexSpecies as speciesData } from '@poke-tcg/idle';
 import { contestActInput, contestDanceInput, contestFeedInput, contestMovesInput, contestProfileInput, contestStartInput, contestVisualInput } from '@poke-tcg/shared';
@@ -35,23 +36,29 @@ async function caughtEntry(tx: Tx, userId: string, species: number) {
   return row;
 }
 
-/** The contest's state and version checked, in a locked transaction. */
+/**
+ * The contest's state and version checked, in a locked transaction. Its RNG is seeded afresh for the step about to be
+ * played: the dance's CPU seeds, which the browser must have (contestView), are the RNG's own numbers in a row, enough
+ * to work its state out, so no step's draws may follow from an earlier one's.
+ */
 async function loadContest(tx: Tx, userId: string, expectedVersion: number) {
   await lockUser(tx, userId);
   const user = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { contest: true } });
   const state = contestOf(user.contest);
   if (!state) throw failed('No contest is under way');
   if (state.version !== expectedVersion) throw new TRPCError({ code: 'CONFLICT', message: 'The contest changed, refresh and retry' });
-  return state;
+  return { ...state, rng: randomInt(2 ** 32) };
 }
 
-const saveContest = (tx: Tx, userId: string, state: ContestState) => tx.user.update({ where: { id: userId }, data: { contest: asJson(state) } }).then(() => state);
+/** Saves the contest and returns what the browser gets of it (contestView: never the saved state itself). */
+const saveContest = (tx: Tx, userId: string, state: ContestState) => tx.user.update({ where: { id: userId }, data: { contest: asJson(state) } }).then(() => contestView(state));
 
 /**
  * The Extras page's Super Contests (README: Super Contests): Platinum's contests (campaign's contest.ts) entered with an
  * Idle Adventure Pokédex entry, which is the Pokémon (the user's): the Pokéblocks and Poffins fed to it raise its
  * condition for good, and its ribbons stay with it. The server plays every round: the browser sends the outfit, the
- * dance's presses and each acting turn's move and judge, and gets the contest back (User.contest) as it goes.
+ * dance's presses and each acting turn's move and judge, and gets the contest back (User.contest) as it goes, without
+ * its RNG (contestView).
  */
 export const contestRouter = router({
   /** The account's caught dex entries (condition, contest moves, the moves they could learn, ribbons), its treats, and the contest under way. */
@@ -66,7 +73,7 @@ export const contestRouter = router({
       entries: dex.map((d) => ({ species: d.species, shiny: d.shiny, condition: conditionOf(d.condition), moves: d.contestMoves, ribbons: d.ribbons, nature: d.contestNature, item: d.contestItem, learnable: learnable(d.species) })),
       pokeblocks: pokeblocks.map((p) => ({ ...p, color: p.color as PokeblockColor, level: pokeblockLevel({ ...p, color: p.color as PokeblockColor }) })),
       poffins: poffins.map((p) => ({ ...p, level: poffinLevel(p) })),
-      contest: contestOf(user.contest),
+      contest: ((c) => c && contestView(c))(contestOf(user.contest)),
     };
   }),
 
