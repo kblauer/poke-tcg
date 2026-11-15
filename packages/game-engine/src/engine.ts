@@ -1088,8 +1088,13 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       // Invisible Tentacles: the attacking player's card discarded, then any other question, then the attack.
       if (pending.question === 'discardOne') {
         const card = me.hand.find((c) => c.uid === action.cardUid);
-        if (!card) return fail('Choose a card from your hand to discard');
+        if (!card && me.hand.length) return fail('Choose a card from your hand to discard');
         delete state.pendingChoice;
+        // No card in the hand: the attack can't be used (attackError), and the turn goes on.
+        if (!card) {
+          addLog(state, `${pending.source}: no card in the hand to discard, so the attack can't be used.`, me.id);
+          return ok(state);
+        }
         me.hand = me.hand.filter((c) => c !== card);
         me.discard.push(card);
         addLog(state, `${pending.source}: discarded ${lookupCard(state.cards, card.defId).name}.`, me.id);
