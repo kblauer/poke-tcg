@@ -6,7 +6,7 @@ import { boss } from './bosses.js';
 import { expandDeck, STARTER_DECK } from './decks.js';
 import { runMusic } from './music.js';
 import { routeAt, RUN_TYPE_IDS, runType, type RunTypeId } from './run-types.js';
-import { applyRunAction, battlesCompleted, createRun, isBattleKind, isBossKind, landNear, MAX_CENTERS, MAX_HP, needsBattle, REQUIRED_BATTLES, type EncounterKind, type RunAction, type RunState, type RunSystemAction, type Step } from './run.js';
+import { applyRunAction, battlesCompleted, createRun, isBattleKind, isFixedCenter, isBossKind, landNear, MAX_CENTERS, MAX_HP, needsBattle, REQUIRED_BATTLES, type EncounterKind, type RunAction, type RunState, type RunSystemAction, type Step } from './run.js';
 import { GEN2_TEST_POOL, TEST_POOL } from './test-pool.js';
 
 const deck = expandDeck(STARTER_DECK);
@@ -106,7 +106,7 @@ describe('the map generator, on every run type', () => {
     }
   });
 
-  it("Johto's and Hoenn's Gym Trainers come from their gym's own list where it has one, like Kanto's", () => {
+  it("Johto's, Hoenn's and Sinnoh's Gym Trainers come from their gym's own list where it has one, like Kanto's", () => {
     for (const id of RUN_TYPE_IDS) {
       for (const seed of SEEDS.slice(0, 8)) {
         for (const st of createRun(id, deck, seed).steps) {
@@ -118,7 +118,7 @@ describe('the map generator, on every run type', () => {
       }
     }
     // Every generation has gyms with their own lists.
-    for (const ids of [['pewter', 'vermilion'], ['violet', 'goldenrod'], ['rustboro', 'mauville']] as const) {
+    for (const ids of [['pewter', 'vermilion'], ['violet', 'goldenrod'], ['rustboro', 'mauville'], ['oreburgh', 'eterna']] as const) {
       expect(ids.some((id) => boss(runType(id).segments[0]!.bosses[0]!).gym?.trainers?.length), ids.join()).toBeTruthy();
     }
   });
@@ -126,6 +126,30 @@ describe('the map generator, on every run type', () => {
 
 describe('Repel', () => {
   const repel = (s: RunState) => act(s, { type: 'USE_ITEM', itemId: 'repel' });
+
+  it("is refused on every step the generator fixes (a Gym Trainer's, a boss's, the Gym Challenge's Pokémon Center) and works on the rest", () => {
+    for (const id of RUN_TYPE_IDS) {
+      const base = createRun(id, deck, 3);
+      base.steps.forEach((step, position) => {
+        const s = structuredClone(base);
+        s.position = position;
+        const res = applyRunAction(s, { type: 'USE_ITEM', itemId: 'repel' }, TEST_POOL, []);
+        const fixed = step.options.some((o) => o.kind === 'gymTrainer' || isBossKind(o.kind)) || isFixedCenter(id, position);
+        expect(res.ok, `${id} step ${position}`).toBe(!fixed);
+      });
+    }
+  });
+
+  it("finds the Gym Challenge's Pokémon Center after the fourth leader, and no Center in a run without one", () => {
+    for (const id of ['kantoGyms', 'johtoGyms', 'hoennGyms', 'sinnohGyms'] as const) {
+      const steps = createRun(id, deck, 1).steps;
+      const centers = steps.flatMap((st, i) => (st.options.every((o) => o.kind === 'center') ? [i] : []));
+      expect(centers, id).toEqual([4]);
+      expect(isFixedCenter(id, 4), id).toBe(true);
+    }
+    expect(isFixedCenter('pewter', 0)).toBe(false);
+    expect(isFixedCenter('kantoChampion', 4)).toBe(false);
+  });
 
   it("keeps the route's rules on a bike route (Route 17's Bikers, Route 110's Triathletes) and on Johto's and Hoenn's surfed ones", () => {
     const rolled = (id: RunTypeId, position: number) => SEEDS.map((seed) => {

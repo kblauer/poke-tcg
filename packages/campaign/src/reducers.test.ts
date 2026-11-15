@@ -137,10 +137,8 @@ const FIRST_RUNS: Record<number, RunTypeId> = { 1: 'pewter', 2: 'violet', 3: 'ru
  * any card of the pool, whatever the deck already holds: a fifth copy, a second Shining Pokémon, a fifth Unown), each
  * asserted to still do so: take a generation out with the fix.
  */
-const TRADE_BREAKS: Record<number, string> = {
-  1: '#204 area 6, bug 2: 2 of 400 seeds from the starter deck (5 copies of Pikachu)',
-  2: '#204 area 6, bug 2: 1 of 400 seeds from a random Gen 2 deck (5 copies of Cyndaquil)',
-};
+// (Empty since #211: a trade offers only cards the deck can still take, takesCopy.)
+const TRADE_BREAKS: Record<number, string> = {};
 
 describe('a trade', () => {
   it.each([1, 2, 3, 4])('in Generation %i leaves the run deck legal, over 400 seeds (or is a known gap, and still one)', (generation) => {
@@ -161,7 +159,8 @@ describe('a trade', () => {
     }
     if (generation in TRADE_BREAKS) expect(broken.length, `Generation ${generation}'s trades keep the deck legal now: take it out of TRADE_BREAKS`).toBeGreaterThan(0);
     else expect(broken).toEqual([]);
-  });
+    // (400 trades a generation: about 5 s for Gen 4's pool since takesCopy, past vitest's 5 s default.)
+  }, 30_000);
 });
 
 type AnyTowerAction = TowerAction | TowerSystemAction;
