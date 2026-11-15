@@ -1,5 +1,5 @@
 // Deck lists: the starter deck, gym leaders' decks, and random medium-strength decks for the other trainers.
-import { isBasicPokemon, isPokemonCard, type CardDef, type EnergyType, type PokemonCardDef } from '@poke-tcg/game-engine';
+import { evolutionName, isBasicPokemon, isPokemonCard, type CardDef, type EnergyType, type PokemonCardDef } from '@poke-tcg/game-engine';
 import { BASIC_ENERGY, byId, DOUBLE_COLORLESS, GEN2_BASIC_ENERGY, GEN3_BASIC_ENERGY, GEN4_BASIC_ENERGY, GEN4_DOUBLE_COLORLESS, nameKey, type PoolCard } from './pool.js';
 import { isAceSpec } from './card-fixes.js';
 import { between, chance, pick, sample, type Rng } from './random.js';
@@ -120,11 +120,12 @@ function evolutionLines(pool: readonly PoolCard[], rng: Rng): Line[] {
   const index = (map: Map<string, PokemonCardDef[]>, key: string, d: PokemonCardDef) => map.set(key, [...(map.get(key) ?? []), d]);
   for (const d of pokemon) {
     index(byName, `${d.stage}|${d.name}`, d);
-    if (d.evolvesFrom) index(byFrom, `${d.stage}|${d.evolvesFrom}`, d);
+    // δ isn't part of a name for evolving (evolutionName): Swablu δ's line goes on to Altaria ex δ, printed "Evolves from Swablu".
+    if (d.evolvesFrom) index(byFrom, `${d.stage}|${evolutionName(d.evolvesFrom)}`, d);
   }
   const prints = (stage: PokemonCardDef['stage'], name: string, from?: string) =>
-    (byName.get(`${stage}|${name}`) ?? []).filter((d) => from === undefined || d.evolvesFrom === from);
-  const names = (stage: PokemonCardDef['stage'], from: string) => [...new Set((byFrom.get(`${stage}|${from}`) ?? []).map((d) => d.name))];
+    (byName.get(`${stage}|${name}`) ?? []).filter((d) => from === undefined || evolutionName(d.evolvesFrom ?? '') === evolutionName(from));
+  const names = (stage: PokemonCardDef['stage'], from: string) => [...new Set((byFrom.get(`${stage}|${evolutionName(from)}`) ?? []).map((d) => d.name))];
   const lines: PokemonCardDef[][] = [];
   for (const basic of new Set(pokemon.filter((d) => isBasicPokemon(d)).map((d) => d.name))) {
     const b = pick(rng, prints('basic', basic));

@@ -1,6 +1,7 @@
 // Where a hand card can be played right now. UI hints only – the server validates every move.
 import {
   evolveError,
+  evolvesFromName,
   holonEnergy,
   isBasicPokemon,
   isBenchable,
@@ -68,7 +69,7 @@ export function whyNoTargets(view: PlayerView, card: CardInstance): string {
     // A matching Pokémon is in play but blocked (first turn, played this turn): say why.
     const match = occupiedSlots(self)
       .map((slot) => pokemonAt(self, slot))
-      .find((p) => p && lookupCard(view.cards, p.card.defId).name === def.evolvesFrom);
+      .find((p) => p && evolvesFromName(def, lookupCard(view.cards, p.card.defId).name));
     const reason = match && evolveError(def, match, view.cards, view.turn, [self, view.opponent], view.stadium?.card);
     return reason ? `${reason}.` : `No ${def.evolvesFrom} in play to evolve.`;
   }
