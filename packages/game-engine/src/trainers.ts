@@ -3,7 +3,7 @@
 // be answered from a player's view, so those Trainers leave a PendingChoice that only the player
 // sees the options of, answered with RESOLVE_CHOICE.
 import { applyWeaknessResistance, damageChosenActive, damageChosenBenched, performCopiedAttack, recallsAttacks, usableAttacks, type AttackChoices } from './attacks.js';
-import { conditionProof, hasType, isBasicEnergy, isBasicPokemon, isLegend, isPokemonCard, isTrainerCard, lookupCard, namesMatch, typeName, type Attack, type CardLibrary, type CardDef, type EnergyType, type PokemonCardDef } from './cards.js';
+import { conditionProof, evolvesFromName, hasType, isBasicEnergy, isBasicPokemon, isLegend, isPokemonCard, isTrainerCard, lookupCard, namesMatch, typeName, type Attack, type CardLibrary, type CardDef, type EnergyType, type PokemonCardDef } from './cards.js';
 import { powerEffect, trainerEffect } from './effects/index.js';
 import { activeLocked, afflictBetweenTurns, conditionLabel, discardTheirEnergy, isEnergyCardOf, isSpecialEnergy, retireStadium, discardTool, evolvesOnto, newInPlay, opponentOf, toolOf, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
 import { nextRandom, shuffle } from './rng.js';
@@ -2354,7 +2354,7 @@ const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { kind: '
   if (choice.filter === 'trainer') return isTrainerCard(d);
   if (choice.filter === 'trainerNamed') return isTrainerCard(d) && d.name === choice.name;
   if (choice.filter === 'pokemonNotNamed') return isPokemonCard(d) && d.name !== choice.name;
-  if (choice.filter === 'evolvesFrom') return d.kind === 'pokemon' && !d.trainerText && d.evolvesFrom === choice.name;
+  if (choice.filter === 'evolvesFrom') return d.kind === 'pokemon' && !d.trainerText && evolvesFromName(d, String(choice.name));
   if (choice.filter === 'tool') return d.kind === 'trainer' && !!trainerEffect(c.defId)?.tool;
   if (choice.filter === 'energy') return d.kind === 'energy';
   if (choice.filter === 'toolOrMachine') return d.kind === 'trainer' && (!!trainerEffect(c.defId)?.tool || !!trainerEffect(c.defId)?.technicalMachine);
@@ -3946,7 +3946,7 @@ function lunarTargets(cards: CardLibrary, player: Pick<PlayerState, 'bench'>, c:
   return player.bench.flatMap((p, i) => {
     if (!p || p.faceDown || shapeshiftCard(p)) return [];
     const from = lookupCard(cards, p.card.defId);
-    return from.kind === 'pokemon' && from.name === d.evolvesFrom && from.stage === (d.stage === 'stage2' ? 'stage1' : 'basic') ? [i] : [];
+    return from.kind === 'pokemon' && evolvesFromName(d, from.name) && from.stage === (d.stage === 'stage2' ? 'stage1' : 'basic') ? [i] : [];
   });
 }
 
@@ -3968,7 +3968,7 @@ export function sporeTargets(state: Pick<GameState, 'players' | 'cards' | 'turn'
     if (p.faceDown || shapeshiftCard(p) || choice.done.includes(baseUid(p)) || !choice.names.includes(from.name)) return false;
     // Make a Wish (agreed): the usual limits, not on a Pokémon played or evolved this turn nor on the first turn.
     if (choice.limits && ((choice.limits !== 'power' && state.turn <= 2) || p.playedTurn === state.turn || p.effects?.noEvolve !== undefined)) return false;
-    return from.kind === 'pokemon' && from.name === d.evolvesFrom && from.stage === (d.stage === 'stage2' ? 'stage1' : 'basic');
+    return from.kind === 'pokemon' && evolvesFromName(d, from.name) && from.stage === (d.stage === 'stage2' ? 'stage1' : 'basic');
   });
 }
 

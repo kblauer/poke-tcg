@@ -11,7 +11,7 @@
 // neither Pokémon is benched or evolves. Pursuit's 10 damage happens when the Pokémon tries to retreat, even if
 // Confusion then stops it. Triple Poison makes the Defending Pokémon take 30 between turns, even if it was Poisoned.
 import { attackSituation, usableAttacks, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec, type UsableAttack } from '../attacks.js';
-import { lookupCard } from '../cards.js';
+import { evolvesFromName, lookupCard } from '../cards.js';
 import { counts, energyPool, type InPlayPokemon } from '../engine.js';
 import { powerActive, pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
@@ -102,7 +102,7 @@ const FOSSIL_FRIENDS = ['Omanyte', 'Omastar', 'Kabuto', 'Kabutops'];
 
 /** The names of the cards in the game that evolve from `name` (Hatch). */
 export const evolutionsOf = (ctx: AttackContext, name: string) => [
-  ...new Set(Object.values(ctx.state.cards).flatMap((d) => (d.kind === 'pokemon' && d.evolvesFrom === name ? [d.name] : []))),
+  ...new Set(Object.values(ctx.state.cards).flatMap((d) => (d.kind === 'pokemon' && evolvesFromName(d, name) ? [d.name] : []))),
 ];
 
 const NEO2_HOLO: Record<string, Record<string, AttackEffect>> = {

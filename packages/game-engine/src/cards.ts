@@ -117,6 +117,16 @@ export const hasOwner = (name: string) => /^[A-Z][\w.]*(?: [A-Z][\w.]*)?'s /.tes
  */
 export const namesMatch = (name: string, wanted: string) => name === wanted || name.replace(VARIANT_NAME, '') === wanted.replace(VARIANT_NAME, '');
 
+/** A Pokémon's name for evolving: δ isn't part of a name (as `limitName` in shared's deck rules); every other variant is its own name. */
+export const evolutionName = (name: string) => name.replace(/ δ$/, '');
+
+/**
+ * Whether `evolution`'s printed "Evolves from" names a Pokémon called `name` (agreed 2026-11-15: Swablu δ evolves into Altaria ex δ,
+ * printed "Evolves from Swablu"; Dark, Light and owners' Pokémon still follow the printed name exactly).
+ */
+export const evolvesFromName = (evolution: { evolvesFrom?: string | null }, name: string) =>
+  !!evolution.evolvesFrom && evolutionName(evolution.evolvesFrom) === evolutionName(name);
+
 export interface EnergyCardDef {
   id: string;
   kind: 'energy';

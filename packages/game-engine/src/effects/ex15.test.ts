@@ -127,4 +127,15 @@ describe('EX Dragon Frontiers', () => {
     expect(misty(after).bench[0]!.damage).toBe(20);
     expect(ash(after).discard.some((c) => c.defId === 'extra')).toBe(true);
   });
+
+  it("δ isn't part of a name for evolving: Swablu δ evolves into Altaria ex δ (printed \"Evolves from Swablu\"), a Dark Pokémon still doesn't", () => {
+    const s = duel('charmander', 'onix');
+    s.turn = 5;
+    put(s, 'ash', 0, mon('ex15-65', 'Swablu δ', W, 40, [], { stage: 'basic' }));
+    put(s, 'ash', 1, mon('dark-swablu', 'Dark Swablu', W, 40, [], { stage: 'basic' }));
+    const altaria = mon('ex15-90', 'Altaria ex δ', W, 100, [], { ex: true, stage: 'stage1', evolvesFrom: 'Swablu' });
+    const evolved = act(s, 'ash', { type: 'EVOLVE', cardUid: hand(s, 'ash', altaria), target: 0 });
+    expect(ash(evolved).bench[0]!.card.defId).toBe('ex15-90');
+    expect(() => act(s, 'ash', { type: 'EVOLVE', cardUid: ash(s).hand.at(-1)!.uid, target: 1 })).toThrow();
+  });
 });
