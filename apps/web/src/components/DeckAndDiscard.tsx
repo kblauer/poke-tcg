@@ -1,6 +1,7 @@
 import { lookupCard, type CardInstance, type CardLibrary } from '@poke-tcg/game-engine';
 import { useState, type HTMLAttributes, type ReactNode } from 'react';
 import { SIDE_COLUMN, SMALL_CARD } from '../utils/layout';
+import { MAT_LABEL } from '../utils/styles';
 import { Card } from './Card';
 import { CardBack } from './CardBack';
 import { DiscardPane, type ZoneAbilities } from './DiscardPane';
@@ -72,7 +73,7 @@ function Pile({
   press?: HTMLAttributes<HTMLDivElement>;
   children: ReactNode;
 }) {
-  const text = <p className={`text-center text-xs text-slate-400 ${labelBelow ? 'mt-1' : 'mb-1'}`}>{label}</p>;
+  const text = <p className={`${MAT_LABEL} text-xs ${labelBelow ? 'mt-1' : 'mb-1'}`}>{label}</p>;
   return (
     <div className={SMALL_CARD}>
       {!labelBelow && text}

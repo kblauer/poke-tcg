@@ -30,6 +30,12 @@ export const ABILITY_BUTTON =
 /** Why a move on a card can't be used now, under its button (MOVE_BUTTON), on the same slate so it reads over the card. */
 export const MOVE_NOTE = 'max-w-60 rounded bg-slate-800/95 px-2 py-1 text-[11px] text-amber-300 ring-1 ring-slate-600';
 
+/**
+ * A label on the table (Deck, Discard, Prizes, Stadium, You): on a dark pill, so it reads over any mat, a picture mat's light
+ * grass or snow too, and whatever scene a type mat changes to mid-battle. Its size is the caller's.
+ */
+export const MAT_LABEL = 'mx-auto w-fit rounded-full bg-slate-950/75 px-2 text-center font-medium text-slate-100 shadow-sm shadow-black/40';
+
 export const PAGE_BUTTON = 'rounded px-3 py-1 text-sm disabled:opacity-40';
 
 /** A small square button holding only an icon (the phone panel's and the music player's bars). */

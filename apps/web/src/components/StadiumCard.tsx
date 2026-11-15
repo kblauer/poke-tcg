@@ -1,5 +1,6 @@
 import { lookupCard, stadiumError, type GameAction, type PlayerView } from '@poke-tcg/game-engine';
 import { SMALL_CARD } from '../utils/layout';
+import { MAT_LABEL } from '../utils/styles';
 import { isMyTurn } from '../utils/turn';
 import { Card } from './Card';
 
@@ -42,7 +43,7 @@ export function StadiumCard({
     // Hangs off the active slot's left edge (index.css), level with its bottom, so the slot stays centred.
     // On a phone: a little larger than the piles, centred in the bar with its other things (agreed).
     <div className={compact ? `relative z-10 ml-2 shrink-0 [--card-sm:calc(var(--card-pile)*1.3)] ${SMALL_CARD}` : `stadium-column absolute bottom-0 flex flex-col gap-1 ${SMALL_CARD}`}>
-      {!compact && <p className="text-center text-xs text-slate-400">Stadium</p>}
+      {!compact && <p className={`${MAT_LABEL} text-xs`}>Stadium</p>}
       {stadium && def ? (
         <div
           data-keep-action
