@@ -1,0 +1,46 @@
+# The checks of CLAUDE.md's "Checks before calling work done", run for every pull request and every push to main (#204):
+# typecheck and tests of every package (through turbo, which runs `prisma generate` first: it needs no database), then
+# the web's production build. No step touches a database: the API's vitest config has a placeholder DATABASE_URL.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm's version comes from package.json's `packageManager`.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      # `pnpm test` with a longer limit for each test: a hosted runner is several times slower than a dev machine and turbo
+      # runs the packages' tests side by side, so vitest's 5 s is too little there (this workflow's first run timed out two
+      # tests that take 1.5 s on a dev machine).
+      - name: Tests
+        run: pnpm exec turbo run test -- --testTimeout=60000
+
+      - name: Web build
+        run: npx vite build
+        working-directory: apps/web

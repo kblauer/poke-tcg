@@ -3,12 +3,14 @@
 // cards are useful. Everything here is generic over cards: no card ids, and only the rules engine's own
 // effects decide what an attack does.
 import { answerChoice, attackError, attackSituation, performAttack, resolveChoices, situationAttacks, traceDamage, type AttackChoices, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { isBasicEnergy, isBasicPokemon, isLegend, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
+import { isBasicEnergy, isBasicPokemon, isLegend, namesMatch, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
 import { applyAction, cloneState, energyPool, resolveKnockouts, energyProvided, payCost, type PoolEnergy, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
 import { trainerEffect } from '../effects/index.js';
+import { pokemonPower } from '../powers.js';
 import { nextRandom } from '../rng.js';
 import { inPlayDef, openBenchSlot } from '../status.js';
 import { pendingChoiceView, type TrainerChoices } from '../trainers.js';
+import { strongPower } from './costs.js';
 
 /** Card names compared without accents, spaces or case ('Pokémon Breeder' = 'pokemonbreeder'). */
 export const nameKey = (name: string) => name.normalize('NFD').replace(/[^a-zA-Z]/g, '').toLowerCase();
@@ -302,6 +304,8 @@ function simulateAttacks(state: GameState, attackerId: PlayerId, nextTurn: boole
   const base = scratch(state);
   if (nextTurn) base.turn += 1;
   const attacker = base.players[attackerId]!.active!;
+  // Confused now: every attack flips first, and tails does damage to itself instead (confusedLoss, below).
+  const confused = !nextTurn && attacker.condition === 'confused';
   // A Pokémon Asleep now may wake up before its turn.
   if (attacker.condition === 'confused' || (nextTurn && attacker.condition === 'asleep')) attacker.condition = null;
   const situation = situationOf(base, attackerId);
@@ -317,7 +321,25 @@ function simulateAttacks(state: GameState, attackerId: PlayerId, nextTurn: boole
     }
     if (best) options.push(best);
   });
+  // A Confused attacker's tails is one of every attack's outcomes: if the damage it then does to itself loses the game,
+  // no attack is safe (agreed: never an attack that could lose the game, in any coin-flip outcome).
+  if (confused && options.length && confusedLoss(base, attackerId, options[0]!)) for (const o of options) o.loseChance = Math.max(o.loseChance, 0.5);
   return options;
+}
+
+/** Whether the Confused attacker's tails loses its player the game: the engine's own Confusion rule, its flips forced to tails. */
+function confusedLoss(base: GameState, attackerId: PlayerId, option: AttackOption): boolean {
+  const s = cloneState(base);
+  const me = s.players[attackerId]!;
+  const opp = s.players[opponentOf(s, attackerId)]!;
+  me.active!.condition = 'confused';
+  me.tailsUntil = s.turn;
+  try {
+    if (performAttack(s, me, opp, option.attackIndex, option.choices)) return false;
+  } catch {
+    return false;
+  }
+  return resolveKnockouts(s, attackerId) === opp.id;
 }
 
 /** The attacker's side of `state` for the attack rules (attackError, choiceSets). */
@@ -541,6 +563,81 @@ export function unusableEnergy(state: GameState, me: PlayerState): CardInstance[
   });
 }
 
+/** Cards in the hand the player doesn't want (for optional costs): Energy no attack can use and Pokémon it can't play, as Secret Mission's, never one wantedCards picks. */
+export function unwantedCards(state: GameState, me: PlayerState): CardInstance[] {
+  const wanted = wantedCards(state, me, me.hand);
+  return [...unusableEnergy(state, me), ...unusablePokemon(state, me)].filter((c) => !wanted.includes(c));
+}
+
+/** `pool`'s cards, those the player wants least first: unwantedCards, then the others, wantedCards' last. */
+function leastWantedFirst(state: GameState, me: PlayerState, pool: CardInstance[]): CardInstance[] {
+  const junk = unwantedCards(state, me);
+  const wanted = wantedCards(state, me, pool);
+  const rank = (c: CardInstance) => (junk.includes(c) ? 0 : wanted.includes(c) ? 2 : 1);
+  return [...pool].sort((a, b) => rank(a) - rank(b));
+}
+
+// ---- Optional costs ----
+
+/**
+ * Optional costs, paid only when it makes sense (agreed 2026-11-14, every difficulty), a card at a time as asked; null for
+ * any other question. Psychic Protector: the fewest cards whose reduction stops the attack being answered Knocking Out its
+ * Flygon ex (protectorNeed), or none. Power Cancel: against a power in STRONG_POWERS (costs.ts) the 2 cards it wants least;
+ * otherwise only 2 cards it doesn't want (unwantedCards), or none. Charity Tail: only 2 cards it doesn't want, or none.
+ * Power Spray: against a power in STRONG_POWERS always; against any other only with a second Power Spray in the hand, so
+ * the last one is never spent on a minor power.
+ */
+export function optionalCost(t: Turn): GameAction | null {
+  const choice = t.state.pendingChoice!;
+  const answer = (card?: CardInstance): GameAction => (card ? { type: 'RESOLVE_CHOICE', cardUid: card.uid } : { type: 'RESOLVE_CHOICE' });
+  if (choice.kind === 'powerCancel' && choice.spray) {
+    const spray = t.me.hand.find((c) => !!trainerEffect(c.defId)?.powerSpray);
+    const source = at(t.opp, choice.target);
+    const second = !!spray && t.me.hand.some((c) => c !== spray && namesMatch(t.def(c).name, t.def(spray).name));
+    return answer(spray && ((source && strongPower(source)) || second) ? spray : undefined);
+  }
+  if (choice.kind === 'protector') {
+    const picked = choice.picked.flatMap((uid) => t.me.hand.filter((c) => c.uid === uid));
+    const order = [...picked, ...leastWantedFirst(t.state, t.me, t.me.hand.filter((c) => !picked.includes(c)))];
+    return answer(picked.length < protectorNeed(t, choice.attackIndex, choice.choices, order) ? order[picked.length] : undefined);
+  }
+  if ((choice.kind === 'beforeAttack' && choice.question === 'discardTwo') || (choice.kind === 'powerCancel' && !choice.spray)) {
+    const left = t.me.hand.filter((c) => !choice.picked.includes(c.uid));
+    const source = choice.kind === 'powerCancel' ? at(t.opp, choice.target) : null;
+    if (source && strongPower(source)) return answer(leastWantedFirst(t.state, t.me, left)[0]);
+    const junk = unwantedCards(t.state, t.me).filter((c) => left.includes(c));
+    return answer(choice.picked.length + junk.length >= 2 ? junk[0] : undefined);
+  }
+  return null;
+}
+
+/**
+ * Psychic Protector: how many of `order`'s cards (up to 4) stop the attack being answered Knocking Out the player's Flygon
+ * ex, Active or Benched: the fewest with no Knock Out in any of SEEDS' coin-flip outcomes, as attackOptions estimates (the
+ * attack played on copies, with the answers its player gave). 0 when it doesn't Knock Out anyway, or when 4 cards can't stop it.
+ */
+function protectorNeed(t: Turn, attackIndex: number, choices: AttackChoices, order: CardInstance[]): number {
+  const flygons = inPlay(t.me).filter(([, p]) => pokemonPower(p)?.psychicProtector).map(([, p]) => p.card.uid);
+  const knockOuts = (n: number) =>
+    SEEDS.filter((seed) => {
+      const s = scratch(t.state);
+      delete s.pendingChoice;
+      s.rngState = seed;
+      if (n) s.psychicProtector = order.slice(0, n).map((c) => c.uid);
+      else delete s.psychicProtector;
+      const me = s.players[t.id]!;
+      try {
+        if (performAttack(s, s.players[opponentOf(s, t.id)]!, me, attackIndex, choices)) return false;
+      } catch {
+        return false;
+      }
+      return inPlay(me).some(([, p]) => flygons.includes(p.card.uid) && p.damage >= pokemonDef(s.cards, p).hp);
+    }).length;
+  if (!flygons.length || !knockOuts(0)) return 0;
+  for (let n = 1; n <= Math.min(4, order.length); n++) if (!knockOuts(n)) return n;
+  return 0;
+}
+
 // ---- Playing a turn ----
 
 /** One CPU turn: the state, whose move it is, both players and card definitions. */
@@ -596,6 +693,9 @@ export function resolveSearch(t: Turn): GameAction {
   if (view.kind === 'options') return { type: 'RESOLVE_CHOICE', count: optionAnswer(t, view.labels.length) };
   // Flee and Koga's Ninja Trick: it switches out when its Active Pokémon has 40 HP or less left, to the benched Pokémon with the most HP left.
   const choice = t.state.pendingChoice!;
+  // Psychic Protector, Power Cancel, Charity Tail: only when it makes sense (optionalCost).
+  const cost = optionalCost(t);
+  if (cost) return cost;
   if ((choice.kind === 'flee' || choice.kind === 'ninjaTrick') && view.kind === 'ownPokemon') {
     const left = (target: Target) => hpLeft(t.state.cards, at(t.me, target)!);
     if (!view.options.length || left('active') > 40) return { type: 'RESOLVE_CHOICE' };
@@ -623,6 +723,17 @@ export function resolveSearch(t: Turn): GameAction {
     }
     const damage = (target: Target) => at(t.me, target)!.damage;
     return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (damage(b) > damage(a) ? b : a)) };
+  }
+  // Moon's Invite (the player's damage counters moved among their Pokémon, as many as it likes): onto the one with the
+  // least HP left, from each of the others in turn, then no more. It ends, where picking by HP alone moved one counter
+  // back and forth for ever.
+  if (choice.kind === 'moveCounters' && choice.fromSide === 'opp' && view.kind === 'oppPokemon') {
+    const left = (target: Target) => hpLeft(t.state.cards, at(t.opp, target)!);
+    const all = inPlay(t.opp).map(([target]) => target);
+    const onto: Target | undefined = choice.toActive ? 'active' : all.length ? all.reduce((a, b) => (left(b) < left(a) ? b : a)) : undefined;
+    if (choice.from !== undefined) return { type: 'RESOLVE_CHOICE', ...(onto !== undefined && onto !== choice.from && view.options.includes(onto) && { target: onto }) };
+    const from = view.options.find((target) => target !== onto && at(t.opp, target)!.damage > 0);
+    return { type: 'RESOLVE_CHOICE', ...(from !== undefined && { target: from }) };
   }
   // Damage to one of the player's Pokémon (Sneak Attack): the one with the least HP left, the Active Pokémon on a tie.
   if (view.kind === 'oppPokemon') {

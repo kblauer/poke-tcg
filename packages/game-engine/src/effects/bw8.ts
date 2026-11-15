@@ -15,6 +15,7 @@ import { isTrainerCard, lookupCard } from '../cards.js';
 import { energyPool, retreatCost, type CardInstance } from '../engine.js';
 import { nextRandom, shuffle } from '../rng.js';
 import { isItemCard } from '../trainers.js';
+import { isPlasmaPokemon } from '../status.js';
 import { benchedSlots, inPlay, same } from './common.js';
 import { shuffleIntoDeck } from './dp1.js';
 import { discardOwn, energyCardOf } from './ex2.js';
@@ -250,7 +251,7 @@ export const BW8: Record<string, Record<string, AttackEffect>> = {
   // Durant – Call for Backup: a Pokémon from the deck, shown, into the hand.
   'bw8-92': { 'Call for Backup': { run: (ctx) => void (ctx.me.deck.length && ctx.pend({ kind: 'pickFromDeck', source: 'Call for Backup', filter: 'pokemon', reveal: true })) } },
   // Snorlax – Teampact: 30 for each of the player's Team Plasma Pokémon in play.
-  'bw8-101': { Teampact: { run: (ctx) => void ctx.hit(30 * inPlay(ctx.me).filter((p) => isTeamPlasma(ctx.state.cards, p.card)).length) } },
+  'bw8-101': { Teampact: { run: (ctx) => void ctx.hit(30 * inPlay(ctx.me).filter((p) => isPlasmaPokemon(ctx.state.cards, p)).length) } },
   // Togetic – Sweet Kiss: the opponent draws a card.
   'bw8-103': {
     'Sweet Kiss': {

@@ -11,7 +11,7 @@ import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
 import { activeLocked, isEnergyCardOf, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { evolutionBlocked } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { inPlayDef, pokemonName } from '../status.js';
+import { inPlayDef, pokemonName, cleanCard } from '../status.js';
 import { BASE1 } from './base1.js';
 import {
   benchedSlots,
@@ -64,7 +64,7 @@ export function shuffleIntoDeck(ctx: AttackContext, owner: PlayerState, target: 
   // An Active Pokémon held by Jaw Clamp stays where it is.
   const locked = target === 'active' && activeLocked(ctx.state, owner.id);
   if (locked) return ctx.log(`${locked}.`, owner.id);
-  const attached = [...p.energy.map(({ provides: _, ...card }) => card), ...(p.attached ?? []).map((a) => a.card)];
+  const attached = [...p.energy.map(cleanCard), ...(p.attached ?? []).map((a) => a.card)];
   const cards = [...p.evolvedFrom, p.card, ...(discardAttached ? [] : attached)];
   if (discardAttached) owner.discard.push(...attached);
   [owner.deck, ctx.state.rngState] = shuffle([...owner.deck, ...cards], ctx.state.rngState);
@@ -276,7 +276,7 @@ export const ROCKET: Record<string, Record<string, AttackEffect>> = {
         ctx.attacker.energy = [];
         const bench = benchedSlots(ctx.me.bench);
         if (!bench.length) {
-          ctx.me.discard.push(...energy.map(({ provides: _, ...card }) => card));
+          ctx.me.discard.push(...energy.map(cleanCard));
           return ctx.log(`${ctx.attackerDef.name} discarded its ${energy.length} Energy (no benched Pokémon).`);
         }
         // With one benched Pokémon there's nothing to choose; otherwise each card goes where the player clicks.

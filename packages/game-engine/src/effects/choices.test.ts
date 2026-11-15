@@ -170,3 +170,19 @@ describe('pending choices terminate', () => {
     asked(removal, 'removeEach');
   });
 });
+
+describe('questions that had no answer (#204)', () => {
+  it('[Vanish]: a held Active Unown is not offered, so the question can end', () => {
+    const s = duel('unownA', 'squirtle', { bench: ['unownD', 'unownF'] });
+    ash(s).active!.effects = { heldBy: { by: misty(s).active!.card.uid, switches: true } };
+    s.pendingChoice = { player: 'ash', source: '[Vanish]', kind: 'returnUnown', except: ash(s).bench[0]!.card.uid };
+    for (const end of settles(s)) expect(ash(end).active!.card.defId).toBe(id('unownA'));
+  });
+
+  it('a search onto the Bench with no room on it (Revive Friends under Narrow Gym) ends with nothing found', () => {
+    const s = duel('charmander', 'squirtle', { bench: ['bulbasaur', 'onix', 'charmander', 'squirtle'] });
+    s.stadium = { card: { uid: 'gym', defId: id('narrowGym') }, owner: 'misty' };
+    s.pendingChoice = { player: 'ash', source: 'Revive Friends', kind: 'pickFromDeck', filter: 'basic', toBench: true };
+    for (const end of settles(s)) expect(ash(end).bench.filter(Boolean)).toHaveLength(4);
+  });
+});

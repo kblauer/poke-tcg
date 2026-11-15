@@ -256,12 +256,15 @@ export const idleRouter = router({
    * catch-up). Nothing else changes: no version, no state.
    */
   here: protectedProcedure.input(idleHereInput).mutation(async ({ ctx, input }) => {
-    const run = await loadOwnIdleRun(input.runId, ctx.user.id);
-    const now = new Date();
-    // Only while they've been here all along: a gap of the town's wait or more is time away, the catch-up's to play.
-    if (run.status !== 'ACTIVE' || (run.state.phase !== 'town' && !run.state.choosing) || run.simulatedAt >= now || now.getTime() - run.simulatedAt.getTime() >= TOWN_WAIT_MS) return { ok: false };
-    // Only the version seen: an action saved meanwhile sets its own time.
-    const { count } = await prisma.idleRun.updateMany({ where: { id: run.id, version: run.version }, data: { simulatedAt: now } });
+    // One statement with its checks in it, rather than loading the run (its whole state, some 11 KB) every few seconds
+    // for a timestamp (README: Performance): the player's own active run, in a town or waiting for a choice, whose time is
+    // behind now by less than the town's wait (a gap of the wait or more is time away, the catch-up's to play; a time
+    // ahead of now is a segment still playing, set by the action that saved it). Nothing else changes: no version, no state.
+    const count = await prisma.$executeRaw`
+      UPDATE "IdleRun" SET "simulatedAt" = now(), "updatedAt" = now()
+      WHERE id = ${input.runId}::uuid AND "ownerId" = ${ctx.user.id}::uuid AND status = 'ACTIVE'
+        AND (state->>'phase' = 'town' OR jsonb_typeof(state->'choosing') NOT IN ('null'))
+        AND "simulatedAt" < now() AND "simulatedAt" > now() - make_interval(secs => ${TOWN_WAIT_MS / 1000})`;
     return { ok: count > 0 };
   }),
 

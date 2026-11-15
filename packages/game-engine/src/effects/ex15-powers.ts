@@ -7,8 +7,8 @@
 // turn, whichever Milotic δ, as Supernatural.
 import { isBasicEnergy, lookupCard, namesMatch, type PokemonCardDef } from '../cards.js';
 import { counts, energyPool, evolvesOnto } from '../engine.js';
-import { attachBlocked, energyFromHand, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, clearSpecialConditions, inPlayDef, pokemonName } from '../status.js';
+import { attachBlocked, discardsLocked, energyFromHand, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
+import { addLog, clearSpecialConditions, inPlayDef, pokemonName, removeTopCard, isEvolved } from '../status.js';
 import { babyEvolution, freeRetreat, POKE_BODY } from './ex2-powers.js';
 import { EX7_POWERS } from './ex7-powers.js';
 import { EX11_POWERS } from './ex11-powers.js';
@@ -83,8 +83,7 @@ export const EX15_POWERS: Record<string, PowerEffect> = {
     use(ctx) {
       const p = ctx.source;
       p.damage = Math.max(0, p.damage - 40);
-      const top = p.card;
-      p.card = p.evolvedFrom.pop()!;
+      const top = removeTopCard(p);
       ctx.me.discard.push(top);
       ctx.log(`Removed 4 damage counters and discarded ${lookupCard(ctx.state.cards, top.defId).name}: it's ${pokemonName(ctx.state, p)} again.`);
       const current = lookupCard(ctx.state.cards, p.card.defId);
@@ -127,6 +126,7 @@ export const EX15_POWERS: Record<string, PowerEffect> = {
   // Quagsire δ – Dig up: evolving from the hand, up to 2 Pokémon Tool cards from the discard pile, shown.
   'ex15-21': {
     onPlayFromHand(state, owner, pokemon) {
+      if (discardsLocked(state.playerOrder.map((id) => state.players[id]!), state.cards)) return;
       if (pokemon.evolvedFrom.length && owner.discard.some((c) => lookupCard(state.cards, c.defId).kind === 'trainer')) state.pendingChoice = { player: owner.id, source: 'Dig up', kind: 'discardToHand', count: 2, filter: 'tool', reveal: true };
     },
   },
@@ -150,7 +150,7 @@ export const EX15_POWERS: Record<string, PowerEffect> = {
   // Electabuzz δ – Power of Evolution: once a turn, as an Evolved Pokémon, the bottom card of the deck drawn.
   'ex15-29': {
     oncePerTurn: true,
-    blocked: (s) => (!pokemonAt(s.me, s.source)?.evolvedFrom.length ? 'Electabuzz must be an Evolved Pokémon' : s.counts.deck ? null : 'Your deck is empty'),
+    blocked: (s) => (!isEvolved(s.cards, pokemonAt(s.me, s.source)!) ? 'Electabuzz must be an Evolved Pokémon' : s.counts.deck ? null : 'Your deck is empty'),
     use(ctx) {
       const card = ctx.me.deck.pop();
       if (card) ctx.me.hand.push(card);

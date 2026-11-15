@@ -12,7 +12,7 @@
 import type { Attack } from '../cards.js';
 import { activeLock, PRIZE_COUNT } from '../engine.js';
 import { pokemonAt } from '../powers.js';
-import { pokemonName } from '../status.js';
+import { pokemonName, cardsOf } from '../status.js';
 import { targetsOf, type TrainerEffect } from '../trainers.js';
 import { fossilItem } from './bw3-trainers.js';
 import { tool } from './neo1-trainers.js';
@@ -65,7 +65,7 @@ export const BW10_TRAINERS: Record<string, TrainerEffect> = {
     play(ctx) {
       const t = ctx.choices.target!;
       const p = pokemonAt(ctx.me, t)!;
-      ctx.me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+      ctx.me.hand.push(...cardsOf(p));
       if (t === 'active') ctx.me.active = null;
       else ctx.me.bench[t] = null;
       ctx.log(`${pokemonName(ctx.state, p)} and all cards attached to it went into the hand.`);

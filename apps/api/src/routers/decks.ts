@@ -9,6 +9,9 @@ import { parseDeckText, resolveDeckText } from '../deck-text.js';
 import { protectedProcedure, router } from '../trpc.js';
 import { holoTwins, lockedProblem, unlockedIds, type Unlocked } from '../unlocks.js';
 
+/** The cards in these decks, for the unlocks a deck check needs (unlockedIds's `cardIds`). */
+export const deckCardIds = (decks: { cards: { cardId: string }[] }[]) => decks.flatMap((d) => d.cards.map((c) => c.cardId));
+
 /** What the deck rules need from a catalog row. */
 export const ruleCard = (card: Pick<Card, 'name' | 'kind' | 'stage' | 'data'>, id: string): DeckRuleCard => ({
   name: card.name,
@@ -60,7 +63,8 @@ export const playProblems = (
  * or BAD_REQUEST with why it can't be played.
  */
 export async function playableDeck(deckId: string, userId: string): Promise<{ name: string; cards: string[]; runDeck: boolean; cosmetics: DeckCosmetics }> {
-  const [deck, unlocked, limited] = await Promise.all([loadOwnDeck(deckId, userId), unlockedIds(userId), holoTwins()]);
+  const deck = await loadOwnDeck(deckId, userId);
+  const [unlocked, limited] = await Promise.all([unlockedIds(userId, prisma, { cardIds: deckCardIds([deck]) }), holoTwins()]);
   const [problem] = playProblems(deck.cards, unlocked, limited);
   if (problem) throw new TRPCError({ code: 'BAD_REQUEST', message: problem });
   return { name: deck.name, cards: deck.cards.flatMap((c) => Array<string>(c.quantity).fill(c.cardId)), runDeck: deck.runId !== null, cosmetics: deckCosmetics(deck) };
@@ -117,15 +121,13 @@ export const decksRouter = router({
    * each can be played (no problems, including locked cards).
    */
   list: protectedProcedure.query(async ({ ctx }) => {
-    const [decks, unlocked, limited] = await Promise.all([
-      prisma.deck.findMany({
-        where: { ownerId: ctx.user.id },
-        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
-        include: { cards: { include: { card: cardFields } } },
-      }),
-      unlockedIds(ctx.user.id),
-      holoTwins(),
-    ]);
+    const decks = await prisma.deck.findMany({
+      where: { ownerId: ctx.user.id },
+      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+      include: { cards: { include: { card: cardFields } } },
+    });
+    // Only the decks' cards' unlocks, not the account's whole list.
+    const [unlocked, limited] = await Promise.all([unlockedIds(ctx.user.id, prisma, { cardIds: deckCardIds(decks) }), holoTwins()]);
     return decks.map((d) => ({
       id: d.id,
       name: d.name,

@@ -6,7 +6,6 @@
 // when there are several.
 import { isTrainerCard, lookupCard } from '../cards.js';
 import { activeLocked } from '../engine.js';
-import { discardsLocked } from '../powers.js';
 import { clearSpecialConditions, hasSpecialCondition, openBenchSlot, pokemonName } from '../status.js';
 import { energyLinked, swapActive, targetsOf, type EnergyEffect, type TrainerContext, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 import { DP4_TRAINERS } from './dp4-trainers.js';
@@ -72,7 +71,7 @@ export const DP7_TRAINERS: Record<string, TrainerEffect> = {
   // Marley's Request (Supporter): 2 Trainer cards of different names from the discard pile; the opponent picks the one that goes into the hand.
   "dp7-87": {
     supporter: true,
-    blocked: (s) => (discardsLocked([s.me, s.opp], s.cards) ? 'Allergic Pollen: cards in discard piles are not affected' : trainersIn(s).length ? null : 'There are no Trainer cards in your discard pile'),
+    blocked: (s) => (trainersIn(s).length ? null : 'There are no Trainer cards in your discard pile'),
     choices(s) {
       const names = new Set(trainersIn(s).map((c) => lookupCard(s.cards, c.defId).name));
       const n = names.size > 1 ? 2 : 1;

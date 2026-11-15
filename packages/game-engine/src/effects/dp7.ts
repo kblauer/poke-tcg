@@ -8,9 +8,9 @@
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { hasType, isBasicEnergy, isTrainerCard, lookupCard, namesMatch } from '../cards.js';
 import { counts, energyPool, isSpecialEnergy, retreatCost, type InPlayPokemon, type Target } from '../engine.js';
-import { pokemonPower } from '../powers.js';
+import { hasPowerOrBody, pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { evolvedFromName, inPlayDef, pokemonName } from '../status.js';
+import { evolvedFromName, inPlayDef, pokemonName, isEvolved, cardsOf } from '../status.js';
 import { benchedSlots, damageChosen, energyCards, headsUntilTails, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { DP1, discardOwnEnergy, removeDefenderEnergy } from './dp1.js';
 import { discardAtRandom, energyAmount } from './ex1.js';
@@ -103,7 +103,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
         const slot = ctx.choices.benchSlot;
         const p = slot === undefined || ctx.opp.bench.filter(Boolean).length < 4 ? null : ctx.opp.bench[slot];
         if (!p || !ctx.canAffect(ctx.opp, p)) return;
-        ctx.opp.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+        ctx.opp.hand.push(...cardsOf(p));
         ctx.opp.bench[slot!] = null;
         ctx.log(`${pokemonName(ctx.state, p)} and its cards went back into the hand.`, ctx.opp.id);
       },
@@ -256,7 +256,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
   'dp7-20': {
     'Take Out': {
       run(ctx) {
-        if (ctx.defender.evolvedFrom.length) return void ctx.hit(40);
+        if (isEvolved(ctx.state.cards, ctx.defender)) return void ctx.hit(40);
         if (!ctx.canAffect(ctx.opp, ctx.defender)) return;
         ctx.defender.damage = Math.max(ctx.defender.damage, ctx.defenderDef.hp);
         ctx.log(`${ctx.defenderDef.name} is Knocked Out.`, ctx.opp.id);
@@ -303,7 +303,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
         if (ctx.defender.damage >= inPlayDef(ctx.state.cards, ctx.defender).hp) ctx.protect('preventAll');
       },
     },
-    'Pound Down': { run: (ctx) => void ctx.hit(inPlay(ctx.me).some((p) => inPlayDef(ctx.state.cards, p).power && !body(ctx, p)) ? 40 : 70) },
+    'Pound Down': { run: (ctx) => void ctx.hit(inPlay(ctx.me).some((p) => hasPowerOrBody(ctx.state.cards, p, 'power')) ? 40 : 70) },
   },
   // Staraptor – Strong Breeze: heads, one of the opponent's Benched Pokémon and its cards shuffled into their deck.
   'dp7-27': {
@@ -313,7 +313,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
         const slot = ctx.choices.benchSlot;
         const p = slot === undefined ? null : ctx.opp.bench[slot];
         if (!p || !ctx.flip() || !ctx.canAffect(ctx.opp, p)) return ctx.log('Strong Breeze did nothing.');
-        const cards = [...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card)];
+        const cards = cardsOf(p);
         ctx.opp.bench[slot!] = null;
         [ctx.opp.deck, ctx.state.rngState] = shuffle([...ctx.opp.deck, ...cards], ctx.state.rngState);
         ctx.log(`${pokemonName(ctx.state, p)} and its cards were shuffled into the deck.`, ctx.opp.id);
@@ -392,7 +392,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
     Hoodwink: {
       choices(s): ChoiceSpec[] {
         const options = (s.opponentDiscard ?? []).filter((c) => isTrainerCard(lookupCard(s.cards, c.defId)));
-        return options.length && !s.discardsLocked ? [{ kind: 'ownDiscard', min: 0, max: Math.min(3, options.length), options, prompt: "Hoodwink: you may choose up to 3 Trainer cards in your opponent's discard pile to put into their hand" }] : [];
+        return options.length ? [{ kind: 'ownDiscard', min: 0, max: Math.min(3, options.length), options, prompt: "Hoodwink: you may choose up to 3 Trainer cards in your opponent's discard pile to put into their hand" }] : [];
       },
       run(ctx) {
         ctx.hit(30);

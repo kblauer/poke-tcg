@@ -9,7 +9,7 @@ import { isBasicEnergy, lookupCard } from '../cards.js';
 import type { InPlayPokemon } from '../engine.js';
 import { type PowerEffect } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { addLog, flipCoin, inPlayDef, pokemonName } from '../status.js';
+import { addLog, flipCoin, inPlayDef, pokemonName, cardsOf } from '../status.js';
 
 /** Special Conditions Solar Power removes (not Burned). */
 const solarCured = (p: InPlayPokemon | null) => !!p && (!!p.condition || !!p.poison);
@@ -56,7 +56,7 @@ export const PROMO_POWERS: Record<string, PowerEffect> = {
         const target = owner.active === entei ? 'active' : owner.bench.indexOf(entei);
         if (target === -1 || entei.damage >= inPlayDef(ctx.state.cards, entei).hp) return;
         if (!flipCoin(ctx.state, 'Bolt', owner.id)) return;
-        const cards = [...entei.evolvedFrom, entei.card, ...entei.energy.map(({ provides: _, ...card }) => card), ...(entei.attached ?? []).map((a) => a.card)];
+        const cards = cardsOf(entei);
         [owner.deck, ctx.state.rngState] = shuffle([...owner.deck, ...cards], ctx.state.rngState);
         if (target === 'active') owner.active = null;
         else owner.bench[target] = null;

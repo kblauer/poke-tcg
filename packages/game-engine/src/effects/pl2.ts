@@ -10,7 +10,7 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { hasType, isBasicEnergy, isPokemonCard, lookupCard, namesMatch } from '../cards.js';
 import { afflictBetweenTurns, isEnergyCardOf, retireStadium, type InPlayPokemon, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { clearSpecialConditions, evolvedFromName, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
+import { clearSpecialConditions, evolvedFromName, hasSpecialCondition, inPlayDef, pokemonName, isEvolved, cardsOf } from '../status.js';
 import { benchedSlots, damageChosen, energyCards, headsUntilTails, inPlay, opponentBenchChoice, opponentTargets, same } from './common.js';
 import { DP2 } from './dp2.js';
 import { DP4 } from './dp4.js';
@@ -100,7 +100,7 @@ export const PL2: Record<string, Record<string, AttackEffect>> = {
         ctx.protect('preventAll');
       },
     },
-    'Power Swing': { run: (ctx) => void ctx.hit(60 + 10 * ctx.me.bench.filter((p) => p?.evolvedFrom.length).length) },
+    'Power Swing': { run: (ctx) => void ctx.hit(60 + 10 * ctx.me.bench.filter((p) => p && isEvolved(ctx.state.cards, p)).length) },
   },
   // Froslass GL – Wake-Up Slap: 20 more against a Special Condition, which it then cures.
   'pl2-6': {
@@ -245,7 +245,7 @@ export const PL2: Record<string, Record<string, AttackEffect>> = {
   // Groundquake: 10 to each Benched Pokémon that isn't an Evolved Pokémon, both players'.
   'pl2-25': {
     'Save Sand': {
-      choices: (s) => (!s.discardsLocked && s.ownDiscard.some((c) => energyCardOf(s.cards, c, 'fighting')) ? [may('Save Sand: attach a Fighting Energy card from your discard pile to Hippowdon first?')] : []),
+      choices: (s) => (s.ownDiscard.some((c) => energyCardOf(s.cards, c, 'fighting')) ? [may('Save Sand: attach a Fighting Energy card from your discard pile to Hippowdon first?')] : []),
       run(ctx) {
         const card = ctx.choices.boost ? ctx.me.discard.find((c) => energyCardOf(ctx.state.cards, c, 'fighting')) : undefined;
         if (card) {
@@ -259,7 +259,7 @@ export const PL2: Record<string, Record<string, AttackEffect>> = {
     Groundquake: {
       run(ctx) {
         ctx.hit(80);
-        for (const side of [ctx.opp, ctx.me]) for (const slot of benchedSlots(side.bench)) if (!side.bench[slot]!.evolvedFrom.length) ctx.damageBenched(side, slot, 10);
+        for (const side of [ctx.opp, ctx.me]) for (const slot of benchedSlots(side.bench)) if (!isEvolved(ctx.state.cards, side.bench[slot]!)) ctx.damageBenched(side, slot, 10);
       },
     },
   },
@@ -354,7 +354,7 @@ export const PL2: Record<string, Record<string, AttackEffect>> = {
         ctx.after(() => {
           const p = ctx.attacker;
           if (ctx.me.active !== p) return;
-          const cards = [...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card)];
+          const cards = cardsOf(p);
           ctx.me.active = null;
           [ctx.me.deck, ctx.state.rngState] = shuffle([...ctx.me.deck, ...cards], ctx.state.rngState);
           ctx.log(`${pokemonName(ctx.state, p)} and all cards attached to it were shuffled into the deck.`);
@@ -389,7 +389,7 @@ export const PL2: Record<string, Record<string, AttackEffect>> = {
         const p = ctx.opp.active;
         if (!p || !benchedSlots(ctx.opp.bench).length) return ctx.log('Brush Off did nothing.');
         if (!ctx.canAffect(ctx.opp, p)) return;
-        const cards = [...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card)];
+        const cards = cardsOf(p);
         ctx.opp.active = null;
         [ctx.opp.deck, ctx.state.rngState] = shuffle([...cards, ...ctx.opp.deck], ctx.state.rngState);
         ctx.log(`${pokemonName(ctx.state, p)} and all cards attached to it were shuffled into the deck.`, ctx.opp.id);

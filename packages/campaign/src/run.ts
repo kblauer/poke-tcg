@@ -676,7 +676,8 @@ function battleOver({ state, rng, pool, effects, fail, done }: ActionContext, ac
 
 /** USE_ITEM: a consumable put in effect for its battles (one at a time), or a misc item's use: escape a battle, reveal or re-roll the step's encounters, heal, sell a Nugget. */
 function useItem({ state, rng, pool, name, fail, ok, done }: ActionContext, action: Extract<RunSystemAction, { type: 'USE_ITEM' }>): RunResult {
-  const def = item(action.itemId);
+  const def = ITEMS[action.itemId];
+  if (!def) return fail(`Unknown item: ${action.itemId}`);
   if (def.category === 'consumable') {
     if (state.consumablesUsed >= MAX_CONSUMABLES_PER_RUN) return fail(`Only ${MAX_CONSUMABLES_PER_RUN} consumables can be used per run`);
     if (currentGameId(state)) return fail('Use consumables before a battle starts');

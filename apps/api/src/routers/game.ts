@@ -5,7 +5,7 @@ import { applyAction, captureCheckup, createGame, getPlayerView, moveHighlights,
 import { CPU_ID, HUMAN_ID, gameIdInput, singleBattleInput, submitActionInput, type SingleBattleInput, type SingleBattleOpponent } from '@poke-tcg/shared';
 import { ensureUser } from '../auth.js';
 import { loadCardLibrary } from '../cards.js';
-import { actionRows, asJson, newSeed } from '../games.js';
+import { actionRows, asJson, loadGame, newSeed, storedState } from '../games.js';
 import { cardPool } from '../pool.js';
 import { loadOwnRun, settleBattle } from '../runs.js';
 import { loadOwnTower, settleTowerBattle, towerUnderway } from '../towers.js';
@@ -57,11 +57,12 @@ function moveFrames(player: string, type: GameAction['type'], after: GameState, 
   return [{ player, type, view: shownView({ ...checkup.start, version: after.version }, defId), highlight }, ...(checkup.poison ? [endTurn(checkup.poison)] : []), ...(checkup.burn ? [endTurn(checkup.burn)] : []), ...(tool ? [endTurn(checkup.end)] : []), endTurn(after)];
 }
 
+/** The user's game with its state (restoreState), or NOT_FOUND. */
 export async function loadOwnGame(gameId: string, userId: string) {
-  const game = await prisma.game.findUnique({ where: { id: gameId } });
+  const game = await loadGame(gameId);
   // Same error for "missing" and "not yours" so ids can't be probed.
   if (!game || game.ownerId !== userId) throw new TRPCError({ code: 'NOT_FOUND', message: 'Game not found' });
-  return { ...game, state: game.state as unknown as GameState };
+  return game;
 }
 
 /** The CPU's side of a single battle: a boss's own deck, or a random trainer with a random deck suiting their name, as on a run's map. */
@@ -93,7 +94,7 @@ async function startGame(user: AuthUser, playerDeck: string[], { difficulty, opp
     data: {
       ownerId: user.id,
       seed,
-      state: asJson(state),
+      state: asJson(storedState(state)),
       ...(cosmetics && { cosmetics }),
       version: state.version,
       actions: { create: actionRows(actions.map((action) => ({ playerId: CPU_ID, action })), state.version) },
@@ -164,7 +165,7 @@ export const gameRouter = router({
     const saved = await saveGameState({
       gameId: game.id,
       expectedVersion: game.version,
-      state: next,
+      state: storedState(next),
       version: next.version,
       status: next.phase === 'finished' ? 'FINISHED' : 'ACTIVE',
       winner: next.winner,

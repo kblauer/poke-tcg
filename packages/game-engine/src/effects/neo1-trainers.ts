@@ -14,7 +14,7 @@ import { isBasicEnergy, isPokemonCard, lookupCard } from '../cards.js';
 import { activeLock, type CardInstance, type InPlayPokemon } from '../engine.js';
 import { pokemonAt, trainerProof } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { openBenchSlot, pokemonName } from '../status.js';
+import { openBenchSlot, pokemonName, cardsOf } from '../status.js';
 import { def, otherHandCards, swapActive, targetsOf, timeCapsuleCards, type EnergyEffect, type PendingChoice, type TrainerContext, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
 const at = (side: { active: InPlayPokemon | null; bench: (InPlayPokemon | null)[] }, t: 'active' | number) => pokemonAt(side, t)!;
@@ -39,7 +39,7 @@ const toolTargets = (s: TrainerSituation) => targetsOf(s.me).filter((t) => !at(s
 /** Returns one of the player's Pokémon and every card with it to the hand (Super Scoop Up). */
 function returnToHand(ctx: TrainerContext, t: 'active' | number) {
   const p = at(ctx.me, t);
-  ctx.me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+  ctx.me.hand.push(...cardsOf(p));
   if (t === 'active') ctx.me.active = null;
   else ctx.me.bench[t] = null;
   ctx.log(`${pokemonName(ctx.state, p)} and all cards attached to it returned to the hand.`);

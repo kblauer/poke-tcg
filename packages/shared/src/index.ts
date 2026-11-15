@@ -128,6 +128,25 @@ export const gameActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('CONCEDE') }),
 ]) satisfies z.ZodType<GameAction>;
 
+/**
+ * `covers` for every action at once (#204): each action's schema lists every field of the engine's action of that type,
+ * and every action type has a schema. `satisfies` above doesn't catch an optional field left out (Zod would drop it
+ * without a word, as it would have START_BATTLE's `firstTicket`), so a new field on any action fails to compile here.
+ */
+type KeysOf<T> = T extends unknown ? keyof T : never;
+type ActionOf<A, T> = A extends { type: T } ? A : never;
+type ActionGaps = {
+  [T in GameAction['type']]: [ActionOf<z.infer<typeof gameActionSchema>, T>] extends [never]
+    ? `${T} has no schema`
+    : Exclude<KeysOf<ActionOf<GameAction, T>>, KeysOf<ActionOf<z.infer<typeof gameActionSchema>, T>>> extends infer Missed
+      ? [Missed] extends [never]
+        ? never
+        : `${T} is missing ${Missed & string}`
+      : never;
+}[GameAction['type']];
+const coversActions = (_: [ActionGaps] extends [never] ? true : ActionGaps) => {};
+coversActions(true);
+
 export const gameIdInput = z.object({ gameId: z.uuid() });
 export const submitActionInput = z.object({
   gameId: z.uuid(),
