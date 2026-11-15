@@ -8,20 +8,20 @@ import {
   whosThatAnswer,
   whosThatDay,
   whosThatGame,
+  whosThatStep,
   whosThatTimes,
   WHOS_THAT_GRACE_MS,
-  WHOS_THAT_PASS_MS,
-  WHOS_THAT_REVEAL_MS,
   WHOS_THAT_ROUNDS,
   WHOS_THAT_RUN_MS,
+  type WhosThatMove,
 } from '@poke-tcg/campaign';
 import { prisma, type WhosThatGame } from '@poke-tcg/db';
-import { whosThatBoardInput, whosThatGameInput, whosThatGuessInput, whosThatRunGuessInput, whosThatRunInput, whosThatStartInput } from '@poke-tcg/shared';
+import { whosThatBoardInput, whosThatGameInput, whosThatGuessInput, whosThatPassInput, whosThatRunGuessInput, whosThatRunInput, whosThatStartInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { newSeed } from '../games.js';
 import { advanceRun, loadOwnRun, lockUser, type LoadedRun } from '../runs.js';
 import { protectedProcedure, publicProcedure, router } from '../trpc.js';
-import { cardName, cardShape, whosThatCards } from '../whos-that.js';
+import { cardName, cardShape, whosThatCards, whosThatRound } from '../whos-that.js';
 import { clientRun } from './run.js';
 
 /** How many players a leaderboard shows. */
@@ -32,11 +32,6 @@ function runEvent(run: LoadedRun) {
   const e = run.state.encounter;
   if (e?.kind !== 'event' || e.event.id !== 'whosThat') throw new TRPCError({ code: 'BAD_REQUEST', message: "There's no Who's That Pokémon? here" });
   return e.event;
-}
-
-/** What the browser gets of an Extras game's round: the Pokémon's shape, never its card. `elapsedMs`: how long it's been shown (a game taken up again). */
-async function round(game: WhosThatGame, now: number) {
-  return { gameId: game.id, daily: game.day !== null, index: game.index, total: game.cards.length, shape: await cardShape(game.cards[game.index]!), elapsedMs: now - game.shownAt.getTime() };
 }
 
 /** An Extras game's finished results. */
@@ -50,53 +45,48 @@ async function names(userIds: string[]) {
 
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
-/**
- * The game moves on from the Pokémon on screen, named or passed (`passed`) after `timeMs`: the next one is shown from now
- * (after a pass, once the passed one has been revealed: WHOS_THAT_REVEAL_MS), or the game is finished with its times.
- * Returns the saved game.
- */
-function moveOn(tx: Tx, game: WhosThatGame, timeMs: number, passed: boolean, now: number) {
-  const times = [...game.times, timeMs];
-  const passes = [...game.passed, passed];
-  const finished = times.length >= game.cards.length;
-  const shownAt = new Date(passed ? now + WHOS_THAT_REVEAL_MS : now);
-  return tx.whosThatGame.update({
-    where: { id: game.id },
-    data: { times, passed: passes, index: game.index + 1, shownAt, ...(finished && { finishedAt: new Date(now), ...whosThatTimes(times, passes) }) },
-  });
-}
-
-/** The game under way, the player's own: NOT_FOUND or BAD_REQUEST otherwise. */
-async function gameUnderWay(tx: Tx, gameId: string, userId: string) {
+/** The player's own game: NOT_FOUND otherwise. */
+async function ownGame(tx: Tx, gameId: string, userId: string) {
   const game = await tx.whosThatGame.findFirst({ where: { id: gameId, userId } });
   if (!game) throw new TRPCError({ code: 'NOT_FOUND', message: 'No such game' });
-  if (game.finishedAt) throw new TRPCError({ code: 'BAD_REQUEST', message: 'This game is over' });
   return game;
 }
 
 /**
- * The Pokémon on screen passed: it counts WHOS_THAT_PASS_MS, its name and card are given for the reveal, and the next
- * one's clock starts once it's been shown (or the game's results).
+ * A move of the player's game (whosThatStep): the Pokémon on screen named or passed moves the game on (its name and card
+ * given, then the next round, `next`, or the game's `results`); a wrong name, or a move before the Pokémon is up, is
+ * just `correct: false`; one for another round than the game is on changes nothing and says where the game is (`stale`,
+ * with its `round`, null once it's over).
  */
-async function passRound(tx: Tx, game: WhosThatGame, now: number) {
-  const cardId = game.cards[game.index]!;
-  const saved = await moveOn(tx, game, WHOS_THAT_PASS_MS, true, now);
+async function move(tx: Tx, gameId: string, userId: string, moved: WhosThatMove) {
+  const now = Date.now();
+  const game = await ownGame(tx, gameId, userId);
+  const cardId = game.cards[game.index];
+  const step = whosThatStep({ rounds: game.cards.length, index: game.index, shownAt: game.shownAt.getTime(), times: game.times, passed: game.passed }, cardId ? await cardName(cardId) : '', moved, now);
+  if (step.outcome === 'stale') return { correct: false as const, stale: true, round: game.finishedAt ? null : await whosThatRound(game, now) };
+  if (step.outcome === 'early' || step.outcome === 'wrong' || !cardId) return { correct: false as const, stale: false, round: null };
+  const { index, shownAt, times, passed } = step.game;
+  const finished = index >= game.cards.length;
+  const saved = await tx.whosThatGame.update({
+    where: { id: game.id },
+    data: { times, passed, index, shownAt: new Date(shownAt), ...(finished && { finishedAt: new Date(now), ...whosThatTimes(times, passed) }) },
+  });
   return {
     correct: true as const,
-    passed: true,
+    passed: step.outcome === 'passed',
     answer: whosThatAnswer(await cardName(cardId)),
     cardId,
-    timeMs: WHOS_THAT_PASS_MS,
-    next: saved.finishedAt ? null : await round(saved, now),
+    timeMs: step.timeMs,
+    next: saved.finishedAt ? null : await whosThatRound(saved, now),
     results: saved.finishedAt ? results(saved) : null,
   };
 }
 
 /**
  * Who's That Pokémon? (README: Who's That Pokémon?): a run's Mystery event (`runStart`, `runGuess`: 10 seconds to name the
- * Pokémon, for EXP) and the Extras mode (`start`, `guess`, `pass`, `status`: 10 in a row, timed; `leaderboard`, public).
- * The server picks the cards and keeps the time; the browser is sent only each Pokémon's shape (cardShape), and its name
- * once it's named, passed or missed.
+ * Pokémon, for EXP) and the Extras mode (`start`, `guess`, `pass`, `round`, `status`: 10 in a row, timed; `leaderboard`, public).
+ * The server picks the cards and keeps the time; the browser is sent only each Pokémon's shape (cardShape), once its clock
+ * has started (whosThatRound), and its name once it's named, passed or missed.
  */
 export const whosThatRouter = router({
   /**
@@ -163,47 +153,50 @@ export const whosThatRouter = router({
         const played = await tx.whosThatGame.findUnique({ where: { userId_day: { userId: ctx.user.id, day } } });
         if (played?.finishedAt) throw new TRPCError({ code: 'BAD_REQUEST', message: "You've played today's playlist: come back tomorrow" });
         const game = played ?? (await tx.whosThatGame.create({ data: { userId: ctx.user.id, day, cards: dailyPlaylist(day, cards), shownAt: new Date(now) } }));
-        return round(game, now);
+        return whosThatRound(game, now);
       }
       await tx.whosThatGame.deleteMany({ where: { userId: ctx.user.id, day: null, finishedAt: null } });
       const game = await tx.whosThatGame.create({ data: { userId: ctx.user.id, cards: whosThatGame(rngFrom(newSeed()), cards), shownAt: new Date(now) } });
-      return round(game, now);
+      return whosThatRound(game, now);
     }),
   ),
 
   /**
-   * A name typed in an Extras game: the Pokémon on screen's (`correct`) records the time since it was shown and shows the
-   * next (`next`), or finishes the game (`results`). "skip", or any name once WHOS_THAT_PASS_MS have gone by, passes it
-   * (`passed`: revealed, counting WHOS_THAT_PASS_MS: passRound). Any other is just `correct: false`, as is one sent
-   * before the Pokémon is up (while the one before is revealed).
+   * A name typed in an Extras game for the Pokémon the player sees (`index`): the Pokémon on screen's (`correct`) records
+   * the time since it was shown and shows the next (`next`), or finishes the game (`results`). "skip", or any name once
+   * WHOS_THAT_PASS_MS have gone by, passes it (`passed`: revealed, counting WHOS_THAT_PASS_MS). Any other is just
+   * `correct: false`, as is one sent before the Pokémon is up (while the one before is revealed) or for a round the game
+   * has left (`stale`): move.
    */
   guess: protectedProcedure.input(whosThatGuessInput).mutation(({ ctx, input }) =>
     prisma.$transaction(async (tx) => {
       await lockUser(tx, ctx.user.id);
-      const now = Date.now();
-      const game = await gameUnderWay(tx, input.gameId, ctx.user.id);
-      const timeMs = now - game.shownAt.getTime();
-      if (timeMs < 0) return { correct: false as const };
-      if (isSkip(input.guess) || timeMs >= WHOS_THAT_PASS_MS) return passRound(tx, game, now);
-      const cardId = game.cards[game.index]!;
-      const name = await cardName(cardId);
-      if (!namesPokemon(input.guess, name)) return { correct: false as const };
-      const saved = await moveOn(tx, game, timeMs, false, now);
-      return { correct: true as const, passed: false, answer: whosThatAnswer(name), cardId, timeMs, next: saved.finishedAt ? null : await round(saved, now), results: saved.finishedAt ? results(saved) : null };
+      return move(tx, input.gameId, ctx.user.id, { index: input.index, guess: input.guess });
     }),
   ),
 
   /**
-   * Passes the Pokémon on screen (passRound): typed "skip", the Skip button, or its WHOS_THAT_PASS_MS run out (the browser
-   * asks then; any guess after it is a pass too).
+   * Passes the Pokémon the player sees (`index`): the Skip button, or its WHOS_THAT_PASS_MS run out (the browser asks
+   * then; any guess after it is a pass too). Nothing changes if the game is on another round by then (a guess got there
+   * first) or the Pokémon isn't up yet: move.
    */
-  pass: protectedProcedure.input(whosThatGameInput).mutation(({ ctx, input }) =>
+  pass: protectedProcedure.input(whosThatPassInput).mutation(({ ctx, input }) =>
     prisma.$transaction(async (tx) => {
       await lockUser(tx, ctx.user.id);
-      const now = Date.now();
-      return passRound(tx, await gameUnderWay(tx, input.gameId, ctx.user.id), now);
+      return move(tx, input.gameId, ctx.user.id, { index: input.index, pass: true });
     }),
   ),
+
+  /**
+   * The round a game under way is on (whosThatRound): asked for once a passed Pokémon has been revealed, the next one's
+   * shape being held back until its clock starts. BAD_REQUEST once the game is over.
+   */
+  round: protectedProcedure.input(whosThatGameInput).query(async ({ ctx, input }) => {
+    const game = await prisma.whosThatGame.findFirst({ where: { id: input.gameId, userId: ctx.user.id } });
+    if (!game) throw new TRPCError({ code: 'NOT_FOUND', message: 'No such game' });
+    if (game.finishedAt) throw new TRPCError({ code: 'BAD_REQUEST', message: 'This game is over' });
+    return whosThatRound(game, Date.now());
+  }),
 
   /**
    * A leaderboard, open to anyone, signed in or not (the user's: public): each player's best average time over a game of

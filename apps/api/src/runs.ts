@@ -9,6 +9,7 @@ import {
   expandDeck,
   MAX_CONSUMABLES_PER_RUN,
   needsBattle,
+  packUnlockLine,
   STARTER_DECKS,
   withConsumablesBefore,
   type StarterId,
@@ -18,12 +19,12 @@ import {
   type RunTypeId,
 } from '@poke-tcg/campaign';
 import { prisma, saveGameState, type Prisma, type Run } from '@poke-tcg/db';
-import { applyAction, createGame, runCpu, type GameAction, type GameState } from '@poke-tcg/game-engine';
+import { applyAction, createGame, runCpu, type GameAction } from '@poke-tcg/game-engine';
 import { CPU_ID, HUMAN_ID } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { ensureUser, type AuthUser } from './auth.js';
 import { loadCardLibrary } from './cards.js';
-import { actionRows, asJson, newSeed } from './games.js';
+import { actionRows, asJson, loadGame, newSeed, storedState } from './games.js';
 import { runPool } from './pool.js';
 import { earnedPacks, unlockPacks } from './progress.js';
 import { unlockCards } from './unlocks.js';
@@ -90,6 +91,13 @@ export async function loadOwnRun(runId: string, userId: string): Promise<LoadedR
   return loaded(run);
 }
 
+/**
+ * Why a lost run can't be carried on (the Retry testing aid), or null: only the account's latest run, and with no other
+ * under way, or the older one would be ACTIVE again where nothing shows it (latestRun) and no new run could start.
+ */
+export const retryError = (runId: string, latestId: string | null, activeIds: string[]): string | null =>
+  runId !== latestId ? 'Only your latest run can be carried on' : activeIds.some((id) => id !== runId) ? 'Finish your current run first' : null;
+
 /** The account's latest run, with its battle settled if it just ended. */
 export async function latestRun(userId: string): Promise<LoadedRun | null> {
   const run = await prisma.run.findFirst({ where: { ownerId: userId }, orderBy: { createdAt: 'desc' } });
@@ -127,24 +135,28 @@ export async function advanceRun(run: LoadedRun, actions: (RunAction | RunSystem
   const status = statusOf(state);
   const reward = status === 'WON' && !run.rewarded;
   // A run's ₱ go to the bank as soon as it ends (only if it completed a battle without conceding it: bankablePokedollars).
-  // A lost run carried on (the Retry testing aid) takes them back out, as far as the bank still has them, so they
-  // aren't banked twice.
+  // A lost run carried on (the Retry testing aid) takes back what it banked, so it isn't banked twice; if the bank has
+  // spent some of it since, the run stays banked and takes nothing back (what it earns from here on isn't banked: it was
+  // banked again in full before, a way to mint ₱).
   const bank = status !== 'ACTIVE' && !run.banked;
   const unbank = status === 'ACTIVE' && run.banked;
+  const owed = bankablePokedollars(run.state);
   const saved = await prisma.$transaction(async (tx) => {
+    let returned = false;
+    if (unbank) {
+      await lockUser(tx, run.ownerId);
+      returned = (await tx.user.findUniqueOrThrow({ where: { id: run.ownerId }, select: { bank: true } })).bank >= owed;
+    }
     // Its first battle completed unlocks its generation's next booster pack, beating it all of them; the run's log says so.
     const packs = await earnedPacks(run.ownerId, run.state, state, tx);
-    for (const { name } of packs) state.log.push(`Unlocked ${name} booster packs.`);
+    for (const { name } of packs) state.log.push(packUnlockLine(name));
     const { count } = await tx.run.updateMany({
       where: { id: run.id, version: run.version },
-      data: { state: asJson(state), version: state.version, status, ...(reward && { rewarded: true }), ...((bank || unbank) && { banked: bank }) },
+      data: { state: asJson(state), version: state.version, status, ...(reward && { rewarded: true }), ...((bank || (unbank && returned)) && { banked: bank }) },
     });
     if (count === 0) return false;
     if (bank) await tx.user.update({ where: { id: run.ownerId }, data: { bank: { increment: bankablePokedollars(state) } } });
-    if (unbank) {
-      const { bank: banked } = await tx.user.findUniqueOrThrow({ where: { id: run.ownerId }, select: { bank: true } });
-      await tx.user.update({ where: { id: run.ownerId }, data: { bank: { decrement: Math.min(banked, state.pokedollars) } } });
-    }
+    if (unbank && returned && owed) await tx.user.update({ where: { id: run.ownerId }, data: { bank: { decrement: owed } } });
     // Cards gained by these actions are unlocked for the deck builder at once (they don't join the run's deck),
     // and badges (or the Champion's ribbon) go to the inventory as they're won.
     await unlockCards(run.ownerId, state.gained.slice(run.state.gained.length), tx);
@@ -198,7 +210,7 @@ async function startBattle(run: LoadedRun, state: RunState, gear: string[]): Pro
       runId: run.id,
       seed,
       ...(cosmetics && { cosmetics }),
-      state: asJson(game),
+      state: asJson(storedState(game)),
       version: game.version,
       actions: { create: actionRows(actions.map((action) => ({ playerId: CPU_ID, action })), game.version) },
     },
@@ -211,16 +223,16 @@ async function startBattle(run: LoadedRun, state: RunState, gear: string[]): Pro
 export async function abandonBattle(gameId: string) {
   // Tried again if the game moved on meanwhile (an action of the player's in another tab), so no active game is left behind.
   for (let attempt = 0; attempt < 3; attempt++) {
-    const game = await prisma.game.findUnique({ where: { id: gameId } });
+    const game = await loadGame(gameId);
     if (!game || game.status === 'FINISHED') return;
     const action: GameAction = { type: 'CONCEDE' };
-    const result = applyAction(game.state as unknown as GameState, HUMAN_ID, action);
+    const result = applyAction(game.state, HUMAN_ID, action);
     if (!result.ok) return;
     const next = result.state;
     const saved = await saveGameState({
       gameId,
       expectedVersion: game.version,
-      state: next,
+      state: storedState(next),
       version: next.version,
       status: 'FINISHED',
       winner: next.winner,

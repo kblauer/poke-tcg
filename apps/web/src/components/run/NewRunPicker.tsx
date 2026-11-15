@@ -1,6 +1,6 @@
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LockIcon from '@mui/icons-material/Lock';
-import { boss, bossLabel, bossTypes, generation, generationLock, RUN_TYPES, STARTER_DECKS, STARTER_IDS, type BossId, type RunTypeId, type StarterId } from '@poke-tcg/campaign';
+import { boss, bossLabel, bossTypes, generation, generationLock, RUN_TYPE_INFO, STARTER_DECKS, STARTER_IDS, type BossId, type RunTypeId, type StarterId } from '@poke-tcg/campaign';
 import { typeName } from '@poke-tcg/game-engine';
 import { Link } from '@tanstack/react-router';
 import { useContext, useState, type ReactNode } from 'react';
@@ -28,7 +28,7 @@ function BossSprite({ id, scale = 3 }: { id: BossId; scale?: number }) {
  * locked ones say what unlocks them and can't be picked.
  */
 function RunTypeOption({ info, selected, onPick, start }: { info: RunTypeInfo; selected: boolean; onPick: () => void; start?: { disabled: boolean; onStart: () => void } }) {
-  const ids = RUN_TYPES[info.id].segments.flatMap((s) => s.bosses);
+  const ids = RUN_TYPE_INFO[info.id].segments.flatMap((s) => s.bosses);
   const last = boss(ids.at(-1)!);
   const locked = info.locked !== null;
   return (
@@ -134,16 +134,16 @@ export function NewRunPicker({ overview: given, run, title, defaultType, extra }
   const genLock = (g: number) => (unlockAll ? null : generationLock(g, beaten));
   // To start with: `defaultType`, else the first open run of the latest run's generation (kept with the account, as the
   // latest run; agreed 2026-10-23) while that generation is open, else the first open run.
-  const lastGen = overview.run ? RUN_TYPES[overview.run.view.type].generation : null;
-  const inLastGen = open.find((t) => RUN_TYPES[t.id].generation === lastGen) ?? (lastGen !== null && !genLock(lastGen) ? overview.runTypes.find((t) => RUN_TYPES[t.id].generation === lastGen) : undefined);
+  const lastGen = overview.run ? RUN_TYPE_INFO[overview.run.view.type].generation : null;
+  const inLastGen = open.find((t) => RUN_TYPE_INFO[t.id].generation === lastGen) ?? (lastGen !== null && !genLock(lastGen) ? overview.runTypes.find((t) => RUN_TYPE_INFO[t.id].generation === lastGen) : undefined);
   const [type, setType] = useState<RunTypeId>(open.find((t) => t.id === defaultType)?.id ?? inLastGen?.id ?? open[0]?.id ?? overview.runTypes[0]!.id);
   // The generation dropdown shows one generation's runs at a time, starting with the picked run's.
-  const generations = [...new Set(overview.runTypes.map((t) => RUN_TYPES[t.id].generation))];
-  const [gen, setGen] = useState(RUN_TYPES[type].generation);
-  const shown = overview.runTypes.filter((t) => RUN_TYPES[t.id].generation === gen);
+  const generations = [...new Set(overview.runTypes.map((t) => RUN_TYPE_INFO[t.id].generation))];
+  const [gen, setGen] = useState(RUN_TYPE_INFO[type].generation);
+  const shown = overview.runTypes.filter((t) => RUN_TYPE_INFO[t.id].generation === gen);
   const pickGeneration = (g: number) => {
     setGen(g);
-    const runs = overview.runTypes.filter((t) => RUN_TYPES[t.id].generation === g);
+    const runs = overview.runTypes.filter((t) => RUN_TYPE_INFO[t.id].generation === g);
     setType((runs.find((t) => t.locked === null) ?? runs[0])!.id);
   };
   const playable = overview.decks.filter((d) => d.problems.length === 0);

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { expandDeck, STARTER_DECK } from './decks.js';
+import { deckErrors, expandDeck, STARTER_DECK } from './decks.js';
 import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, onlyOne, shopStock } from './items.js';
 import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from './run-types.js';
-import { ROUTE_4 } from './kanto-routes.js';
+import { PEWTER_GYM, ROUTE_2, ROUTE_4 } from './kanto-routes.js';
 import { JOHTO_BOSS_ROOMS, MAHOGANY_GYM } from './johto-gyms.js';
-import { dropAt, inGrass, inLongGrass, liftEnd, onLongGrassEdge, onPath, onThinIce, PEWTER_GYM, ROUTE_2, routePath, gearStateAt, snowAt, snowballsLeft, snowPace, snowSink, snowTrack, travelAt, type Route, type RouteSpot } from './routes.js';
+import { dropAt, inGrass, inLongGrass, liftEnd, onLongGrassEdge, onPath, onThinIce, routePath, gearStateAt, snowAt, snowballsLeft, snowPace, snowSink, snowTrack, travelAt, type Route, type RouteSpot } from './routes.js';
 import { IRON_ISLAND_B1F, IRON_ISLAND_B2F, IRON_ISLAND_B3F, ROUTE_217 } from './sinnoh-routes.js';
 import { CANALAVE_GYM, SNOWPOINT_GYM, SUNYSHORE_GYM } from './sinnoh-gyms.js';
 import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, landNear, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, carriedConsumables, parsePendingConsumable, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
@@ -654,6 +654,15 @@ describe('other encounters', () => {
     expect(after.deck).toHaveLength(60);
     expect(after.deck.filter((id) => id === trade.give).length).toBe(deck.filter((id) => id === trade.give).length - 1);
     expect(after.gained).toEqual([trade.get]);
+  });
+
+  it('a trade never leaves the run deck over a copy limit (400 seeds)', () => {
+    const defs = (id: string) => TEST_POOL.find((c) => c.def.id === id)!.def;
+    for (let seed = 1; seed <= 400; seed++) {
+      const s = act(at('trade', seed), { type: 'CHOOSE', option: 0 });
+      const after = act(s, { type: 'ACCEPT' });
+      expect(deckErrors(after.deck, defs), `seed ${seed}`).toEqual([]);
+    }
   });
 
   it("a trade with a deck from another generation (none of its cards in the run's pool) still asks for one of its cards", () => {

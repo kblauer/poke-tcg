@@ -14,7 +14,7 @@
 import { attackSituation, targetsIn, pokemonOn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { lookupCard, namesMatch } from '../cards.js';
 import { isEnergyCardOf, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
-import { powerActive } from '../powers.js';
+import { hasPowerOrBody, powerActive } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { baseUid, effectId, inPlayDef, pokemonName } from '../status.js';
 import { attackEffect } from './index.js';
@@ -188,6 +188,8 @@ export const NEO1: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         const energy = ctx.me.discard.filter((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy');
         ctx.hit(10 + 10 * energy.length);
+        // No Allergic Pollen check: it doesn't stop attacks (the user's, 2026-11-14: "Allergic Pollen should not stop attacks";
+        // asked first about Riptide: "Riptide should still shuffle as the energy is targeted by an attack, not an ability").
         if (!energy.length) return;
         ctx.me.discard = ctx.me.discard.filter((c) => !energy.includes(c));
         ctx.me.deck.push(...energy);
@@ -242,7 +244,7 @@ export const NEO1: Record<string, Record<string, AttackEffect>> = {
   'neo1-12': {
     Zzzap: {
       run(ctx) {
-        const powered = (p: InPlayPokemon | null) => !!p && !!inPlayDef(ctx.state.cards, p).power;
+        const powered = (p: InPlayPokemon | null) => !!p && hasPowerOrBody(ctx.state.cards, p);
         if (powered(ctx.opp.active)) ctx.hit(20, { weakness: false });
         ctx.opp.bench.forEach((p, slot) => powered(p) && ctx.damageBenched(ctx.opp, slot, 20));
         ctx.me.bench.forEach((p, slot) => powered(p) && ctx.damageBenched(ctx.me, slot, 20));

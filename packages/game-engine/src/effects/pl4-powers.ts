@@ -10,7 +10,7 @@ import { lookupCard, namesMatch } from '../cards.js';
 import type { Target } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { addLog, inPlayDef, pokemonName } from '../status.js';
+import { addLog, inPlayDef, pokemonName, removeTopCard } from '../status.js';
 import { POKE_BODY } from './common.js';
 import { onBench, onLevelUp } from './dp5-powers.js';
 import { DPP_POWERS } from './dpp-powers.js';
@@ -121,10 +121,7 @@ export const PL4_POWERS: Record<string, PowerEffect> = {
       const p = ctx.choices.oppFrom === undefined ? null : pokemonAt(ctx.opp, ctx.choices.oppFrom);
       const below = p?.evolvedFrom.at(-1);
       if (!p || !below || inPlayDef(ctx.state.cards, p).stage !== 'levelUp') return;
-      const lvx = p.card;
-      p.evolvedFrom = p.evolvedFrom.slice(0, -1);
-      p.card = below;
-      delete p.levelUpFrom;
+      const lvx = removeTopCard(p);
       [ctx.opp.deck, ctx.state.rngState] = shuffle([...ctx.opp.deck, lvx], ctx.state.rngState);
       addLog(ctx.state, `Level-Down: ${lookupCard(ctx.state.cards, lvx.defId).name} LV.X was shuffled into the deck.`, ctx.opp.id);
     },

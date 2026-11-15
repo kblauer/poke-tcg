@@ -1,4 +1,4 @@
-import { buyCoinsError, COIN_OFFERS, GAME_CORNER_MAP, gameCornerMusic, MAX_COINS, routePath, type GameCornerGame, type Route, type RouteSpot } from '@poke-tcg/campaign';
+import { buyCoinsError, COIN_OFFERS, GAME_CORNER_MAP, gameCornerMusic, MAX_COINS, routePath, type Route, type RouteSpot, type SlotMachineId } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -70,8 +70,10 @@ function Target({ x, y, w, h, title, onClick }: { x: number; y: number; w: numbe
  * where the game has them. Clicking a slot machine or a roulette table walks the player (Brendan or May) to it and
  * sits them at it (SlotMachineScreen, with the machine's luck today; RouletteScreen, the left table 1 coin a ball, the
  * right 3); the coin clerk sells coins for banked ₱ as the game's does (her words and menu, `extras.buyCoins`); the others
- * say their lines, in the Battle Tower's text box (DialogueBox, the user's). The door leads back to the Extras menu. Each
- * round played is settled by the API in turn (`extras.coinRound`), while the screen keeps its own count as the game does.
+ * say their lines, in the Battle Tower's text box (DialogueBox, the user's). The door leads back to the Extras menu. A
+ * seat is taken with the API (`extras.slotSit`, `extras.rouletteSit`), which draws each spin and ball as it starts and
+ * pays what it plays itself (`extras.slotSpin` and `extras.slotStops`, `extras.rouletteBall`), in turn, while the
+ * screen plays what was drawn and keeps its own count as the game does.
  * Auto play plays the Game Corner's theme throughout.
  */
 export function GameCorner() {
@@ -85,38 +87,84 @@ export function GameCorner() {
   const setCoins = (coins: number, bank?: number) => queryClient.setQueryData(key, (old) => old && { ...old, coins, bank: bank ?? old.bank });
   const buy = useMutation(trpc.extras.buyCoins.mutationOptions());
   const fill = useMutation(trpc.extras.fillCoins.mutationOptions({ onSuccess: (r) => setCoins(r.coins), onError: (e) => toasts.push('error', e.message) }));
-  const round = useMutation(trpc.extras.coinRound.mutationOptions());
+  const slotSit = useMutation(trpc.extras.slotSit.mutationOptions());
+  const slotSpin = useMutation(trpc.extras.slotSpin.mutationOptions());
+  const slotStops = useMutation(trpc.extras.slotStops.mutationOptions());
+  const rouletteSit = useMutation(trpc.extras.rouletteSit.mutationOptions());
+  const rouletteBall = useMutation(trpc.extras.rouletteBall.mutationOptions());
   const gender = useRun().overview.data?.playerGender ?? undefined;
   const [seat, setSeat] = useState<Seat>(null);
+  // The sitting the API started for the seat (a machine's luck and lucky game), once it has.
+  const [sat, setSat] = useState<{ machineId: SlotMachineId; luckyGame: boolean } | { hours: number } | null>(null);
   // Where the player stands, kept while they sit at a game: they're back on the same seat after it.
   const standing = useRef<Standing>({ tile: GAME_CORNER_MAP.entrance, face: 'up' });
-  // The rounds played, settled one after another in the order they were played.
-  const settling = useRef(Promise.resolve());
-  const onRound = (game: GameCornerGame) => (bet: number, payout: number) => {
-    settling.current = settling.current
-      .then(() => round.mutateAsync({ game, bet, payout }))
-      .then((r) => void setCoins(r.coins))
-      .catch((e: Error) => {
+  // The API's draws and settlings, one after another in the order the game asked for them.
+  const settling = useRef<Promise<unknown>>(Promise.resolve());
+  /** Asks the API `call` after the requests before it; its coins kept, null (with a toast) if it fails. */
+  const inTurn = <T extends { coins: number }>(call: () => Promise<T>): Promise<T | null> => {
+    const result = settling.current.then(call).then(
+      (r) => {
+        setCoins(r.coins);
+        return r;
+      },
+      (e: Error) => {
         toasts.push('error', e.message);
         queryClient.invalidateQueries({ queryKey: key });
-      });
+        return null;
+      },
+    );
+    settling.current = result;
+    return result;
+  };
+  const sit = (next: Seat) => {
+    setSeat(next);
+    setSat(null);
+    if (!next) return;
+    // The table's game reads the clock as it's sat at; the API keeps the same hour.
+    const hours = new Date().getHours();
+    const sitting =
+      next.game === 'slots'
+        ? inTurn(() => slotSit.mutateAsync({ machine: next.machine })).then((r) => r && { machineId: r.machineId as SlotMachineId, luckyGame: r.luckyGame })
+        : inTurn(() => rouletteSit.mutateAsync({ table: next.table, hours })).then((r) => r && { hours });
+    void sitting.then((r) => (r ? setSat(r) : setSeat(null)));
   };
   const leave = () => {
     setSeat(null);
+    setSat(null);
     void settling.current.then(() => queryClient.invalidateQueries({ queryKey: key }));
   };
 
   if (corner.error && !corner.data) return <p className="text-red-400">{corner.error.message}</p>;
   if (!corner.data) return <p className="text-slate-400">Opening the Game Corner…</p>;
-  const { coins, bank, machines } = corner.data;
+  const { coins, bank } = corner.data;
 
   if (seat) {
     return (
       <div className="space-y-3">
-        {seat.game === 'roulette' ? (
-          <RouletteScreen table={seat.table} coins={coins} onRound={onRound('roulette')} onExit={leave} />
+        {!sat ? (
+          <p className="text-slate-400">Taking a seat…</p>
+        ) : seat.game === 'roulette' ? (
+          'hours' in sat && (
+            <RouletteScreen
+              table={seat.table}
+              coins={coins}
+              hours={sat.hours}
+              onBall={(selection, wheelAngle) => inTurn(() => rouletteBall.mutateAsync({ selection, wheelAngle })).then((r) => r?.draws ?? null)}
+              onExit={leave}
+            />
+          )
         ) : (
-          <SlotMachineScreen machine={seat.machine} machineId={machines[seat.machine]!} coins={coins} onRound={onRound('slots')} onExit={leave} />
+          'machineId' in sat && (
+            <SlotMachineScreen
+              machine={seat.machine}
+              machineId={sat.machineId}
+              luckyGame={sat.luckyGame}
+              coins={coins}
+              onSpin={(bet) => inTurn(() => slotSpin.mutateAsync({ bet })).then((r) => r?.seed ?? null)}
+              onStops={(stops) => inTurn(() => slotStops.mutateAsync({ stops })).then((r) => r?.next ?? null)}
+              onExit={leave}
+            />
+          )
         )}
         <Toasts toasts={toasts.toasts} />
       </div>
@@ -157,7 +205,7 @@ export function GameCorner() {
         coins={coins}
         bank={bank}
         buying={buy.isPending}
-        onSit={setSeat}
+        onSit={sit}
         onBuy={buyCoins}
       />
       <Toasts toasts={toasts.toasts} />

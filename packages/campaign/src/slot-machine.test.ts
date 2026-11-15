@@ -110,7 +110,7 @@ describe('the slot machines', () => {
     expect(5 * Math.max(...SLOT_PAYOUTS)).toBe(SLOT_MAX_PAYOUT);
   });
 
-  it("pays each spin what its bet's lines on the stopped reels add up to, and the coins follow the API's sums", () => {
+  it("pays each spin what its bet's lines on the stopped reels add up to, within a spin's most", () => {
     for (const machine of [0, 3, 5] as SlotMachineId[]) {
       const random = random16(1000 + machine);
       const m = newSlotMachine(machine, 2000, random);

@@ -4,7 +4,8 @@
 // ×4 to ×12) or a row (a colour, ×3 to ×12), the wheel spins and the ball rolls round it, slows and falls into a slot; a
 // ball that would fall into a slot already hit this round of 6 bounces to the next, and if that one's hit too, Shroomish
 // or Taillow comes to clear it into another. The web app runs `rouletteFrame` 60 times a second (the game's frame rate)
-// with the buttons newly pressed; the API settles each ball's bet and payout (`coinRoundError`). The player's party
+// with the buttons newly pressed; the API plays each ball again from the bet and the wheel (`playRouletteBall`,
+// game-corner-rounds.ts) and hands the screen the Random() values its roll takes, so the payout is the server's. The player's party
 // isn't modelled (no Shroomish or Taillow in it), nor PokéNews's service day.
 import type { Random16 } from './berry-blender.js';
 import { MAX_COINS, ROULETTE_MIN_BETS } from './game-corner.js';
@@ -2002,4 +2003,66 @@ export function rouletteFrame(game: RouletteGame, input: RouletteInput, random: 
   }
   g.frame++;
   return fr.events;
+}
+
+// ---- A ball played again (the API's) ----
+
+/** What a table keeps from one ball to the next that decides where the next one goes: the round of 6's hits and the balls rolled since the table was sat at. */
+export interface RouletteBoard {
+  ballNum: number;
+  totalBallNum: number;
+  hitFlags: number;
+  hitSquares: number[];
+  pokeHits: number[];
+  colorHits: number[];
+}
+
+export const newRouletteBoard = (): RouletteBoard => ({ ballNum: 0, totalBallNum: 0, hitFlags: 0, hitSquares: Array(ROULETTE_BALLS).fill(0), pokeHits: Array(NUM_BOARD_POKES).fill(0), colorHits: Array(NUM_BOARD_COLORS).fill(0) });
+
+/** The frames from the bet to the ball's hit: the grid sliding off, the roll, a bounce and Shroomish or Taillow. */
+const BALL_FRAMES = 3000;
+
+/**
+ * A ball played again at table `table` (sat at at hour `hours`) on `board`: the bet on `selection` placed (Task_PlaceBet),
+ * then the game's own frames from Task_StartSpin, with the wheel at `wheelAngle` as that task starts, to the ball's hit
+ * (Task_RecordBallHit), with `random` the game's Random(). After a round of 6 the board is cleared first (Task_ClearBoard).
+ * The ball's roll is the frame port's, so the screen, given the same Random() values (`draws`, in the order the roll asks
+ * for them) and the same wheel, rolls it into the same slot. What the player decides is when to bet (the wheel's angle
+ * then), as in the game. Refused for a selection that isn't one or whose squares are all hit (the game's buzzer).
+ */
+export function playRouletteBall(table: 0 | 1, hours: number, board: RouletteBoard, selection: number, wheelAngle: number, random: Random16): { board: RouletteBoard; bet: number; payout: number; draws: number[] } | { error: string } {
+  if (!Number.isInteger(selection) || selection < 1 || selection > NUM_GRID_SELECTIONS) return { error: 'No such bet on the grid' };
+  if (!Number.isInteger(wheelAngle) || wheelAngle < 0 || wheelAngle >= 360) return { error: 'The wheel has no such angle' };
+  const b = board.ballNum >= ROULETTE_BALLS ? { ...newRouletteBoard(), totalBallNum: board.totalBallNum } : board;
+  if (b.hitFlags & ROULETTE_GRID[selection]!.flag) return { error: "That's been hit already" };
+  const g = newRouletteGame(table, 0, hours);
+  Object.assign(g, {
+    screen: 'game',
+    task: 'startSpin',
+    spinning: true,
+    ballNum: b.ballNum,
+    totalBallNum: b.totalBallNum,
+    hitFlags: b.hitFlags,
+    hitSquares: [...b.hitSquares],
+    pokeHits: [...b.pokeHits],
+    colorHits: [...b.colorHits],
+    selectionId: selection,
+    betSelection: selection,
+    multiplier: rouletteMultiplier(b, selection),
+    wheelAngle,
+  });
+  const draws: number[] = [];
+  const drawn = () => {
+    const value = random();
+    draws.push(value);
+    return value;
+  };
+  for (let frame = 0; frame < BALL_FRAMES; frame++) {
+    for (const e of rouletteFrame(g, {}, drawn)) {
+      if (e.type !== 'round') continue;
+      const { ballNum, totalBallNum, hitFlags, hitSquares, pokeHits, colorHits } = g;
+      return { board: { ballNum, totalBallNum, hitFlags, hitSquares: [...hitSquares], pokeHits: [...pokeHits], colorHits: [...colorHits] }, bet: e.bet, payout: e.payout, draws };
+    }
+  }
+  return { error: 'The ball never landed' };
 }

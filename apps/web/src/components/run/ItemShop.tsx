@@ -34,7 +34,8 @@ export function ItemShop({ close }: { close?: ReactNode }) {
       },
     }),
   );
-  if (!shop.data) return null;
+  if (shop.error && !shop.data) return <p className="text-sm text-red-400">{shop.error.message}</p>;
+  if (!shop.data) return <p className="text-sm text-slate-400">Loading the shop…</p>;
   return (
     <section className="space-y-3 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600">
       <div className="flex items-baseline gap-3">

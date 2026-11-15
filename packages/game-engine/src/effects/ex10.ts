@@ -10,7 +10,7 @@
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { targetsIn } from '../attacks.js';
 import { hasType, isBasicEnergy, lookupCard, namesMatch, type EnergyType } from '../cards.js';
-import { isEnergyCardOf, isSpecialEnergy } from '../engine.js';
+import { retireStadium, isEnergyCardOf, isSpecialEnergy } from '../engine.js';
 import { clearSpecialConditions, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
 import { shuffle } from '../rng.js';
 import { trainerEffect } from './index.js';
@@ -19,7 +19,6 @@ import { copyAttack } from './ecard2.js';
 import { discardOwn, inPlay, putCounters, typeCards } from './ex2.js';
 import { lureIn, snipe } from './ex6.js';
 import { dragOff, trainersInPlay } from './ex8.js';
-import { discardFree } from './neo3.js';
 import { healUpTo, TYPES } from './si1.js';
 
 /** The types of basic Energy cards attached to the Pokémon (Multi Burn, Rainbow Burn). */
@@ -42,7 +41,7 @@ const multi = (affliction: 'burned' | 'confused' | 'asleep'): AttackEffect => ({
 export const fireDance = (damage: number): AttackEffect => ({
   run(ctx) {
     ctx.hit(damage);
-    if (ctx.me.discard.some((c) => isEnergyCardOf(c, ctx.state.cards, 'fire') && lookupCard(ctx.state.cards, c.defId).kind === 'energy') && discardFree(ctx)) {
+    if (ctx.me.discard.some((c) => isEnergyCardOf(c, ctx.state.cards, 'fire') && lookupCard(ctx.state.cards, c.defId).kind === 'energy')) {
       ctx.pend({ kind: 'attachFromDiscard', source: 'Fire Dance', count: 1, type: 'fire' });
     }
   },
@@ -354,7 +353,7 @@ export const EX10: Record<string, Record<string, AttackEffect>> = {
   'ex10-65': {
     'Dig Deep': {
       run(ctx) {
-        if (ctx.me.discard.some((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy') && discardFree(ctx)) ctx.pend({ kind: 'discardToHand', source: 'Dig Deep', count: 1, filter: 'energy', reveal: true });
+        if (ctx.me.discard.some((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy')) ctx.pend({ kind: 'discardToHand', source: 'Dig Deep', count: 1, filter: 'energy', reveal: true });
       },
     },
   },
@@ -366,7 +365,7 @@ export const EX10: Record<string, Record<string, AttackEffect>> = {
           const d = lookupCard(ctx.state.cards, c.defId);
           return (d.kind === 'pokemon' && !d.trainerText) || isBasicEnergy(d);
         };
-        if (ctx.me.discard.some(fits) && discardFree(ctx)) ctx.pend({ kind: 'discardToHand', source: 'Fishing Tail', count: 1, filter: 'pokemonOrBasicEnergy', reveal: true });
+        if (ctx.me.discard.some(fits)) ctx.pend({ kind: 'discardToHand', source: 'Fishing Tail', count: 1, filter: 'pokemonOrBasicEnergy', reveal: true });
       },
     },
   },
@@ -379,7 +378,7 @@ export const EX10: Record<string, Record<string, AttackEffect>> = {
     'Energy Absorption': {
       run(ctx) {
         const energy = ctx.me.discard.filter((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy').length;
-        if (energy && discardFree(ctx)) ctx.pend({ kind: 'attachFromDiscard', source: 'Energy Absorption', count: Math.min(3, energy), target: 'active', anyEnergy: true });
+        if (energy) ctx.pend({ kind: 'attachFromDiscard', source: 'Energy Absorption', count: Math.min(3, energy), target: 'active', anyEnergy: true });
       },
     },
   },
@@ -465,9 +464,7 @@ export const EX10: Record<string, Record<string, AttackEffect>> = {
         ctx.hit(30);
         const stadium = ctx.state.stadium;
         if (!stadium) return;
-        ctx.state.players[stadium.owner]!.discard.push(stadium.card);
-        ctx.state.stadium = null;
-        ctx.log(`Discarded ${lookupCard(ctx.state.cards, stadium.card.defId).name}.`);
+        retireStadium(ctx.state);
       },
     },
     Derail: {

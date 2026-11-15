@@ -4,7 +4,6 @@
 // Energy Assist attaches to a Benched Pokémon only; Infinite Wind needs Latios on the Bench.
 import type { AttackEffect } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch } from '../cards.js';
-import { discardsLocked } from '../powers.js';
 import { inPlayDef } from '../status.js';
 import { opponentTargets, same } from './common.js';
 import { HGSS1 } from './hgss1.js';
@@ -41,7 +40,7 @@ export const HGSSP: Record<string, Record<string, AttackEffect>> = {
     'Energy Assist': {
       run(ctx) {
         ctx.hit(10);
-        if (ctx.me.bench.some(Boolean) && !discardsLocked([ctx.me, ctx.opp], ctx.state.cards) && ctx.me.discard.some((c) => isBasicEnergy(lookupCard(ctx.state.cards, c.defId)))) ctx.pend({ kind: 'attachFromDiscard', source: 'Energy Assist', count: 1, benchOnly: true });
+        if (ctx.me.bench.some(Boolean) && ctx.me.discard.some((c) => isBasicEnergy(lookupCard(ctx.state.cards, c.defId)))) ctx.pend({ kind: 'attachFromDiscard', source: 'Energy Assist', count: 1, benchOnly: true });
       },
     },
     'Infinite Wind': {

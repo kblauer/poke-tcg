@@ -1,6 +1,6 @@
 import type { Route } from '@poke-tcg/campaign';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
-import { onDevicePixel } from '../components/idle/GameScreen';
+import { onDevicePixel } from '../utils/devicePixel';
 import type { Glide } from './useWalk';
 
 /** How much the route's pixel map is enlarged in the view (2×: 16px tiles show 32px); a view can zoom in further (`zoom`). */

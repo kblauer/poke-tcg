@@ -10,7 +10,9 @@ import type { CatalogCard } from '../utils/cardList';
  */
 export function useUnlocked() {
   const trpc = useTRPC();
-  const unlocked = useQuery(trpc.decks.unlocked.queryOptions());
+  // Kept until something unlocks a card, which invalidates it (a run's gained cards, packs, crafting, the BP Shop, the
+  // debug switches): the account's whole list, thousands of rows, so not fetched again by each deck tile that mounts.
+  const unlocked = useQuery({ ...trpc.decks.unlocked.queryOptions(), staleTime: Infinity });
   const owned = useMemo(() => (unlocked.data ? new Map(Object.entries(unlocked.data)) : null), [unlocked.data]);
   const isLocked = useCallback(
     (card: Pick<CatalogCard, 'id' | 'basicEnergy'> & { holoEnergy?: unknown }) => owned !== null && (!card.basicEnergy || !!card.holoEnergy) && !owned.has(card.id),

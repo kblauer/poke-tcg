@@ -1,6 +1,6 @@
 import CloseIcon from '@mui/icons-material/Close';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { bankablePokedollars, finalBoss, GENERATIONS, ITEMS, RUN_TYPES, runType, type RunType } from '@poke-tcg/campaign';
+import { bankablePokedollars, finalBoss, GENERATIONS, ITEMS, parsePackUnlocks, RUN_TYPE_INFO, runTypeInfo, type RunTypeInfo } from '@poke-tcg/campaign';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { ClientRun, Overview, RunControl } from '../../hooks/useRun';
 import { ItemShop } from './ItemShop';
@@ -77,11 +77,11 @@ const Minimized = ({ title, summary, onOpen }: { title: ReactNode; summary?: Rea
  */
 export function RunOver({ current, overview, run }: { current: ClientRun; overview: Overview; run: RunControl }) {
   const view = current.view;
-  const type = runType(view.type);
+  const type = runTypeInfo(view.type);
   const last = finalBoss(type);
   const won = (view.badges ?? []).map((id) => ITEMS[id]?.name).filter(Boolean);
   // The booster packs the run unlocked (its first battle completed, or beating it), from its log.
-  const packs = view.log.flatMap((line) => line.match(/^Unlocked (.+) booster packs\.$/)?.slice(1) ?? []);
+  const packs = parsePackUnlocks(view.log);
   const packsNote = packs.length > 0 ? ` Unlocked booster packs: ${packs.join(', ')}.` : '';
   const banked = bankablePokedollars(view);
   const { isClosed, toggle } = useClosed(current.id);
@@ -135,12 +135,12 @@ export function RunOver({ current, overview, run }: { current: ClientRun; overvi
   const firstWin = overview.runTypes.find((t) => t.id === view.type)?.beaten === 1;
   const opened = (id: string) => overview.runTypes.find((t) => t.id === id)?.locked === null;
   const gen = GENERATIONS[type.generation];
-  const champion = (Object.values(RUN_TYPES) as RunType[]).find((t) => t.generation === type.generation && t.requires === 'gymChallenge');
+  const champion = (Object.values(RUN_TYPE_INFO) as RunTypeInfo[]).find((t) => t.generation === type.generation && t.requires === 'gymChallenge');
   const nextGen = GENERATIONS[type.generation + 1];
   const runUnlocks = !firstWin
     ? []
     : type.segments.length === 1 && type.segments[0]!.bosses.length === 1
-      ? gen && opened(gen.gymChallenge) ? [runType(gen.gymChallenge).name] : []
+      ? gen && opened(gen.gymChallenge) ? [runTypeInfo(gen.gymChallenge).name] : []
       : gen && view.type === gen.gymChallenge
         ? [...(champion && opened(champion.id) ? [champion.name] : []), ...(nextGen ? [`Gen ${type.generation + 1} · ${nextGen.region}`] : [])]
         : [];

@@ -18,10 +18,13 @@ export type Unlocked = Map<string, number>;
 /**
  * The cards the user has unlocked. With the debug switch to unlock everything (unlocksAll, never in production), every
  * card is, 4 copies of each, unless `owned` asks for the ones really unlocked (opening packs: what's new and what gives Stardust).
+ * `cardIds` reads only those cards' unlocks: checking decks needs their cards', a few hundred rows, not the account's
+ * thousands (whole lists were a quarter of the hosted database's egress; README: Performance). The map then says
+ * nothing about any other card.
  */
-export async function unlockedIds(userId: string, db: Db = prisma, { owned = false }: { owned?: boolean } = {}): Promise<Unlocked> {
+export async function unlockedIds(userId: string, db: Db = prisma, { owned = false, cardIds }: { owned?: boolean; cardIds?: Iterable<string> } = {}): Promise<Unlocked> {
   if (!owned && (await unlocksAll(userId, db))) return everyCard();
-  const rows = await db.cardUnlock.findMany({ where: { userId }, select: { cardId: true, quantity: true } });
+  const rows = await db.cardUnlock.findMany({ where: { userId, ...(cardIds && { cardId: { in: [...new Set(cardIds)] } }) }, select: { cardId: true, quantity: true } });
   return new Map(rows.map((r) => [r.cardId, r.quantity]));
 }
 

@@ -1,11 +1,13 @@
 import {
-  newSlotMachine,
+  seededRandom16,
+  sitAtSlotMachine,
   SLOT_KEYS,
   SLOT_LINES,
   slotAwaitingBet,
   slotAwaitingStop,
   slotFrame,
   slotLineDarkness,
+  slotSpinStarting,
   slotSpriteHFlip,
   slotSpriteImage,
   slotSymbolAtRest,
@@ -24,12 +26,16 @@ import { SlotSound } from './slotSound';
 export interface SlotMachineScreenProps {
   /** Which of the Game Corner's 12 machines (0-11), as the game numbers them. */
   machine: number;
-  /** Its luck today (slotMachineId): the machine id slot_machine.c plays with. */
+  /** Its luck as it was sat at (slotMachineId): the machine id slot_machine.c plays with. */
   machineId: SlotMachineId;
+  /** The lucky game, as the API drew it for the sitting (`extras.slotSit`). */
+  luckyGame: boolean;
   /** The account's coins as the screen opens: the screen keeps its own count from here, as the game does. */
   coins: number;
-  /** A spin over: the coins bet (0 for a free one) and the coins paid out. The Game Corner settles it (`extras.coinRound`), in order. */
-  onRound: (bet: number, payout: number) => void;
+  /** A spin's bet put in (1-3 coins): the API takes it and draws the spin, its seed (`extras.slotSpin`); null if it failed. */
+  onSpin: (bet: number) => Promise<number | null>;
+  /** A spin's reels stopped (each one's offset as its stop was decided): the API plays it and pays it (`extras.slotStops`); the seed of the free spin a Replay owes, or null. */
+  onStops: (stops: number[]) => Promise<number | null>;
   /** The player left the machine. */
   onExit: () => void;
 }
@@ -40,7 +46,7 @@ const W = 240;
 const H = 160;
 const SCALE = 4;
 const FRAME_MS = 1000 / 60;
-/** The game's Random(): 0-65535. */
+/** The game's Random() (0-65535) for a spin the API couldn't draw: it plays, but isn't the API's and isn't paid. */
 const random16 = () => Math.floor(Math.random() * 0x10000);
 const FONT = '12px "Pokemon Emerald"';
 const ASSETS = '/extras/slots';
@@ -228,15 +234,19 @@ interface Obj {
  * A slot machine at the Mauville Game Corner, as Emerald plays it (src/slot_machine.c; the game's logic is campaign's
  * `slotFrame`, 60 frames a second): Down (or the Bet button) puts in a coin, R (Max bet) three, A (Z, Enter, Space, a click
  * or a tap) spins and stops each reel in turn; SELECT (Shift) shows the Reel Time help; B (X, Backspace) asks to quit;
- * START (S) pays a win out at once. The coins are the screen's own, from `coins`; each spin's bet and payout go to
- * `onRound` (a Replay's spin bets 0). Fanfares and Reel Time's song pause the site's music while they play.
+ * START (S) pays a win out at once. The coins are the screen's own, from `coins`. Each spin is the API's: the frames
+ * hold where it starts (SlotTask_StartSpin) till `onSpin` has its seed (a Replay's free spin has it from the `onStops`
+ * before), the spin plays with that Random(), and its reels' stops go to `onStops` as it ends, which the API pays from.
+ * Fanfares and Reel Time's song pause the site's music while they play.
  */
-export function SlotMachineScreen({ machine, machineId, coins, onRound, onExit }: SlotMachineScreenProps) {
+export function SlotMachineScreen({ machine, machineId, luckyGame, coins, onSpin, onStops, onExit }: SlotMachineScreenProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [loaded, setLoaded] = useState<'loading' | 'ready' | 'failed'>('loading');
   const [hint, setHint] = useState<'bet' | 'stop' | 'menu' | 'other'>('other');
-  const onRoundRef = useRef(onRound);
-  onRoundRef.current = onRound;
+  const onSpinRef = useRef(onSpin);
+  onSpinRef.current = onSpin;
+  const onStopsRef = useRef(onStops);
+  onStopsRef.current = onStops;
   const onExitRef = useRef(onExit);
   onExitRef.current = onExit;
   const hold = useMusicHold();
@@ -245,6 +255,7 @@ export function SlotMachineScreen({ machine, machineId, coins, onRound, onExit }
   // The machine is made once, with the coins the screen opened with (the game reads them as it starts).
   const startCoins = useRef(coins);
   const startId = useRef(machineId);
+  const startLucky = useRef(luckyGame);
 
   // The sounds (slotSound.ts), made with the screen and closed with it; their volume, the slider under the screen.
   const sound = useRef<SlotSound | null>(null);
@@ -325,7 +336,24 @@ export function SlotMachineScreen({ machine, machineId, coins, onRound, onExit }
     loadAssets()
       .then((assets) => {
         if (stopped) return;
-        const m = newSlotMachine(startId.current, startCoins.current, random16);
+        const m = sitAtSlotMachine(startId.current, startCoins.current, startLucky.current);
+        // The spin's Random(): the API's seed's while a spin it drew plays, the browser's for one it couldn't draw.
+        let random = random16;
+        // The next spin's seed: being asked for (or the stops' answer, a Replay's free spin's seed, awaited), had (null: the
+        // API couldn't draw it), or not yet asked for. Whether the spin playing is the API's, and its reels' stops.
+        type SpinSeed = 'none' | 'asking' | { seed: number | null };
+        let spinSeed: SpinSeed = 'none';
+        // Read afresh (the API's answers change it between frames).
+        const seedNow = (): SpinSeed => spinSeed;
+        let drawn = false;
+        let stops: number[] = [];
+        const ask = (answer: Promise<number | null>, then: (seed: number | null) => SpinSeed) => {
+          spinSeed = 'asking';
+          answer.then(
+            (seed) => (spinSeed = then(seed)),
+            () => (spinSeed = then(null)),
+          );
+        };
         const screen = document.createElement('canvas');
         screen.width = W;
         screen.height = H;
@@ -340,14 +368,36 @@ export function SlotMachineScreen({ machine, machineId, coins, onRound, onExit }
           spare = Math.min(spare + t - last, 250);
           last = t;
           while (spare >= FRAME_MS) {
+            if (slotSpinStarting(m)) {
+              // The spin's seed from the API, the frames held till it's here: asked for with the bet, or a Replay's
+              // free spin's from the stops before (none if they failed: the spin is the browser's, and not paid).
+              if (seedNow() === 'none') {
+                if (m.spinBet > 0) ask(onSpinRef.current(m.bet), (seed) => ({ seed }));
+                else spinSeed = { seed: null };
+              }
+              const had = seedNow();
+              if (had === 'asking') {
+                spare = 0;
+                break;
+              }
+              const seed = had === 'none' ? null : had.seed;
+              drawn = seed !== null;
+              random = seed === null ? random16 : seededRandom16(seed);
+              spinSeed = 'none';
+              stops = [];
+            }
             spare -= FRAME_MS;
             const frameInput = { pressed: input.current.pressed, held: input.current.held };
             input.current.pressed = 0;
-            for (const e of slotFrame(m, frameInput, random16)) {
+            for (const e of slotFrame(m, frameInput, random)) {
               if ('sound' in e) sound.current?.play(e.sound);
               else if ('fanfare' in e) sound.current?.play(e.fanfare);
-              else if ('round' in e) onRoundRef.current(e.round.bet, e.round.payout);
-              else if ('exit' in e) {
+              else if ('stop' in e) stops[e.stop.reel] = e.stop.offset;
+              else if ('round' in e) {
+                // The API plays the spin again from its stops and pays it; a Replay's free spin's seed comes back.
+                if (drawn) ask(onStopsRef.current(stops), (seed) => (seed === null ? 'none' : { seed }));
+                drawn = false;
+              } else if ('exit' in e) {
                 stopped = true;
                 onExitRef.current();
                 return;

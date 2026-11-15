@@ -1,7 +1,7 @@
 import AddIcon from '@mui/icons-material/Add';
 import LockIcon from '@mui/icons-material/Lock';
 import RemoveIcon from '@mui/icons-material/Remove';
-import { RUN_TYPES, type CosmeticDef, type CosmeticKind } from '@poke-tcg/campaign';
+import { RUN_TYPE_INFO, type CosmeticDef, type CosmeticKind } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useEscape } from '../hooks/useEscape';
@@ -100,7 +100,7 @@ function useRowsTall(rows: number, content: unknown, shown: boolean) {
 
 /** How a cosmetic the account doesn't have is had: its price, or the run to beat. */
 function howToGet(def: CosmeticDef): string {
-  return def.unlock.type === 'beat' ? `Beat the ${RUN_TYPES[def.unlock.runType].name} run` : def.unlock.type === 'buy' ? `₱${def.unlock.price}` : '';
+  return def.unlock.type === 'beat' ? `Beat the ${RUN_TYPE_INFO[def.unlock.runType].name} run` : def.unlock.type === 'buy' ? `₱${def.unlock.price}` : '';
 }
 
 /**
@@ -130,7 +130,8 @@ export function CosmeticsPanel() {
   const { collapsed, toggle } = useCollapsed();
   const section = (kind: CosmeticKind) => ({ foldable: phone, folded: collapsed.includes(kind), onFold: () => toggle(kind) });
   const backs = useRowsTall(3, list.data, !(phone && collapsed.includes('cardBack')));
-  if (!list.data) return null;
+  if (list.error && !list.data) return <p className="text-red-400">{list.error.message}</p>;
+  if (!list.data) return <p className="text-slate-400">Loading…</p>;
   const { cosmetics, bank } = list.data;
   const busy = buy.isPending || assign.isPending;
   const error = buy.error ?? assign.error;

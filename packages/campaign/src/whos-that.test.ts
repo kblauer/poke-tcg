@@ -13,13 +13,17 @@ import {
   shapePixels,
   WHOS_THAT_CARDS,
   WHOS_THAT_EXP,
+  WHOS_THAT_PASS_MS,
+  WHOS_THAT_REVEAL_MS,
   WHOS_THAT_ROTATION,
   WHOS_THAT_ROUNDS,
   whosThatAnswer,
   whosThatDay,
   whosThatGame,
+  whosThatStep,
   whosThatTimes,
   type WhosThatCard,
+  type WhosThatProgress,
 } from './whos-that.js';
 
 describe("Who's That Pokémon? answers", () => {
@@ -87,6 +91,61 @@ describe('times', () => {
   it('the fastest leaves passes out; the average counts them', () => {
     expect(whosThatTimes([1200, 30_000, 800], [false, true, false])).toEqual({ fastestMs: 800, averageMs: 10_667 });
     expect(whosThatTimes([30_000], [true])).toEqual({ fastestMs: null, averageMs: 30_000 });
+  });
+});
+
+describe("a game's moves (whosThatStep)", () => {
+  const game: WhosThatProgress = { rounds: 3, index: 0, shownAt: 1000, times: [], passed: [] };
+
+  it('the Pokémon named records its time and shows the next from now', () => {
+    const step = whosThatStep(game, "Rocket's Hitmonchan ex", { index: 0, guess: 'hitmonchan' }, 4000);
+    expect(step).toEqual({ outcome: 'named', timeMs: 3000, game: { rounds: 3, index: 1, shownAt: 4000, times: [3000], passed: [false] } });
+  });
+
+  it('a wrong name changes nothing', () => {
+    const step = whosThatStep(game, 'Pikachu', { index: 0, guess: 'raichu' }, 4000);
+    expect(step.outcome).toBe('wrong');
+    expect(step.game).toBe(game);
+  });
+
+  it('a pass, "skip" or any name once the time is up passes it: the full time, the next shown after the reveal', () => {
+    const passed = { rounds: 3, index: 1, shownAt: 4000 + WHOS_THAT_REVEAL_MS, times: [WHOS_THAT_PASS_MS], passed: [true] };
+    expect(whosThatStep(game, 'Pikachu', { index: 0, pass: true }, 4000)).toEqual({ outcome: 'passed', timeMs: WHOS_THAT_PASS_MS, game: passed });
+    expect(whosThatStep(game, 'Pikachu', { index: 0, guess: 'Skip' }, 4000).game).toEqual(passed);
+    const late = whosThatStep(game, 'Pikachu', { index: 0, guess: 'pikachu' }, 1000 + WHOS_THAT_PASS_MS);
+    expect(late.outcome).toBe('passed');
+    expect(late.game.times).toEqual([WHOS_THAT_PASS_MS]);
+  });
+
+  it('a move for another round than the one on screen changes nothing', () => {
+    for (const move of [{ index: 1, pass: true as const }, { index: 1, guess: 'pikachu' }, { index: -1, guess: 'skip' }]) {
+      const step = whosThatStep(game, 'Pikachu', move, 4000);
+      expect(step.outcome).toBe('stale');
+      expect(step.game).toBe(game);
+    }
+  });
+
+  it("a move before the Pokémon is up (the one before still revealed) changes nothing, a pass included", () => {
+    const { game: revealing } = whosThatStep(game, 'Pikachu', { index: 0, pass: true }, 4000);
+    for (const move of [{ index: 1, pass: true as const }, { index: 1, guess: 'skip' }, { index: 1, guess: 'pikachu' }]) {
+      const step = whosThatStep(revealing, 'Pikachu', move, 4000 + WHOS_THAT_REVEAL_MS - 1);
+      expect(step.outcome).toBe('early');
+      expect(step.game).toBe(revealing);
+    }
+    expect(whosThatStep(revealing, 'Pikachu', { index: 1, pass: true }, 4000 + WHOS_THAT_REVEAL_MS).outcome).toBe('passed');
+  });
+
+  it('a late guess and the pass sent with it pass one Pokémon, not two', () => {
+    const now = 1000 + WHOS_THAT_PASS_MS;
+    const guessed = whosThatStep(game, 'Pikachu', { index: 0, guess: 'pikachu' }, now);
+    const both = whosThatStep(guessed.game, 'Raichu', { index: 0, pass: true }, now + 5);
+    expect(both.outcome).toBe('stale');
+    expect(both.game).toEqual({ rounds: 3, index: 1, shownAt: now + WHOS_THAT_REVEAL_MS, times: [WHOS_THAT_PASS_MS], passed: [true] });
+  });
+
+  it('a finished game takes no more moves', () => {
+    const over: WhosThatProgress = { rounds: 3, index: 3, shownAt: 1000, times: [1, 2, 3], passed: [false, false, false] };
+    expect(whosThatStep(over, '', { index: 3, pass: true }, 5000)).toEqual({ outcome: 'stale', timeMs: 0, game: over });
   });
 });
 

@@ -23,7 +23,7 @@ import { CPU_ID, HUMAN_ID } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { loadCardLibrary } from './cards.js';
 import { unlocksAll } from './debugFlags.js';
-import { actionRows, asJson, newSeed } from './games.js';
+import { actionRows, asJson, newSeed, storedState } from './games.js';
 import { cardPool } from './pool.js';
 import { battleOverAction, lockUser } from './runs.js';
 import { markPlayed, playableDeck, type DeckCosmetics } from './routers/decks.js';
@@ -118,7 +118,7 @@ async function startTowerBattle(tower: LoadedTower, state: TowerState): Promise<
       towerId: tower.id,
       seed,
       ...(cosmetics && { cosmetics }),
-      state: asJson(game),
+      state: asJson(storedState(game)),
       version: game.version,
       actions: { create: actionRows(actions.map((action) => ({ playerId: CPU_ID, action })), game.version) },
     },

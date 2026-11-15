@@ -17,7 +17,6 @@ import { inPlay } from './ex2.js';
 import { lureIn, mayDiscardAny, snipe } from './ex6.js';
 import { chooseOpponents } from './ex8.js';
 import { fireDance } from './ex10.js';
-import { discardFree } from './neo3.js';
 import { healUpTo } from './si1.js';
 
 /** The Holon Energy cards. */
@@ -64,7 +63,7 @@ const criticalCollection = (type: EnergyType): AttackEffect => ({
     ctx.hit(10);
     const taken = Math.max(0, PRIZE_COUNT - ctx.opp.prizes.length);
     const cards = ctx.me.discard.filter((c) => isBasicEnergy(lookupCard(ctx.state.cards, c.defId)) && isEnergyCardOf(c, ctx.state.cards, type)).length;
-    if (Math.min(taken, cards) && discardFree(ctx)) ctx.pend({ kind: 'attachFromDiscard', source: 'Critical Collection', count: Math.min(taken, cards), target: 'active', type });
+    if (Math.min(taken, cards)) ctx.pend({ kind: 'attachFromDiscard', source: 'Critical Collection', count: Math.min(taken, cards), target: 'active', type });
   },
 });
 
@@ -336,7 +335,7 @@ export const EX11: Record<string, Record<string, AttackEffect>> = {
   'ex11-77': {
     'Pickup Power': {
       run(ctx) {
-        if (ctx.me.discard.some((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy') && discardFree(ctx)) ctx.pend({ kind: 'discardToHand', source: 'Pickup Power', count: 1, filter: 'energy', reveal: true });
+        if (ctx.me.discard.some((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy')) ctx.pend({ kind: 'discardToHand', source: 'Pickup Power', count: 1, filter: 'energy', reveal: true });
       },
     },
   },

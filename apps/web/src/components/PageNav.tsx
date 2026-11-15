@@ -1,7 +1,7 @@
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { useState, type ReactNode } from 'react';
-import { isPlayPath } from '../hooks/useTower';
+import { isPlayPath, PLAY_MODES } from '../utils/playModes';
 
 /**
  * A page's icon: a 32×32 pixel-art sprite in `public/nav/` (agreed 2026-10-23; most from pokesprite's items, the Packs
@@ -35,7 +35,7 @@ export const PAGES = [
 ] as const;
 
 /**
- * Whether Play is lit in the menus: on its menu, any of its modes (the Badge Challenge, the Battle Tower, Training) and their
+ * Whether Play is lit in the menus: on its menu, any of its modes (PLAY_MODES) and their
  * battles. Passed as the link's `data-status`, which the router only sets itself on its own path.
  */
 export function usePlayLit() {
@@ -44,14 +44,6 @@ export function usePlayLit() {
 }
 /** The `data-status` for a page's link: Play's while usePlayLit. */
 export const litStatus = (to: string, playLit: boolean) => (to === '/' && playLit ? 'active' : undefined);
-
-/** Play's modes, in its menu's order: the accordion under Play in the menus (PlayModes, the user's). */
-export const PLAY_MODES = [
-  { to: '/badge', label: 'Badge Challenge' },
-  { to: '/tower', label: 'Battle Tower' },
-  { to: '/idle', label: 'Idle Adventure' },
-  { to: '/battle', label: 'Training' },
-] as const;
 
 const PLAY_OPEN_KEY = 'poke-tcg.nav-play';
 

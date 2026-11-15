@@ -80,6 +80,14 @@ export function newBlenderGame(): BlenderGame {
   };
 }
 
+/**
+ * The top speed a blend can be given (hundredths of an RPM): the perfect game's, the player pressing on every frame the
+ * arrow is in their Best range, and in their Good range while a Good still speeds the blender up (under 1500), with
+ * MISS, LADDIE and LASSIE making a Best at every pass (a test plays it). The API takes no top speed above it
+ * (`blendBerryInput`): the game is played in the browser, so its result is the browser's word within this.
+ */
+export const MAX_BLENDER_RPM = 18528;
+
 /** The blender's speed in hundredths of an RPM, as shown at the bottom of the screen. */
 export const speedToRpm = (speed: number) => Math.floor((60 * 60 * 100 * speed) / MAX_ARROW_POS);
 

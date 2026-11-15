@@ -2,8 +2,10 @@
 // pret/pokeheartgold decompilation's src/voltorb_flip/voltorb_flip_game.c. A 5x5 board of face-down cards, each a 1,
 // a 2, a 3 or a Voltorb, with each row's and column's totals beside it; the first card flipped gives its number of
 // coins, every one after multiplies them; a Voltorb loses them, Quit keeps them, and finding every 2 and 3 clears the
-// board. The level (1-8) follows how the last rounds went. The game is played in the browser; the board is made and
-// each round settled by the API (`settleRound`), which keeps the session's history and board (User.voltorbFlip).
+// board. The level (1-8) follows how the last rounds went. The game is played in the browser, but its cards stay on
+// the API, which makes the board, keeps the session's history, board and flips (User.voltorbFlip), shows the browser
+// only the numbers beside the board (`boardView`) and each card as it's flipped (`flipCard`), and settles each round
+// (`settleRound`). A board's cards must never reach the browser before the round is over.
 
 /** A card: the game's CardType (CARD_TYPE_ONE … CARD_TYPE_VOLTORB). */
 export type VoltorbCard = 1 | 2 | 3 | 4;
@@ -26,11 +28,12 @@ export interface VoltorbBoard {
   cards: VoltorbCard[];
 }
 
-/** A session's state (from entering the game to leaving it): the last 5 rounds (a ring, `head` the next to write) and the board in play. */
+/** A session's state (from entering the game to leaving it): the last 5 rounds (a ring, `head` the next to write), the board in play and its cards flipped so far, in order. */
 export interface VoltorbFlipState {
   history: RoundSummary[];
   head: number;
   board: VoltorbBoard | null;
+  flips: number[];
 }
 
 /** The most coins a round can collect (VoltorbFlipGameState_MultiplyPayoutAndUpdateCardsFlipped's cap). */
@@ -38,7 +41,7 @@ export const MAX_PAYOUT = 50000;
 
 const EMPTY_ROUND: RoundSummary = { outcome: 'none', cardsFlipped: 0, boardId: 0, level: 0 };
 /** A new session (VoltorbFlip_CreateGameState: everything zeroed). */
-export const newVoltorbFlipState = (): VoltorbFlipState => ({ history: Array.from({ length: 5 }, () => ({ ...EMPTY_ROUND })), head: 0, board: null });
+export const newVoltorbFlipState = (): VoltorbFlipState => ({ history: Array.from({ length: 5 }, () => ({ ...EMPTY_ROUND })), head: 0, board: null, flips: [] });
 
 /** The level as shown (Lv. 1-8) from the game's (VoltorbFlip_FormatGameLevel). */
 export const displayLevel = (level: number) => 8 - level;
@@ -169,6 +172,13 @@ export function boardTotals(cards: VoltorbCard[]) {
   return { pointsPerRow, pointsPerCol, voltorbsPerRow, voltorbsPerCol };
 }
 
+/** What the browser gets of a board in play: its level and the numbers beside it, never its cards. */
+export interface VoltorbBoardView {
+  level: number;
+  totals: ReturnType<typeof boardTotals>;
+}
+export const boardView = (board: VoltorbBoard): VoltorbBoardView => ({ level: board.level, totals: boardTotals(board.cards) });
+
 /** A round's coins after flipping `card` (not a Voltorb): the first number gives its coins, each after multiplies them. */
 export const afterFlip = (payout: number, card: VoltorbCard) => (payout === 0 ? card : Math.min(MAX_PAYOUT, payout * card));
 
@@ -204,15 +214,47 @@ export function settleRound(board: VoltorbBoard, flips: number[], outcome: 'quit
   return { payout, summary: { outcome, cardsFlipped, boardId: board.boardId, level: board.level } };
 }
 
+/** How a board's flips have ended its round: `lost` on a Voltorb, `won` with every 2 and 3 found, null while it can go on (or be quit). */
+export function roundOver(board: VoltorbBoard, flips: readonly number[]): 'won' | 'lost' | null {
+  if (flips.some((id) => board.cards[id] === VOLTORB)) return 'lost';
+  return flips.length > 0 && flips.reduce((p, id) => afterFlip(p, board.cards[id]!), 0) === maxPayout(board.cards) ? 'won' : null;
+}
+
+/**
+ * A card of the board in play flipped (not one flipped already, nor once the round is over): the session with the flip
+ * kept, the card, and how the round ended if this ended it (`over`), with the whole board then (`cards`, for the
+ * reveal: only then). Or why it can't be.
+ */
+export function flipCard(s: VoltorbFlipState, id: number): { state: VoltorbFlipState; card: VoltorbCard; over: 'won' | 'lost' | null; cards: VoltorbCard[] | null } | { error: string } {
+  if (!s.board) return { error: 'No round is being played' };
+  if (!Number.isInteger(id) || id < 0 || id > 24 || s.flips.includes(id)) return { error: 'Each card can be flipped once' };
+  if (roundOver(s.board, s.flips)) return { error: 'The round is over' };
+  const flips = [...s.flips, id];
+  const over = roundOver(s.board, flips);
+  return { state: { ...s, flips }, card: s.board.cards[id]!, over, cards: over ? s.board.cards : null };
+}
+
 /** The session after a round (VoltorbFlipGameState_UpdateHistoryAndReset): its summary in the history, no board. */
 export function afterRoundSummary(s: VoltorbFlipState, summary: RoundSummary): VoltorbFlipState {
   const history = s.history.map((r, i) => (i === s.head ? summary : r));
-  return { history, head: (s.head + 1) % 5, board: null };
+  return { history, head: (s.head + 1) % 5, board: null, flips: [] };
+}
+
+/**
+ * A round left with cards flipped (the page shut, or a settling that never arrived) ended as it stands, before the next
+ * board is asked for: lost or won if its flips made it so, otherwise quit with its coins. A board with flips is never
+ * given again as if untouched. `payout`: the coins it pays (0 with no such round).
+ */
+export function leaveRound(s: VoltorbFlipState): { state: VoltorbFlipState; payout: number } {
+  if (!s.board || !s.flips.length) return { state: s, payout: 0 };
+  const settled = settleRound(s.board, s.flips, roundOver(s.board, s.flips) ?? 'quit');
+  if ('error' in settled) return { state: { ...s, board: null, flips: [] }, payout: 0 };
+  return { state: afterRoundSummary(s, settled.summary), payout: settled.payout };
 }
 
 /** A session from its saved JSON (User.voltorbFlip), or a new one if there's none or it's malformed. */
 export function voltorbFlipStateOf(json: unknown): VoltorbFlipState {
   const s = json as Partial<VoltorbFlipState> | null;
   if (!s || !Array.isArray(s.history) || s.history.length !== 5 || typeof s.head !== 'number') return newVoltorbFlipState();
-  return { history: s.history, head: s.head, board: s.board ?? null };
+  return { history: s.history, head: s.head, board: s.board ?? null, flips: s.board && Array.isArray(s.flips) ? s.flips : [] };
 }

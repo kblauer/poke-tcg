@@ -6,7 +6,8 @@
 // Power bolts add one to the Pika Power meter; a Reel Time draw starts its lottery (the Pikachu machine), whose spins stop
 // the reels exactly where the player presses. The web app runs `slotFrame` 60 times a second (the game's frame rate) with
 // the buttons pressed, and draws the screen from the machine's state (its sprites, palettes and tilemap writes, as the
-// game's tasks leave them); the API settles each spin's bet and payout (`coinRoundError`).
+// game's tasks leave them). The API draws each spin's Random() once its bet is in and plays the spin again from the stops
+// the screen pressed (`playSlotSpin`, game-corner-rounds.ts), so the payout is the server's.
 import type { Random16 } from './berry-blender.js';
 import { MAX_COINS, type SlotMachineId } from './game-corner.js';
 
@@ -57,6 +58,9 @@ const MATCH_NONE = 9;
 /** The symbols' and matches' numbers, for the web app and the tests. */
 export const SLOT_SYMBOL = { red7: SYMBOL_7_RED, blue7: SYMBOL_7_BLUE, azurill: SYMBOL_AZURILL, lotad: SYMBOL_LOTAD, cherry: SYMBOL_CHERRY, power: SYMBOL_POWER, replay: SYMBOL_REPLAY } as const;
 export const SLOT_MATCH = { cherry: MATCH_CHERRY, topBottomCherry: MATCH_TOPBOT_CHERRY, replay: MATCH_REPLAY, lotad: MATCH_LOTAD, azurill: MATCH_AZURILL, power: MATCH_POWER, mixed7: MATCH_MIXED_7, red7: MATCH_RED_7, blue7: MATCH_BLUE_7, none: MATCH_NONE } as const;
+
+/** A reel's tape in pixels: a reel's stop is an offset below it (the API's check of a spin's stops). */
+export const SLOT_REEL_HEIGHT = REEL_HEIGHT;
 
 /** The lines (MATCH_MIDDLE_ROW…MATCH_NESW_DIAG). */
 export const SLOT_LINES = 5;
@@ -249,8 +253,11 @@ export type SlotMessage = 'need3' | 'maxCoins' | 'noCoins' | 'quit';
 export type SlotMusic = 'corner' | 'roulette' | 'none';
 export type SlotFanfare = 'mus_slots_win' | 'mus_slots_jackpot' | 'mus_too_bad';
 export type SlotSound = 'se_shop' | 'se_contest_place' | 'se_pin' | 'se_m_explosion' | 'se_select';
-/** What a frame did that the web app plays or passes on: a sound, a fanfare, a spin over (its bet and payout), the end. */
-export type SlotEvent = { sound: SlotSound } | { fanfare: SlotFanfare } | { round: { bet: number; payout: number } } | { exit: true };
+/**
+ * What a frame did that the web app plays or passes on: a sound, a fanfare, a reel's stop pressed (the reel and its pixel
+ * offset as the stop is decided, for the API to play the spin again: playSlotSpin), a spin over (its bet and payout), the end.
+ */
+export type SlotEvent = { sound: SlotSound } | { fanfare: SlotFanfare } | { stop: { reel: number; offset: number } } | { round: { bet: number; payout: number } } | { exit: true };
 
 /** The fanfares' lengths in frames (sFanfares), for which the map's music waits and the payout's sounds hold. */
 const FANFARE_FRAMES: Record<SlotFanfare, number> = { mus_slots_jackpot: 250, mus_slots_win: 150, mus_too_bad: 160 };
@@ -597,6 +604,8 @@ function slotTask(f: Frame): boolean {
     case Task.WaitReelStop:
       if (isNew(f, SLOT_KEYS.a)) {
         playSE(f, 'se_contest_place');
+        // The reels' tasks run after this one: the offset is the one the stop is decided at.
+        f.events.push({ stop: { reel: m.currentReel, offset: m.reelPixelOffsets[m.currentReel]! } });
         m.reels[m.currentReel]!.state = REEL_DECIDE_STOP;
         pressStopReelButton(f, m.currentReel);
         m.state = Task.WaitAllReelsStop;
@@ -792,6 +801,19 @@ const fanfareInactive = (m: SlotMachine) => !m.fanfare;
 export const slotAwaitingBet = (m: SlotMachine) => m.state === Task.BetInput && !m.message && !m.infoBox;
 /** Whether the machine waits for A to stop the next reel. */
 export const slotAwaitingStop = (m: SlotMachine) => m.state === Task.WaitReelStop;
+/**
+ * Whether this frame starts a spin (SlotTask_StartSpin, where its bias and Reel Time are drawn): the web app holds the
+ * frames here till the API has drawn the spin's Random() (its seed). `spinBet` is 0 for a Replay's free spin.
+ */
+export const slotSpinStarting = (m: SlotMachine) => m.state === Task.StartSpin;
+
+/** The reel an A pressed this frame would stop (the stop decided at its offset now), or null when A stops none. */
+function slotStopReel(m: SlotMachine): number | null {
+  if (m.state === Task.WaitReelStop) return m.currentReel;
+  // The reel before has stopped: SlotTask_WaitAllReelsStop goes on to the next one's stop in the same frame.
+  if (m.state === Task.WaitAllReelsStop && !m.reels[m.currentReel]!.moving && m.currentReel + 1 < NUM_REELS) return m.currentReel + 1;
+  return null;
+}
 
 // ---- The biases ----
 
@@ -2387,4 +2409,72 @@ function spriteCallback(f: Frame, sprite: SlotSprite) {
       if (sprite.affine?.ended) d[7] = 1;
       break;
   }
+}
+
+// ---- A spin played again (the API's) ----
+
+/**
+ * What a machine keeps from one spin to the next that decides how the next one goes: its luck, the lucky game, the Pika
+ * Power meter, the 7s' bias still to be matched, Reel Time's spins, the coins lost (Reel Time's speed) and where the reels
+ * rest. The API keeps it with the sitting (game-corner-rounds.ts) and plays each spin from it (playSlotSpin).
+ */
+export interface SlotRecord {
+  machineId: SlotMachineId;
+  luckyGame: boolean;
+  pikaPowerBolts: number;
+  machineBias: number;
+  reelTimeSpinsLeft: number;
+  reelTimeSpinsUsed: number;
+  netCoinLoss: number;
+  reelPositions: number[];
+  reelPixelOffsets: number[];
+}
+
+/** A machine's record (between spins). */
+export function slotRecord(m: SlotMachine): SlotRecord {
+  const { machineId, luckyGame, pikaPowerBolts, machineBias, reelTimeSpinsLeft, reelTimeSpinsUsed, netCoinLoss } = m;
+  return { machineId, luckyGame, pikaPowerBolts, machineBias, reelTimeSpinsLeft, reelTimeSpinsUsed, netCoinLoss, reelPositions: [...m.reelPositions], reelPixelOffsets: [...m.reelPixelOffsets] };
+}
+
+/** A machine sat at with its lucky game drawn (newSlotMachine's one Random()), for the screen and the API alike. */
+export const sitAtSlotMachine = (machineId: SlotMachineId, coins: number, luckyGame: boolean) => newSlotMachine(machineId, coins, () => (luckyGame ? 1 : 0));
+
+/** The frames a spin may take to play again: Reel Time's lottery, a few turns of each reel at a quarter speed. */
+const SPIN_FRAMES = 6000;
+
+/**
+ * A spin played again on the machine its record makes: bet `bet` coins (Down, or R for 3; a Replay's free spin, `free`,
+ * starting at once with the bet before it), each reel stopped as its offset reaches `stops[reel]` (the offsets the screen's
+ * `stop` events gave; null: at once), with `random` the spin's Random(). It is the frame port itself, so it pays what the
+ * screen's spin paid with the same Random() and stops: everything the player decides is when each reel is stopped, as in
+ * the game (the machine still steers each reel up to 4 symbols on by its bias). An offset the reel never reaches (not one
+ * of its stops at that speed) is refused. Returns the spin's payout, whether it owes a free spin (a Replay matched) and
+ * the record after it.
+ */
+export function playSlotSpin(record: SlotRecord, bet: number, free: boolean, random: Random16, stops: readonly (number | null)[]): { payout: number; replay: boolean; record: SlotRecord } | { error: string } {
+  if (![1, 2, 3].includes(bet)) return { error: 'A slot machine takes 1 to 3 coins' };
+  const m = sitAtSlotMachine(record.machineId, MAX_BET, record.luckyGame);
+  const { pikaPowerBolts, machineBias, reelTimeSpinsLeft, reelTimeSpinsUsed, netCoinLoss } = record;
+  Object.assign(m, { pikaPowerBolts, machineBias, reelTimeSpinsLeft, reelTimeSpinsUsed, netCoinLoss, reelPositions: [...record.reelPositions], reelPixelOffsets: [...record.reelPixelOffsets] });
+  m.fade = { ...m.fade, active: false, y: 0, target: 0 };
+  loadPikaPowerMeter(m, pikaPowerBolts);
+  if (free) {
+    m.state = Task.StartSpin;
+    m.bet = bet;
+  } else m.state = Task.ReadyNewSpin;
+  // The bet as the player puts it in: a coin a frame (A spins with fewer than 3), or R.
+  const betKeys = free ? [] : bet === 3 ? [SLOT_KEYS.r] : [...Array(bet - 1).fill(SLOT_KEYS.down), SLOT_KEYS.down | SLOT_KEYS.a];
+  for (let frame = 0; frame < SPIN_FRAMES; frame++) {
+    let pressed = 0;
+    if (slotAwaitingBet(m) && betKeys.length) pressed = betKeys.shift()!;
+    else {
+      const reel = slotStopReel(m);
+      const at = reel === null ? undefined : stops[reel];
+      if (reel !== null && (at === null || at === undefined || m.reelPixelOffsets[reel] === at)) pressed = SLOT_KEYS.a;
+    }
+    const events = slotFrame(m, { pressed, held: 0 }, random);
+    const round = events.find((e): e is Extract<SlotEvent, { round: unknown }> => 'round' in e);
+    if (round) return { payout: round.round.payout, replay: (m.matches & (1 << MATCH_REPLAY)) !== 0, record: slotRecord(m) };
+  }
+  return { error: "The reels don't stop there" };
 }

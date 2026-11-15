@@ -6,7 +6,8 @@ import { familyMovesUpTo } from './mon.js';
 import type { BattleEvent } from './battle.js';
 import { catchTextFrame, FRAME_MS, openingMs } from './battle-timing.js';
 import { townMapPlaces, townMapArea } from './town-map.js';
-import { applyIdleAction, atProgress, legendError, rodsOf, starters, BATTLE_HOLD_MS, BATTLE_MS, catchUp, cutSegment, mapGrindPlan, progressOf, reachedArea, travelError, wildSpots, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, modeOf, playing, previousRoute, routeGrindPlan, starterOptions, TICK_MS, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
+import { inGeneration } from './generation.js';
+import { applyIdleAction, atProgress, legendError, rodsOf, starters, BATTLE_HOLD_MS, BATTLE_MS, catchUp, cutSegment, mapGrindPlan, progressOf, reachedArea, repairState, travelError, wildSpots, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, modeOf, playing, previousRoute, routeGrindPlan, starterOptions, TICK_MS, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
 
@@ -905,6 +906,110 @@ describe('an idle run', () => {
     // Stopped there.
     const stopped = applyIdleAction(cut, { type: 'SET_MODE', mode: 'stop' });
     expect(stopped.ok && stopped.state.stopped).toBe(true);
+  });
+
+  it('a cut during the fade into the next area leaves the run there, not back at the old area\'s start (#204)', () => {
+    const index = (id: string) => areas().findIndex((a) => a.id === id);
+    const route3 = areas()[index('route-3')] as WalkArea;
+    const leg = route3.legs.length - 1;
+    const base = createIdleRun({ species: 4 }, 5);
+    let found = 0;
+    for (let seed = 1; seed < 40 && !found; seed++) {
+      const s: IdleState = { ...createIdleRun({ species: 4 }, seed), area: index('route-3'), leg, step: route3.legs[leg]!.track.length - 3, beaten: route3.trainers.map((t) => t.key), party: [{ ...base.party[0]!, level: 60 }] };
+      const next = simulateSegment(s, MANUAL, new Set(), { ask: true })!;
+      const last = next.segment.events.at(-1)!;
+      if (last.t !== 'area' || last.area !== index('mt-moon')) continue;
+      found++;
+      const saved: IdleState = { ...next.state, replay: { prev: s, settings: MANUAL, caught: [], from: 0, throws: [] } };
+      const cut = cutSegment(saved, next.segment.durationMs - 100);
+      expect([cut.area, cut.leg, cut.step]).toEqual([index('mt-moon'), 0, 0]);
+    }
+    expect(found).toBe(1);
+  });
+
+  // The cut sweep (#204's test 6): along whole runs in both regions, a cut anywhere in a segment leaves the run at a place
+  // the segment passed through, and it plays on from there.
+  it('cuts any segment, in both regions, to a place it passed through that plays on', () => {
+    for (const [gen, species] of [[1, 4], [2, 155]] as const) {
+      inGeneration(gen, () => {
+        let s: IdleState = createIdleRun({ species }, 8, gen);
+        const caught = new Set<number>();
+        for (let i = 0; i < 300; i++) {
+          if (s.choosing) s = (applyIdleAction(s, { type: 'CAUGHT_CHOICE' }) as { state: IdleState }).state;
+          const next = simulateSegment(s, DEFAULT_IDLE_SETTINGS, caught, { ask: true })!;
+          const passed = new Set([s.area, ...next.segment.events.flatMap((e) => (e.t === 'area' || e.t === 'town' ? [e.area] : e.t === 'grind' ? [e.town] : []))]);
+          // The places walked: where it began, each fade's and each step's.
+          let here = `${s.area}:${s.leg}:${s.step}`;
+          const places = new Set([here]);
+          for (const e of next.segment.events) {
+            if (e.t === 'area') here = `${e.area}:${e.leg}:${e.step}`;
+            else if (e.t === 'walk') here = `${here.split(':').slice(0, 2).join(':')}:${e.to}`;
+            places.add(here);
+          }
+          const saved: IdleState = { ...next.state, replay: { prev: s, settings: DEFAULT_IDLE_SETTINGS, caught: [...caught], from: 0, throws: [] } };
+          const d = next.segment.durationMs;
+          for (const at of [...Array.from({ length: 10 }, (_, k) => Math.floor((d * k) / 10)), d - 100, d - 1]) {
+            const cut = cutSegment(saved, at);
+            expect(passed.has(cut.area), `gen ${gen} segment ${i} cut at ${at}: ${areas()[cut.area]?.id}`).toBe(true);
+            const a = areas()[cut.area]!;
+            if (cut.phase === 'walking') {
+              expect((a as WalkArea).legs[cut.leg]?.track[cut.step], `gen ${gen} segment ${i} cut at ${at}`).toBeDefined();
+              if (cut !== saved) expect(places.has(`${cut.area}:${cut.leg}:${cut.step}`), `gen ${gen} segment ${i} cut at ${at}: ${a.id} ${cut.leg}:${cut.step}`).toBe(true);
+            }
+            if (cut !== saved) expect(() => simulateSegment(cut, DEFAULT_IDLE_SETTINGS, new Set(caught), { ask: true })).not.toThrow();
+          }
+          for (const n of next.segment.dex) if (n.caught) caught.add(n.species);
+          s = next.state;
+        }
+      });
+    }
+  }, 60000);
+
+  // Stale-state robustness (#204's test 2): a saved run whose indexes the data no longer has (a regenerated track).
+  it('puts a saved run\'s stale indexes back in bounds, so it can be viewed, played, cut and given up', () => {
+    for (const [gen, species] of [[1, 4], [2, 155]] as const) {
+      inGeneration(gen, () => {
+        let s: IdleState = createIdleRun({ species }, 6, gen);
+        for (let i = 0; i < 30; i++) s = simulateSegment(s, MANUAL, new Set())!.state;
+        expect(repairState(s), 'a sound run unchanged').toBe(s);
+        const route = areas().findIndex((a) => a.kind === 'route');
+        const town = areas().findIndex((a) => isTown(a) && !!a.grind);
+        const segment = simulateSegment(s, MANUAL, new Set(), { ask: true })!;
+        const replay = { prev: s, settings: MANUAL, caught: [], from: 0, throws: [] };
+        const stale: IdleState[] = [
+          { ...s, area: 9999 },
+          { ...s, area: route, phase: 'walking', leg: 99 },
+          { ...s, area: route, phase: 'walking', leg: 0, step: 99_999 },
+          { ...s, area: route, phase: 'walking', leg: 0, step: -3 },
+          { ...s, progress: { area: 9999, leg: 5, step: 5, beaten: [] }, reached: 9999 },
+          { ...s, area: route, phase: 'walking', progress: { area: route, leg: 0, step: 99_999, beaten: [] } },
+          { ...s, area: town, phase: 'grinding', grind: { at: 99_999, level: 20 } },
+          { ...s, area: route, phase: 'walking', leg: 0, step: 0, loop: { kind: 'pace', leg: 0, from: 0, to: 99_999, dir: 1, resume: { area: 9999, leg: 0, step: 0, beaten: [] } } },
+          { ...s, area: route, phase: 'walking', leg: 0, step: 0, loop: { kind: 'fish', spot: 99, resume: { area: route, leg: 0, step: 0, beaten: [] } } },
+          { ...segment.state, area: 9999, replay },
+        ];
+        for (const [k, bad] of stale.entries()) {
+          const fixed = repairState(bad);
+          expect(fixed, `${gen}: ${k}`).not.toBe(bad);
+          expect(fixed.replay, `${gen}: ${k}`).toBeUndefined();
+          expect(() => idleView(fixed), `${gen}: ${k}`).not.toThrow();
+          expect(() => simulateSegment(fixed, MANUAL, new Set(), { ask: true }), `${gen}: ${k}`).not.toThrow();
+          expect(() => cutSegment(fixed, 1000), `${gen}: ${k}`).not.toThrow();
+          expect(applyIdleAction(fixed, { type: 'GIVE_UP' }).ok, `${gen}: ${k}`).toBe(true);
+        }
+      });
+    }
+  });
+
+  it('keeps one waiting party order, and one set of slots a Pokémon, while a ball can still be thrown', () => {
+    const base = createIdleRun({ species: 4 }, 2);
+    const mon = base.party[0]!;
+    let s: IdleState = { ...base, replay: { prev: base, settings: MANUAL, caught: [], from: 0, throws: [], throwable: true } };
+    for (let i = 0; i < 10; i++) {
+      s = (applyIdleAction(s, { type: 'SET_ORDER', uids: [mon.uid] }) as { state: IdleState }).state;
+      s = (applyIdleAction(s, { type: 'SET_SLOTS', uid: mon.uid, slots: [], auto: true }) as { state: IdleState }).state;
+    }
+    expect(s.pending?.map((a) => a.type)).toEqual(['SET_ORDER', 'SET_SLOTS']);
   });
 
   it('keeps a Pokémon caught when Stop comes after its "Gotcha!", and drops the catch before it', () => {

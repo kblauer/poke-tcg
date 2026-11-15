@@ -71,7 +71,7 @@ export default function DebugPanel({ gameId, view }: { gameId: string; view: Pla
 
   return (
     <div className="min-h-0 flex-1 space-y-4 overflow-y-auto text-xs">
-      {run.error && <p className="rounded bg-red-400 px-2 py-1 font-medium text-slate-900">{run.error.message}</p>}
+      {run.error && <p className="rounded bg-red-400 px-2 py-1 font-medium text-gray-900">{run.error.message}</p>}
 
       <section>
         <h4 className={heading}>CPU difficulty</h4>
@@ -165,7 +165,7 @@ export default function DebugPanel({ gameId, view }: { gameId: string; view: Pla
                   return (
                     <button
                       key={condition}
-                      className={`${button} ${on ? 'bg-amber-500 text-slate-900 hover:bg-amber-400' : ''}`}
+                      className={`${button} ${on ? 'bg-amber-500 text-gray-900 hover:bg-amber-400' : ''}`}
                       aria-pressed={on}
                       title={`${on ? 'Remove' : 'Give'} ${condition}`}
                       disabled={busy}

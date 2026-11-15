@@ -1,11 +1,36 @@
 import { describe, expect, it } from 'vitest';
 import { boss } from './bosses.js';
 import { PACK_SETS } from './packs.js';
-import { bossTypes, generation, generationBadges, generationLock, nextPack, PACK_GENERATIONS, RUN_TYPE_IDS, RUN_TYPES, runType, runTypeLock } from './run-types.js';
+import { bossTypes, generation, generationBadges, generationLock, loadRunMaps, nextPack, PACK_GENERATIONS, RUN_TYPE_IDS, RUN_TYPE_INFO, RUN_TYPES, runType, runTypeLock } from './run-types.js';
 import { DP_SETS, EX_SETS, GEN4_SETS } from './pool.js';
 
 const kanto = generation(1);
 const none = { badges: new Set<string>(), beaten: new Set<string>() };
+
+describe('run types and their maps', () => {
+  it('every run type has its maps, the same the site loads for it by its region (loadRunMaps)', async () => {
+    for (const id of RUN_TYPE_IDS) {
+      const maps = await loadRunMaps(id);
+      expect(maps.routes.length, id).toBeGreaterThan(0);
+      expect(maps.routes, id).toBe(runType(id).routes);
+      expect(maps.gym, id).toBe(runType(id).gym);
+      expect({ ...runType(id), routes: undefined, gym: undefined }, id).toEqual({ ...RUN_TYPE_INFO[id], routes: undefined, gym: undefined });
+    }
+    await expect(loadRunMaps('nowhere')).rejects.toThrow();
+  });
+
+  it("a gym run's encounters and description agree with its maps: a step per route spot, the maps' and the gym's names", () => {
+    for (const id of RUN_TYPE_IDS.filter((t) => runType(t).gym)) {
+      const type = runType(id);
+      expect(type.segments[0]!.steps, id).toBe(type.routes!.reduce((n, r) => n + r.spots.length, 0));
+      // One name for several floors of one place (the Pokémon Tower, Iron Island), otherwise each map's (its areas once).
+      const names = [...new Set(type.routes!.map((r) => r.name.replace(/ \(.*\)$/, '')))];
+      const places = [...new Set(names.map((n) => n.replace(/ (\d+F|B\d+F)$/, '')))];
+      const along = places.length === 1 && places[0] !== names[0] ? places[0] : names.join(', ');
+      expect(type.description.startsWith(`${along}, ${type.gym!.name}. `), `${id}: ${type.description}`).toBe(true);
+    }
+  });
+});
 
 describe('unlocking run types', () => {
   it('gym runs are open from the start', () => {

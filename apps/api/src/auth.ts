@@ -1,5 +1,5 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
-import { prisma } from '@poke-tcg/db';
+import { prisma, type Prisma } from '@poke-tcg/db';
 import { env } from './env.js';
 
 export interface AuthUser {
@@ -37,6 +37,17 @@ export async function verifyToken(authorization: string | undefined): Promise<Au
   } catch {
     return null;
   }
+}
+
+/**
+ * The user's row with the `select`ed fields: made first if the account has none yet (a first visit straight to a page whose
+ * procedure reads the row before any that creates it), so reading it never fails with a plain "No User found" error.
+ */
+export async function userRow<S extends Prisma.UserSelect>(user: AuthUser, select: S): Promise<Prisma.UserGetPayload<{ select: S }>> {
+  const found = await prisma.user.findUnique({ where: { id: user.id }, select });
+  if (found) return found as Prisma.UserGetPayload<{ select: S }>;
+  await ensureUser(user);
+  return (await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select })) as Prisma.UserGetPayload<{ select: S }>;
 }
 
 /** Creates/refreshes the app profile row for an authenticated user. */

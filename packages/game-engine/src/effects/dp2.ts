@@ -8,18 +8,16 @@
 // turn; Pulse Barrier protects only when it discarded something; Hidden Power (Unown I) turns the Energy card face down
 // until the end of the opponent's next turn.
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
-import { hasType, isBasicEnergy, lookupCard, namesMatch, type CardLibrary } from '../cards.js';
-import { counts, discardTool, energyPool, isEnergyCardOf, isSpecialEnergy, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
-import { discardsLocked } from '../powers.js';
+import { hasType, isBasicEnergy, isBasicInPlay, lookupCard, namesMatch, type CardLibrary } from '../cards.js';
+import { retireStadium, counts, discardTool, energyPool, isEnergyCardOf, isSpecialEnergy, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { evolvedFromName, inPlayDef, pokemonName } from '../status.js';
+import { evolvedFromName, inPlayDef, pokemonName, isEvolved } from '../status.js';
 import { attachFromDiscard } from './neo3.js';
 import { benchedSlots, damageChosen, energyCards, headsUntilTails, inPlay, opponentBenchChoice, opponentTargets, same, targetOf } from './common.js';
 import { DP1, removeDefenderEnergy, shuffleIntoDeck } from './dp1.js';
 import { discardAtRandom, energyAmount, restNextTurn } from './ex1.js';
 import { discardOwn, energyCardOf } from './ex2.js';
 import { EX13 } from './ex13.js';
-import { discardStadium } from './gym2.js';
 import { notNextTurn } from './neo3.js';
 import { evolutionsOf } from './neo2.js';
 import { healUpTo } from './si1.js';
@@ -55,7 +53,6 @@ const haveInPlay = (ctx: AttackContext, ...names: string[]) => names.every((n) =
 /** Cards from the discard pile into the hand, shown (Gather Up, Rescue). */
 const fromDiscard = (source: string, count: number, filter: 'energy' | 'any'): AttackEffect => ({
   run(ctx) {
-    if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
     ctx.pend({ kind: 'discardToHand', source, count, filter, reveal: true });
   },
 });
@@ -80,7 +77,7 @@ export const DP2: Record<string, Record<string, AttackEffect>> = {
   'dp2-1': {
     'Heap Up': {
       run(ctx) {
-        const energy = discardsLocked([ctx.me, ctx.opp], ctx.state.cards) ? [] : ctx.me.discard.filter((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy');
+        const energy = ctx.me.discard.filter((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy');
         const metal = energy.some((c) => {
           const d = lookupCard(ctx.state.cards, c.defId);
           return d.kind === 'energy' && d.basic === false && d.energyType === 'metal';
@@ -129,7 +126,7 @@ export const DP2: Record<string, Record<string, AttackEffect>> = {
   // Blissey – Happy Chance: first, may attach a basic Energy card from the discard pile to it; 10 more for each Energy.
   'dp2-5': {
     'Happy Chance': {
-      choices: (s): ChoiceSpec[] => (s.ownDiscard.some((c) => isBasicEnergy(lookupCard(s.cards, c.defId))) && !s.discardsLocked ? [may('Happy Chance: attach a basic Energy card from your discard pile to Blissey first?')] : []),
+      choices: (s): ChoiceSpec[] => (s.ownDiscard.some((c) => isBasicEnergy(lookupCard(s.cards, c.defId))) ? [may('Happy Chance: attach a basic Energy card from your discard pile to Blissey first?')] : []),
       run(ctx) {
         if (ctx.choices.boost) attachFromDiscard(ctx, (c) => isBasicEnergy(lookupCard(ctx.state.cards, c.defId)));
         ctx.hit(20 + 10 * energyAmount(ctx, ctx.attacker));
@@ -280,7 +277,8 @@ export const DP2: Record<string, Record<string, AttackEffect>> = {
     'Strange Bell': {
       run(ctx) {
         ctx.hit(20);
-        if (ctx.defenderDef.stage === 'basic') ctx.inflict('confused');
+        // A Trainer card in play as a Basic Pokémon (Clefairy Doll, the Fossils) is one here (the user's, 2026-11-14).
+        if (isBasicInPlay(ctx.defenderDef)) ctx.inflict('confused');
       },
     },
   },
@@ -426,7 +424,7 @@ export const DP2: Record<string, Record<string, AttackEffect>> = {
   'dp2-46': {
     'Triple Pick': {
       choices(s): ChoiceSpec[] {
-        const options = [s.defender, ...s.opponentBench].flatMap((p, i) => (p && p.evolvedFrom.length ? [i - 1] : []));
+        const options = [s.defender, ...s.opponentBench].flatMap((p, i) => (p && isEvolved(s.cards, p) ? [i - 1] : []));
         return options.length ? [{ kind: 'opponentBenchMany', count: 3, options, prompt: "Choose 3 of your opponent's Evolved Pokémon to do 30 damage to each" }] : [];
       },
       run(ctx) {
@@ -482,7 +480,6 @@ export const DP2: Record<string, Record<string, AttackEffect>> = {
   'dp2-56': {
     Rescue: {
       run(ctx) {
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         ctx.pend({ kind: 'discardToHand', source: 'Rescue', count: 2, reveal: true });
       },
     },
@@ -704,7 +701,7 @@ export const DP2: Record<string, Record<string, AttackEffect>> = {
           }
         }
         if (ctx.state.stadium?.owner === ctx.opp.id) {
-          discardStadium(ctx);
+          retireStadium(ctx.state);
           gone++;
         }
         if (gone) ctx.protect('preventAll');
