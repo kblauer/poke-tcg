@@ -47,7 +47,7 @@ apps/
     src/self-play.test.ts  Whole games of the CPU against itself with each generation's random decks from its own pool: after every action each card in one place and none lost, both Active Pokémon, no Pokémon left with damage up to its HP, a Pokémon Checkup every turn, nothing asked once finished, and every action through gameActionSchema unchanged; the CPUs never throw nor make a refused move
 packages/
   game-engine/          Pure TS rules engine + CPU opponents – shared by client (UI hints) and server (authority)
-  campaign/             Pure TS runs: map and encounters (reducer), deck lists and the deck generator, items, run types
+  campaign/             Pure TS runs: map and encounters (reducer), deck lists and the deck generator, items, run types (vitest.config.ts: 30 s a test, for its seeded sweeps)
   idle/                 Pure TS Idle Adventure (see Idle Adventure): FireRed's data, a Gen 3 battle engine played a turn a tick by the cooldown rule, Kanto's areas and the run rules
   shared/               Zod schemas for API input, player ids, deck building rules (deck.ts), the trainer sprites to pick from (trainer-sprites.ts), the Super Contests' inputs (contest.ts)
   db/                   Prisma 7 schema, client (pg driver adapter), migrations, seed
