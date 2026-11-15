@@ -1,5 +1,6 @@
 import { lookupCard, PRIZE_COUNT, type CardInstance, type CardLibrary } from '@poke-tcg/game-engine';
 import { SIDE_COLUMN } from '../utils/layout';
+import { MAT_LABEL } from '../utils/styles';
 import { Card } from './Card';
 import { CardBack } from './CardBack';
 
@@ -18,7 +19,7 @@ export function PrizeCards({ count, mirrored = false, faceUp }: { count: number;
     const prize = faceUp?.prizes[i];
     return prize ? <Card def={lookupCard(faceUp.cards, prize.defId)} small /> : <CardBack mine={!mirrored} />;
   };
-  const label = <p className={`text-center text-xs text-slate-400 ${mirrored ? 'mt-1' : 'mb-1'}`}>Prizes {count}</p>;
+  const label = <p className={`${MAT_LABEL} text-xs ${mirrored ? 'mt-1' : 'mb-1'}`}>Prizes {count}</p>;
   return (
     <div className={SIDE_COLUMN} title={`${count} prize card${count === 1 ? '' : 's'} left`}>
       {!mirrored && label}

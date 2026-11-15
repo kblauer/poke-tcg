@@ -16,7 +16,7 @@ import { useDebugEnabled } from '../utils/debug';
 import { useCosmetics } from '../hooks/useCosmetics';
 import { useEscape } from '../hooks/useEscape';
 import { PAGE_WIDTH } from '../utils/layout';
-import { ABILITY_BUTTON, CHOICE_BUTTON, MOVE_BUTTON, MOVE_NOTE } from '../utils/styles';
+import { ABILITY_BUTTON, CHOICE_BUTTON, MAT_LABEL, MOVE_BUTTON, MOVE_NOTE } from '../utils/styles';
 import { centerOnPointer } from '../utils/dragOverlay';
 import { isMyTurn, mustPromote, statusText } from '../utils/turn';
 import { AttackChoicePanel } from './AttackChoicePanel';
@@ -831,7 +831,7 @@ export function Board({
                       {peek}
                     </div>
                     <div className="flex justify-center gap-2">{self.bench.map((p, i) => playerSlot(benchSlotId(i), p))}</div>
-                    <h3 className="text-center text-sm text-slate-400">You</h3>
+                    <h3 className={`${MAT_LABEL} text-sm`}>You</h3>
                   </div>
                   <div className="mb-8">
                     <DeckAndDiscard deckCount={self.deckCount} discard={self.discard} cards={view.cards} owner="Your" abilities={discardAbilities} />
