@@ -23,7 +23,7 @@ const onBench = (s: Pick<PowerSituation, 'me' | 'cards'>, names: string[]) => {
   return names.every((name) => benched.includes(name));
 };
 
-const benchFull = (s: PowerSituation) => (openBenchSlot(s.me, s.cards) < 0 ? 'Your Bench is full' : null);
+const benchFull = (s: PowerSituation) => (openBenchSlot(s.me, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null);
 
 /** Pokémon Gaze can choose: the opponent's benched Pokémon with a Pokémon Power. */
 const gazeTargets = (s: PowerSituation) => s.opp.bench.flatMap((p, i) => (p && inPlayDef(s.cards, p).power ? [i] : []));
@@ -106,7 +106,7 @@ export const NEO2_POWERS: Record<string, PowerEffect> = {
     blocked: benchFull,
     use(ctx) {
       if (!ctx.flip()) return ctx.log('Revive Friends found nothing.');
-      ctx.pend({ kind: 'pickFromDeck', source: 'Revive Friends', filter: 'named', name: 'Kabuto', toBench: true });
+      ctx.pend({ kind: 'pickFromDeck', source: 'Revive Friends', filter: 'named', name: 'Kabuto', toBench: true, optional: true });
     },
   },
   // Omanyte – Fossil: once during your turn, heads puts a card that evolves from Mysterious Fossil from the deck onto the Bench as a Basic Pokémon.
@@ -115,7 +115,7 @@ export const NEO2_POWERS: Record<string, PowerEffect> = {
     blocked: benchFull,
     use(ctx) {
       if (!ctx.flip()) return ctx.log('Fossil found nothing.');
-      ctx.pend({ kind: 'pickFromDeck', source: 'Fossil', filter: 'evolvesFrom', name: 'Mysterious Fossil', toBench: true });
+      ctx.pend({ kind: 'pickFromDeck', source: 'Fossil', filter: 'evolvesFrom', name: 'Mysterious Fossil', toBench: true, optional: true });
     },
   },
   // Unown E – [Engage]: when played from the hand, the opponent may take a new hand of 4, then its owner may.
