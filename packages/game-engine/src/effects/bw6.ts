@@ -17,7 +17,7 @@ import { pokemonAt } from '../powers.js';
 import { clearSpecialConditions, pokemonName } from '../status.js';
 import { benchedSlots, basicEnergyOn, energyCanMove, lure, opponentSwitches, opponentTargets } from './common.js';
 import { discardOwn, putCounters } from './ex2.js';
-import { discardFree, notNextTurn } from './neo3.js';
+import { notNextTurn } from './neo3.js';
 import { healUpTo } from './si1.js';
 
 /** "Put N damage counters on 1 of your opponent's Pokémon" (Sneaky Placement, Plentiful Placement). */
@@ -78,11 +78,11 @@ export const BW6: Record<string, Record<string, AttackEffect>> = {
   // Manectric – Energy Assist: 2 basic Energy cards from the discard pile onto 1 of the player's Benched Pokémon.
   'bw6-44': {
     'Energy Assist': {
-      choices: (s) => (s.ownDiscard.some((c) => isBasicEnergy(lookupCard(s.cards, c.defId))) && !s.discardsLocked ? ownBenchChoice(s, 'Choose one of your Benched Pokémon to attach 2 basic Energy cards to') : []),
+      choices: (s) => (s.ownDiscard.some((c) => isBasicEnergy(lookupCard(s.cards, c.defId))) ? ownBenchChoice(s, 'Choose one of your Benched Pokémon to attach 2 basic Energy cards to') : []),
       run(ctx) {
         const slot = ctx.choices.ownBenchSlot;
         const n = Math.min(2, ctx.me.discard.filter((c) => isBasicEnergy(lookupCard(ctx.state.cards, c.defId))).length);
-        if (slot === undefined || !ctx.me.bench[slot] || !n || !discardFree(ctx)) return;
+        if (slot === undefined || !ctx.me.bench[slot] || !n) return;
         ctx.pend({ kind: 'attachFromDiscard', source: 'Energy Assist', count: n, target: slot });
       },
     },

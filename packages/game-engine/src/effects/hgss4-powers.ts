@@ -12,19 +12,13 @@ import { activeLock, afflictBetweenTurns, resolveKnockouts } from '../engine.js'
 import { energyFromHand, ownTargets, pokemonAt, type PowerEffect } from '../powers.js';
 import { addLog, inPlayDef, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
-import { onlyActive, onlyBenched, POKE_BODY, targetOf } from './common.js';
+import { onEvolveMay, onlyActive, onlyBenched, POKE_BODY } from './common.js';
 import { onBench } from './dp5-powers.js';
 import { energyCardOf } from './ex2.js';
 import { EX5_POWERS } from './ex5-powers.js';
 import { EX8_POWERS } from './ex8-powers.js';
 import { HGSS1_POWERS } from './hgss1-powers.js';
 
-/** "When you play this from your hand to evolve 1 of your Pokémon, you may …": a yes-or-no question as it evolves. */
-const onEvolve = (power: 'mapping', source: string): PowerEffect => ({
-  onPlayFromHand(state, owner, pokemon) {
-    if (pokemon.evolvedFrom.length) state.pendingChoice = { player: owner.id, source, kind: 'mayUse', power, target: targetOf(owner, pokemon) };
-  },
-});
 
 export const HGSS4_POWERS: Record<string, PowerEffect> = {
   // Nidoking – Pheromone Stamina: 20 more HP for each Nidoqueen its player has in play (refreshHideout).
@@ -70,7 +64,7 @@ export const HGSS4_POWERS: Record<string, PowerEffect> = {
     },
   },
   // Porygon2 – Mapping: as it evolves, a Stadium card from the deck, shown.
-  'hgss4-49': onEvolve('mapping', 'Mapping'),
+  'hgss4-49': onEvolveMay('mapping', 'Mapping'),
   // Unown – CURE: as it's benched from the hand, every Special Condition off the Active Pokémon.
   'hgss4-51': onBench('unownCure', 'CURE'),
   // Cubone – Lonely Bone: 20 less damage from the opponent's attacks for each Marowak in its player's discard pile (attacks.ts).

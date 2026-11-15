@@ -12,10 +12,11 @@
 // Revive Friends and Fossil put a Stage 1 card onto the Bench as a Basic Pokémon (it can then evolve as usual).
 // Engage asks the opponent first, then the Unown's owner (the CPU takes a new hand only when it holds fewer than 4 cards).
 // Gaze switches the power off until the end of the turn, or until that Pokémon leaves the Bench.
-import { activeLock, opponentOf, type CardInstance } from '../engine.js';
+import { activeLock, opponentOf } from '../engine.js';
 import type { PowerEffect, PowerSituation } from '../powers.js';
-import { inPlayDef, openBenchSlot } from '../status.js';
+import { cardsOf, inPlayDef, openBenchSlot } from '../status.js';
 import { withNonHolo } from './neo2-prints.js';
+import { hasPowerOrBody } from '../powers.js';
 
 /** Whether every one of `names` is on the player's Bench (Find, Undo). */
 const onBench = (s: Pick<PowerSituation, 'me' | 'cards'>, names: string[]) => {
@@ -23,10 +24,10 @@ const onBench = (s: Pick<PowerSituation, 'me' | 'cards'>, names: string[]) => {
   return names.every((name) => benched.includes(name));
 };
 
-const benchFull = (s: PowerSituation) => (openBenchSlot(s.me, s.cards) < 0 ? 'Your Bench is full' : null);
+const benchFull = (s: PowerSituation) => (openBenchSlot(s.me, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null);
 
 /** Pokémon Gaze can choose: the opponent's benched Pokémon with a Pokémon Power. */
-const gazeTargets = (s: PowerSituation) => s.opp.bench.flatMap((p, i) => (p && inPlayDef(s.cards, p).power ? [i] : []));
+const gazeTargets = (s: PowerSituation) => s.opp.bench.flatMap((p, i) => (p && hasPowerOrBody(s.cards, p) ? [i] : []));
 
 const NEO2_HOLO_POWERS: Record<string, PowerEffect> = {
   // Forretress – Spikes: 10 damage to each of the opponent's benched Pokémon that becomes their Active Pokémon during their turn.
@@ -93,9 +94,7 @@ export const NEO2_POWERS: Record<string, PowerEffect> = {
     use(ctx) {
       const active = ctx.me.active;
       if (!active) return;
-      // A Buzzap'd Electrode attached as Energy is a Pokémon card again.
-      const energy: CardInstance[] = active.energy.map(({ provides: _, ...card }) => card);
-      ctx.me.hand.push(...active.evolvedFrom, active.card, ...energy, ...(active.attached ?? []).map((a) => a.card));
+      ctx.me.hand.push(...cardsOf(active));
       ctx.me.active = null;
       ctx.log(`${inPlayDef(ctx.state.cards, active).name} and all cards attached to it returned to the hand.`);
     },
@@ -106,7 +105,7 @@ export const NEO2_POWERS: Record<string, PowerEffect> = {
     blocked: benchFull,
     use(ctx) {
       if (!ctx.flip()) return ctx.log('Revive Friends found nothing.');
-      ctx.pend({ kind: 'pickFromDeck', source: 'Revive Friends', filter: 'named', name: 'Kabuto', toBench: true });
+      ctx.pend({ kind: 'pickFromDeck', source: 'Revive Friends', filter: 'named', name: 'Kabuto', toBench: true, optional: true });
     },
   },
   // Omanyte – Fossil: once during your turn, heads puts a card that evolves from Mysterious Fossil from the deck onto the Bench as a Basic Pokémon.
@@ -115,7 +114,7 @@ export const NEO2_POWERS: Record<string, PowerEffect> = {
     blocked: benchFull,
     use(ctx) {
       if (!ctx.flip()) return ctx.log('Fossil found nothing.');
-      ctx.pend({ kind: 'pickFromDeck', source: 'Fossil', filter: 'evolvesFrom', name: 'Mysterious Fossil', toBench: true });
+      ctx.pend({ kind: 'pickFromDeck', source: 'Fossil', filter: 'evolvesFrom', name: 'Mysterious Fossil', toBench: true, optional: true });
     },
   },
   // Unown E – [Engage]: when played from the hand, the opponent may take a new hand of 4, then its owner may.

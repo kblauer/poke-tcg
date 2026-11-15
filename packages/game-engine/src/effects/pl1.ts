@@ -9,7 +9,7 @@
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { hasType, isPokemonCard, lookupCard, namesMatch, typesOf } from '../cards.js';
 import { afflictBetweenTurns, energyPool, type InPlayPokemon, type Target } from '../engine.js';
-import { pokemonPower, powerActive } from '../powers.js';
+import { hasPowerOrBody, pokemonPower, powerActive } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { clearSpecialConditions, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
 import { isPokemonSP } from '../trainers.js';
@@ -36,7 +36,7 @@ const setBoost = (ctx: AttackContext, name: string, text: string) => {
   ctx.log(text);
 };
 /** A Pokémon's printed Poké-Power (working or not, agreed: "a Pokémon that has a Poké-Power"). */
-const hasPokePower = (ctx: AttackContext, p: InPlayPokemon) => !!inPlayDef(ctx.state.cards, p).power && !pokemonPower(p)?.body;
+const hasPokePower = (ctx: AttackContext, p: InPlayPokemon) => hasPowerOrBody(ctx.state.cards, p, 'power');
 /** Iron Skull: Rampardos's attack damage is changed by nothing on the Defending Pokémon but its Weakness, while the Poké-Body works. */
 const ironSkull = (ctx: AttackContext) => !!pokemonPower(ctx.attacker)?.ironSkull && powerActive(ctx.attacker, ctx.state.cards, [ctx.me, ctx.opp]);
 const skullHit = (ctx: AttackContext, amount: number) => ctx.hit(amount, ironSkull(ctx) ? { swift: true, keepWeakness: true } : {});

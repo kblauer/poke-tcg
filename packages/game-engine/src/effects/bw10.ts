@@ -10,11 +10,11 @@
 import type { AttackEffect, ChoiceSpec } from '../attacks.js';
 import { lookupCard, namesMatch } from '../cards.js';
 import { counts, discardTool, energyPool, isSpecialEnergy, retireStadium, retreatCost, toolOf, type CardInstance } from '../engine.js';
-import { inPlayDef, isPlasmaPokemon, openBenchSlot, pokemonName } from '../status.js';
+import { inPlayDef, isPlasmaPokemon, openBenchSlot, pokemonName, cleanCard } from '../status.js';
 import { isItemCard } from '../trainers.js';
 import { benchedSlots, energyCanMove, energyCards, inPlay, opponentBenchChoice } from './common.js';
 import { energyCardOf } from './ex2.js';
-import { discardFree, reachesDefender } from './neo3.js';
+import { reachesDefender } from './neo3.js';
 import { plasmaEnergy } from './bw9.js';
 
 /** An Item card with Fossil in its name (Fossil Hunt, Fossil Clutch). */
@@ -49,7 +49,7 @@ export const BW10: Record<string, Record<string, AttackEffect>> = {
         const avenged = ctx.me.knockedOutByAttack === ctx.turn - 1 && (ctx.me.knockedOutByAttackNames ?? []).some((n) => namesMatch(n, 'Escavalier'));
         const defender = ctx.opp.active;
         if (!avenged || !defender || !defender.energy.length || !reachesDefender(ctx) || !energyCanMove(ctx, defender)) return;
-        const energy = defender.energy.map(({ provides: _, ...c }) => c);
+        const energy = defender.energy.map(cleanCard);
         defender.energy = [];
         ctx.opp.hand.push(...energy);
         ctx.log(`Retribution: ${energy.length} Energy card${energy.length === 1 ? '' : 's'} from ${pokemonName(ctx.state, defender)} into the hand.`, ctx.opp.id);
@@ -112,13 +112,13 @@ export const BW10: Record<string, Record<string, AttackEffect>> = {
   'bw10-24': {
     'Fossil Hunt': {
       choices(s): ChoiceSpec[] {
-        const options = s.discardsLocked ? [] : s.ownDiscard.filter((c) => fossilItem(s.cards, c));
+        const options = s.ownDiscard.filter((c) => fossilItem(s.cards, c));
         const n = Math.min(2, options.length);
         return n ? [{ kind: 'ownDiscard', min: n, max: n, options, prompt: `Fossil Hunt: choose ${n} Item card${n === 1 ? '' : 's'} with Fossil in ${n === 1 ? 'its name' : 'their names'}` }] : [];
       },
       run(ctx) {
         const taken = ctx.me.discard.filter((c) => ctx.choices.discardUids?.includes(c.uid) && fossilItem(ctx.state.cards, c)).slice(0, 2);
-        if (!taken.length || !discardFree(ctx)) return;
+        if (!taken.length) return;
         ctx.me.discard = ctx.me.discard.filter((c) => !taken.includes(c));
         ctx.me.hand.push(...taken);
         ctx.log(`Put ${taken.map((c) => lookupCard(ctx.state.cards, c.defId).name).join(', ')} from the discard pile into the hand.`);
@@ -238,7 +238,7 @@ export const BW10: Record<string, Record<string, AttackEffect>> = {
     'Reverse Edge': {
       run(ctx) {
         ctx.hit(50);
-        if (ctx.flip() && ctx.me.discard.length && discardFree(ctx)) ctx.pend({ kind: 'discardToHand', source: 'Reverse Edge', count: 1, filter: 'any' });
+        if (ctx.flip() && ctx.me.discard.length) ctx.pend({ kind: 'discardToHand', source: 'Reverse Edge', count: 1, filter: 'any' });
       },
     },
     'Fast Forward': {

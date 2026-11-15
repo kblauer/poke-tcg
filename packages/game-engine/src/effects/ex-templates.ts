@@ -8,12 +8,11 @@
 import { applyWeaknessResistance, type AttackContext, type AttackEffect, type ChoiceSpec } from '../attacks.js';
 import { hasType, isBasicEnergy, lookupCard, namesMatch, typesOf, type CardLibrary, type EnergyType } from '../cards.js';
 import type { PendingChoice } from '../trainers.js';
-import { counts, discardTool, energyPool, isEnergyCardOf, isSpecialEnergy, PRIZE_COUNT, retreatCost, type Affliction, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
+import { retireStadium, counts, discardTool, energyPool, isSpecialEnergy, PRIZE_COUNT, retreatCost, type Affliction, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { nextRandom, shuffle } from '../rng.js';
-import { clearSpecialConditions, devolvable, evolvedFromName, hasSpecialCondition, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
-import { benchedSlots, benchSearch, benchTarget, charmFor, discardToUse, energyCanMove, extraEnergy, flipToInflict, flipToProtect, guardNext, headsUntilTails, inflicts, inPlay, lure, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
+import { clearSpecialConditions, devolvable, evolvedFromName, hasSpecialCondition, inPlayDef, openBenchSlot, pokemonName, isEvolved } from '../status.js';
+import { benchedSlots, benchSearch, benchTarget, charmFor, discardOwnEnergy, discardToUse, energyCardOf, energyCanMove, extraEnergy, flipToInflict, flipToProtect, guardNext, headsUntilTails, inflicts, inPlay, lure, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
 import { copyAttack, discardDefenderTrainers } from './ecard2.js';
-import { discardStadium } from './gym2.js';
 import { discardAtRandom, eachDefending, energyAmount, restNextTurn } from './ex1.js';
 import { devolve } from './ex2.js';
 import { smokescreen } from './fossil.js';
@@ -25,6 +24,7 @@ import { attachFromDiscard, notNextTurn } from './neo3.js';
 import { shiftDefenderEnergy } from './ex7.js';
 import { flipOrNothing } from './rocket.js';
 import { healUpTo } from './si1.js';
+import { hasPowerOrBody } from '../powers.js';
 
 /** A number or word from the wording (a type, a Special Condition), or the attack's cost ("water,colorless") where it's needed. */
 export type TemplateArg = number | string;
@@ -84,8 +84,8 @@ const thenDo = (damage: number, rest: (ctx: AttackContext) => void): AttackEffec
 /** Its damage counters (10 damage each). */
 const counters = (p: InPlayPokemon) => Math.floor(p.damage / 10);
 
-/** Basic Energy cards of `type` attached to the Pokémon, as Battle Blast counts them. */
-const typedCount = (ctx: AttackContext, p: InPlayPokemon, type: EnergyType) => p.energy.filter((e) => isEnergyCardOf(e, ctx.state.cards, type)).length;
+/** Energy cards of `type` attached to the Pokémon, basic or Special (energyCardOf: Darkness and Metal Energy are Special in the EX sets), as Battle Blast counts them. */
+const typedCount = (ctx: AttackContext, p: InPlayPokemon, type: EnergyType) => p.energy.filter((e) => energyCardOf(ctx.state.cards, e, type)).length;
 
 /** Energy cards of `type` (or any, or basic) in the discard pile, for "search your discard pile for … and attach it to …". */
 const discardMatch = (ctx: AttackContext, kind: string) => (c: CardInstance) => {
@@ -93,7 +93,7 @@ const discardMatch = (ctx: AttackContext, kind: string) => (c: CardInstance) => 
   if (d.kind !== 'energy') return false;
   if (kind === 'any') return true;
   if (kind === 'basic') return isBasicEnergy(d);
-  return isEnergyCardOf(c, ctx.state.cards, kind as EnergyType);
+  return energyCardOf(ctx.state.cards, c, kind as EnergyType);
 };
 
 /** "Choose 1 of your opponent's Pokémon. This attack does 20 damage to that Pokémon." (Weakness and Resistance on the Active one only, unless `noWR`). */
@@ -163,14 +163,8 @@ function shuffleRandomIntoDeck(ctx: AttackContext) {
   ctx.log(`Shuffled ${lookupCard(ctx.state.cards, card!.defId).name} from the opponent's hand into their deck.`, ctx.opp.id);
 }
 
-/** The first Energy card of `type` attached to the attacker discarded (Fireworks). */
-function discardOwnTyped(ctx: AttackContext, type: EnergyType) {
-  const card = ctx.attacker.energy.find((e) => isEnergyCardOf(e, ctx.state.cards, type));
-  if (!card) return;
-  ctx.attacker.energy = ctx.attacker.energy.filter((e) => e !== card);
-  ctx.me.discard.push(card);
-  ctx.log(`Discarded ${lookupCard(ctx.state.cards, card.defId).name} from ${ctx.attackerDef.name}.`);
-}
+/** An Energy card of `type` (basic or Special) attached to the attacker discarded (Fireworks): its player's pick when the cards differ (discardOwnEnergy). */
+const discardOwnTyped = (ctx: AttackContext, type: EnergyType) => void discardOwnEnergy(ctx, 1, ctx.attackName ?? 'Discard', [type]);
 
 /** The Defending Pokémon can't attack during the opponent's next turn. */
 const noAttack = (ctx: AttackContext) =>
@@ -240,7 +234,7 @@ export const ATTACK_TEMPLATES: Record<string, AttackTemplate> = {
   },
   toxic: { pattern: re('the defending pokemon is now poisoned\\. put 2 damage counters instead of 1 on the defending pokemon between turns'), make: (d) => inflicts(d, 'toxic') },
   poisonNoRetreat: { pattern: re("the defending pokemon is now poisoned\\. the defending pokemon can't retreat during your opponent's next turn"), make: (d) => thenDo(d, (ctx) => (ctx.inflict('poisoned'), noRetreatNow(ctx))) },
-  evolvedCondition: { pattern: re(`if the defending pokemon is an evolved pokemon, the defending pokemon is now ${CONDITION}`), make: (d, [c]) => thenDo(d, (ctx) => ctx.defender.evolvedFrom.length > 0 && ctx.inflict(word(c))) },
+  evolvedCondition: { pattern: re(`if the defending pokemon is an evolved pokemon, the defending pokemon is now ${CONDITION}`), make: (d, [c]) => thenDo(d, (ctx) => isEvolved(ctx.state.cards, ctx.defender) && ctx.inflict(word(c))) },
   exConditions: { pattern: re(`if the defending pokemon is pokemon-ex, the defending pokemon is now ${CONDITION} and ${CONDITION}`), make: (d, [a, b]) => thenDo(d, (ctx) => ctx.defenderDef.ex && (ctx.inflict(word(a)), ctx.inflict(word(b)))) },
   bothConfused: { pattern: re('both @ and the defending pokemon are now confused'), make: (d) => thenDo(d, (ctx) => (ctx.inflict('confused'), ctx.confuseSelf())) },
   selfAsleep: { pattern: re('@ is now asleep'), make: (d) => thenDo(d, (ctx) => ctx.sleepSelf()) },
@@ -262,7 +256,7 @@ export const ATTACK_TEMPLATES: Record<string, AttackTemplate> = {
 
   // Damage that depends on the Pokémon in play.
   exMore: { pattern: re('if the defending pokemon is pokemon-ex, this attack does (\\d+) damage plus (\\d+) more damage'), fits: sameBase(0), make: (_, [base, more]) => bonusIf(num(base), num(more), (ctx) => !!ctx.defenderDef.ex) },
-  evolvedMore: { pattern: re('if the defending pokemon is an evolved pokemon, this attack does (\\d+) damage plus (\\d+) more damage'), fits: sameBase(0), make: (_, [base, more]) => bonusIf(num(base), num(more), (ctx) => ctx.defender.evolvedFrom.length > 0) },
+  evolvedMore: { pattern: re('if the defending pokemon is an evolved pokemon, this attack does (\\d+) damage plus (\\d+) more damage'), fits: sameBase(0), make: (_, [base, more]) => bonusIf(num(base), num(more), (ctx) => isEvolved(ctx.state.cards, ctx.defender)) },
   stageMore: {
     pattern: re('if the defending pokemon is a stage (1|2) evolved pokemon, this attack does (\\d+) damage plus (\\d+) more damage'),
     fits: sameBase(1),
@@ -275,7 +269,7 @@ export const ATTACK_TEMPLATES: Record<string, AttackTemplate> = {
     fits: sameBase(1),
     make: (_, [n, base, more]) => bonusIf(num(base), num(more), (ctx) => counters(ctx.defender) >= num(n)),
   },
-  powerMore: { pattern: re('if the defending pokemon has any poke-powers or poke-bodies, this attack does (\\d+) damage plus (\\d+) more damage'), fits: sameBase(0), make: (_, [base, more]) => bonusIf(num(base), num(more), (ctx) => !!ctx.defenderDef.power) },
+  powerMore: { pattern: re('if the defending pokemon has any poke-powers or poke-bodies, this attack does (\\d+) damage plus (\\d+) more damage'), fits: sameBase(0), make: (_, [base, more]) => bonusIf(num(base), num(more), (ctx) => hasPowerOrBody(ctx.state.cards, ctx.defender)) },
   toolMore: { pattern: re('if @ has a pokemon tool card attached to it, this attack does (\\d+) damage plus (\\d+) more damage'), fits: sameBase(0), make: (_, [base, more]) => bonusIf(num(base), num(more), (ctx) => (ctx.attacker.attached ?? []).some((a) => a.tool)) },
   lessEnergyMore: {
     pattern: re('if @ has less energy attached to it than the defending pokemon, this attack does (\\d+) damage plus (\\d+) more damage'),
@@ -417,7 +411,7 @@ export const ATTACK_TEMPLATES: Record<string, AttackTemplate> = {
 
   // Cards.
   draw: { pattern: re('draw (?:a card|(\\d+) cards)'), make: (d, [n]) => thenDo(d, (ctx) => ctx.draw(n === undefined ? 1 : num(n))) },
-  evolvedDraw: { pattern: re('if your opponent has any evolved pokemon in play, draw (\\d+) cards'), make: (d, [n]) => thenDo(d, (ctx) => inPlay(ctx.opp).some((p) => p.evolvedFrom.length > 0) && ctx.draw(num(n))) },
+  evolvedDraw: { pattern: re('if your opponent has any evolved pokemon in play, draw (\\d+) cards'), make: (d, [n]) => thenDo(d, (ctx) => inPlay(ctx.opp).some((p) => isEvolved(ctx.state.cards, p)) && ctx.draw(num(n))) },
   randomDiscard: { pattern: re("choose 1 card from your opponent's hand without looking and discard it"), make: (d) => thenDo(d, discardAtRandom) },
   randomToDeck: {
     pattern: re("choose 1 card from your opponent's hand without looking\\. look at (?:the|that) card you chose, then have your opponent shuffle that card into his or her deck"),
@@ -562,7 +556,7 @@ const DP_TEMPLATES: Record<string, AttackTemplate> = {
       run(ctx) {
         const stadium = ctx.state.stadium;
         ctx.hit(stadium ? num(base) + num(more) : num(base));
-        if (stadium && ctx.state.stadium === stadium) discardStadium(ctx);
+        if (stadium && ctx.state.stadium === stadium) retireStadium(ctx.state);
       },
     }),
   },
@@ -710,7 +704,7 @@ const damagedLastTurn = (ctx: AttackContext) => {
 
 /** All the Energy cards of `type` attached to the attacker, discarded. */
 function discardAllTyped(ctx: AttackContext, type: EnergyType) {
-  const gone = ctx.attacker.energy.filter((e) => isEnergyCardOf(e, ctx.state.cards, type));
+  const gone = ctx.attacker.energy.filter((e) => !e.provides && energyCardOf(ctx.state.cards, e, type));
   if (!gone.length) return;
   ctx.attacker.energy = ctx.attacker.energy.filter((e) => !gone.includes(e));
   ctx.me.discard.push(...gone);
@@ -928,14 +922,8 @@ const DP_TEMPLATES_2: Record<string, AttackTemplate> = {
   },
 };
 
-/** The attacker's first Energy card, discarded (the card's own player picks none: "an Energy"). */
-function discardFirstEnergy(ctx: AttackContext) {
-  const card = ctx.attacker.energy.find((e) => !e.provides);
-  if (!card) return;
-  ctx.attacker.energy = ctx.attacker.energy.filter((e) => e !== card);
-  ctx.me.discard.push(card);
-  ctx.log(`Discarded ${lookupCard(ctx.state.cards, card.defId).name} from ${ctx.attackerDef.name}.`);
-}
+/** An Energy card attached to the attacker discarded ("an Energy"): its player's pick when the cards differ (discardOwnEnergy). */
+const discardFirstEnergy = (ctx: AttackContext) => void discardOwnEnergy(ctx, 1, ctx.attackName ?? 'Discard');
 
 /** A third round of the Diamond & Pearl era's wordings (Generation 4), each on 2 or more cards. */
 const DP_TEMPLATES_3: Record<string, AttackTemplate> = {
@@ -973,12 +961,11 @@ const DP_TEMPLATES_3: Record<string, AttackTemplate> = {
     pattern: re(`discard an? ${TYPE} energy and an? ${TYPE} energy attached to @`),
     make: (d, [a, b]) =>
       thenDo(d, (ctx) => {
-        const first = ctx.attacker.energy.find((e) => isEnergyCardOf(e, ctx.state.cards, word(a)));
-        const second = ctx.attacker.energy.find((e) => e !== first && isEnergyCardOf(e, ctx.state.cards, word(b)));
-        const gone = [first, second].filter((e): e is CardInstance => !!e);
-        ctx.attacker.energy = ctx.attacker.energy.filter((e) => !gone.includes(e));
-        ctx.me.discard.push(...gone);
-        if (gone.length) ctx.log(`Discarded ${gone.map((e) => lookupCard(ctx.state.cards, e.defId).name).join(' and ')} from ${ctx.attackerDef.name}.`);
+        // One of each type (two of one when they're the same), basic or Special: the player's pick when the cards differ.
+        const source = ctx.attackName ?? 'Discard';
+        if (word(a) === word(b)) return void discardOwnEnergy(ctx, 2, source, [word(a)]);
+        discardOwnEnergy(ctx, 1, source, [word(a)]);
+        discardOwnEnergy(ctx, 1, source, [word(b)]);
       }),
   },
   rageHeal: {
@@ -1060,7 +1047,7 @@ const DP_TEMPLATES_3: Record<string, AttackTemplate> = {
       choices: (s): ChoiceSpec[] => (s.stadium ? [{ kind: 'boost', options: [true, false], prompt: 'Discard the Stadium card in play?' }] : []),
       run(ctx) {
         ctx.hit(d);
-        if (ctx.choices.boost) discardStadium(ctx);
+        if (ctx.choices.boost) retireStadium(ctx.state);
       },
     }),
   },

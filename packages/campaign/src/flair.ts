@@ -144,7 +144,7 @@ export const isEffectSlot = (slot: string): slot is EffectSlot => slot in EFFECT
 /** A printed type's family. */
 const TCG_FAMILY: Record<string, EffectFamily> = { Grass: 'grass', Fire: 'fire', Water: 'water', Lightning: 'electric', Psychic: 'psychic', Fighting: 'fighting', Darkness: 'dark', Metal: 'steel', Colorless: 'normal' };
 
-/** The families a Pokémon's effects come from (the user's): its species' types as Generation 3 had them (by its Pokédex number), Rock and Ground as earth, and its printed type's (a δ Pokémon's changed type, a Dark Pokémon's Darkness). */
+/** The families a Pokémon's effects come from (the user's): its species' types as its era had them (Generation 3's for #1–386, Generation 5's for #387–649, by its Pokédex number), Rock and Ground as earth, and its printed type's (a δ Pokémon's changed type, a Dark Pokémon's Darkness). */
 export function effectFamilies(card: PatternCard): Set<EffectFamily> {
   const families = new Set<EffectFamily>();
   const printed = card.type ? TCG_FAMILY[card.type] : undefined;

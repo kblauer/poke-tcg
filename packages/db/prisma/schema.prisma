@@ -42,7 +42,7 @@ model User {
   /// The Settings page's choices kept with the account, so they follow it to any browser (the shared package's
   /// ACCOUNT_SETTINGS: theme, font, skipFlips, options, reminders, music), each the web app's own value as a string.
   settings      Json            @default("{}")
-  /// The Settings page's debug switches (the API's DebugFlags: unlockAll, and million: 1,000,000 ₱ added to the bank),
+  /// The Settings page's debug switches (the API's DebugFlags: unlockAll; the currency buttons add to the account at once, debug.addCurrency),
   /// read and set only while debugging (debugProcedure, never in production). {} is both off.
   debugFlags    Json            @default("{}")
   /// The Extras page's Berry Farm: when each berry's tree was last planted (the campaign package's BerryFarm, {} until it's
@@ -243,7 +243,7 @@ model Game {
   /// The Battle Tower challenge this battle belongs to (null outside one).
   towerId   String?      @db.Uuid
   tower     TowerChallenge? @relation(fields: [towerId], references: [id], onDelete: SetNull)
-  /// The player's deck's cosmetics when the game began ({ cardBack, playmat, coin }, each an id or null for the
+  /// The player's deck's cosmetics when the game began ({ cardBack, mat, playmat, coin }, each an id or null for the
   /// account's own); null for a game without a deck of the account's (the test deck) or from before decks had them.
   cosmetics Json?
   actions   GameAction[]
@@ -325,7 +325,7 @@ model TowerChallenge {
   seed      Int
   /// The account deck it was started with (not a relation: the deck can be changed or deleted, the challenge's copy stays).
   deckId    String?     @db.Uuid
-  /// That deck's cosmetics when it was started ({ cardBack, playmat, coin }, as Game.cosmetics), for every battle.
+  /// That deck's cosmetics when it was started ({ cardBack, mat, playmat, coin }, as Game.cosmetics), for every battle.
   cosmetics Json?
   games     Game[]
   createdAt DateTime    @default(now())
@@ -358,8 +358,6 @@ model FavoriteCard {
   @@id([userId, cardId])
 }
 
-/// Booster packs an account can buy (by set id, e.g. "base2"): a run's first battle finished without conceding unlocks
-/// its generation's next pack, beating a run all of them (see the campaign package's GENERATIONS).
 /// A Pokéblock made in the Extras page's Berry Blender (the campaign package's makePokeblock): its colour (POKEBLOCK_COLORS),
 /// its 5 flavours (spicy, dry, sweet, bitter, sour), its feel, and the berries and top speed it was made with.
 model Pokeblock {
@@ -432,6 +430,8 @@ model CardFlair {
   @@id([userId, cardId, slot])
 }
 
+/// Booster packs an account can buy (by set id, e.g. "base2"): a run's first battle finished without conceding unlocks
+/// its generation's next pack, beating a run all of them (see the campaign package's GENERATIONS).
 model PackUnlock {
   userId    String   @db.Uuid
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

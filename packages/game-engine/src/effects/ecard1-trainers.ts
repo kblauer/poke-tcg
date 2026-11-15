@@ -12,7 +12,7 @@
 import { isBasicEnergy, isBasicPokemon, lookupCard, type CardDef } from '../cards.js';
 import { activeLock, discardTheirEnergy, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { energyKept, pokemonAt, trainerProof } from '../powers.js';
-import { energyProtected, pokemonName } from '../status.js';
+import { energyProtected, pokemonName, cleanCard } from '../status.js';
 import { otherHandCards, swapActive, targetsOf, theirs, type EnergyEffect, type TrainerContext, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 import { BASE1_TRAINERS } from './base1-trainers.js';
 import { FOSSIL_TRAINERS } from './fossil-trainers.js';
@@ -135,7 +135,7 @@ export const ECARD1_TRAINERS: Record<string, TrainerEffect> = {
     play(ctx) {
       const p = at(ctx.me, ctx.choices.target!);
       p.damage = 0;
-      const energy = p.energy.map(({ provides: _, converted: _c, windless: _w, ...c }) => c);
+      const energy = p.energy.map(cleanCard);
       p.energy = [];
       ctx.me.discard.push(...energy);
       ctx.log(`Removed all damage counters from ${pokemonName(ctx.state, p)}${energy.length ? ` and discarded ${energy.length} Energy card${energy.length === 1 ? '' : 's'}` : ''}.`);

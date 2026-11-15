@@ -6,7 +6,7 @@
 // attack's own questions take their first allowed answer (performCopiedAttack).
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { lookupCard } from '../cards.js';
-import { type Target } from '../engine.js';
+import { retireStadium, type Target } from '../engine.js';
 import { inPlayDef } from '../status.js';
 import { skillHackFits } from '../trainers.js';
 import { benchedSlots, charmFor, guardNext } from './common.js';
@@ -199,9 +199,7 @@ export const EX16: Record<string, Record<string, AttackEffect>> = {
         const stadium = ctx.state.stadium;
         ctx.hit(stadium ? 90 : 70);
         if (!stadium) return;
-        ctx.state.players[stadium.owner]!.discard.push(stadium.card);
-        ctx.state.stadium = null;
-        ctx.log(`Discarded ${lookupCard(ctx.state.cards, stadium.card.defId).name}.`);
+        retireStadium(ctx.state);
       },
     },
   },

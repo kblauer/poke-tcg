@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { expandDeck, STARTER_DECK } from './decks.js';
+import { deckErrors, expandDeck, STARTER_DECK } from './decks.js';
 import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, onlyOne, shopStock } from './items.js';
 import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from './run-types.js';
 import { ROUTE_4 } from './kanto-routes.js';
@@ -654,6 +654,15 @@ describe('other encounters', () => {
     expect(after.deck).toHaveLength(60);
     expect(after.deck.filter((id) => id === trade.give).length).toBe(deck.filter((id) => id === trade.give).length - 1);
     expect(after.gained).toEqual([trade.get]);
+  });
+
+  it('a trade never leaves the run deck over a copy limit (400 seeds)', () => {
+    const defs = (id: string) => TEST_POOL.find((c) => c.def.id === id)!.def;
+    for (let seed = 1; seed <= 400; seed++) {
+      const s = act(at('trade', seed), { type: 'CHOOSE', option: 0 });
+      const after = act(s, { type: 'ACCEPT' });
+      expect(deckErrors(after.deck, defs), `seed ${seed}`).toEqual([]);
+    }
   });
 
   it("a trade with a deck from another generation (none of its cards in the run's pool) still asks for one of its cards", () => {

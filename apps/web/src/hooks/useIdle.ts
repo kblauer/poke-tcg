@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { TRANSITION_MS } from '../components/BattleTransition';
 import { preloadBattle } from '../components/idle/BattleScreen';
 import { useTRPC } from '../lib/trpc';
+import { shownAfterAction } from '../utils/idleAnswer';
 import { idleSpeed } from '../utils/idleSpeed';
 import type { Facing } from '../utils/overworld';
 
@@ -45,7 +46,8 @@ export function useIdleActions() {
   const start = useMutation(trpc.idle.start.mutationOptions(started));
   // Debug mode's: a region not open yet (the user's, 2026-11-04).
   const debugStart = useMutation(trpc.idle.debugStart.mutationOptions(started));
-  const act = useMutation(trpc.idle.act.mutationOptions({ onSuccess: ({ run }) => setRun(run) }));
+  // (Its answer is put on screen by the playback, `acted` or `interrupt`: while a segment plays it's ahead of the screen.)
+  const act = useMutation(trpc.idle.act.mutationOptions());
   const settings = useMutation(trpc.idle.settings.mutationOptions({ onSuccess: (s) => queryClient.setQueryData(key, (old) => old && { ...old, settings: s }) }));
   const warp = useMutation(trpc.idle.debugWarp.mutationOptions({ onSuccess: setRun }));
   const money = useMutation(trpc.idle.debugMoney.mutationOptions({ onSuccess: setRun }));
@@ -196,7 +198,7 @@ function noticeOf(e: SegmentEvent, name: (id: number) => string): string | null 
 /**
  * Plays a run back (agreed with the user: the server resolves everything, the browser plays it): on opening, catches up
  * the time since it was last played (idle.catchUp, again while there's more), then asks for the next segment, plays its
- * walk a step at a time, its battle a turn per 3 s (one pace: no speed setting), and asks again, until the run waits in
+ * walk a step at a time, its battle a turn per TICK_MS (10 s; one pace: no speed setting), and asks again, until the run waits in
  * a town or is over. Stops when the page goes.
  */
 export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id: number) => string, onError: (message: string) => void) {
@@ -221,6 +223,8 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
   const update = useCallback((p: Partial<Playback>) => setPlay((old) => ({ ...old, ...p })), []);
   /** The run as the server last returned it (ahead of the screen while a segment plays). */
   const latest = useRef<ClientIdleRun | null>(null);
+  /** A segment being played back (the screen behind `latest`: an action's answer waits for its end, shownAfterAction). */
+  const segmentOn = useRef<object | null>(null);
   /** Bumped to start the playback again after an error. */
   const [restart, setRestart] = useState(0);
   const runId = run?.id ?? null;
@@ -457,7 +461,18 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
     /** The place on screen (the walk moves its step along). */
     let shown: Place = placeOf(current.view);
 
+    // (This playback's own mark: one stopped part way, its waits never ending, mustn't clear the next one's.)
+    const mark = {};
     async function playSegment(events: SegmentEvent[]) {
+      segmentOn.current = mark;
+      try {
+        await playEvents(events);
+      } finally {
+        if (segmentOn.current === mark) segmentOn.current = null;
+      }
+    }
+
+    async function playEvents(events: SegmentEvent[]) {
       setPlay((old) => ({ ...old, segment: old.segment + 1 }));
       let place: Place | null = null;
       // Its events, or after a ball was thrown its replacement's (the same up to the battle: the index carries on).
@@ -582,6 +597,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
     })();
     return () => {
       stopped = true;
+      if (segmentOn.current === mark) segmentOn.current = null;
       timers.forEach((t) => window.clearTimeout(t));
     };
     // Restarted only for another run, when it starts or stops walking, or the tab is shown again; it reads the newest run
@@ -616,14 +632,21 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
     closeSummary: () => setSummary(null),
     /** The run to act on: the server's newest (a segment playing is already saved), else the one given. */
     actOn: (r: ClientIdleRun) => (latest.current && latest.current.id === r.id && latest.current.version > r.version ? latest.current : r),
-    /** After an action: its answer is the newest run (the playback asks for the next segment with its version). */
-    acted: (r: ClientIdleRun) => void (latest.current = r),
+    /**
+     * After an action: its answer is the newest run (the playback asks for the next segment with its version); on screen,
+     * while a segment plays, only what the action changed (shownAfterAction), the rest at the segment's end.
+     */
+    acted: (r: ClientIdleRun, action: IdleAction) => {
+      latest.current = r;
+      queryClient.setQueryData(key, (old) => old && { ...old, run: old.run ? shownAfterAction(old.run, r, action, !!segmentOn.current) : r });
+    },
     /**
      * After an action that cut the segment playing (Stop, Continue run, the Town Map's: `cuts`, the user's: at once):
      * the segment on screen dropped and the playback started again from the server's answer.
      */
     interrupt: (r: ClientIdleRun) => {
       latest.current = r;
+      queryClient.setQueryData(key, (old) => old && { ...old, run: r });
       parked.current = false;
       setRestart((n) => n + 1);
     },

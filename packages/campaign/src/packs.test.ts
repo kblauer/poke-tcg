@@ -46,7 +46,7 @@ describe('openPack', () => {
     expect(share(1)).toBe(1);
   });
 
-  it("the Energy card is the set's own (or the closest earlier set's), and about 1 pack in 50 a holo Energy", () => {
+  it("the Energy card is the set's own (or the closest earlier set's), and about 4% of packs a holo Energy", () => {
     const set = { ...testPackSet('base1'), energy: ['base1-98', 'base1-102'], holoEnergy: ['base1-98-holo-rainbow', 'base1-102-holo-secret'] };
     const energies = Array.from({ length: 5000 }, (_, seed) => openPack(set, rngFrom(seed))[0]!);
     expect(new Set(energies.filter((c) => c.slot === 'energy').map((c) => c.cardId))).toEqual(new Set(set.energy));
