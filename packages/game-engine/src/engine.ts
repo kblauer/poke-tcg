@@ -3,7 +3,7 @@ import { applyWeaknessResistance, attackAsks, attackError, attackSituation, chec
 import { hasPowerOrBody, attachBlocked, greenAroma, stickyHold, timeAura, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, pokemonAt, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, useCardPower, usePower, powerCanceller, zoomed, type PowerChoices, type PowerEffect, pokemonPower } from './powers.js';
 import { evolvesFromEevee, isPokemonSP, evolveWith, swapActive, pendingChoiceView, playTrainer, resolvePending, stadiumError, trainerLockError, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
-import { isBasicInPlay, conditionProof, givesTwoPrizes, hasOwner, isLegend, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { evolvesFromName, isBasicInPlay, conditionProof, givesTwoPrizes, hasOwner, isLegend, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { addLog, baseUid, cleanCard, legendPair, clearOnLeavingActive, logConditionDamage, clearSpecialConditions, effectId, evolvedFromName, isDelta, isPlasmaPokemon, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, logTool, openBenchSlot, pokemonName, revealFaceDown, sameCards, type LogEntry, isEvolved, cardsOf } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
@@ -1896,7 +1896,7 @@ export function evolvesOnto(evolution: PokemonCardDef, current: CardDef): boolea
   if (evolution.stage === 'levelUp') return current.kind === 'pokemon' && current.stage !== 'levelUp' && current.name === evolution.name;
   const evolvesFromStage = evolution.stage === 'stage2' ? 'stage1' : 'basic';
   if (current.kind !== 'pokemon' || current.stage !== evolvesFromStage || evolution.stage === 'basic') return false;
-  return current.name === evolution.evolvesFrom || !!evolution.alsoEvolvesFrom?.includes(current.name) || (current.name === 'Buried Fossil' && evolution.evolvesFrom === 'Mysterious Fossil');
+  return evolvesFromName(evolution, current.name) || !!evolution.alsoEvolvesFrom?.includes(current.name) || (current.name === 'Buried Fossil' && evolution.evolvesFrom === 'Mysterious Fossil');
 }
 
 /**

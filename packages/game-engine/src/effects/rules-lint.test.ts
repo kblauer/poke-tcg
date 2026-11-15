@@ -121,18 +121,10 @@ const RULES: Rule[] = [
     },
   },
   {
-    name: '"Evolves from" compared by hand: use evolvesOnto (Blissey ex, Buried Fossil, the in-play definition)',
-    pattern: /\.name === \w+\.evolvesFrom\b|\.evolvesFrom === \w/,
+    name: '"Evolves from" compared by hand: use evolvesOnto (Blissey ex, Buried Fossil, the in-play definition) or evolvesFromName (δ isn\'t part of a name)',
+    pattern: /\.name === \w+\.evolvesFrom\b|\.evolvesFrom === \w|\.has\(\w+\.evolvesFrom\b|\.includes\(\w+\.evolvesFrom\b/,
     skip: /^engine\.ts$/,
-    allowed: {
-      'trainers.ts > lunarTargets': [1, '#204 area 2: evolving from the deck re-implements evolvesOnto'],
-      'trainers.ts > sporeTargets': [1, '#204 area 2: the same'],
-      'cpu/shared.ts > evolvesInto': [1, '#204 area 2: the CPU\'s copy of evolvesOnto (no Buried Fossil, the printed card)'],
-      'cpu/shared.ts > lineIndex': [1, 'right as it is: puts a line\'s cards in order for the CPU, no rule'],
-      'trainers.ts > deckFilter': [1, 'found by this lint, not in #204: a deck search for cards that evolve from a name, by the printed "Evolves from" only'],
-      'effects/neo2.ts > evolutionsOf': [1, 'found by this lint, not in #204: the names that evolve from a name, by the printed "Evolves from" only'],
-      'effects/neo3-trainers.ts > laterStages': [1, 'found by this lint, not in #204: Pokémon Breeder Fields\' later stages, by the printed "Evolves from" only'],
-    },
+    allowed: {},
   },
 ];
 

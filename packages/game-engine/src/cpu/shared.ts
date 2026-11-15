@@ -3,7 +3,7 @@
 // cards are useful. Everything here is generic over cards: no card ids, and only the rules engine's own
 // effects decide what an attack does.
 import { answerChoice, attackError, attackSituation, performAttack, resolveChoices, situationAttacks, traceDamage, type AttackChoices, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { isBasicEnergy, isBasicPokemon, isLegend, namesMatch, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
+import { evolutionName, evolvesFromName, isBasicEnergy, isBasicPokemon, isLegend, namesMatch, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
 import { applyAction, cloneState, energyPool, resolveKnockouts, energyProvided, payCost, type PoolEnergy, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
 import { trainerEffect } from '../effects/index.js';
 import { pokemonPower } from '../powers.js';
@@ -513,7 +513,7 @@ function evolvesInto(cards: CardLibrary, side: Pick<PlayerState, 'active' | 'ben
   const from = candidate.stage === 'stage2' ? 'stage1' : 'basic';
   return inPlay(side).some(([, p]) => {
     const current = pokemonDef(cards, p);
-    return (current.name === candidate.evolvesFrom || !!candidate.alsoEvolvesFrom?.includes(current.name)) && current.stage === from && !current.trainerText;
+    return (evolvesFromName(candidate, current.name) || !!candidate.alsoEvolvesFrom?.includes(current.name)) && current.stage === from && !current.trainerText;
   });
 }
 
@@ -535,7 +535,7 @@ export function wantedCards(state: GameState, me: PlayerState, pool: CardInstanc
   return benchEmpty && !basicInHand ? pool.filter((c) => isBasicPokemon(def(c))) : [];
 }
 
-const lineIndex = (lines: PokemonCardDef[], d: CardDef) => lines.findIndex((l) => d.kind === 'pokemon' && l.name === d.evolvesFrom);
+const lineIndex = (lines: PokemonCardDef[], d: CardDef) => lines.findIndex((l) => d.kind === 'pokemon' && evolvesFromName(d, l.name));
 
 /**
  * Pokémon cards in the hand the player can't use: an Evolution with nothing in play or in the hand to
@@ -543,12 +543,12 @@ const lineIndex = (lines: PokemonCardDef[], d: CardDef) => lines.findIndex((l) =
  */
 export function unusablePokemon(state: GameState, me: PlayerState, except?: CardInstance): CardInstance[] {
   const def = (c: CardInstance) => lookupCard(state.cards, c.defId);
-  const names = new Set([...inPlay(me).map(([, p]) => pokemonDef(state.cards, p).name), ...me.hand.filter((c) => c !== except).map((c) => def(c).name)]);
+  const names = new Set([...inPlay(me).map(([, p]) => pokemonDef(state.cards, p).name), ...me.hand.filter((c) => c !== except).map((c) => def(c).name)].map(evolutionName));
   const benchFull = openBenchSlot(me, state.cards, state.stadium?.card) < 0;
   return me.hand.filter((c) => {
     const d = def(c);
     if (c === except || !isPokemonCard(d)) return false;
-    return d.stage === 'basic' ? benchFull : !names.has(d.evolvesFrom ?? '');
+    return d.stage === 'basic' ? benchFull : !names.has(evolutionName(d.evolvesFrom ?? ''));
   });
 }
 

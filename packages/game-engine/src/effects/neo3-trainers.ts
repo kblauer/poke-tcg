@@ -8,7 +8,7 @@
 // whose damage then reaches its HP once the Stadium leaves is Knocked Out. Old Rod's card can't be the Old Rod being played.
 import { addLog, pokemonName } from '../status.js';
 import { def, targetsOf, type TrainerChoiceSpec, type TrainerEffect, type TrainerSituation } from '../trainers.js';
-import { isPokemonCard, isTrainerCard, type CardLibrary } from '../cards.js';
+import { evolvesFromName, isPokemonCard, isTrainerCard, type CardLibrary } from '../cards.js';
 import { tool } from './neo1-trainers.js';
 
 /**
@@ -17,8 +17,8 @@ import { tool } from './neo1-trainers.js';
  */
 function laterStages(cards: CardLibrary, name: string): string[] {
   const pokemon = Object.values(cards).filter((d) => d.kind === 'pokemon' && !d.trainerText);
-  const next = pokemon.filter((d) => d.kind === 'pokemon' && d.stage !== 'basic' && d.evolvesFrom === name).map((d) => d.name);
-  const after = pokemon.filter((d) => d.kind === 'pokemon' && d.stage === 'stage2' && next.includes(d.evolvesFrom ?? '')).map((d) => d.name);
+  const next = pokemon.filter((d) => d.kind === 'pokemon' && d.stage !== 'basic' && evolvesFromName(d, name)).map((d) => d.name);
+  const after = pokemon.filter((d) => d.kind === 'pokemon' && d.stage === 'stage2' && next.some((n) => evolvesFromName(d, n))).map((d) => d.name);
   return [...new Set([...next, ...after])];
 }
 
