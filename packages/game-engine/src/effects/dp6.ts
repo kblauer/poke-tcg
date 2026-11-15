@@ -12,7 +12,7 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch } from '../cards.js';
 import { counts, energyPool, type InPlayPokemon, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { baseUid, countersMoved, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
+import { baseUid, countersMoved, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution, isEvolved, cardsOf } from '../status.js';
 import { BASE1 } from './base1.js';
 import { benchedSlots, damageChosen, energyCards, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { discardOwnEnergy } from './dp1.js';
@@ -45,7 +45,7 @@ function putCounters(ctx: AttackContext, p: InPlayPokemon | null | undefined, n:
 function backToHand(ctx: AttackContext) {
   if (!ctx.me.bench.some(Boolean)) return;
   const p = ctx.attacker;
-  ctx.me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+  ctx.me.hand.push(...cardsOf(p));
   ctx.me.active = null;
   ctx.log(`${ctx.attackerDef.name} and its cards went back into the hand.`);
 }
@@ -137,7 +137,7 @@ export const DP6: Record<string, Record<string, AttackEffect>> = {
     'Aqua Stream': {
       choices: (s): ChoiceSpec[] => {
         const options = (s.ownDiscard ?? []).filter((c) => energyCardOf(s.cards, c, 'water'));
-        return options.length && !s.discardsLocked ? [{ kind: 'ownDiscard', min: 0, max: options.length, options, prompt: 'Aqua Stream: choose Water Energy cards from your discard pile (10 damage each)' }] : [];
+        return options.length ? [{ kind: 'ownDiscard', min: 0, max: options.length, options, prompt: 'Aqua Stream: choose Water Energy cards from your discard pile (10 damage each)' }] : [];
       },
       run(ctx) {
         const picked = ctx.me.discard.filter((c) => ctx.choices.discardUids?.includes(c.uid) && energyCardOf(ctx.state.cards, c, 'water'));
@@ -257,7 +257,7 @@ export const DP6: Record<string, Record<string, AttackEffect>> = {
   // Delcatty – Energy Assist: a basic Energy card from the discard pile attached to one of the player's Benched Pokémon.
   'dp6-23': {
     'Energy Assist': {
-      choices: (s): ChoiceSpec[] => (benchedSlots(s.ownBench).length && !s.discardsLocked ? [{ kind: 'ownBench', options: benchedSlots(s.ownBench), prompt: 'Choose one of your Benched Pokémon to attach a basic Energy card to' }] : []),
+      choices: (s): ChoiceSpec[] => (benchedSlots(s.ownBench).length ? [{ kind: 'ownBench', options: benchedSlots(s.ownBench), prompt: 'Choose one of your Benched Pokémon to attach a basic Energy card to' }] : []),
       run(ctx) {
         ctx.hit(30);
         const slot = ctx.choices.ownBenchSlot;
@@ -352,7 +352,7 @@ export const DP6: Record<string, Record<string, AttackEffect>> = {
         ctx.hit(20);
         if (!ctx.choices.boost || !ctx.me.bench.some(Boolean)) return;
         const p = ctx.attacker;
-        ctx.me.deck.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+        ctx.me.deck.push(...cardsOf(p));
         ctx.me.active = null;
         ctx.log('Uxie and its cards went on the bottom of the deck.');
       },
@@ -492,7 +492,7 @@ export const DP6: Record<string, Record<string, AttackEffect>> = {
     'Bite On': {
       run(ctx) {
         ctx.hit(30);
-        if (ctx.defender.evolvedFrom.length) return;
+        if (isEvolved(ctx.state.cards, ctx.defender)) return;
         ctx.affectDefender((e) => {
           e.noAttack = ctx.turn + 1;
           e.noRetreat = ctx.turn + 1;
@@ -551,7 +551,7 @@ export const DP6: Record<string, Record<string, AttackEffect>> = {
     'Tentacle Strike': {
       choices(s): ChoiceSpec[] {
         const options = (s.opponentDiscard ?? []).filter((c) => lookupCard(s.cards, c.defId).kind === 'energy');
-        if (!options.length || s.discardsLocked) return [];
+        if (!options.length) return [];
         const targets = ['active', ...benchedSlots(s.opponentBench)] as Target[];
         return [
           { kind: 'ownDiscard', min: 0, max: Math.min(2, options.length), options, prompt: "Tentacle Strike: choose up to 2 Energy cards in your opponent's discard pile" },
@@ -695,7 +695,7 @@ export const DP6: Record<string, Record<string, AttackEffect>> = {
   'dp6-126': {
     'Gut Blow': {
       run(ctx) {
-        if (!ctx.defender.evolvedFrom.length) return void ctx.hit(10);
+        if (!isEvolved(ctx.state.cards, ctx.defender)) return void ctx.hit(10);
         ctx.hit(30);
         ctx.selfDamage(10);
       },

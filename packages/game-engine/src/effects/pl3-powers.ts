@@ -7,12 +7,12 @@
 // Grass Energy card; Darkness Restore's Basic Pokémon is picked by the player; Dig Down takes any Fighting Energy
 // cards among the top 5, one at a time; Plunge moves every Energy card; Call for Power moves one Energy card at a time;
 // Energy Recycle's Energy cards go to the Pokémon clicked, then the turn ends.
-import { lookupCard, namesMatch } from '../cards.js';
+import { isBasicPokemon, lookupCard, namesMatch } from '../cards.js';
 import { counts, energyPool } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
-import { inPlayDef, pokemonName } from '../status.js';
-import { swapActive, type PendingChoice } from '../trainers.js';
-import { POKE_BODY, targetOf } from './common.js';
+import { inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { swapActive } from '../trainers.js';
+import { onEvolveMay, POKE_BODY } from './common.js';
 import { DP1_POWERS } from './dp1-powers.js';
 import { DP2_POWERS } from './dp2-powers.js';
 import { onBench, onLevelUp } from './dp5-powers.js';
@@ -22,13 +22,6 @@ import { EX10_POWERS } from './ex10-powers.js';
 import { energyCardOf } from './ex2.js';
 import { EX8_POWERS } from './ex8-powers.js';
 
-/** "When you play this from your hand to evolve 1 of your Pokémon, you may …": asked as it evolves. */
-const onEvolve = (power: Extract<PendingChoice, { kind: 'mayUse' }>['power'], source: string): PowerEffect => ({
-  onPlayFromHand(state, owner, pokemon) {
-    if (!pokemon.evolvedFrom.length || pokemon.levelUpFrom) return;
-    state.pendingChoice = { player: owner.id, source, kind: 'mayUse', power, target: targetOf(owner, pokemon) };
-  },
-});
 const hasInPlay = (s: Pick<PowerSituation, 'me' | 'cards'>, name: string) => ownTargets(s.me).some((t) => namesMatch(inPlayDef(s.cards, pokemonAt(s.me, t)!).name, name));
 
 export const PL3_POWERS: Record<string, PowerEffect> = {
@@ -43,7 +36,7 @@ export const PL3_POWERS: Record<string, PowerEffect> = {
     },
   },
   // Magmortar – Evolutionary Flame: as it evolves from the hand, the opponent's Active Pokémon Burned and Confused.
-  'pl3-6': onEvolve('evoFlame', 'Evolutionary Flame'),
+  'pl3-6': onEvolveMay('evoFlame', 'Evolutionary Flame'),
   // Metagross – Gravitation: every Pokémon in play has 20 less HP (20 however many; refreshHideout).
   'pl3-7': { ...POKE_BODY, gravitation: true },
   // Swampert – Root Protector: 20 less attack damage to it from the opponent's Pokémon that aren't Evolved Pokémon (attacks.ts).
@@ -74,11 +67,8 @@ export const PL3_POWERS: Record<string, PowerEffect> = {
     oncePerTurn: true,
     blocked(s) {
       if (s.source !== 'active') return 'Honchkrow must be your Active Pokémon';
-      if (s.opp.bench.every(Boolean)) return "Your opponent's Bench is full";
-      return s.opp.discard.some((c) => {
-        const d = lookupCard(s.cards, c.defId);
-        return d.kind === 'pokemon' && d.stage === 'basic' && !d.trainerText;
-      }) ? null : "Your opponent has no Basic Pokémon in their discard pile";
+      if (openBenchSlot(s.opp, s.cards, s.stadium) < 0) return "Your opponent's Bench is full";
+      return s.opp.discard.some((c) => isBasicPokemon(lookupCard(s.cards, c.defId))) ? null : "Your opponent has no Basic Pokémon in their discard pile";
     },
     use(ctx) {
       if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
@@ -112,7 +102,7 @@ export const PL3_POWERS: Record<string, PowerEffect> = {
   // Chatot G – Disrupting Spy: as it's benched from the hand, the top 4 cards of the opponent's deck rearranged.
   'pl3-54': onBench('disruptingSpy', 'Disrupting Spy'),
   // Ivysaur – Evolutionary Pollen: as it evolves from the hand, the opponent's Active Pokémon Asleep.
-  'pl3-62': onEvolve('darknessShade', 'Evolutionary Pollen'),
+  'pl3-62': onEvolveMay('darknessShade', 'Evolutionary Pollen'),
   // Marshtomp – Plunge: from the Bench, heads: every Energy card of the Active Pokémon moved to it, then it's switched in.
   'pl3-67': {
     oncePerTurn: true,

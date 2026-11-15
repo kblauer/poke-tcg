@@ -168,6 +168,13 @@ export function lookupCard(cards: CardLibrary, defId: string): CardDef {
 export const isBasicPokemon = (def: CardDef): def is PokemonCardDef & { stage: 'basic' } =>
   def.kind === 'pokemon' && def.stage === 'basic' && !def.trainerText && !isLegend(def) && !def.restored;
 
+/**
+ * A Basic Pokémon in play, for an effect on "a Basic Pokémon" that reaches Trainer cards played as one too (`def`: its
+ * inPlayDef): a Basic Pokémon, Clefairy Doll, a Fossil (the user's, 2026-11-14, for Strange Bell), never a Pokémon LEGEND
+ * or a Restored Pokémon.
+ */
+export const isBasicInPlay = (def: PokemonCardDef) => def.stage === 'basic' && !isLegend(def) && !def.restored;
+
 /** A Pokémon worth 2 Prize cards when Knocked Out: a Pokémon-ex, a Pokémon-EX or a Pokémon LEGEND. */
 export const givesTwoPrizes = (def: CardDef) => def.kind === 'pokemon' && (!!def.ex || !!def.pokemonEX || isLegend(def));
 

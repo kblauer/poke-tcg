@@ -11,15 +11,14 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { targetsIn } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyType } from '../cards.js';
 import { isEnergyCardOf, isSpecialEnergy, type CardInstance, type InPlayPokemon, type PlayerState } from '../engine.js';
-import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { benchRoom, clearOnLeavingActive, devolvable, openBenchSlot, pokemonName, removeTopEvolution } from '../status.js';
-import { benchedSlots, extraEnergy, inPlay, perHeads } from './common.js';
+import { benchedSlots, discardOwn, energyCardOf, extraEnergy, inPlay, perHeads } from './common.js';
 import { typedCards } from './ecard1.js';
 import { discardAtRandom, eachDefending, energyAmount } from './ex1.js';
 import { healUpTo } from './si1.js';
 
-export { inPlay };
+export { discardOwn, energyCardOf, inPlay };
 
 /** The Energy cards of `type` attached to a Pokémon, Special ones of that type too (Darkness Energy). */
 export const typeCards = (cards: CardLibrary, p: InPlayPokemon, type: EnergyType) =>
@@ -27,12 +26,6 @@ export const typeCards = (cards: CardLibrary, p: InPlayPokemon, type: EnergyType
     const d = lookupCard(cards, e.defId);
     return isEnergyCardOf(e, cards, type) || (!e.provides && !e.windless && !e.colorlessOnly && d.kind === 'energy' && d.energyType === type);
   });
-
-/** An Energy card of `type`, basic or Special (Darkness Energy, Metal Energy), wherever it is (Lightning Burst, Super Connectivity). */
-export const energyCardOf = (cards: CardLibrary, e: CardInstance, type: EnergyType) => {
-  const d = lookupCard(cards, e.defId);
-  return isEnergyCardOf(e, cards, type) || (!e.provides && !e.windless && !e.colorlessOnly && d.kind === 'energy' && d.energyType === type);
-};
 
 /** "You may discard a `type` Energy card attached to … If you do, `then`" (Deadly Poison, Dark Bind), asked before the attack. */
 export const mayDiscardFor = (damage: number, type: EnergyType, then: (ctx: AttackContext) => void): AttackEffect => ({
@@ -46,14 +39,6 @@ export const mayDiscardFor = (damage: number, type: EnergyType, then: (ctx: Atta
     then(ctx);
   },
 });
-
-/** Discards these Energy cards from the attacker. */
-export function discardOwn(ctx: AttackContext, cards: CardInstance[]) {
-  if (!cards.length) return;
-  ctx.attacker.energy = ctx.attacker.energy.filter((e) => !cards.includes(e));
-  ctx.me.discard.push(...cards);
-  ctx.log(`Discarded ${cards.map((c) => lookupCard(ctx.state.cards, c.defId).name).join(', ')} from ${ctx.attackerDef.name}.`);
-}
 
 /** `n` damage counters on one of `owner`'s Pokémon, if the attack can affect it. */
 export function putCounters(ctx: AttackContext, owner: PlayerState, p: InPlayPokemon, n: number) {
@@ -199,7 +184,7 @@ export const EX2: Record<string, Record<string, AttackEffect>> = {
   'ex2-20': {
     'Energy Retrieval': {
       choices(s): ChoiceSpec[] {
-        const basics = s.discardsLocked ? [] : s.ownDiscard.filter((c) => isBasicEnergy(lookupCard(s.cards, c.defId)));
+        const basics = s.ownDiscard.filter((c) => isBasicEnergy(lookupCard(s.cards, c.defId)));
         if (!basics.length) return [];
         return [
           { kind: 'ownPokemon', options: targetsIn(s.attacker, s.ownBench), prompt: 'Choose one of your Pokémon to attach basic Energy cards to' },
@@ -210,7 +195,7 @@ export const EX2: Record<string, Record<string, AttackEffect>> = {
         const t = ctx.choices.ownTarget;
         const p = t === undefined ? null : t === 'active' ? ctx.me.active : ctx.me.bench[t];
         const cards = ctx.me.discard.filter((c) => ctx.choices.discardUids?.includes(c.uid));
-        if (!p || !cards.length || discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Energy Retrieval found nothing.');
+        if (!p || !cards.length) return ctx.log('Energy Retrieval found nothing.');
         ctx.me.discard = ctx.me.discard.filter((c) => !cards.includes(c));
         p.energy.push(...cards);
         p.damage += 10 * cards.length;
@@ -294,7 +279,6 @@ export const EX2: Record<string, Record<string, AttackEffect>> = {
   'ex2-44': {
     'Sniff Out': {
       run(ctx) {
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         if (ctx.me.discard.length) ctx.pend({ kind: 'discardToHand', source: 'Sniff Out', count: 1, filter: 'any' });
       },
     },
@@ -367,7 +351,6 @@ export const EX2: Record<string, Record<string, AttackEffect>> = {
   'ex2-79': {
     'Energy Catch': {
       run(ctx) {
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         if (ctx.me.discard.some((c) => isBasicEnergy(lookupCard(ctx.state.cards, c.defId)))) ctx.pend({ kind: 'discardToHand', source: 'Energy Catch', count: 1, filter: 'basicEnergy', reveal: true });
       },
     },

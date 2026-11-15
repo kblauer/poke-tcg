@@ -10,7 +10,7 @@
 import { isBasicEnergy, lookupCard } from '../cards.js';
 import { activeLocked, afflictBetweenTurns, counts, energyPool, type CardInstance } from '../engine.js';
 import { attachBlocked, discardsLocked, energyFromHand, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
-import { inPlayDef, isDelta, pokemonName } from '../status.js';
+import { inPlayDef, isDelta, pokemonName, cardsOf } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { babyEvolution, freeRetreat, POKE_BODY } from './ex2-powers.js';
 import { formChange } from './ex8-powers.js';
@@ -137,7 +137,7 @@ export const EX13_POWERS: Record<string, PowerEffect> = {
       const slot = ctx.choices.oppTo;
       const p = typeof slot === 'number' ? ctx.opp.bench[slot] : null;
       if (!p || typeof slot !== 'number') return;
-      ctx.opp.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+      ctx.opp.hand.push(...cardsOf(p));
       ctx.opp.bench[slot] = null;
       ctx.log(`Splash Back: ${pokemonName(ctx.state, p)} and all cards attached to it returned to your opponent's hand.`);
     },

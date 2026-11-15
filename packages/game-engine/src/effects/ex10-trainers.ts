@@ -8,7 +8,7 @@
 // Pokémon in play.
 import { hasOwner, type PokemonCardDef } from '../cards.js';
 import { targetsOf, type EnergyEffect, type TrainerEffect, type TrainerSituation } from '../trainers.js';
-import { inPlayDef, pokemonName } from '../status.js';
+import { inPlayDef, pokemonName, isEvolved } from '../status.js';
 import { ECARD1_TRAINERS } from './ecard1-trainers.js';
 import { ECARD2_ENERGY } from './ecard2-trainers.js';
 import { ECARD3_ENERGY } from './ecard3-trainers.js';
@@ -25,7 +25,7 @@ export const limitedTool = (what: string, fits: (d: PokemonCardDef) => boolean, 
   const targets = (s: TrainerSituation) =>
     targetsOf(s.me).filter((t) => {
       const p = (t === 'active' ? s.me.active : s.me.bench[t])!;
-      return !p.attached?.some((a) => a.tool) && fits(inPlayDef(s.cards, p)) && (!evolved || p.evolvedFrom.length > 0);
+      return !p.attached?.some((a) => a.tool) && fits(inPlayDef(s.cards, p)) && (!evolved || isEvolved(s.cards, p));
     });
   return {
     tool: true,

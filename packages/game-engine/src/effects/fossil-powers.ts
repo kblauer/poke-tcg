@@ -5,7 +5,8 @@
 // against any attack, even its owner's; Kabuto Armor halves after weakness, resistance, PlusPower and Defender.
 import { activeLock, type InPlayPokemon, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
-import { clearOnLeavingActive, countersMoved, inPlayDef, pokemonName } from '../status.js';
+import { countersMoved, inPlayDef, pokemonName, cleanCard } from '../status.js';
+import { swapActive } from '../trainers.js';
 
 const at = (s: PowerSituation, t: Target) => pokemonAt(s.me, t)!;
 const theirs = (s: PowerSituation, t: Target) => pokemonAt(s.opp, t)!;
@@ -23,11 +24,7 @@ const HOLO: Record<string, PowerEffect> = {
     oncePerTurn: true,
     blocked: (s) => (s.source === 'active' ? 'Dragonite must be on your Bench' : !s.me.active ? 'No Active Pokémon to switch with' : activeLock(s.me, [s.me, s.opp], s.cards)),
     use(ctx) {
-      const old = ctx.me.active!;
-      clearOnLeavingActive(old);
-      ctx.me.bench[ctx.sourceTarget as number] = old;
-      ctx.me.active = ctx.source;
-      ctx.log(`${pokemonName(ctx.state, ctx.source)} switched in for ${pokemonName(ctx.state, old)}.`);
+      swapActive(ctx.state, ctx.me, ctx.sourceTarget as number, `${pokemonName(ctx.state, ctx.source)} switched in for ${pokemonName(ctx.state, ctx.me.active!)}.`);
     },
   },
 
@@ -102,7 +99,7 @@ export const FOSSIL_POWERS: Record<string, PowerEffect> = {
     use(ctx) {
       const tentacool = ctx.source;
       // A Buzzap'd Electrode attached as Energy goes back to being a Pokémon card.
-      ctx.me.discard.push(...tentacool.energy.map(({ provides: _, ...card }) => card), ...(tentacool.attached ?? []).map((a) => a.card), ...tentacool.evolvedFrom);
+      ctx.me.discard.push(...tentacool.energy.map(cleanCard), ...(tentacool.attached ?? []).map((a) => a.card), ...tentacool.evolvedFrom);
       ctx.me.hand.push(tentacool.card);
       if (ctx.sourceTarget === 'active') ctx.me.active = null;
       else ctx.me.bench[ctx.sourceTarget] = null;

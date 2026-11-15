@@ -8,7 +8,7 @@
 // opponent's hand, then asks whose hand is shuffled away; Poké Turn takes any of the player's Pokémon SP, Active or Benched.
 import { isPokemonCard, lookupCard } from '../cards.js';
 import { activeLock } from '../engine.js';
-import { clearSpecialConditions, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
+import { clearSpecialConditions, hasSpecialCondition, inPlayDef, pokemonName, cardsOf } from '../status.js';
 import { isPokemonSP, targetsOf, type EnergyEffect, type TrainerContext, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 import { DP1_TRAINERS } from './dp1-trainers.js';
 import { ECARD2_TRAINERS } from './ecard2-trainers.js';
@@ -23,7 +23,7 @@ const spTargets = (s: TrainerSituation) => targetsOf(s.me).filter((t) => isPokem
 /** Returns one of the player's Pokémon and every card with it to the hand (Poké Turn). */
 function returnToHand(ctx: TrainerContext, t: 'active' | number) {
   const p = at(ctx.me, t);
-  ctx.me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+  ctx.me.hand.push(...cardsOf(p));
   if (t === 'active') ctx.me.active = null;
   else ctx.me.bench[t] = null;
   ctx.log(`${pokemonName(ctx.state, p)} and all cards attached to it returned to the hand.`);

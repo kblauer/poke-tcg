@@ -8,18 +8,12 @@ import { lookupCard } from '../cards.js';
 import { activeLocked, isEnergyCardOf, type CardInstance } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
 import { nextRandom } from '../rng.js';
-import { devolvable, evolvedFromName, inPlayDef, pokemonName } from '../status.js';
+import { devolvable, evolvedFromName, inPlayDef, openBenchSlot, pokemonName, cleanCard } from '../status.js';
 import { swapActive } from '../trainers.js';
-import { onlyBenched, targetOf } from './common.js';
+import { onEvolveMay, onlyBenched } from './common.js';
 import { shuffleIntoDeck } from './dp1.js';
 import { babyEvolution, POKE_BODY } from './ex2-powers.js';
 
-/** "When you play this from your hand to evolve 1 of your Pokémon, you may …": a yes-or-no question as it evolves. */
-const onEvolveMay = (power: 'earthFissure' | 'sharpEye', source: string): PowerEffect => ({
-  onPlayFromHand(state, owner, pokemon) {
-    if (pokemon.evolvedFrom.length) state.pendingChoice = { player: owner.id, source, kind: 'mayUse', power, target: targetOf(owner, pokemon) };
-  },
-});
 
 /** Lightning Energy cards attached to the player's Pokémon other than the source (Intense Voltage). */
 const lightningOn = (s: PowerSituation, t: ReturnType<typeof ownTargets>[number]) => (t === s.source ? [] : (pokemonAt(s.me, t)?.energy ?? []).filter((e) => !e.provides && isEnergyCardOf(e, s.cards, 'lightning')));
@@ -97,7 +91,7 @@ export const DP1_POWERS: Record<string, PowerEffect> = {
       const p = ctx.choices.from === undefined ? null : pokemonAt(ctx.me, ctx.choices.from);
       if (!ctx.flip()) return ctx.log('Bounce did nothing.');
       if (!p) return;
-      ctx.me.discard.push(...p.energy.map(({ provides: _, ...card }) => card), ...(p.attached ?? []).map((a) => a.card));
+      ctx.me.discard.push(...p.energy.map(cleanCard), ...(p.attached ?? []).map((a) => a.card));
       p.energy = [];
       p.attached = [];
       shuffleIntoDeck(ctx, ctx.me, p);
@@ -106,7 +100,7 @@ export const DP1_POWERS: Record<string, PowerEffect> = {
   // Unown C – Call: on the Bench, heads: any Unown from the deck onto the Bench.
   'dp1-67': {
     oncePerTurn: true,
-    blocked: (s) => onlyBenched(s, 'Unown C') ?? (s.me.bench.some((p) => !p) ? null : 'Your Bench is full'),
+    blocked: (s) => onlyBenched(s, 'Unown C') ?? (openBenchSlot(s.me, s.cards, s.stadium) >= 0 ? null : 'Your Bench is full'),
     use(ctx) {
       if (!ctx.flip()) return ctx.log('Call did nothing.');
       if (ctx.me.deck.length) ctx.pend({ kind: 'pickFromDeck', source: 'Call', filter: 'ownerBasic', name: 'Unown', toBench: true, optional: true });

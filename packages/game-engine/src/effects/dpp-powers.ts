@@ -9,7 +9,7 @@
 import { hasType, lookupCard, namesMatch } from '../cards.js';
 import { type Target } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, inPlayDef, pokemonName } from '../status.js';
+import { addLog, inPlayDef, pokemonName, cardsOf } from '../status.js';
 import { inPlay, onlyActive, POKE_BODY } from './common.js';
 import { DP1_POWERS } from './dp1-powers.js';
 import { DP2_POWERS } from './dp2-powers.js';
@@ -92,7 +92,7 @@ export const DPP_POWERS: Record<string, PowerEffect> = {
     use(ctx) {
       if (!ctx.flip()) return ctx.log('Leap Away did nothing.');
       const p = ctx.source;
-      ctx.me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+      ctx.me.hand.push(...cardsOf(p));
       ctx.me.active = null;
       ctx.log('Toxicroak and its cards went back into the hand.');
     },

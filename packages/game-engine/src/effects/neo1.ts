@@ -188,6 +188,8 @@ export const NEO1: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         const energy = ctx.me.discard.filter((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy');
         ctx.hit(10 + 10 * energy.length);
+        // No Allergic Pollen check: it doesn't stop attacks (the user's, 2026-11-14: "Allergic Pollen should not stop attacks";
+        // asked first about Riptide: "Riptide should still shuffle as the energy is targeted by an attack, not an ability").
         if (!energy.length) return;
         ctx.me.discard = ctx.me.discard.filter((c) => !energy.includes(c));
         ctx.me.deck.push(...energy);

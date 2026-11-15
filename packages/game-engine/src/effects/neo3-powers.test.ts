@@ -64,11 +64,11 @@ describe('Neo Revelation Pokémon Powers', () => {
     expect([ash(s).active!.energy.length, ash(s).bench[0]!.energy.length]).toEqual([1, 1]);
   });
 
-  it('Allergic Pollen: attacks take nothing from discard piles while Parasect works', () => {
+  it("Allergic Pollen doesn't stop attacks (the user's, 2026-11-14): Magneton's attack still attaches from the discard pile", () => {
     const start = duel('magnetonNeo3', 'machoke', { energy: ['lightning', 'lightning', 'fire'], oppBench: ['parasect'] });
     ash(start).discard.push(card('lightning'));
     const s = attack(start, 0);
-    expect([ash(s).active!.energy.length, ash(s).discard.length]).toEqual([3, 1]);
+    expect([ash(s).active!.energy.length, ash(s).discard.length]).toEqual([4, 0]);
   });
 
   it("[Keep]: the opponent's attacks can't discard Energy cards from Pokémon with Unown in their names", () => {
