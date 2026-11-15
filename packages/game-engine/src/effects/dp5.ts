@@ -6,7 +6,7 @@
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch } from '../cards.js';
 import { isSpecialEnergy, type InPlayPokemon, type Target } from '../engine.js';
-import { inPlayDef } from '../status.js';
+import { inPlayDef, openBenchSlot, cardsOf } from '../status.js';
 import { benchedSlots, energyCards, headsUntilTails, inPlay, opponentBenchChoice, same } from './common.js';
 import { discardOwnEnergy, removeDefenderEnergy } from './dp1.js';
 import { DP4 } from './dp4.js';
@@ -110,7 +110,7 @@ export const DP5: Record<string, Record<string, AttackEffect>> = {
   // Rotom – Dual Trans: up to 2 basic Energy cards from the discard pile attached to one of the player's Pokémon.
   'dp5-13': {
     'Dual Trans': {
-      choices: (s): ChoiceSpec[] => (s.discardsLocked ? [] : [{ kind: 'ownPokemon', options: ownTargets(s), prompt: 'Choose one of your Pokémon to attach basic Energy cards to' }]),
+      choices: (s): ChoiceSpec[] => ([{ kind: 'ownPokemon', options: ownTargets(s), prompt: 'Choose one of your Pokémon to attach basic Energy cards to' }]),
       run(ctx) {
         const t = ctx.choices.ownTarget ?? 'active';
         if (mine(ctx, t) && ctx.me.discard.some((c) => isBasicEnergy(lookupCard(ctx.state.cards, c.defId))))
@@ -287,7 +287,7 @@ export const DP5: Record<string, Record<string, AttackEffect>> = {
         ctx.hit(20);
         if (!ctx.me.bench.some(Boolean)) return;
         const p = ctx.attacker;
-        ctx.me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
+        ctx.me.hand.push(...cardsOf(p));
         ctx.me.active = null;
         ctx.log('Aipom and its cards went back into the hand.');
       },
@@ -308,7 +308,7 @@ export const DP5: Record<string, Record<string, AttackEffect>> = {
   'dp5-97': {
     Restore: {
       run(ctx) {
-        if (ctx.me.bench.every(Boolean)) return ctx.log('Your Bench is full.');
+        if (openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card) < 0) return ctx.log('Your Bench is full.');
         ctx.pend({ kind: 'discardToBench', source: 'Restore', filter: 'restore', energy: 3 });
       },
     },

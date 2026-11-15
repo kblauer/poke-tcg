@@ -9,7 +9,7 @@ import { isBasicEnergy, lookupCard, namesMatch } from '../cards.js';
 import { afflictBetweenTurns, type InPlayPokemon } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
 import { nextRandom } from '../rng.js';
-import { addLog, clearSpecialConditions, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
+import { addLog, clearSpecialConditions, hasSpecialCondition, inPlayDef, openBenchSlot, pokemonName, cleanCard } from '../status.js';
 import { inPlay, onlyActive, onlyBenched, POKE_BODY, targetOf } from './common.js';
 import { ECARD1_POWERS } from './ecard1-powers.js';
 import { EX12_POWERS } from './ex12-powers.js';
@@ -148,7 +148,7 @@ export const DP4_POWERS: Record<string, PowerEffect> = {
       const to = ctx.choices.to === undefined ? null : pokemonAt(ctx.me, ctx.choices.to);
       if (!to || to === ctx.source || (to.attached ?? []).some((a) => a.tool)) return;
       const unown = ctx.source;
-      ctx.me.discard.push(...unown.energy.map(({ provides: _, ...card }) => card), ...(unown.attached ?? []).map((a) => a.card));
+      ctx.me.discard.push(...unown.energy.map(cleanCard), ...(unown.attached ?? []).map((a) => a.card));
       ctx.me.bench = ctx.me.bench.map((p) => (p === unown ? null : p));
       (to.attached ??= []).push({ card: unown.card, until: Number.MAX_SAFE_INTEGER, tool: true, equip: true });
       ctx.log(`Attached Unown G to ${pokemonName(ctx.state, to)} as a Pokémon Tool.`);
@@ -159,7 +159,7 @@ export const DP4_POWERS: Record<string, PowerEffect> = {
   // Illumise – Scent Conduct: heads, a Grass Basic Pokémon from the deck onto the Bench.
   'dp4-71': {
     oncePerTurn: true,
-    blocked: (s) => (!s.me.bench.some((p) => !p) ? 'Your Bench is full' : s.counts.deck ? null : 'Your deck is empty'),
+    blocked: (s) => (openBenchSlot(s.me, s.cards, s.stadium) < 0 ? 'Your Bench is full' : s.counts.deck ? null : 'Your deck is empty'),
     use(ctx) {
       if (!ctx.flip()) return ctx.log('Scent Conduct did nothing.');
       ctx.pend({ kind: 'pickFromDeck', source: 'Scent Conduct', filter: 'basicType', type: 'grass', toBench: true, optional: true });

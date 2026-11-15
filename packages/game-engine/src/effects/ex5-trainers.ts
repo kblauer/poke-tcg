@@ -10,7 +10,7 @@
 // more than 7 cards in the hand, this one included.
 import { hasOwner, lookupCard, type Attack } from '../cards.js';
 import { type Target } from '../engine.js';
-import { clearSpecialConditions, pokemonName } from '../status.js';
+import { clearSpecialConditions, pokemonName, isEvolved } from '../status.js';
 import { def, own, targetsOf, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
 /** The player's Pokémon an Ancient Technical Machine can go on: Evolved Pokémon, not Pokémon-ex or an owner's. */
@@ -18,7 +18,7 @@ const ancientTargets = (s: TrainerSituation): Target[] =>
   targetsOf(s.me).filter((t) => {
     const p = own(s, t)!;
     const d = def(s, p.card);
-    return p.evolvedFrom.length > 0 && d.kind === 'pokemon' && !d.ex && !hasOwner(d.name);
+    return isEvolved(s.cards, p) && d.kind === 'pokemon' && !d.ex && !hasOwner(d.name);
   });
 
 /** An Ancient Technical Machine: on one of the player's Evolved Pokémon until the end of the turn; it can use `attack`. */

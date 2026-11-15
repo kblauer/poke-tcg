@@ -11,7 +11,7 @@ import { isBasicPokemon, isPokemonCard, lookupCard, type PokemonCardDef } from '
 import { newInPlay, type CardInstance, type PlayerState } from '../engine.js';
 import { trainerProof } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { addLog, clearOnLeavingActive, openBenchSlot, pokemonName } from '../status.js';
+import { addLog, clearOnLeavingActive, openBenchSlot, pokemonName, cardsOf } from '../status.js';
 import { cureConditions, otherHandCards, targetsOf, type TrainerContext, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
 const names = (ctx: TrainerContext, cards: CardInstance[]) => cards.map((c) => lookupCard(ctx.state.cards, c.defId).name).join(', ');
@@ -220,7 +220,7 @@ export const GYM1_TRAINERS: Record<string, TrainerEffect> = {
       const slot = ctx.choices.oppTarget;
       const p = typeof slot === 'number' ? ctx.opp.bench[slot] : null;
       if (!p) return;
-      ctx.opp.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...card }) => card), ...(p.attached ?? []).map((a) => a.card));
+      ctx.opp.hand.push(...cardsOf(p));
       ctx.opp.bench[slot as number] = null;
       ctx.log(`${pokemonName(ctx.state, p)} and all cards attached to it returned to the hand.`, ctx.opp.id);
     },

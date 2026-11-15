@@ -5,7 +5,6 @@
 // printed cards) are in dp6.ts.
 // From the text: Stark Mountain moves one basic Fire or Fighting Energy card; Energy Pickup's card goes to the Pokémon clicked.
 import { isBasicEnergy, lookupCard, type Attack } from '../cards.js';
-import { discardsLocked } from '../powers.js';
 import { pokemonName } from '../status.js';
 import { targetsOf, type TrainerEffect } from '../trainers.js';
 import { DP2_TRAINERS } from './dp2-trainers.js';
@@ -43,7 +42,6 @@ export const DP6_TRAINERS: Record<string, TrainerEffect> = {
     blocked: (s) => (s.me.discard.some((c) => isBasicEnergy(lookupCard(s.cards, c.defId))) ? null : 'There are no basic Energy cards in your discard pile'),
     play(ctx) {
       if (!ctx.flip()) return ctx.log('Energy Pickup did nothing.');
-      if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
       ctx.pend({ kind: 'attachFromDiscard', source: 'Energy Pickup', count: 1 });
     },
   },

@@ -2,7 +2,6 @@
 // Tools (their end-of-turn effects in betweenTurns); Moonlight Stadium is a Stadium (retreatModifier).
 // From the text: Premier Ball asks which pile first; Felicity's Drawing discards 1 or 2 cards, picked.
 import { hasType } from '../cards.js';
-import { discardsLocked } from '../powers.js';
 import { otherHandCards, type TrainerEffect } from '../trainers.js';
 import { EX2_TRAINERS } from './ex2-trainers.js';
 import { tool } from './neo1-trainers.js';
@@ -32,7 +31,6 @@ export const DP4_TRAINERS: Record<string, TrainerEffect> = {
     choices: () => [{ kind: 'pick', field: 'pick', options: [0, 1], labels: ['Search your deck', 'Search your discard pile'], prompt: 'Premier Ball: where do you search?' }],
     play(ctx) {
       if (ctx.choices.pick === 1) {
-        if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
         return ctx.pend({ kind: 'discardToHand', source: 'Premier Ball', count: 1, filter: 'levelUp', reveal: true });
       }
       ctx.pend({ kind: 'pickFromDeck', source: 'Premier Ball', filter: 'levelUp', reveal: true, optional: true });

@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { areas } from './areas.js';
 import { dexGen, dexSpecies, species } from './data.js';
 import { allGenerations, DEX_SIZE, generation, generationOf, inGeneration, perGeneration } from './generation.js';
-import { createIdleRun, DEFAULT_IDLE_SETTINGS, simulateSegment, type IdleState } from './idle.js';
+import { createIdleRun, DEFAULT_IDLE_SETTINGS, simulateSegment, starterOptions, type IdleState } from './idle.js';
+import { isBaseForm } from './mon.js';
 
 describe('generations', () => {
   it('is Kanto by default, and for a run from before generations', () => {
@@ -63,5 +64,16 @@ describe('generations', () => {
       a = na.state;
       b = nb.state;
     }
+  });
+});
+
+describe.each(allGenerations().map((g) => [g.region, g] as const))("%s's species", (_, g) => {
+  it("count as a base form only when no species of the region evolves into them (not Kanto's 151 alone, #204)", () => {
+    inGeneration(g.gen, () => {
+      const evolved = new Set(g.species.flatMap((s) => s.evolutions.map((e) => e.into)));
+      for (const s of g.species) expect(isBaseForm(s.id), s.name).toBe(!evolved.has(s.id));
+      // So no evolved Pokémon is offered as a starter, whatever has been caught.
+      expect(starterOptions(g.species.map((s) => s.id)).filter((id) => evolved.has(id))).toEqual([]);
+    });
   });
 });

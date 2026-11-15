@@ -5,7 +5,6 @@
 // the Active Pokémon, even as it's Knocked Out; N's players draw as many cards as they have Prize cards left, the one playing it
 // first; Super Rod shuffles up to 3 Pokémon and basic Energy cards back (as Night Maintenance: the player may stop sooner);
 // Xtransceiver's Supporter is shown to the opponent.
-import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import type { TrainerEffect } from '../trainers.js';
 import { tool } from './neo1-trainers.js';
@@ -43,7 +42,6 @@ export const BW3_TRAINERS: Record<string, TrainerEffect> = {
   'bw3-95': {
     blocked: (s) => (s.me.discard.length ? null : 'Your discard pile is empty'),
     play(ctx) {
-      if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
       ctx.pend({ kind: 'discardToDeck', source: 'Super Rod', count: 3, of: 3, filter: 'pokemonOrBasicEnergy' });
     },
   },

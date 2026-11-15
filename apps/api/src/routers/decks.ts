@@ -21,13 +21,30 @@ export const ruleCard = (card: Pick<Card, 'name' | 'kind' | 'stage' | 'data'>, i
   ...(isAceSpec(id) && { aceSpec: true }),
 });
 
-const cardFields = { select: { name: true, kind: true, stage: true, data: true } } as const;
+/** What the deck checks read from a deck card's catalog row. */
+type RuleFields = Pick<Card, 'name' | 'kind' | 'stage' | 'data'>;
+
+/**
+ * Decks with each card's catalog row (name, kind, stage, data) attached from the catalog, not joined from the Card table:
+ * the join read every card's `data` JSON on each decks.list and run.overview (CLAUDE.md: card lookups go through catalog.ts).
+ */
+export async function withCatalogCards<D extends { cards: { cardId: string; quantity: number }[] }>(decks: D[]): Promise<(Omit<D, 'cards'> & { cards: { cardId: string; quantity: number; card: RuleFields }[] })[]> {
+  const index = await catalogIndex();
+  return decks.map((d) => ({
+    ...d,
+    cards: d.cards.map((c) => {
+      const card = index.get(c.cardId);
+      if (!card) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Card ${c.cardId} is missing from the catalog` });
+      return { cardId: c.cardId, quantity: c.quantity, card };
+    }),
+  }));
+}
 
 /** The user's deck with its cards, or NOT_FOUND (also for someone else's deck, so ids can't be probed). */
 export async function loadOwnDeck(deckId: string, userId: string) {
-  const deck = await prisma.deck.findUnique({ where: { id: deckId }, include: { cards: { include: { card: cardFields } } } });
+  const deck = await prisma.deck.findUnique({ where: { id: deckId }, include: { cards: { select: { cardId: true, quantity: true } } } });
   if (!deck || deck.ownerId !== userId) throw new TRPCError({ code: 'NOT_FOUND', message: 'Deck not found' });
-  return deck;
+  return (await withCatalogCards([deck]))[0]!;
 }
 
 /** A deck's cosmetics (Deck.cardBack, mat, playmat, coin, assigned on the Cosmetics tab): each an id, or null for the default. */
@@ -121,11 +138,11 @@ export const decksRouter = router({
    * each can be played (no problems, including locked cards).
    */
   list: protectedProcedure.query(async ({ ctx }) => {
-    const decks = await prisma.deck.findMany({
+    const decks = await withCatalogCards(await prisma.deck.findMany({
       where: { ownerId: ctx.user.id },
       orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
-      include: { cards: { include: { card: cardFields } } },
-    });
+      include: { cards: { select: { cardId: true, quantity: true } } },
+    }));
     // Only the decks' cards' unlocks, not the account's whole list.
     const [unlocked, limited] = await Promise.all([unlockedIds(ctx.user.id, prisma, { cardIds: deckCardIds(decks) }), holoTwins()]);
     return decks.map((d) => ({

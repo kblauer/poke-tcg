@@ -2,7 +2,9 @@ import { COSMETICS, DEFAULT_COSMETIC, hasCosmetic, type CosmeticKind } from '@po
 import { prisma } from '@poke-tcg/db';
 import { assignCosmeticInput, buyCosmeticInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
+import { userRow } from '../auth.js';
 import { unlocksAll } from '../debugFlags.js';
+import { lockUser } from '../runs.js';
 import { protectedProcedure, router } from '../trpc.js';
 
 /**
@@ -36,7 +38,7 @@ export const cosmeticsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
     const [has, user, decks] = await Promise.all([
       cosmeticsOf(ctx.user.id),
-      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { bank: true, cardBack: true, mat: true, playmat: true, coin: true } }),
+      userRow(ctx.user, { bank: true, cardBack: true, mat: true, playmat: true, coin: true }),
       prisma.deck.findMany({ where: { ownerId: ctx.user.id, runId: null }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], select: { id: true, cardBack: true, mat: true, playmat: true, coin: true } }),
     ]);
     const defaults = { cardBack: defaultOf('cardBack', user.cardBack, has), mat: defaultOf('mat', user.mat, has), playmat: defaultOf('playmat', user.playmat, has), coin: defaultOf('coin', user.coin, has) };
@@ -55,6 +57,11 @@ export const cosmeticsRouter = router({
     const has = await cosmeticsOf(ctx.user.id);
     if (has(def.id)) throw new TRPCError({ code: 'BAD_REQUEST', message: `You already have ${def.name}` });
     return prisma.$transaction(async (tx) => {
+      // The lock makes the already-have check hold against two buys at once: the second waits, then finds the row.
+      await lockUser(tx, ctx.user.id);
+      if (await tx.cosmeticUnlock.findUnique({ where: { userId_cosmeticId: { userId: ctx.user.id, cosmeticId: def.id } }, select: { cosmeticId: true } })) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: `You already have ${def.name}` });
+      }
       const { count } = await tx.user.updateMany({ where: { id: ctx.user.id, bank: { gte: price } }, data: { bank: { decrement: price } } });
       if (!count) throw new TRPCError({ code: 'BAD_REQUEST', message: `${def.name} costs ₱${price}: not enough in the bank` });
       await tx.cosmeticUnlock.create({ data: { userId: ctx.user.id, cosmeticId: def.id } });
@@ -73,7 +80,7 @@ export const cosmeticsRouter = router({
     if (!(await cosmeticsOf(ctx.user.id))(def.id)) throw new TRPCError({ code: 'BAD_REQUEST', message: `You don't have ${def.name} yet` });
     const decks = await prisma.deck.findMany({ where: { id: { in: input.deckIds }, ownerId: ctx.user.id, runId: null }, select: { id: true } });
     if (decks.length !== new Set(input.deckIds).size) throw new TRPCError({ code: 'BAD_REQUEST', message: "Assign it to your own decks (the run's deck takes its starting deck's)" });
-    const user = await prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { cardBack: true, mat: true, playmat: true, coin: true } });
+    const user = await userRow(ctx.user, { cardBack: true, mat: true, playmat: true, coin: true });
     const picked = user[def.kind];
     await prisma.$transaction([
       prisma.deck.updateMany({ where: { ownerId: ctx.user.id, runId: null, [def.kind]: def.id, id: { notIn: input.deckIds } }, data: { [def.kind]: null } }),

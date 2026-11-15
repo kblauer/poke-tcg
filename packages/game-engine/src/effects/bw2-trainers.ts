@@ -4,7 +4,7 @@
 // Great Ball takes any Pokémon card among the top 7 (or none); Max Potion heals one of the player's damaged Pokémon, then
 // discards every Energy card attached to it, as Expedition's Pokémon Nurse does.
 import { pokemonAt } from '../powers.js';
-import { pokemonName } from '../status.js';
+import { pokemonName, cleanCard } from '../status.js';
 import { own, targetsOf, type TrainerEffect } from '../trainers.js';
 import { ECARD1_TRAINERS } from './ecard1-trainers.js';
 import { FOSSIL_TRAINERS } from './fossil-trainers.js';
@@ -37,7 +37,7 @@ export const BW2_TRAINERS: Record<string, TrainerEffect> = {
     play(ctx) {
       const p = pokemonAt(ctx.me, ctx.choices.target!)!;
       p.damage = 0;
-      const energy = p.energy.map(({ provides: _, converted: _c, windless: _w, ...c }) => c);
+      const energy = p.energy.map(cleanCard);
       p.energy = [];
       ctx.me.discard.push(...energy);
       ctx.log(`Healed all damage from ${pokemonName(ctx.state, p)}${energy.length ? ` and discarded ${energy.length} Energy card${energy.length === 1 ? '' : 's'}` : ''}.`);

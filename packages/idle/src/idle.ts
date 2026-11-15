@@ -251,6 +251,11 @@ export interface SegmentReplay {
   throws: ThrowAsk[];
   /** Its wild battle can still take a ball (and party changes are queued meanwhile); missing (older runs'), it can. */
   throwable?: boolean;
+  /**
+   * Its Pokédex notes with stats (a catch, the party's), the server's: recorded once the segment is past (the next one, a
+   * catch-up, an action that keeps it whole), dropped with a cut that drops them (#204: a catch Stop undid was kept).
+   */
+  dex?: DexNote[];
 }
 
 /** Whether a run's last segment's wild battle can still take a ball (IdleState.replay). */
@@ -295,6 +300,8 @@ export type SegmentEvent =
       caughtBefore?: true;
       /** The hour on the run's clock as it began (HGSS's: its background's day, evening or night palette); none without a clock. */
       hour?: number;
+      /** When it begins, in ms from the segment's start (the server's clock for a ball asked for: throwBall). */
+      at?: number;
     }
   | { t: 'money'; amount: number; total: number; why: string }
   | { t: 'bought'; item: string; count: number; cost: number }
@@ -745,7 +752,9 @@ function applyIn(prev: IdleState, action: IdleAction): IdleResult {
     const check = applyNow(withPending(prev), action);
     if (!check.ok) return check;
     const state = structuredClone(prev);
-    state.pending = [...(prev.pending ?? []), action];
+    // A new order, or a Pokémon's slots set again, replaces the one waiting (#204: the queue grew without bound).
+    const replaces = (a: IdleAction) => (a.type === 'SET_ORDER' && action.type === 'SET_ORDER') || (a.type === 'SET_SLOTS' && action.type === 'SET_SLOTS' && a.uid === action.uid);
+    state.pending = [...(prev.pending ?? []).filter((a) => !replaces(a)), action];
     state.version += 1;
     return { ok: true, state };
   }
@@ -1231,6 +1240,7 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
     ticks: result.ticks,
     ...(o.kind === 'wild' && caught.has(o.foes[0]!.species) && { caughtBefore: true as const }),
     ...(hourOf(state, out.durationMs) !== null && { hour: hourOf(state, out.durationMs)! }),
+    at: out.durationMs,
   });
   // FireRed's intro and send-outs (the user's: their animations' time kept), then a tick a turn.
   out.durationMs += BATTLE_MS + openingMs(result.events, o.kind) + result.ticks * TICK_MS;
@@ -1896,11 +1906,13 @@ function simulateIn(from: IdleState, idleSettings: IdleSettings, caught: Set<num
     let walkedFrom: number | undefined;
     const a = areas()[state.area] as WalkArea;
     const leg = a.legs[state.leg]!;
+    // HGSS's trainers there only at night or only by day (the user's: Policemen Keith and Dirk only at night), by the run's clock.
+    const there = (t: (typeof a.trainers)[number]) => {
+      const time = timeOfDayOf(state, out.durationMs);
+      return time === null || (!(t.night && time !== 'night') && !(t.day && time === 'night'));
+    };
     const trainerHere = (i: number) => {
       const [m, x, y] = leg.track[i]!;
-      // HGSS's trainers there only at night or only by day (the user's: Policemen Keith and Dirk only at night), by the run's clock.
-      const time = timeOfDayOf(state, out.durationMs);
-      const there = (t: (typeof a.trainers)[number]) => time === null || (!(t.night && time !== 'night') && !(t.day && time === 'night'));
       return a.trainers.find((t) => t.leg === state.leg && t.map === m && !state.beaten.includes(t.key) && there(t) && t.sight.some(([sx, sy]) => sx === x && sy === y));
     };
     // The first step of an area (or after a white-out) can be in a trainer's sight already (a League room's boss), and so
@@ -1962,6 +1974,12 @@ function simulateIn(from: IdleState, idleSettings: IdleSettings, caught: Set<num
           legendMet = true;
           break;
         }
+        // A trainers loop past its last trainer (one there only by day or at night, not there now: Johto's): round again,
+        // never on to the next area (the grind holds until Continue run).
+        if (state.loop?.kind === 'trainers') {
+          restartTrainerLoop(state, out);
+          break;
+        }
         finishArea(state, out);
         out.durationMs += FADE_MS;
         break;
@@ -1991,10 +2009,11 @@ function simulateIn(from: IdleState, idleSettings: IdleSettings, caught: Set<num
         if (a.kind === 'gym' && trainer.key !== a.leader) state.gymBeaten = [...(state.gymBeaten ?? []), trainer.key];
         state.log.push(`Beat ${generation().trainers[key]!.class} ${generation().trainers[key]!.name}.`);
         if ((a.kind === 'gym' || a.kind === 'league') && trainer.key === a.leader) finishArea(state, out);
-        // A trainer beaten while grinding counts in the real run (the user's); a trainers loop's last beaten: round again.
+        // A trainer beaten while grinding counts in the real run (the user's); a trainers loop's last beaten (of those there
+        // at this time of day): round again.
         const loop = state.loop;
         if (loop && !loop.resume.beaten.includes(trainer.key)) loop.resume.beaten.push(trainer.key);
-        if (loop?.kind === 'trainers' && loop.keys.every((k) => state.beaten.includes(k))) restartTrainerLoop(state, out);
+        if (loop?.kind === 'trainers' && a.trainers.filter((t) => loop.keys.includes(t.key) && there(t)).every((t) => state.beaten.includes(t.key))) restartTrainerLoop(state, out);
       }
       break;
     }
@@ -2018,13 +2037,6 @@ function simulateIn(from: IdleState, idleSettings: IdleSettings, caught: Set<num
 }
 
 /**
- * The run as it stands at `now` while a segment plays (the user's: Stop, Continue run and the Town Map act at once): the
- * segment's start (IdleState.replay) moved along its events as far as the player has walked, a trainer's "!" or a battle
- * begun dropped (no rewards: the player where it began, the trainer still to fight), a town reached its town; the changes
- * queued and the slots and the party's order set meanwhile kept. The run unchanged when no segment is playing, or once a
- * catch has shown its "Gotcha!" (the user's: the Pokémon is kept; a catch ends its battle, the rest of it played).
- */
-/**
  * When a caught battle's "Gotcha!" shows, from the battle's start (the browser's pacing): the transition in, the opening,
  * the turns before the catching one (TICK_MS each), then the ball's animation, thrown first in its turn (an item goes
  * before a move).
@@ -2033,12 +2045,22 @@ function catchShownMs(b: Extract<SegmentEvent, { t: 'battle' }>): number {
   const i = b.events.findIndex((x) => x.t === 'ball' && x.caught);
   const ball = b.events[i] as Extract<BattleEvent, { t: 'ball' }>;
   const tick = b.events.slice(0, i).reverse().find((x): x is Extract<BattleEvent, { t: 'tick' }> => x.t === 'tick');
-  return BATTLE_MS - BATTLE_HOLD_MS + openingMs(b.events, b.kind) + Math.max(0, (tick?.n ?? 1) - 1) * TICK_MS + catchTextFrame(ball.shakes, true) * FRAME_MS;
+  return tickStartMs(b, tick?.n ?? 1) + catchTextFrame(ball.shakes, true) * FRAME_MS;
 }
+
+/** When a battle's tick `n` begins, from the battle's start (the browser's pacing): the transition in, the opening, the turns before it (TICK_MS each). */
+export const tickStartMs = (b: Extract<SegmentEvent, { t: 'battle' }>, n: number) => BATTLE_MS - BATTLE_HOLD_MS + openingMs(b.events, b.kind) + Math.max(0, n - 1) * TICK_MS;
 
 /** The choices that cut the segment playing (cutSegment) before they're applied: Stop, Continue run and the Town Map's moves (a legendary Pokémon's too). */
 export const cuts = (action: IdleAction) => action.type === 'CONTINUE_RUN' || action.type === 'TRAVEL' || action.type === 'GRIND_AT' || action.type === 'LEGEND' || (action.type === 'SET_MODE' && action.mode === 'stop');
 
+/**
+ * The run as it stands at `now` while a segment plays (the user's: Stop, Continue run and the Town Map act at once): the
+ * segment's start (IdleState.replay) moved along its events as far as the player has walked, a trainer's "!" or a battle
+ * begun dropped (no rewards: the player where it began, the trainer still to fight), a town reached its town; the changes
+ * queued and the slots and the party's order set meanwhile kept. The run unchanged when no segment is playing, or once a
+ * catch has shown its "Gotcha!" (the user's: the Pokémon is kept; a catch ends its battle, the rest of it played).
+ */
 export function cutSegment(saved: IdleState, now: number): IdleState {
   return inGeneration(saved.gen, () => cutIn(saved, now));
 }
@@ -2055,6 +2077,9 @@ function cutIn(saved: IdleState, now: number): IdleState {
   let town: number | null = null;
   for (const [i, e] of again.segment.events.entries()) {
     if (e.t === 'area') {
+      // Into another area (always the segment's last event: the walk off its end, finishArea): the fade begun, the run is
+      // through, the segment kept whole (#204: only the leg and step were moved, back to the old area's start).
+      if (e.area !== state.area) return saved;
       Object.assign(state, { leg: e.leg, step: e.step });
       if (i > 0) t += FADE_MS;
     } else if (e.t === 'grind' && state.grind) {
@@ -2099,11 +2124,6 @@ function cutIn(saved: IdleState, now: number): IdleState {
 }
 
 /**
- * A town's wait (the user's: no prompt waits on the player): TOWN_WAIT_MS for the player's choice, then the run takes it
- * itself, into the gym (or the League) while it's unbeaten, otherwise on to the next area. The browser counts the wait
- * down and takes the choice with the player's own action; this is the same for a run played offline (catchUp).
- */
-/**
  * A catch waiting for the player's choice (IdleState.choosing) while they're away: TOWN_WAIT_MS, as a town waits, then
  * the settings' choice (replace the lowest-level party Pokémon, or register and release it).
  */
@@ -2118,6 +2138,11 @@ function choiceWait(prev: IdleState, settings: PlaySettings): { state: IdleState
   return { state, segment: out };
 }
 
+/**
+ * A town's wait (the user's: no prompt waits on the player): TOWN_WAIT_MS for the player's choice, then the run takes it
+ * itself, into the gym (or the League) while it's unbeaten, otherwise on to the next area. The browser counts the wait
+ * down and takes the choice with the player's own action; this is the same for a run played offline (catchUp).
+ */
 function townWait(prev: IdleState): { state: IdleState; segment: Segment } {
   const state = structuredClone(prev);
   delete state.replay;
@@ -2195,6 +2220,55 @@ function catchUpIn(prev: IdleState, settings: IdleSettings, caught: Set<number>,
 
 /** The ₱ an ended run puts in the bank (the user's, 2026-10-25): its money once the Champion is beaten, nothing for a run given up. */
 export const bankedMoney = (state: Pick<IdleState, 'phase' | 'money'>) => (state.phase === 'won' ? state.money : 0);
+
+/**
+ * A saved run with any index past its region's data put back in bounds (#204: a regenerated data file that shortened a
+ * track or dropped an area made simulateSegment and idleView throw, so the account's whole mode failed): its place, the
+ * furthest place, the Town Map's reach, a grind's step, a route grind's loop. Anything moved drops the segment kept to
+ * play again (its start would hold the old indexes). The run unchanged (the same object) when nothing is out of bounds.
+ */
+export function repairState(saved: IdleState): IdleState {
+  return inGeneration(saved.gen, () => repairIn(saved));
+}
+
+function repairIn(saved: IdleState): IdleState {
+  const all = areas();
+  const state = structuredClone(saved);
+  let moved = false;
+  const fit = (n: number, size: number) => {
+    const v = Math.max(0, Math.min(Number.isInteger(n) ? n : 0, size - 1));
+    if (v !== n) moved = true;
+    return v;
+  };
+  // A place's area, and its leg and step along a walked area's tracks (a town's aren't read).
+  const place = (p: { area: number; leg: number; step: number }) => {
+    p.area = fit(p.area, all.length);
+    const a = all[p.area]!;
+    if (isTown(a)) return;
+    const legs = (a as WalkArea).legs;
+    p.leg = fit(p.leg, legs.length);
+    p.step = fit(p.step, legs[p.leg]!.track.length);
+  };
+  place(state);
+  if (state.progress) place(state.progress);
+  if (state.reached !== undefined) state.reached = fit(state.reached, all.length);
+  const a = all[state.area]!;
+  // The phase the area allows: a town waits (or grinds round its loop), anywhere else is walked.
+  if (state.phase === 'walking' && isTown(a)) ((state.phase = 'town'), (moved = true));
+  if ((state.phase === 'town' || state.phase === 'grinding') && !isTown(a)) ((state.phase = 'walking'), (moved = true));
+  if (state.phase === 'grinding' && !(isTown(a) && a.grind && state.grind)) ((state.phase = 'town'), delete state.grind, (moved = true));
+  if (state.phase === 'grinding' && isTown(a) && a.grind && state.grind) state.grind.at = fit(state.grind.at, a.grind.loop.length);
+  const loop = state.loop;
+  if (loop) {
+    place(loop.resume);
+    const legs = isTown(a) ? [] : (a as WalkArea).legs;
+    const broken = loop.kind === 'pace' ? !legs[loop.leg] || loop.from < 0 || loop.to >= legs[loop.leg]!.track.length || loop.from > loop.to : loop.kind === 'fish' ? !(a as WalkArea).fishing?.[loop.spot] : isTown(a);
+    if (broken) ((moved = true), delete state.loop);
+  }
+  if (!moved) return saved;
+  delete state.replay;
+  return state;
+}
 
 /** What the player sees of a run: everything but the RNG, with the area it's in. */
 export function idleView(saved: IdleState) {
