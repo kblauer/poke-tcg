@@ -40,6 +40,7 @@ export const MARTS: Record<string, string[]> = {
   'special-27': ['poke-doll', 'fresh-water', 'soda-pop', 'lemonade', 'repel', 'heart-mail'],
   'special-28': ['tiny-mushroom', 'poke-ball', 'potion'],
   'special-29': ['great-ball', 'super-potion', 'hyper-potion', 'antidote', 'paralyze-heal', 'super-repel', 'revive', 'air-mail'],
+  'stones': ['fire-stone', 'thunder-stone', 'water-stone', 'leaf-stone', 'moon-stone', 'sun-stone', 'shiny-stone', 'dusk-stone', 'dawn-stone'],
 };
 
 /** What each mart map's clerks sell (by map code, its scripts' order): 'badges' (the badge count's list) or a special list. */
@@ -67,7 +68,7 @@ export const MART_CLERKS: Record<string, string[]> = {
   'T24R0501': ['special-11'],
   'T25R1002': ['special-3', 'special-4'],
   'T25R1003': ['special-5'],
-  'T25R1004': ['special-6'],
+  'T25R1004': ['special-6', 'stones'],
   'T25R1005': ['special-7'],
   'T26FS0101': ['badges', 'special-10'],
   'T27FS0101': ['badges', 'special-9'],

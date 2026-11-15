@@ -523,7 +523,7 @@ AREAS = [
     town('azalea-town', 'Azalea Town', 'MAP_AZALEA', 'azalea-gym'),
     gym('azalea-gym', 'Azalea Gym', 'azalea-town', 'MAP_AZALEA_GYM', 'leader-bugsy', 'Hive'),
     route('ilex-forest', 'Ilex Forest', [leg(['MAP_ILEX_FOREST', 'MAP_ROUTE_34'], warp('MAP_ILEX_FOREST', 'MAP_AZALEA_ILEX_FOREST_GATEHOUSE'), edge('MAP_ROUTE_34', 'up'))], kind='dungeon'),
-    # Goldenrod's Department Store: its 2F (medicine, balls), 3F (X items) and 4F (vitamins), shown by the 2F's clerk; its 5F's TMs are the run's TM list's.
+    # Goldenrod's Department Store: its 2F (medicine, balls), 3F (X items) and 4F (vitamins, and the evolution stones: hgss_data.py's 'stones', the user's), shown by the 2F's clerk; its 5F's TMs are the run's TM list's.
     town('goldenrod-city', 'Goldenrod City', 'MAP_GOLDENROD', 'goldenrod-gym', stores=['MAP_GOLDENROD_DEPARTMENT_STORE_2F', 'MAP_GOLDENROD_DEPARTMENT_STORE_3F', 'MAP_GOLDENROD_DEPARTMENT_STORE_4F']),
     gym('goldenrod-gym', 'Goldenrod Gym', 'goldenrod-city', 'MAP_GOLDENROD_GYM', 'leader-whitney', 'Plain'),
     route('route-35', 'Routes 35, 36 and 37', [leg(['MAP_ROUTE_35', 'MAP_NATIONAL_PARK', 'MAP_ROUTE_36', 'MAP_ROUTE_37'], warp('MAP_ROUTE_35', 'MAP_ROUTE_35_GOLDENROD_GATEHOUSE'), edge('MAP_ROUTE_37', 'up'), via=('MAP_NATIONAL_PARK',))]),

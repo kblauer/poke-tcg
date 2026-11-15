@@ -456,6 +456,10 @@ for f in sorted(os.listdir(script_dir)):
         sold.append('badges' if std == 'std_pokemart' else f'special-{v}')
     if sold:
         clerks[m.group(1)] = sold
+# The evolution stones at Goldenrod's Department Store 4F, as Celadon's sells them in Kanto (the user's, 2026-11-15: HGSS's
+# marts sell none, so a Johto run never evolved by a stone): Kanto's five, then the Sun Stone and Gen 4's three.
+marts['stones'] = [item(f'ITEM_{s}') for s in ('FIRE_STONE', 'THUNDERSTONE', 'WATER_STONE', 'LEAF_STONE', 'MOON_STONE', 'SUN_STONE', 'SHINY_STONE', 'DUSK_STONE', 'DAWN_STONE')]
+clerks['T25R1004'].append('stones')
 write('marts.ts', 'src/scrcmd_mart.c, files/fielddata/script/scr_seq/*.s',
       "/** The Poké Marts' stock: by the run's badge count ('badges-0' to 'badges-8', ScrCmd_MartBuy's tiers) and each special list ('special-<n>', SpecialMartBuy's), in the game's order. */\nexport const MARTS: Record<string, string[]> = {\n"
       + ''.join(f'  {js(k)}: {js(v)},\n' for k, v in marts.items()) + '};\n\n'
