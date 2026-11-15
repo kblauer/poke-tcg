@@ -241,7 +241,7 @@ export function IdlePage() {
             <section className="space-y-2">
               <h3 className="text-lg font-semibold">Or start from your Pokédex</h3>
               <p className="text-sm text-slate-400">Any species you've caught, at level 5 with its best IVs and EVs on record.</p>
-              <Pokedex dex={data.dex} starters={picked.starters} shinyStarters={picked.shinyStarters} onPick={(id, shiny) => void start(id, shiny)} busy={actions.busy} />
+              <Pokedex dex={data.dex} gen={picked.gen} starters={picked.starters} shinyStarters={picked.shinyStarters} onPick={(id, shiny) => void start(id, shiny)} busy={actions.busy} />
             </section>
           )}
           <ReturnToPlay />
