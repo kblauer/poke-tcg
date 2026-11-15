@@ -3,7 +3,7 @@
 // cards are useful. Everything here is generic over cards: no card ids, and only the rules engine's own
 // effects decide what an attack does.
 import { answerChoice, attackError, attackSituation, performAttack, resolveChoices, situationAttacks, traceDamage, type AttackChoices, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { isBasicEnergy, isBasicPokemon, isLegend, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
+import { isBasicEnergy, isBasicPokemon, isLegend, namesMatch, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
 import { applyAction, cloneState, energyPool, resolveKnockouts, energyProvided, payCost, type PoolEnergy, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
 import { trainerEffect } from '../effects/index.js';
 import { pokemonPower } from '../powers.js';
@@ -584,11 +584,18 @@ function leastWantedFirst(state: GameState, me: PlayerState, pool: CardInstance[
  * any other question. Psychic Protector: the fewest cards whose reduction stops the attack being answered Knocking Out its
  * Flygon ex (protectorNeed), or none. Power Cancel: against a power in STRONG_POWERS (costs.ts) the 2 cards it wants least;
  * otherwise only 2 cards it doesn't want (unwantedCards), or none. Charity Tail: only 2 cards it doesn't want, or none.
- * Power Spray isn't one of these (resolveSearch plays it).
+ * Power Spray: against a power in STRONG_POWERS always; against any other only with a second Power Spray in the hand, so
+ * the last one is never spent on a minor power.
  */
 export function optionalCost(t: Turn): GameAction | null {
   const choice = t.state.pendingChoice!;
   const answer = (card?: CardInstance): GameAction => (card ? { type: 'RESOLVE_CHOICE', cardUid: card.uid } : { type: 'RESOLVE_CHOICE' });
+  if (choice.kind === 'powerCancel' && choice.spray) {
+    const spray = t.me.hand.find((c) => !!trainerEffect(c.defId)?.powerSpray);
+    const source = at(t.opp, choice.target);
+    const second = !!spray && t.me.hand.some((c) => c !== spray && namesMatch(t.def(c).name, t.def(spray).name));
+    return answer(spray && ((source && strongPower(source)) || second) ? spray : undefined);
+  }
   if (choice.kind === 'protector') {
     const picked = choice.picked.flatMap((uid) => t.me.hand.filter((c) => c.uid === uid));
     const order = [...picked, ...leastWantedFirst(t.state, t.me, t.me.hand.filter((c) => !picked.includes(c)))];

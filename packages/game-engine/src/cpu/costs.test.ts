@@ -1,5 +1,6 @@
 // Optional costs (agreed 2026-11-14, every difficulty): Psychic Protector paid when it stops a Knock Out of Flygon ex, Power
-// Cancel against a strong power (STRONG_POWERS) or with 2 cards the CPU doesn't want, Charity Tail only with 2 such cards.
+// Cancel against a strong power (STRONG_POWERS) or with 2 cards the CPU doesn't want, Charity Tail only with 2 such cards,
+// Power Spray against a strong power or with a second Power Spray in the hand.
 import { describe, expect, it } from 'vitest';
 import type { CardDef, PokemonCardDef } from '../cards.js';
 import { powerEffect } from '../effects/index.js';
@@ -116,6 +117,41 @@ describe.each(Object.entries(CPUS))('%s CPU', (_, cpu) => {
       const { s, answers } = answer(asked(false, ['potion', 'junk', 'potion']), cpu);
       expect(answers).toEqual([{ type: 'RESOLVE_CHOICE' }]);
       expect([misty(s).discard.length, ash(s).active!.powerUsedTurn]).toEqual([0, s.turn]);
+    });
+  });
+
+  describe('Power Spray', () => {
+    const asked = (strong: boolean, sprays: number) => {
+      const s = duel('charmander', 'onix');
+      if (strong) put(s, 'ash', 'active', mon('ex6-10', 'Pidgeot', C, 100, [], { stage: 'stage2', ...power('Quick Search') }));
+      else put(s, 'ash', 'active', mon('dp2-6', 'Bronzong', 'metal', 90, [], { stage: 'stage1', ...power('Miracle Oracle') }));
+      // 3 Pokémon SP, so Power Spray can be played.
+      put(s, 'misty', 'active', mon('sp-crobat', 'Crobat G', P, 80, []));
+      put(s, 'misty', 0, mon('sp-luxray', 'Luxray GL', 'lightning', 90, []));
+      put(s, 'misty', 1, mon('sp-garchomp', 'Garchomp C', C, 100, []));
+      misty(s).hand = [];
+      potion(s);
+      for (let i = 0; i < sprays; i++) hand(s, 'misty', { id: 'pl1-117', kind: 'trainer', name: "Team Galactic's Invention G-103 Power Spray", imageUrl: null, text: '' });
+      const after = act(s, 'ash', { type: 'USE_POWER', source: 'active', choices: {} });
+      expect(after.pendingChoice).toMatchObject({ kind: 'powerCancel', spray: true, player: 'misty' });
+      return after;
+    };
+    const sprayed = (s: GameState) => misty(s).discard.filter((c) => c.defId === 'pl1-117').length;
+
+    it('is played against a strong power, even the last one', () => {
+      const { s } = answer(asked(true, 1), cpu);
+      expect([sprayed(s), s.pendingChoice]).toEqual([1, undefined]);
+    });
+
+    it('is kept against any other power when it is the last one', () => {
+      const { s, answers } = answer(asked(false, 1), cpu);
+      expect(answers).toEqual([{ type: 'RESOLVE_CHOICE' }]);
+      expect(sprayed(s)).toBe(0);
+    });
+
+    it('is played against any other power with a second one in the hand', () => {
+      const { s } = answer(asked(false, 2), cpu);
+      expect([sprayed(s), misty(s).hand.filter((c) => c.defId === 'pl1-117').length]).toEqual([1, 1]);
     });
   });
 

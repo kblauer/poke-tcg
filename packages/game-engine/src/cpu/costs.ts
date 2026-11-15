@@ -1,5 +1,5 @@
-// The Poké-Powers every CPU difficulty pays Power Cancel against whatever the 2 cards are (the optional-cost rule, agreed
-// 2026-11-14: shared.ts's `optionalCost`). A proposal for the user to confirm: activated Poké-Powers (not Poké-Bodies, not
+// The Poké-Powers every CPU difficulty pays Power Cancel against whatever the 2 cards are, and plays its last Power Spray
+// against (the optional-cost rule, agreed 2026-11-14: shared.ts's `optionalCost`). Activated Poké-Powers (not Poké-Bodies, not
 // Abilities) whose use changes a game a lot. By card id; a reprint playing as its first print, or a card sharing its
 // power's effect (Feraligatr's Rain Dance is Blastoise's), counts too.
 import { powerEffect } from '../effects/index.js';
