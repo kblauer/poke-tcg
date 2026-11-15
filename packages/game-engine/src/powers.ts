@@ -342,7 +342,7 @@ export interface PowerEffect {
   mimic?: boolean;
   /** Magma Pool: when it moves from the Active spot to the Bench, a Fire Energy card goes from it to the new Active Pokémon (engine.ts, newActives). */
   magmaPool?: boolean;
-  /** Allergic Pollen: Pokémon Powers can't do anything with the cards in either discard pile (discardsLocked); attacks can (the user's, 2026-11-14). */
+  /** Allergic Pollen: Pokémon Powers can't do anything with the cards in either discard pile (discardsLocked). Pokémon Powers only; never attacks or Trainer cards (the user's, 2026-11-14). */
   allergicPollen?: boolean;
   /** Unown K's Keep: the opponent's attacks, Pokémon Powers and Trainer cards can't discard Energy cards from its owner's Pokémon with Unown in their names (energyKept). */
   keep?: boolean;
@@ -1166,7 +1166,10 @@ const anyWorking = (sides: Sides, cards: CardLibrary, has: (effect: PowerEffect)
 /** Prehistoric Memory is working: every Evolved Pokémon can use the attacks of the cards it evolved from (as with Recall). */
 export const prehistoricMemory = (sides: Sides, cards: CardLibrary) => anyWorking(sides, cards, (e) => e.prehistoricMemory);
 
-/** Allergic Pollen is working: Pokémon Powers can't do anything with cards in discard piles. Attacks can (the user's, 2026-11-14: "Allergic Pollen should not stop attacks"). */
+/**
+ * Allergic Pollen is working: Pokémon Powers can't do anything with cards in discard piles. Pokémon Powers only; never attacks
+ * or Trainer cards (the user's, 2026-11-14: "Allergic Pollen should not stop attacks", "Trainer cards shouldn't check Pollen").
+ */
 export const discardsLocked = (sides: Sides, cards: CardLibrary) => anyWorking(sides, cards, (e) => e.allergicPollen);
 
 /**

@@ -311,6 +311,36 @@ describe('the discard-pile lock (Allergic Pollen)', () => {
     expect(reaches(outcome(go, true))).toBe(true);
   });
 
+  /** Trainer cards that used to check the lock: Allergic Pollen never stops a Trainer card (the user's, 2026-11-14). `choices`: the PLAY_TRAINER answers. */
+  const TRAINER_CARDS: [name: string, id: string, choices?: Record<string, unknown>][] = [
+    ['Super Rod', 'bw3-95'],
+    ['Fossil Excavator', 'dp2-111', { pick: 1 }],
+    ['Night Maintenance', 'dp2-113'],
+    ['Time-Space Distortion', 'dp2-124'],
+    ['Premier Ball', 'dp4-101', { pick: 1 }],
+    ['Energy Pickup', 'dp6-132'],
+    ["Marley's Request", 'dp7-87'],
+  ];
+  it.each(TRAINER_CARDS)('%s takes from the discard pile just the same while Allergic Pollen works', (name, cardId, choices) => {
+    const played = (pollen: boolean) => {
+      const s = flips(duel('charmander', 'onix'), true, true, true);
+      const extra: CardDef[] = [
+        { id: cardId, kind: 'trainer', name, imageUrl: null, text: '' },
+        { id: 'helix', kind: 'trainer', name: 'Helix Fossil', imageUrl: null, text: '' },
+        mon('lvx', 'Dialga', C, 110, [], { stage: 'levelUp' }),
+      ];
+      s.cards = { ...s.cards, ...Object.fromEntries(extra.map((d) => [d.id, d])) };
+      ash(s).discard = [['charmander', id('charmander')], ['fire', id('fire')], ['potion', id('potion')], ['bill', id('bill')], ['helix', 'helix'], ['lvx', 'lvx']].map(([u, d]) => ({ uid: `gone-${u}`, defId: d! }));
+      if (pollen) put(s, 'misty', 0, mon('neo3-35', 'Parasect', C, 60, [], { stage: 'stage1', power: { name: 'Allergic Pollen', text: '' } }));
+      const uid = hand(s, 'ash', extra[0]!);
+      const after = choices ? act(s, 'ash', { type: 'PLAY_TRAINER', cardUid: uid, choices }) : playAuto(s, 'ash', uid);
+      return { asked: after.pendingChoice?.kind ?? null, discard: ash(after).discard.filter((c) => c.uid.startsWith('gone-')).length };
+    };
+    const free = played(false);
+    expect(free.asked !== null || free.discard < 6).toBe(true);
+    expect(played(true)).toEqual(free);
+  });
+
   it('a Trainer card still takes from the discard pile (the lock is for Pokémon Powers)', () => {
     const s = duel('charmander', 'onix');
     ash(s).discard = [{ uid: 'gone-fire', defId: id('fire') }, { uid: 'gone-water', defId: id('water') }];
