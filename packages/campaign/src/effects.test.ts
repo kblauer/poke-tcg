@@ -7,7 +7,8 @@ import { catalogDef } from './test-pool.js';
 
 /**
  * Attack names the tables have under the name the seed gives the card, which the test pool doesn't copy (TCGDEX_FIXES:
- * Southern Islands Marill's and Shining Tyranitar's attacks, Legendary Collection's two misspelt ones, re-seed for them),
+ * Southern Islands Marill's and Shining Tyranitar's attacks, Legendary Collection's two misspelt ones, the unnamed ones of four EX Legend Maker Pokémon-ex, Piplup DP03, Buizel DP13 and
+ * Majestic Dawn Glameow, re-seed for them),
  * and EX FireRed & LeafGreen's 107, whose effect is keyed on the printed spelling TCGdex doesn't use.
  */
 const KNOWN: Record<string, string[]> = {
@@ -18,6 +19,12 @@ const KNOWN: Record<string, string[]> = {
   'ecard1-96': ['Entangling Thread'],
   'ecard2-109': ['Doubleslap'],
   'ex6-107': ['Crush and Burn'],
+  'ex12-83': ['Flame Swirl'],
+  'ex12-84': ['Vortex Chop'],
+  'ex12-89': ['Ice Throw'],
+  'dpp-DP03': ['Water Splash'],
+  'dpp-DP13': ['Splash About'],
+  'dp5-65': ['Call for Family', 'Rip Claw'],
 };
 
 const has = (id: string) => {

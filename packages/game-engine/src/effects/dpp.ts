@@ -16,6 +16,7 @@ import { DP2 } from './dp2.js';
 import { DP4 } from './dp4.js';
 import { DP6 } from './dp6.js';
 import { DP7 } from './dp7.js';
+import { template } from './bw2.js';
 import { energyAmount } from './ex1.js';
 import { discardOwn, energyCardOf } from './ex2.js';
 import { trainerEffect } from './index.js';
@@ -34,6 +35,10 @@ const evolutionWish = (source: string): AttackEffect => ({
 });
 
 export const DPP: Record<string, Record<string, AttackEffect>> = {
+  // Piplup – Water Splash; Buizel – Splash About: the shared wordings, from the printed cards (TCGdex has neither card's
+  // attack names or text; the seed's TCGDEX_FIXES has them). Piplup's Peck is 10 for no Energy.
+  'dpp-DP03': { 'Water Splash': template('flipForMore', 20, 'Water Splash', 20, 10) },
+  'dpp-DP13': { 'Splash About': template('lessEnergyMore', 10, 'Splash About', 10, 10) },
   // Shieldon – Hard Face: 20 less damage to it next turn.
   'dpp-DP08': {
     'Hard Face': {

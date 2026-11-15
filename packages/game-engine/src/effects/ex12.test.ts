@@ -157,4 +157,51 @@ describe('EX Legend Maker', () => {
     expect(ash(s).active!.card.defId).toBe('dustox');
     expect(tryAttack(s, 0).ok).toBe(false);
   });
+
+  it('Ice Throw: base damage 120 against a Fighting Pokémon, 80 otherwise', () => {
+    const walrein = mon('ex12-89', 'Walrein ex', W, 150, [['Ice Throw', [W, W, C, C], 80]], { ex: true, stage: 'stage2' });
+    for (const [type, damage] of [[FI, 120], [C, 80]] as const) {
+      const s = duel('charmander', 'onix');
+      put(s, 'ash', 'active', walrein, ['water', 'water', 'water', 'water']);
+      put(s, 'misty', 'active', mon(`big-${type}`, 'Target', type, 300, []));
+      expect(misty(attack(s, 0)).active!.damage).toBe(damage);
+    }
+  });
+
+  it('Vortex Chop: base damage 100 if the Defending Pokémon has any Resistance', () => {
+    const armaldo = mon('ex12-84', 'Armaldo ex', FI, 150, [['Vortex Chop', [FI, C, C], 70]], { ex: true, stage: 'stage2' });
+    for (const [resistance, damage] of [[{ type: W, amount: 30 }, 100], [null, 70]] as const) {
+      const s = duel('charmander', 'onix');
+      put(s, 'ash', 'active', armaldo, ['fighting', 'fighting', 'fighting']);
+      put(s, 'misty', 'active', big('Snorlax', { resistance }));
+      expect(misty(attack(s, 0)).active!.damage).toBe(damage);
+    }
+  });
+
+  it("Flame Swirl: 2 Fire Energy or 1 React Energy card, the player's pick; with neither it can't be used (the user's)", () => {
+    const arcanine = (cost = [F, F, C]) => mon('ex12-83', 'Arcanine ex', F, 150, [['Flame Swirl', cost, 100]], { ex: true, stage: 'stage1' });
+    const setUp = (energy: string[], cost?: typeof F[]) => {
+      const s = duel('charmander', 'onix');
+      s.cards = { ...s.cards, 'ex12-82': REACT };
+      const p = put(s, 'ash', 'active', arcanine(cost), energy);
+      put(s, 'misty', 'active', big('Snorlax'));
+      return { s, p };
+    };
+    const left = (s: GameState) => ash(s).active!.energy.map((e) => e.defId).sort();
+    // React picked: only it goes.
+    let { s, p } = setUp(['fire', 'fire', 'ex12-82']);
+    const react = p.energy[2]!.uid;
+    expect(left(attack(s, 0, { energyUids: [react] }))).toEqual(['fire', 'fire']);
+    // A Fire Energy picked: 2 Fire Energy go.
+    ({ s, p } = setUp(['fire', 'fire', 'ex12-82']));
+    const after = attack(s, 0, { energyUids: [p.energy[0]!.uid] });
+    expect(left(after)).toEqual(['ex12-82']);
+    expect(misty(after).active!.damage).toBe(100);
+    // Only 2 Fire Energy: they go, without a question.
+    ({ s } = setUp(['fire', 'fire', 'water']));
+    expect(left(attack(s, 0))).toEqual(['water']);
+    // Neither 2 Fire Energy nor a React Energy card: it can't be used.
+    ({ s } = setUp(['fire', 'water'], [C]));
+    expect(tryAttack(s, 0).ok).toBe(false);
+  });
 });

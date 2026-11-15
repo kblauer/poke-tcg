@@ -6,13 +6,13 @@
 // top card into its owner's deck; Influence puts its Pokémon onto the Bench as Basic Pokémon; Regice ☆, Regirock ☆ and
 // Registeel ☆'s Final attacks need the opponent at 1 Prize card and the attacker as its player's only Pokémon in play.
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
-import { isBasicInPlay, lookupCard, namesMatch } from '../cards.js';
+import { hasType, isBasicInPlay, lookupCard, namesMatch, type CardLibrary } from '../cards.js';
 import { isEnergyCardOf, isSpecialEnergy, type InPlayPokemon, type Target } from '../engine.js';
 import { reactCount } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { clearSpecialConditions, devolvable, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
 import { trainerEffect } from './index.js';
-import { benchedSlots, extraEnergy, guardNext, headsUntilTails, opponentBenchChoice, same, selfdestruct } from './common.js';
+import { benchedSlots, discardOwnEnergy, energyCardOf, energyCards, extraEnergy, guardNext, headsUntilTails, opponentBenchChoice, same, selfdestruct } from './common.js';
 import { ascension } from './ex5.js';
 import { discardOwn, inPlay, putCounters, typeCards } from './ex2.js';
 import { lureIn, notNextTurn, snipe } from './ex6.js';
@@ -87,6 +87,13 @@ export const derail = (damage: number): AttackEffect => ({
     if (ctx.choices.defenderEnergyUid) ctx.discardDefenderEnergy(ctx.choices.defenderEnergyUid);
   },
 });
+
+/** Flame Swirl's options on Arcanine ex: its Fire Energy cards (only when 2 or more) and React Energy cards; null with neither. */
+function flameSwirlCards(cards: CardLibrary, p: InPlayPokemon) {
+  const fire = energyCards(p).filter((e) => energyCardOf(cards, e, 'fire'));
+  const react = energyCards(p).filter((e) => lookupCard(cards, e.defId).name === 'React Energy');
+  return fire.length >= 2 || react.length ? { fire: fire.length >= 2 ? fire : [], react } : null;
+}
 
 export const EX12: Record<string, Record<string, AttackEffect>> = {
   // Aerodactyl – Speed Stroke.
@@ -353,6 +360,32 @@ export const EX12: Record<string, Record<string, AttackEffect>> = {
   'ex12-64': { 'Important Errands': { run: (ctx) => void (ctx.me.deck.length && ctx.pend({ kind: 'pickFromDeck', source: 'Important Errands', filter: 'energyNamed', name: 'React Energy', reveal: true })) } },
   // Wurmple – String Pull: one of the opponent's Benched Pokémon switched in.
   'ex12-70': { 'String Pull': lureIn("Choose one of your opponent's Benched Pokémon to switch in") },
+  // Arcanine ex – Flame Swirl: 2 Fire Energy cards or 1 React Energy card discarded, the player's pick when both can go; with
+  // neither, it can't be used (the user's, 2026-11-15). TCGdex leaves the attack out (the seed's TCGDEX_FIXES has it).
+  'ex12-83': {
+    'Flame Swirl': {
+      blocked: (s) => (flameSwirlCards(s.cards, s.attacker) ? null : 'Flame Swirl needs 2 Fire Energy or 1 React Energy card attached to Arcanine ex'),
+      choices(s): ChoiceSpec[] {
+        const cards = flameSwirlCards(s.cards, s.attacker);
+        return cards?.fire.length && cards.react.length
+          ? [{ kind: 'ownEnergy', count: 1, options: [...cards.react, ...cards.fire], prompt: 'Choose a React Energy card to discard, or a Fire Energy card (2 Fire Energy are discarded)' }]
+          : [];
+      },
+      run(ctx) {
+        ctx.hit(100);
+        const cards = flameSwirlCards(ctx.state.cards, ctx.attacker);
+        if (!cards) return;
+        const picked = ctx.attacker.energy.find((e) => e.uid === ctx.choices.energyUids?.[0]);
+        if (picked && cards.fire.includes(picked)) {
+          discardOwn(ctx, [picked]);
+          discardOwnEnergy(ctx, 1, 'Flame Swirl', ['fire']);
+        } else if (cards.react.length) discardOwn(ctx, [picked && cards.react.includes(picked) ? picked : cards.react[0]!]);
+        else discardOwnEnergy(ctx, 2, 'Flame Swirl', ['fire']);
+      },
+    },
+  },
+  // Armaldo ex – Vortex Chop: base damage 100 if the Defending Pokémon has any Resistance (as Black & White Marowak's). TCGdex leaves it out.
+  'ex12-84': { 'Vortex Chop': { run: (ctx) => void ctx.hit(ctx.defenderDef.resistance || ctx.defenderDef.moreResistance?.length ? 100 : 70) } },
   // Banette ex – Shadow Chant: 10 more for each Supporter card in the discard pile, at most 60 more.
   'ex12-85': { 'Shadow Chant': { run: (ctx) => void ctx.hit(30 + Math.min(60, 10 * ctx.me.discard.filter((c) => !!trainerEffect(c.defId)?.supporter).length)) } },
   // Dustox ex – Silver Wind: next turn, attacks that damage the Defending Pokémon do 30 more (as EX Hidden Legends Masquerain's).
@@ -395,6 +428,8 @@ export const EX12: Record<string, Record<string, AttackEffect>> = {
       },
     },
   },
+  // Walrein ex – Ice Throw: base damage 120 against a Fighting Pokémon (the printed card's icon). TCGdex leaves it out.
+  'ex12-89': { 'Ice Throw': { run: (ctx) => void ctx.hit(hasType(ctx.defenderDef, 'fighting') ? 120 : 80) } },
   // Regice ☆ – Ice Barrier; Final Blizzard: 30 to each of the opponent's Benched Pokémon at the last stand.
   'ex12-90': {
     'Ice Barrier': exProof(10),

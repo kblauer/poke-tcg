@@ -351,6 +351,53 @@ const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
       { name: 'Dragon Claw', cost: ['Grass', 'Lightning', 'Colorless', 'Colorless', 'Colorless'], damage: '100', effect: null },
     ],
   },
+  // EX Legend Maker Arcanine ex, Armaldo ex, Dustox ex and Walrein ex: TCGdex has their second attacks' costs and damage only
+  // (from the printed cards; Ice Throw's icon is Fighting's).
+  'ex12-83': {
+    attacks: [
+      { name: 'Overrun', cost: ['Fire', 'Colorless'], damage: '30', effect: "Does 20 damage to 1 of your opponent's Benched Pokémon. (Don't apply Weakness and Resistance for Benched Pokémon.)" },
+      { name: 'Flame Swirl', cost: ['Fire', 'Fire', 'Colorless'], damage: '100', effect: 'Discard 2 Fire Energy or 1 React Energy card attached to Arcanine ex.' },
+    ],
+  },
+  'ex12-84': {
+    attacks: [
+      { name: 'Spiral Drain', cost: ['Fighting', 'Colorless'], damage: '40', effect: 'Remove 2 damage counters from Armaldo ex.' },
+      { name: 'Vortex Chop', cost: ['Fighting', 'Colorless', 'Colorless'], damage: '70', effect: "If the Defending Pokémon has any Resistance, this attack's base damage is 100 instead of 70." },
+    ],
+  },
+  'ex12-86': {
+    attacks: [
+      {
+        name: 'Silver Wind',
+        cost: ['Grass', 'Colorless'],
+        damage: '40',
+        effect: 'During your next turn, if an attack does damage to the Defending Pokémon (after applying Weakness and Resistance), that attack does 30 more damage.',
+      },
+      { name: 'Cutting Wind', cost: ['Grass', 'Colorless', 'Colorless'], damage: '70', effect: null },
+    ],
+  },
+  'ex12-89': {
+    attacks: [
+      { name: 'Water Arrow', cost: ['Water', 'Colorless'], damage: null, effect: "Choose 1 of your opponent's Pokémon. This attack does 40 damage to that Pokémon. (Don't apply Weakness and Resistance for Benched Pokémon.)" },
+      { name: 'Ice Throw', cost: ['Water', 'Water', 'Colorless', 'Colorless'], damage: '80', effect: "If the Defending Pokémon is a Fighting Pokémon, this attack's base damage is 120 instead of 80." },
+    ],
+  },
+  // DP Black Star Promos Piplup (DP03) and Buizel (DP13), Majestic Dawn Glameow: TCGdex has their attacks' costs and damage only.
+  'dpp-DP03': {
+    attacks: [
+      { name: 'Peck', cost: [], damage: '10', effect: null },
+      { name: 'Water Splash', cost: ['Water', 'Colorless'], damage: '20+', effect: 'Flip a coin. If heads, this attack does 20 damage plus 10 more damage.' },
+    ],
+  },
+  'dpp-DP13': {
+    attacks: [{ name: 'Splash About', cost: ['Water'], damage: '10+', effect: 'If Buizel has less Energy attached to it than the Defending Pokémon, this attack does 10 damage plus 10 more damage.' }],
+  },
+  'dp5-65': {
+    attacks: [
+      { name: 'Call for Family', cost: ['Colorless'], damage: null, effect: 'Search your deck for a Basic Pokémon and put it onto your Bench. Shuffle your deck afterward.' },
+      { name: 'Rip Claw', cost: ['Colorless', 'Colorless'], damage: '10', effect: 'Flip a coin. If heads, discard an Energy attached to the Defending Pokémon.' },
+    ],
+  },
   'ex7-109': {
     attacks: [
       { name: 'Tackle', cost: ['Colorless'], damage: '10', effect: null },
