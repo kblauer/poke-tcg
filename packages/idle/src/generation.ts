@@ -91,6 +91,12 @@ export interface Generation {
    * the Town Map, the player's sprites, the battle's timing): FireRed's GBA screens or HeartGold's DS ones.
    */
   look: 'frlg' | 'hgss';
+  /**
+   * The game whose rules outside the battle rules it plays by (FireRed's, HeartGold's, Emerald's), where two games with
+   * the same battle rules differ (issue #226: Emerald's wild encounters, its leads' abilities, its prize for double
+   * battles, its Repeat Ball and Shedinja; Kanto's FireRed's as they were).
+   */
+  game: 'firered' | 'heartgold' | 'emerald';
   /** Whose battle rules its battles play by (battle.ts): FireRed's (3) or HeartGold's (4: the physical/special split, Gen 4's damage, effects, abilities and items; and its wild encounters, encounters4.ts). */
   battleRules: 3 | 4;
   /** The town from which every store sells TMs and HMs (Buy TMs, the user's: Kanto's Celadon City, Johto's Goldenrod City, their department stores'). */
@@ -134,6 +140,7 @@ const KANTO: Generation = {
   home: 'Pallet Town',
   lab: 'PalletTown_ProfessorOaksLab',
   look: 'frlg',
+  game: 'firered',
   battleRules: 3,
   tmShop: 'celadon-city',
   champion: 'champion',
@@ -171,6 +178,7 @@ const JOHTO: Generation = {
   home: 'New Bark Town',
   lab: 'NewBarkElmsLab1f',
   look: 'hgss',
+  game: 'heartgold',
   battleRules: 4,
   tmShop: 'goldenrod-city',
   champion: 'lance',
@@ -214,6 +222,7 @@ const HOENN: Generation = {
   lab: 'LittlerootTown_ProfessorBirchsLab',
   // Emerald's screens are to come (step 5); FireRed's are the same console's until then.
   look: 'frlg',
+  game: 'emerald',
   battleRules: 3,
   tmShop: 'lilycove-city',
   champion: 'wallace',

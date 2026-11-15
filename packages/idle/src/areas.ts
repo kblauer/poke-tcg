@@ -34,6 +34,11 @@ export interface IdleMap {
   section: string;
   /** Its walking heights (HGSS's maps that aren't flat: data/gen2/heights.ts), the sprites raised by them (mapLift). None on a flat map or FireRed's. */
   heights?: MapHeights;
+  /**
+   * Emerald's weather here that battles start in (the user's, issue #226: Route 111's desert's sandstorm, the rain on
+   * Routes 119, 120 and 123), for good; and Sand Veil's lead halving the wild Pokémon in a sandstorm. None elsewhere.
+   */
+  weather?: 'rain' | 'sandstorm' | 'sun';
 }
 
 /**

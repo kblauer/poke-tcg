@@ -264,6 +264,11 @@ for n in range(1, 387):
         'friendship': num(f['friendship']),
         **({'heldItems': held} if any(held) else {}),
     })
+# Deoxys's stats in Emerald's battles: its Speed Forme's (pokemon.c's sDeoxysBaseStats, GetDeoxysStat outside link
+# battles), not species_info.h's Normal Forme ones; in our order HP, Attack, Defense, Sp. Atk, Sp. Def, Speed.
+deoxys = re.search(r'sDeoxysBaseStats\[\] =\s*\{(.*?)\};', read('src/pokemon.c'), re.S).group(1)
+stat = dict(re.findall(r'\[STAT_(\w+)\]\s*=\s*(\d+)', deoxys))
+species[385]['base'] = [int(stat[k]) for k in ('HP', 'ATK', 'DEF', 'SPATK', 'SPDEF', 'SPEED')]
 write('species.ts', 'src/data/pokemon/species_info.h, level_up_learnsets.h, evolution.h, pokedex_entries.h, pokedex_text.h, src/data/pokemon_graphics/*_coordinates.h, enemy_mon_elevation.h',
       "import type { SpeciesData } from '../../types.js';\n\n/** Every species to Deoxys by National Pokédex number (index 0 is #1): base stats, names, level-up learnsets, evolutions, base friendship and wild held items ([common, rare]). Stats in the order HP, Attack, Defense, Sp. Atk, Sp. Def, Speed. */\nexport const SPECIES: SpeciesData[] = [\n"
       + ''.join('  ' + js(s) + ',\n' for s in species) + '];\n')

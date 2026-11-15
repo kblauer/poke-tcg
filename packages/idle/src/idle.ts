@@ -6,13 +6,14 @@
 // waits on the player, online or caught up offline (catchUp).
 import { catchTextFrame, FRAME_MS, openingMs } from './battle-timing.js';
 import { int, rngFrom, type Rng } from '@poke-tcg/campaign';
-import { areas, areaById, areaIndex, areaOpen, isOptional, isTown, legendOf, mapView, TERRAIN_LETTERS, type IdleArea, type IdleLeg, type TownArea, type TrackStep, type WalkArea } from './areas.js';
+import { areas, areaById, areaIndex, areaOpen, isOptional, isTown, legendOf, mapView, TERRAIN_LETTERS, type IdleArea, type IdleLeg, type IdleMap, type TownArea, type TrackStep, type WalkArea } from './areas.js';
 import { opponentMon, simulateBattle, type BattleEvent, type BattleResult, MEDICINE, type Terrain } from './battle.js';
 import { BALLS, type ThrowAsk } from './catch.js';
 import { itemData, species } from './data.js';
 import { generation, inGeneration, perGeneration, type IdleGen } from './generation.js';
 import { evolve, leavesShedinja, levelEvolution, SHEDINJA, stoneEvolution, usableStones } from './evolution.js';
 import { fishBite4, pickWild4, ROD_TABLES, timeOfDay, wildCheck4, type TimeOfDay } from './encounters4.js';
+import { fishBiteE, pickWildE, wildCheckE } from './encounters-emerald.js';
 import { abilityOf, autoSlots, basicFor, createMon, familyMovesUpTo, isBaseForm, newUid } from './mon.js';
 import { MAX_LEVEL } from './stats.js';
 import { isMachine, machinePrice, slotMoves } from './tms.js';
@@ -111,6 +112,8 @@ interface EncounterState {
   prev: string;
   /** HGSS's: the way the player last faced at a check (encounters4.ts's EncounterState4). */
   face?: string;
+  /** Emerald's: the map it's on (a new one counts the steps with no wild Pokémon from 0: encounters-emerald.ts). */
+  map?: string;
 }
 
 export interface IdleState {
@@ -1171,9 +1174,11 @@ function trainerParty(rng: Rng, key: string): Mon[] {
   });
 }
 
-/** HGSS's moment for the special balls (BattleSetup.night, caughtBefore: the Dusk and Repeat Balls), by the run's clock; nothing for Kanto's. */
+/** HGSS's moment for the special balls (BattleSetup.night, caughtBefore: the Dusk and Repeat Balls), by the run's clock; Emerald's Repeat Ball; nothing for Kanto's. */
 function ballMoment(state: IdleState, caught: ReadonlySet<number>, kind: 'wild' | 'trainer', id: number, out: Segment) {
-  if (generation().battleRules !== 4 || kind !== 'wild') return {};
+  if (kind !== 'wild') return {};
+  if (generation().game === 'emerald') return caught.has(id) ? { caughtBefore: true } : {};
+  if (generation().battleRules !== 4) return {};
   return { ...(timeOfDayOf(state, out.durationMs) === 'night' && { night: true }), ...(caught.has(id) && { caughtBefore: true }) };
 }
 
@@ -1226,12 +1231,12 @@ function settleCaught(state: IdleState, mon: Mon, slot: number | null, out: Segm
  * Plays one battle and settles it: experience and levels kept, evolutions after it (the game's), prize money, a
  * badge, a caught Pokémon kept or released, or a white-out (back to the area's start, its trainers to fight again).
  */
-function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, o: { kind: 'wild' | 'trainer'; foes: Mon[]; trainer?: string; tile: string; scene: string }, out: Segment) {
+function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, o: { kind: 'wild' | 'trainer'; foes: Mon[]; trainer?: string; tile: string; scene: string; weather?: IdleMap['weather'] }, out: Segment) {
   const tryCatch = o.kind === 'wild' && shouldCatch(state, settings, caught, o.foes[0]!.species);
   const before = state.party.map((m) => m.level);
   const t = o.trainer ? generation().trainers[o.trainer] : null;
   const result = simulateBattle(
-    { kind: o.kind, party: state.party, foes: o.foes, foeItems: t?.items ?? [], bag: state.bag, settings: { autoHeal: settings.autoHeal, revives: settings.revives, tryCatch, catchMove: settings.catchMove }, boss: !!o.trainer && /^(leader|elite-four|champion)/.test(o.trainer), badges: state.badges.length, terrain: terrainOf(o.tile), ...(o.kind === 'wild' && settings.throwAt?.length && { throwAt: settings.throwAt }), ...(state.debugCatch && { sureCatch: true }), ...ballMoment(state, caught, o.kind, o.foes[0]!.species, out) },
+    { kind: o.kind, party: state.party, foes: o.foes, foeItems: t?.items ?? [], bag: state.bag, settings: { autoHeal: settings.autoHeal, revives: settings.revives, tryCatch, catchMove: settings.catchMove }, boss: !!o.trainer && /^(leader|elite-four|champion)/.test(o.trainer), badges: state.badges.length, terrain: terrainOf(o.tile), ...(o.kind === 'wild' && settings.throwAt?.length && { throwAt: settings.throwAt }), ...(state.debugCatch && { sureCatch: true }), ...ballMoment(state, caught, o.kind, o.foes[0]!.species, out), ...(o.weather && { weather: o.weather }) },
     rng,
   );
   out.events.push({
@@ -1267,9 +1272,11 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
     if (!into) return m;
     out.events.push({ t: 'evolve', uid: m.uid, from: m.species, into });
     state.log.push(`${species(m.species).name} evolved into ${species(into).name}!`);
-    // Nincada's evolution leaves a Shedinja with room in the party and a Poké Ball (HGSS's level_shedinja: one ball used).
-    if (leavesShedinja(m.species) && state.party.length + shedinjas.length < 6 && (state.bag['poke-ball'] ?? 0) > 0) {
-      state.bag['poke-ball']! -= 1;
+    // Nincada's evolution leaves a Shedinja with room in the party, and in HGSS a Poké Ball (level_shedinja: one ball
+    // used; Emerald's CreateShedinja needs only the room).
+    const ball = generation().game !== 'emerald';
+    if (leavesShedinja(m.species) && state.party.length + shedinjas.length < 6 && (!ball || (state.bag['poke-ball'] ?? 0) > 0)) {
+      if (ball) state.bag['poke-ball']! -= 1;
       shedinjas.push({ ...evolve(m, SHEDINJA, state.bag).mon, uid: newUid(rng) });
       state.log.push(`${species(SHEDINJA).name} joined the party!`);
     }
@@ -1299,9 +1306,10 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
   }
   if (result.result === 'won' && t && o.trainer) {
     // The full prize the first time a trainer is beaten in a run, a quarter after that (the user's: grinding them).
-    // The class's × the last Pokémon's level, twice for an HGSS double battle: a quarter of the games' (both FireRed's
-    // Cmd_getmoneyreward and HGSS's BattleSystem_CalcPrizeMoney multiply by 4 too; the user's, 2026-11-08: Gen 2 paid 4x Gen 1).
-    const full = t.money * o.foes.at(-1)!.level * (generation().battleRules === 4 && t.double ? 2 : 1);
+    // The class's × the last Pokémon's level, twice for a double battle: a quarter of the games' (FireRed's
+    // Cmd_getmoneyreward, Emerald's GetTrainerMoneyToGive and HGSS's BattleSystem_CalcPrizeMoney multiply by 4 too; the
+    // user's, 2026-11-08: Gen 2 paid 4x Gen 1). Kanto's data marks no double battles.
+    const full = t.money * o.foes.at(-1)!.level * (t.double ? 2 : 1);
     const rematch = (state.paid ?? []).includes(o.trainer);
     const prize = rematch ? Math.floor(full * REMATCH_PRIZE) : full;
     if (!rematch) (state.paid ??= []).push(o.trainer);
@@ -1650,6 +1658,8 @@ function fishCast(state: IdleState, rng: Rng, settings: PlaySettings, caught: Se
   const rods = rodsOf(state);
   const rod = rods[int(rng, rods.length)]!;
   const dots = Math.min(10, int(rng, 10) + 4);
+  // Emerald's: a lead with Suction Cups or Sticky Hold bites more often, and its Pokémon by the lead's abilities.
+  if (generation().game === 'emerald') return fishCastE(state, rng, settings, caught, spot, map, table, rod, dots, out);
   const bite = int(rng, 2) === 0;
   out.events.push({ t: 'fish', spot, rod, dots, bite });
   out.durationMs += fishMs({ dots });
@@ -1660,6 +1670,44 @@ function fishCast(state: IdleState, rng: Rng, settings: PlaySettings, caught: Se
   const wild = opponentMon(createMon(rng, { species: id, level, ...(int(rng, SHINY_ODDS) === 0 && { shiny: true }) }));
   // On the water's terrain (a fished Pokémon's battle is on the water, as the game's).
   return battle(state, rng, settings, caught, { kind: 'wild', foes: [wild], tile: '.w', scene: map.scene }, out);
+}
+
+/**
+ * Emerald's cast (encounters-emerald.ts): FireRed's dots, the bite by the lead's ability (fishBiteE), the Pokémon from
+ * the rod's slots by the lead's abilities (pickWildE); its battle in the map's weather. A battle sets the steps with no
+ * wild Pokémon going again (Task_BattleStart).
+ */
+function fishCastE(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, spot: number, map: IdleMap, table: EncounterSlots, rod: number, dots: number, out: Segment): boolean | null {
+  const lead = state.party[0]!;
+  const bite = fishBiteE(rng, lead);
+  out.events.push({ t: 'fish', spot, rod, dots, bite });
+  out.durationMs += fishMs({ dots });
+  if (!bite) return null;
+  const [first, odds] = ROD_SLOTS[rod]!;
+  const w = pickWildE(rng, table, odds, 'fishing', lead, first)!;
+  Object.assign(state.encounter, { steps: 0, buff: 0 });
+  const wild = opponentMon(createMon(rng, { species: w.species, level: w.level, ...(w.nature !== undefined && { nature: w.nature }), ...(w.gender && { gender: w.gender }), ...(int(rng, SHINY_ODDS) === 0 && { shiny: true }) }));
+  return battle(state, rng, settings, caught, { kind: 'wild', foes: [wild], tile: '.w', scene: map.scene, weather: map.weather }, out);
+}
+
+/**
+ * Emerald's step (encounters-emerald.ts): a new map starts the steps with no wild Pokémon again; every step counted
+ * (wildCheckE), on a wild encounter tile the check by the lead's ability and the map's weather, then the Pokémon
+ * (pickWildE: Keen Eye's scare means none, the steps going on); its battle in the map's weather. Whether it was won, or
+ * null for none.
+ */
+function wildStepE(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, tile: string, map: IdleMap, out: Segment): boolean | null {
+  const enc = state.encounter;
+  if (enc.map !== map.name) Object.assign(enc, { steps: 0, buff: 0, map: map.name });
+  const kind = tile[0] === 'l' ? 'land' : tile[0] === 'w' ? 'water' : null;
+  const table = kind ? generation().encounters[map.encounters]?.[kind] : undefined;
+  const lead = state.party[0]!;
+  if (!wildCheckE(rng, enc, table ? table.rate : null, tile, lead, map.weather) || !kind || !table) return null;
+  const w = pickWildE(rng, table, kind === 'land' ? LAND_ODDS : WATER_ODDS, kind, lead);
+  if (!w) return null;
+  Object.assign(enc, { steps: 0, buff: 0 });
+  const wild = opponentMon(createMon(rng, { species: w.species, level: w.level, ...(w.nature !== undefined && { nature: w.nature }), ...(w.gender && { gender: w.gender }), ...(int(rng, SHINY_ODDS) === 0 && { shiny: true }) }));
+  return battle(state, rng, settings, caught, { kind: 'wild', foes: [wild], tile, scene: map.scene, weather: map.weather }, out);
 }
 
 /**
@@ -1717,6 +1765,7 @@ const stepFace = (from: TrackStep | undefined, to: TrackStep) => {
 /** A step's wild encounter, if one appears (its tile's table, wildCheck): the battle played; whether it was won, or null for none. */
 function wildStep(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, tile: string, map: ReturnType<typeof mapView>, out: Segment, face?: string): boolean | null {
   if (generation().battleRules === 4) return wildStep4(state, rng, settings, caught, tile, map, out, face);
+  if (generation().game === 'emerald') return wildStepE(state, rng, settings, caught, tile, map, out);
   const kind = tile[0] === 'l' ? 'land' : tile[0] === 'w' ? 'water' : null;
   const table = kind && generation().encounters[map.encounters]?.[kind];
   if (!table || !wildCheck(rng, state.encounter, table, tile, state.party[0]!)) return null;
@@ -2006,8 +2055,9 @@ function simulateIn(from: IdleState, idleSettings: IdleSettings, caught: Set<num
       const key = trainerKey(state, trainer.key);
       out.events.push({ t: 'spotted', trainer: trainer.key });
       out.durationMs += 1500;
-      const won = battle(state, rng, settings, caught, { kind: 'trainer', foes: trainerParty(rng, key), trainer: key, tile, scene: a.kind === 'gym' && trainer.key === a.leader && generation().gen === 1 ? 'leader' : map.scene }, out);
-      if (generation().battleRules === 4) Object.assign(state.encounter, { steps: 0, buff: 0 });
+      const won = battle(state, rng, settings, caught, { kind: 'trainer', foes: trainerParty(rng, key), trainer: key, tile, scene: a.kind === 'gym' && trainer.key === a.leader && generation().gen === 1 ? 'leader' : map.scene, weather: map.weather }, out);
+      // HGSS's and Emerald's steps with no wild Pokémon start again after a battle (Emerald's Task_BattleStart).
+      if (generation().battleRules === 4 || generation().game === 'emerald') Object.assign(state.encounter, { steps: 0, buff: 0 });
       if (!won) {
         whiteOut(state, out);
         whitedOut = true;

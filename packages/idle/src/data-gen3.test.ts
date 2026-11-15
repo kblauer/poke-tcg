@@ -24,7 +24,8 @@ describe("Hoenn's data", () => {
     expect(treecko).toMatchObject({ key: 'treecko', name: 'Treecko', types: ['grass'], base: [40, 45, 35, 65, 55, 70], catchRate: 45, growth: 'mediumSlow', abilities: ['overgrow'], friendship: 70 });
     expect(treecko.learnset.slice(0, 3)).toEqual([[1, 'pound'], [1, 'leer'], [6, 'absorb']]);
     expect(treecko.evolutions).toEqual([{ method: 'level', into: 253, level: 16 }]);
-    expect(SPECIES[385]).toMatchObject({ key: 'deoxys', name: 'Deoxys' });
+    // Deoxys's stats are its Speed Forme's in Emerald's battles (sDeoxysBaseStats).
+    expect(SPECIES[385]).toMatchObject({ key: 'deoxys', name: 'Deoxys', base: [50, 95, 90, 95, 90, 180] });
     expect(SPECIES.map((s) => s.name)).toEqual(expect.arrayContaining(['Nidoran♀', "Farfetch'd", 'Mr. Mime', 'Ho-Oh', 'Porygon2']));
     expect(treecko.dexText).toMatch(/^It makes its nest in a giant tree in the forest\./);
     // Wild held items ([common, rare]): Emerald's own.

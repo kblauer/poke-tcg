@@ -16,7 +16,7 @@ import { abilityOf, autoSlots, basicFor, cooldownTicks, lastFourMoves, movePower
 import { EFFECTS, fixedDamageEffect, type MoveCtx } from './moves.js';
 import { addEvs, calcStats, levelForExp } from './stats.js';
 import { chooseFoeItem, choosePlayerAction, type Action } from './ai.js';
-import type { Mon, MoveData, TypeName } from './types.js';
+import type { ItemData, Mon, MoveData, TypeName } from './types.js';
 
 export type Side = 0 | 1;
 export type StatusKind = 'sleep' | 'poison' | 'toxic' | 'burn' | 'paralysis' | 'freeze';
@@ -104,6 +104,11 @@ export interface BattleSetup {
   /** For the special balls (the run's): night by its clock (Gen 4's Dusk Ball), the wild species caught already (the Repeat Ball). */
   night?: boolean;
   caughtBefore?: boolean;
+  /**
+   * The weather the battle starts in (Emerald's map weather, the user's, issue #226: AbilityBattleEffects'
+   * ABILITYEFFECT_SWITCH_IN_WEATHER, before the first turn: rain, a sandstorm, Drought's sun), for good, as the game's.
+   */
+  weather?: 'rain' | 'sandstorm' | 'sun';
 }
 
 
@@ -427,6 +432,9 @@ export class Battle {
     if (this.gen4) return this.speed4(b);
     let s = this.staged(b, 'spe');
     if ((b.ability === 'swift-swim' && this.isWeather('rain')) || (b.ability === 'chlorophyll' && this.isWeather('sun'))) s *= 2;
+    // The 3rd badge's Speed for the player's (FLAG_BADGE03_GET: Emerald's Dynamo Badge; FireRed's Thunder Badge does the
+    // same in the game, not yet here: the user's to decide, issue #226).
+    if (b.side === 0 && this.setup.badges >= 3 && generation().game === 'emerald') s = Math.floor((s * 110) / 100);
     if (b.status === 'paralysis') s = Math.floor(s / 4);
     if (b.item && itemData(b.item).hold === 'macho_brace') s = Math.floor(s / 2);
     return s;
@@ -1183,7 +1191,7 @@ export class Battle {
 
   // ---- The turn ----
   /** Sends a Pokémon out (at the start, or replacing a fainted one): its line, Spikes, Intimidate, Trace. */
-  sendOut(b: Battler, first = false) {
+  sendOut(b: Battler, first = false, holdAbility = false) {
     this.active[b.side] = b;
     b.v.firstTurn = true;
     // A trapping move ends as its user leaves (the one it replaces).
@@ -1202,7 +1210,8 @@ export class Battle {
         this.damage(b, Math.max(1, Math.floor(b.maxHp / ((5 - spikes) * 2))), { msg: `${this.Name(b)} is hurt by spikes!` });
       }
     }
-    this.entryAbility(b);
+    // (Held back at the start for the field's weather, which comes before either's ability: run().)
+    if (!holdAbility) this.entryAbility(b);
     if (this.gen4) {
       this.heldItemCheck(b);
       b.v.hadItem = !!b.item;
@@ -1372,8 +1381,16 @@ export class Battle {
   /** Plays the battle out. */
   run(): BattleOutcome {
     this.emit({ t: 'tick', n: 0 });
-    this.sendOut(this.active[1], true);
-    this.sendOut(this.active[0], true);
+    const field = this.setup.weather;
+    this.sendOut(this.active[1], true, !!field);
+    this.sendOut(this.active[0], true, !!field);
+    if (field) {
+      // The map's weather once both are out, then their abilities (TryDoEventsBeforeFirstTurn): a Drought replaces the rain.
+      this.weather = { kind: field, turns: 0, permanent: true };
+      this.emit({ t: 'weather', weather: field, msg: { rain: 'It is raining.', sandstorm: 'A sandstorm is raging.', sun: 'The sunlight is strong.' }[field] });
+      this.entryAbility(this.active[1]);
+      this.entryAbility(this.active[0]);
+    }
     const maxTicks = this.setup.maxTicks ?? 200;
     while (!this.result) {
       this.tick += 1;
@@ -1808,13 +1825,7 @@ export class Battle {
     const hold = this.holdEffect(b);
     const item = itemData(b.item);
     const half = b.hp <= Math.floor(b.maxHp / 2);
-    if (!this.gen4) {
-      if (hold === 'restore_hp' && half) {
-        this.consume(b, `${this.Name(b)}'s ${item.name} restored health!`);
-        this.heal(b, item.holdParam);
-      }
-      return;
-    }
+    if (!this.gen4) return this.heldItemCheck3(b, hold, item, half);
     const used = (msg: string) => this.consume(b, msg);
     const healed = (amount: number) => {
       used(`${this.Name(b)} restored its health using its ${item.name}!`);
@@ -1866,6 +1877,64 @@ export class Battle {
     } else if (hold === 'heal_infatuation' && b.v.attractedTo !== undefined) {
       used(`${this.Name(b)} cured its infatuation using its ${item.name}!`);
       delete b.v.attractedTo;
+    }
+  }
+
+  /**
+   * Gen 3's held Berries and herbs (ItemBattleEffects' ITEMEFFECT_NORMAL and _MOVE_END, the same in FireRed and Emerald;
+   * issue #226: Emerald's trainers hold Chesto Berries and White Herbs, Kanto's only HP Berries): the HP Berries at half
+   * HP; the flavour Berries an eighth back at half (the flavour its nature dislikes confusing it); the pinch Berries at
+   * the quarter their parameter gives (a stage up; Starf two of a random one; Lansat Focus Energy's crits); the status
+   * Berries, Lum, Persim and the Mental Herb's Gen 3 one (infatuation); the White Herb. Leppa's PP: no PP here.
+   */
+  private heldItemCheck3(b: Battler, hold: string, item: ItemData, half: boolean) {
+    const used = (msg: string) => this.consume(b, msg);
+    const FLAVOURS: Record<string, [number, string]> = { confuse_spicy: [0, 'spicy'], confuse_sour: [1, 'sour'], confuse_sweet: [2, 'sweet'], confuse_dry: [3, 'dry'], confuse_bitter: [4, 'bitter'] };
+    const PINCH: Record<string, BattleStat> = { attack_up: 'atk', defense_up: 'def', speed_up: 'spe', sp_attack_up: 'spa', sp_defense_up: 'spd' };
+    const cures: Record<string, [StatusKind[], string]> = {
+      cure_par: [['paralysis'], 'cured paralysis'], cure_slp: [['sleep'], 'woke it from its sleep'], cure_psn: [['poison', 'toxic'], 'cured poison'],
+      cure_brn: [['burn'], 'healed its burn'], cure_frz: [['freeze'], 'defrosted it'],
+    };
+    const pinch = b.hp <= Math.floor(b.maxHp / Math.max(1, item.holdParam));
+    if (hold === 'restore_hp' && half) {
+      used(`${this.Name(b)}'s ${item.name} restored health!`);
+      this.heal(b, item.holdParam);
+    } else if (hold in FLAVOURS && half) {
+      const [stat, flavour] = FLAVOURS[hold]!;
+      used(`${this.Name(b)}'s ${item.name} restored health!`);
+      this.heal(b, Math.max(1, Math.floor(b.maxHp / item.holdParam)));
+      if (b.mon.nature % 5 === stat && Math.floor(b.mon.nature / 5) !== stat) {
+        this.text(`For ${this.name(b)}, the ${item.name} was too ${flavour}!`);
+        this.confuse(b, null);
+      }
+    } else if (PINCH[hold] && pinch && b.stages[PINCH[hold]] < 6) {
+      used(`${this.Name(b)}'s ${item.name} raised its stat!`);
+      this.changeStat(b, PINCH[hold], 1, true);
+    } else if (hold === 'critical_up' && pinch && !b.v.focusEnergy) {
+      used(`${this.Name(b)} used ${item.name} to get pumped!`);
+      b.v.focusEnergy = true;
+    } else if (hold === 'random_stat_up' && pinch) {
+      const open = (['atk', 'def', 'spe', 'spa', 'spd'] as const).filter((s) => b.stages[s] < 6);
+      if (open.length) {
+        used(`${this.Name(b)}'s ${item.name} sharply raised its stat!`);
+        this.changeStat(b, open[this.random16() % open.length]!, 2, true);
+      }
+    } else if (cures[hold] && b.status && cures[hold][0].includes(b.status)) {
+      used(`${this.Name(b)}'s ${item.name} ${cures[hold][1]}!`);
+      this.cureStatus(b);
+    } else if (hold === 'cure_confusion' && b.v.confused) {
+      used(`${this.Name(b)}'s ${item.name} snapped it out of confusion!`);
+      delete b.v.confused;
+    } else if (hold === 'cure_status' && (b.status || b.v.confused)) {
+      used(`${this.Name(b)}'s ${item.name} normalized its status!`);
+      this.cureStatus(b);
+      delete b.v.confused;
+    } else if (hold === 'cure_attract' && b.v.attractedTo !== undefined) {
+      used(`${this.Name(b)}'s ${item.name} cured its infatuation!`);
+      delete b.v.attractedTo;
+    } else if (hold === 'restore_stats' && BATTLE_STATS.some((s) => b.stages[s] < 0)) {
+      used(`${this.Name(b)}'s ${item.name} returned its stats to normal!`);
+      for (const s of BATTLE_STATS) b.stages[s] = Math.max(0, b.stages[s]);
     }
   }
 
@@ -1979,7 +2048,7 @@ export class Battle {
   /** What the special balls see of the wild Pokémon and the battle now (BallSituation): the turn counted from 0. */
   ballSituation(): BallSituation {
     const t = this.active[1];
-    return { types: t.types, level: t.level, turn: Math.max(0, this.tick - 1), night: this.setup.night, cave: this.setup.terrain === 'cave', water: this.setup.terrain === 'water', caught: this.setup.caughtBefore, gen4: this.gen4 };
+    return { types: t.types, level: t.level, turn: Math.max(0, this.tick - 1), night: this.setup.night, cave: this.setup.terrain === 'cave', water: this.gen4 && this.setup.terrain === 'water', caught: this.setup.caughtBefore, gen4: this.gen4 };
   }
 
   /** The best ball in the bag for the wild Pokémon now (bestBall), never the Master Ball (the user's: it has its own button). */
