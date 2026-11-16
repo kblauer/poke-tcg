@@ -40,10 +40,11 @@ export const GEN4_DONE_SETS = GEN4_SETS;
 
 /**
  * Generation 5's sets (Unova), in release order: the Black & White series, Black & White to Legendary Treasures with
- * Dragon Vault (the user's list, 2026-10-26, on the `gen-5-packs` branch; not the BW Black Star Promos). In the card
- * snapshot and on the Packs tab, locked until Gen 5 runs exist; in no pool yet (their card effects are done; there are no Gen 5 runs).
+ * Dragon Vault (the user's list, 2026-10-26, on the `gen-5-packs` branch; not the BW Black Star Promos): Gen 5 (Unova)
+ * runs' sets and packs (issue #231), every one's card effects done (but Sigilyph's Toolbox, which cardImplemented leaves out).
  */
 export const GEN5_SETS = ['bw1', 'bw2', 'bw3', 'bw4', 'bw5', 'bw6', 'dv1', 'bw7', 'bw8', 'bw9', 'bw10', 'bw11'];
+export const GEN5_DONE_SETS = GEN5_SETS;
 
 /** The Gen 2 sets whose card effects the engine has (every one of them now): Gen 2 runs take only the cards it plays fully from these. */
 export const GEN2_DONE_SETS = GEN2_SETS;
@@ -94,6 +95,22 @@ export const GEN4_BASIC_ENERGY: Partial<Record<EnergyType, string>> = {
   metal: 'dp1-130',
 };
 export const GEN4_DOUBLE_COLORLESS = 'hgss1-103';
+
+/**
+ * Gen 5's basic Energy (Black & White printings), Darkness and Metal too; and Double Colorless Energy (Next Destinies').
+ * The Dragon type has no basic Energy: Dragon Pokémon attack with other types' Energy.
+ */
+export const GEN5_BASIC_ENERGY: Partial<Record<EnergyType, string>> = {
+  grass: 'bw1-105',
+  fire: 'bw1-106',
+  water: 'bw1-107',
+  lightning: 'bw1-108',
+  psychic: 'bw1-109',
+  fighting: 'bw1-110',
+  darkness: 'bw1-111',
+  metal: 'bw1-112',
+};
+export const GEN5_DOUBLE_COLORLESS = 'bw4-92';
 
 /** Types with a basic Energy card, the ones decks are built around. */
 export const DECK_TYPES = Object.keys(BASIC_ENERGY) as EnergyType[];

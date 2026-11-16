@@ -9,7 +9,7 @@ import { IRON_ISLAND_B1F, IRON_ISLAND_B2F, IRON_ISLAND_B3F, ROUTE_217 } from './
 import { CANALAVE_GYM, SNOWPOINT_GYM, SUNYSHORE_GYM } from './sinnoh-gyms.js';
 import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, landNear, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, carriedConsumables, parsePendingConsumable, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { GEN2_SETS, GEN3_SETS, GEN4_SETS } from './pool.js';
-import { GEN2_TEST_POOL, GEN3_TEST_POOL, GEN4_TEST_POOL, TEST_POOL } from './test-pool.js';
+import { GEN2_TEST_POOL, GEN3_TEST_POOL, GEN4_TEST_POOL, GEN5_TEST_POOL, TEST_POOL } from './test-pool.js';
 
 const deck = expandDeck(STARTER_DECK);
 const fresh = (seed = 1) => createRun('celadon', deck, seed);
@@ -1173,5 +1173,66 @@ describe('Gen 4 runs', () => {
     expect(runType('sinnohGyms').routes!.map((m) => m.name)).toEqual(['Oreburgh Gym', 'Eterna Gym', 'Veilstone Gym', 'Pastoria Gym', 'Pokémon Center', 'Hearthome Gym', 'Canalave Gym', 'Snowpoint Gym', 'Sunyshore Gym']);
     expect(runType('sinnohChampion').routes!.slice(-5).map((m) => m.name)).toEqual(["Aaron's Room", "Bertha's Room", "Flint's Room", "Lucian's Room", "Cynthia's Room"]);
     expect(runType('sinnohChampion').routes!.every((m) => m.sprites === 'dp')).toBe(true);
+  });
+});
+
+describe('Gen 5 runs', () => {
+  const STRIATON = ['Cilan', 'Chili', 'Cress'];
+  const bossSteps = (s: RunState) => s.steps.flatMap((st) => st.options).filter((o) => o.kind === 'gymTrainer' || isBossKind(o.kind));
+
+  it("a Striaton run meets one of its three leaders at random, the same on its Gym Trainer's step and his own, his deck and his type's Gym Trainer", () => {
+    const met = new Set<string>();
+    for (let seed = 1; seed <= 30; seed++) {
+      const s = createRun('striaton', deck, seed);
+      const [gymTrainer, leader] = bossSteps(s);
+      expect(gymTrainer!.boss, `seed ${seed}`).toBe(leader!.boss);
+      expect(STRIATON).toContain(leader!.trainer);
+      expect(leader!.label).toBe(`Gym Leader ${leader!.trainer}`);
+      met.add(leader!.trainer!);
+      // His own deck at Gym leader difficulty, his Gym Trainer a deck of his type (Gen 5's basic Energy of it).
+      s.position = s.steps.length - 1;
+      const setup = battleSetup(act(s, { type: 'CHOOSE', option: 0 }, [], GEN5_TEST_POOL), GEN5_TEST_POOL);
+      expect(setup).toMatchObject({ difficulty: 'gymLeader', opponent: leader!.trainer });
+      expect(setup.deck).toContain({ Cilan: 'bw1-105', Chili: 'bw1-106', Cress: 'bw1-107' }[leader!.trainer!]);
+      s.position = s.steps.length - 2;
+      const trainerDeck = battleSetup(act(s, { type: 'CHOOSE', option: 0 }, [], GEN5_TEST_POOL), GEN5_TEST_POOL).deck;
+      const basics = trainerDeck.filter((id) => GEN5_TEST_POOL.find((c) => c.def.id === id)!.def.kind === 'energy' && id.startsWith('bw1-1'));
+      expect(new Set(basics), `seed ${seed}`).toEqual(new Set([{ Cilan: 'bw1-105', Chili: 'bw1-106', Cress: 'bw1-107' }[leader!.trainer!]]));
+    }
+    expect([...met].sort()).toEqual([...STRIATON].sort());
+  });
+
+  it('beating whichever Striaton leader gives the Trio Badge', () => {
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const s = createRun('striaton', deck, seed);
+      s.position = s.steps.length - 1;
+      const won = fight(s, true);
+      expect(won.phase).toBe('won');
+      expect(won.badges).toEqual(['trio-badge']);
+    }
+  });
+
+  it("the Unova Gym Challenge and Champion runs meet one Striaton leader first, then the rest in Black and White's order; the Champion run ends with Alder and the ribbon", () => {
+    const gyms = createRun('unovaGyms', deck, 7);
+    const names = bossSteps(gyms).map((o) => o.trainer);
+    expect(STRIATON).toContain(names[0]);
+    expect(names.slice(1)).toEqual(['Lenora', 'Burgh', 'Elesa', 'Clay', 'Skyla', 'Brycen', 'Drayden']);
+    expect(gyms.steps[4]!.options.map((o) => o.kind)).toEqual(['center']);
+    const champion = createRun('unovaChampion', deck, 7);
+    const all = bossSteps(champion).map((o) => o.trainer);
+    expect(all.slice(-5)).toEqual(['Shauntal', 'Grimsley', 'Caitlin', 'Marshal', 'Alder']);
+    champion.position = champion.steps.length - 1;
+    const won = fight(champion, true);
+    expect(won.phase).toBe('won');
+    expect(won.badges).toEqual(['unova-champion-ribbon']);
+  });
+
+  it('every Unova gym run is 10 encounters on the icon map (its maps to come), then the Gym Trainer and the leader', () => {
+    for (const id of ['striaton', 'nacrene', 'castelia', 'nimbasa', 'driftveil', 'mistralton', 'icirrus', 'opelucid'] as const) {
+      expect(runType(id).routes, id).toEqual([]);
+      const s = createRun(id, deck, 1);
+      expect(s.steps.map((st) => st.options[0]!.kind).slice(-2), id).toEqual(['gymTrainer', 'gymLeader']);
+      expect(s.steps.length, id).toBe(12);
+    }
   });
 });

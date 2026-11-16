@@ -227,12 +227,44 @@ const SINNOH_DIAMOND: RegionMusic = {
   victory: 'Victory! (Gym Leader)',
 };
 
+// Unova (Black and White, issue #231). No route maps yet (the runs are on the icon map), so no route themes: each map's song
+// will come from its zone header's music id for the run's season. The album's titles are the Japanese places' (Sanyou City
+// is Striaton's theme, Hiun City Castelia's, Souryuu City (Black) Opelucid's in Black). The only Unova album in the list
+// (Black 2 and White 2's is later), so both soundtracks play it; its healing jingle isn't in it: HeartGold and SoulSilver's.
+const UNOVA_BLACK: RegionMusic = {
+  game: 'Black & White',
+  routes: {},
+  towns: {
+    striaton: 'Sanyou City',
+    nacrene: 'Shippou City',
+    castelia: 'Hiun City',
+    nimbasa: 'Raimon City',
+    driftveil: 'Hodomoe City',
+    mistralton: 'Fukiyose City',
+    icirrus: 'Sekka City',
+    opelucid: 'Souryuu City (Black)',
+  },
+  bike: 'Bicycle',
+  surf: 'Surf',
+  gym: 'Gym',
+  league: 'Pokemon League',
+  center: 'Pokemon Center',
+  healed: 'Pokémon Healed',
+  healedGame: 'HeartGold & SoulSilver',
+  trainer: ['Battle! Trainer', 'Battle! Wild Pokemon', 'Battle! Cheren · Belle'],
+  gymLeader: 'Battle! Gym Leader',
+  eliteFour: 'Battle! Elite Four',
+  champion: 'Battle! Champion',
+  victory: 'Victory Against Gym Leader!',
+};
+
 /** Each generation's region's music, by soundtrack. */
 export const REGION_MUSIC: Record<number, Record<Soundtrack, RegionMusic>> = {
   1: { original: KANTO_RED, remastered: KANTO_FIRERED },
   2: { original: JOHTO_GOLD, remastered: JOHTO_HEARTGOLD },
   3: { original: HOENN_RUBY, remastered: HOENN_OMEGA_RUBY },
   4: { original: SINNOH_DIAMOND, remastered: SINNOH_DIAMOND },
+  5: { original: UNOVA_BLACK, remastered: UNOVA_BLACK },
 };
 
 function floors(name: string): Record<string, string> {

@@ -1,6 +1,6 @@
 // Deck lists: the starter deck, gym leaders' decks, and random medium-strength decks for the other trainers.
 import { evolutionName, isBasicPokemon, isPokemonCard, type CardDef, type EnergyType, type PokemonCardDef } from '@poke-tcg/game-engine';
-import { BASIC_ENERGY, byId, DOUBLE_COLORLESS, GEN2_BASIC_ENERGY, GEN3_BASIC_ENERGY, GEN4_BASIC_ENERGY, GEN4_DOUBLE_COLORLESS, nameKey, type PoolCard } from './pool.js';
+import { BASIC_ENERGY, byId, DOUBLE_COLORLESS, GEN2_BASIC_ENERGY, GEN3_BASIC_ENERGY, GEN4_BASIC_ENERGY, GEN4_DOUBLE_COLORLESS, GEN5_BASIC_ENERGY, GEN5_DOUBLE_COLORLESS, nameKey, type PoolCard } from './pool.js';
 import { isAceSpec } from './card-fixes.js';
 import { between, chance, pick, sample, type Rng } from './random.js';
 
@@ -333,6 +333,42 @@ const GEN4_GYM_LEADER_TRAINERS: [string, number][] = [
   ['Judge', 1],
 ];
 
+/**
+ * Gen 5's Trainers for random decks, from the Black & White series, as the other generations': the core and extras the
+ * Trainer CPU plays (the simple ones: draw, search, heal, switch), the gym leader's extras with Professor Juniper, N and
+ * disruption on top (and Rare Candy with a Stage 2 line). No ACE SPEC: a deck may hold one, and random decks leave them out.
+ */
+const GEN5_CORE_TRAINERS: [string, number][] = [
+  ['Cheren', 2],
+  ['Bianca', 1],
+  ['Potion', 2],
+  ['Switch', 2],
+];
+const GEN5_EXTRA_TRAINERS: [string, number][] = [
+  ['Level Ball', 1],
+  ['Great Ball', 1],
+  ['Poké Ball', 1],
+  ['Heavy Ball', 1],
+  ['Energy Search', 1],
+  ['Energy Retrieval', 1],
+  ['Energy Switch', 1],
+  ['Full Heal', 1],
+  ['Revive', 1],
+];
+const GEN5_GYM_LEADER_TRAINERS: [string, number][] = [
+  ['Professor Juniper', 1],
+  ['N', 1],
+  ['Pokémon Catcher', 1],
+  ['Ultra Ball', 1],
+  ['Pokémon Communication', 1],
+  ['PlusPower', 1],
+  ['Super Scoop Up', 1],
+  ['Crushing Hammer', 1],
+  ['Max Potion', 1],
+  ['Eviolite', 1],
+  ['Rocky Helmet', 1],
+];
+
 /** Special Energy for random decks: Colorless-heavy decks take the `colorless` ones, two-type decks the `twoTypes` ones. */
 type SpecialEnergy = [name: string, copies: number, when: 'colorless' | 'twoTypes'];
 
@@ -431,6 +467,20 @@ export const GEN4_DECK_RULES: DeckRules = {
   gymLeaderExtra: GEN4_GYM_LEADER_TRAINERS,
   special: [['Multi Energy', 1, 'twoTypes'], ['Health Energy', 1, 'colorless']],
   gymLeaderSpecial: [['Rainbow Energy', 1, 'twoTypes'], ['Warp Energy', 1, 'colorless']],
+  breeder: 'Rare Candy',
+  owners: {},
+  types: {},
+};
+
+/** Gen 5's: no special Energy the Trainer CPU attaches but Double Colorless; the gym leader's two-type decks Prism Energy. */
+export const GEN5_DECK_RULES: DeckRules = {
+  basicEnergy: GEN5_BASIC_ENERGY,
+  doubleColorless: GEN5_DOUBLE_COLORLESS,
+  core: GEN5_CORE_TRAINERS,
+  extra: GEN5_EXTRA_TRAINERS,
+  gymLeaderExtra: GEN5_GYM_LEADER_TRAINERS,
+  special: [],
+  gymLeaderSpecial: [['Prism Energy', 1, 'twoTypes']],
   breeder: 'Rare Candy',
   owners: {},
   types: {},

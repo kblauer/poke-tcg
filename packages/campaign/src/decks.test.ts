@@ -1,10 +1,10 @@
 import { canPayCost, cardImplemented, isBasicPokemon, isPokemonCard, TRAINER_CPU_ENERGY, TRAINER_CPU_PLAYS, TRAINER_CPU_RULES, type PokemonCardDef } from '@poke-tcg/game-engine';
 import { describe, expect, it } from 'vitest';
-import { BOSSES, HOENN_ELITE_FOUR, HOENN_GYMS, JOHTO_ELITE_FOUR, JOHTO_GYMS, SINNOH_ELITE_FOUR, SINNOH_GYMS } from './bosses.js';
-import { DECK_SIZE, deckErrors, expandDeck, GEN1_DECK_RULES, GEN2_DECK_RULES, GEN3_DECK_RULES, GEN4_DECK_RULES, generateDeck, STARTER_DECK, STARTER_DECKS, STARTER_IDS, takesCopy, trainerFavorites } from './decks.js';
-import { GEN2_SETS, GEN3_SETS, GEN4_SETS, nameKey } from './pool.js';
+import { BOSSES, HOENN_ELITE_FOUR, HOENN_GYMS, JOHTO_ELITE_FOUR, JOHTO_GYMS, SINNOH_ELITE_FOUR, SINNOH_GYMS, slotIds, UNOVA_ELITE_FOUR, UNOVA_GYMS } from './bosses.js';
+import { DECK_SIZE, deckErrors, expandDeck, GEN1_DECK_RULES, GEN2_DECK_RULES, GEN3_DECK_RULES, GEN4_DECK_RULES, GEN5_DECK_RULES, generateDeck, STARTER_DECK, STARTER_DECKS, STARTER_IDS, takesCopy, trainerFavorites } from './decks.js';
+import { GEN2_SETS, GEN3_SETS, GEN4_SETS, GEN5_SETS, nameKey } from './pool.js';
 import { rngFrom } from './random.js';
-import { catalogDef, GEN2_TEST_POOL, GEN3_TEST_POOL, GEN4_TEST_POOL, TEST_POOL, testDef } from './test-pool.js';
+import { catalogDef, GEN2_TEST_POOL, GEN3_TEST_POOL, GEN4_TEST_POOL, GEN5_TEST_POOL, TEST_POOL, testDef } from './test-pool.js';
 
 describe('fixed decks', () => {
   it('the starter deck is a legal 60-card deck of cards from the run pool', () => {
@@ -50,7 +50,8 @@ describe('fixed decks', () => {
   const johto = new Set<string>([...JOHTO_GYMS, ...JOHTO_ELITE_FOUR, 'johto-lance']);
   const hoenn = new Set<string>([...HOENN_GYMS, ...HOENN_ELITE_FOUR, 'wallace']);
   const sinnoh = new Set<string>([...SINNOH_GYMS, ...SINNOH_ELITE_FOUR, 'cynthia']);
-  const kanto = Object.entries(BOSSES).filter(([id]) => !johto.has(id) && !hoenn.has(id) && !sinnoh.has(id));
+  const unova = new Set<string>([...UNOVA_GYMS.flatMap(slotIds), ...UNOVA_ELITE_FOUR, 'alder']);
+  const kanto = Object.entries(BOSSES).filter(([id]) => !johto.has(id) && !hoenn.has(id) && !sinnoh.has(id) && !unova.has(id));
 
   it.each(kanto)("%s's deck is a legal 60-card deck of catalog cards the engine fully implements", (_, b) => {
     const deck = expandDeck(b.deck);
@@ -83,6 +84,19 @@ describe('fixed decks', () => {
     expect(deck.filter((c) => !cardImplemented(catalogDef(c)))).toEqual([]);
     const names = new Set(deck.map((c) => catalogDef(c).name));
     expect(deck.map(catalogDef).filter((d) => isPokemonCard(d) && d.evolvesFrom && !names.has(d.evolvesFrom)).map((d) => d.name)).toEqual([]);
+  });
+
+  it.each([...unova])("%s's deck is a legal 60-card deck of Gen 5 cards the engine fully implements, each evolution with its earlier stage, every attack payable", (id) => {
+    const deck = expandDeck(BOSSES[id as keyof typeof BOSSES].deck);
+    expect(deckErrors(deck, catalogDef)).toEqual([]);
+    expect(deck.filter((c) => !GEN5_SETS.includes(c.split('-')[0]!))).toEqual([]);
+    expect(deck.filter((c) => !cardImplemented(catalogDef(c)))).toEqual([]);
+    const names = new Set(deck.map((c) => catalogDef(c).name));
+    expect(deck.map(catalogDef).filter((d) => isPokemonCard(d) && d.evolvesFrom && !names.has(d.evolvesFrom)).map((d) => d.name)).toEqual([]);
+    // Every attack's cost is paid by the deck's basic Energy types (Double Colorless only ever pays Colorless).
+    const types = new Set(deck.map(catalogDef).flatMap((d) => (d.kind === 'energy' && d.basic !== false ? [d.energyType] : [])));
+    const unpaid = deck.map(catalogDef).filter(isPokemonCard).flatMap((d) => d.attacks.filter((a) => a.cost.some((t) => t !== 'colorless' && !types.has(t))).map((a) => `${d.name}: ${a.name}`));
+    expect(unpaid).toEqual([]);
   });
 });
 
@@ -138,7 +152,7 @@ describe('generateDeck', () => {
 
   it("holds only Trainers and special Energy the Trainer CPU plays, in a Trainer CPU's deck, in every generation", () => {
     const plays = new Set([...TRAINER_CPU_PLAYS, ...TRAINER_CPU_RULES, ...TRAINER_CPU_ENERGY, 'doublecolorlessenergy']);
-    for (const [pool, rules] of [[TEST_POOL, GEN1_DECK_RULES], [GEN2_TEST_POOL, GEN2_DECK_RULES], [GEN3_TEST_POOL, GEN3_DECK_RULES], [GEN4_TEST_POOL, GEN4_DECK_RULES]] as const) {
+    for (const [pool, rules] of [[TEST_POOL, GEN1_DECK_RULES], [GEN2_TEST_POOL, GEN2_DECK_RULES], [GEN3_TEST_POOL, GEN3_DECK_RULES], [GEN4_TEST_POOL, GEN4_DECK_RULES], [GEN5_TEST_POOL, GEN5_DECK_RULES]] as const) {
       for (let seed = 0; seed < 100; seed++) {
         for (const d of generateDeck(pool, rngFrom(seed), { rules, difficulty: 'trainer' }).map(catalogDef)) {
           if (d.kind === 'trainer' || (d.kind === 'energy' && d.basic === false)) expect(plays, d.name).toContain(nameKey(d.name));
@@ -232,5 +246,37 @@ describe('generateDeck for Gen 4', () => {
       // Its basic Energy is all Metal (a line's earlier stages can be another type: Scyther under Scizor).
       expect(new Set(deck.filter((id) => gen4Def(id).kind === 'energy' && (gen4Def(id) as { basic?: boolean }).basic !== false))).toEqual(new Set(['dp1-130']));
     }
+  });
+});
+
+describe('generateDeck for Gen 5', () => {
+  const gen5Def = (id: string) => GEN5_TEST_POOL.find((c) => c.def.id === id)!.def;
+  const decks = Array.from({ length: 100 }, (_, seed) => generateDeck(GEN5_TEST_POOL, rngFrom(seed), { rules: GEN5_DECK_RULES }));
+
+  it("builds legal 60-card decks of Gen 5's cards only (the Black & White series), with Gen 5's basic Energy and Trainers", () => {
+    for (const deck of decks) {
+      expect(deckErrors(deck, gen5Def)).toEqual([]);
+      expect(deck.filter((id) => !GEN5_SETS.includes(id.split('-')[0]!))).toEqual([]);
+      expect(deck.filter((id) => gen5Def(id).kind === 'trainer').length).toBeGreaterThanOrEqual(12);
+      // Dragon Pokémon have no basic Energy of their own: random decks leave their Dragon prints out.
+      expect(deck.map(gen5Def).filter((d) => isPokemonCard(d) && d.type === 'dragon')).toEqual([]);
+    }
+  });
+
+  // A line takes one print a stage at random, and a Dragon print can't be paid for, so Drayden's favourites come up only
+  // through their Colorless and Darkness prints: some of his Gym Trainer's decks have none (a Dragon deck needs the
+  // generator to pay a line's two Energy types: not done yet).
+  it.each(['lenora', 'skyla', 'drayden'] as const)("builds %s's Gym Trainer a deck of the gym's favourites (a type with no basic Energy)", (id) => {
+    const { favorites } = BOSSES[id].gym;
+    let total = 0;
+    for (let seed = 0; seed < 20; seed++) {
+      const deck = generateDeck(GEN5_TEST_POOL, rngFrom(seed), { favorites, rules: GEN5_DECK_RULES });
+      expect(deckErrors(deck, gen5Def)).toEqual([]);
+      const names = new Set(deck.map((c) => gen5Def(c).name));
+      const liked = favorites.filter((n) => names.has(n)).length;
+      if (id !== 'drayden') expect(liked, `${id} seed ${seed}`).toBeGreaterThanOrEqual(1);
+      total += liked;
+    }
+    expect(total / 20, id).toBeGreaterThanOrEqual(1);
   });
 });

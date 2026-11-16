@@ -91,8 +91,8 @@ function decide(state: GameState, cpuId: PlayerId): GameAction | null {
 
 /**
  * The Trainers it plays besides its own rules (agreed with the user: the Trainer CPU gets the simple ones, by nameKey).
- * Gen 1 first, then Gen 2, then Gen 3, then Gen 4. By name, so a later generation's print of a name on it (Gen 4's Great
- * Ball and Copycat) is on it too.
+ * Gen 1 first, then Gen 2, then Gen 3, then Gen 4, then Gen 5. By name, so a later generation's print of a name on it
+ * (Gen 4's Great Ball and Copycat, Gen 5's Poké Ball and Energy Switch) is on it too.
  */
 export const TRAINER_CPU_PLAYS = new Set([
   'fullheal', 'energyretrieval', 'energysearch', 'pokeball', 'maintenance', 'revive', 'pokemontrader', 'brock', 'erika',
@@ -104,6 +104,7 @@ export const TRAINER_CPU_PLAYS = new Set([
   'professorbirch', 'stevensadvice', 'greatball', 'lanettesnetsearch', 'tvreporter', 'celiosnetwork', 'oranberry', 'lumberry',
   'sitrusberry', 'doublefullheal', 'bufferpiece',
   'professoroaksnewtheory', 'pokemoncollector', 'bebessearch', 'roseannesresearch', 'quickball', 'nightmaintenance',
+  'cheren', 'bianca', 'levelball', 'heavyball',
 ]);
 
 /** The Trainers its own rules play (steps 1, 3, 4 and 5), by nameKey. */

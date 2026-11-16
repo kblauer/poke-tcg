@@ -1,6 +1,6 @@
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LockIcon from '@mui/icons-material/Lock';
-import { boss, bossLabel, bossTypes, generation, generationLock, RUN_TYPE_INFO, STARTER_DECKS, STARTER_IDS, type BossId, type RunTypeId, type StarterId } from '@poke-tcg/campaign';
+import { boss, bossLabel, bossTypes, generation, generationLock, RUN_TYPE_INFO, runSlots, slotIds, slotName, STARTER_DECKS, STARTER_IDS, type BossId, type RunTypeId, type StarterId } from '@poke-tcg/campaign';
 import { typeName } from '@poke-tcg/game-engine';
 import { Link } from '@tanstack/react-router';
 import { useContext, useState, type ReactNode } from 'react';
@@ -24,12 +24,16 @@ function BossSprite({ id, scale = 3 }: { id: BossId; scale?: number }) {
 
 /**
  * One run type to pick: its final boss's sprite, its name, and who it ends with. A single-gym run shows its gym leader's
- * name and the types their deck is built around (bossTypes) on one line; a longer run a row of all its bosses. Beaten runs are ticked (Badge),
+ * name and the types their deck is built around (bossTypes) on one line (Striaton's three leaders, one met at random: all
+ * three's names, types and sprites); a longer run a row of all its bosses. Beaten runs are ticked (Badge),
  * locked ones say what unlocks them and can't be picked.
  */
 function RunTypeOption({ info, selected, onPick, start }: { info: RunTypeInfo; selected: boolean; onPick: () => void; start?: { disabled: boolean; onStart: () => void } }) {
-  const ids = RUN_TYPE_INFO[info.id].segments.flatMap((s) => s.bosses);
-  const last = boss(ids.at(-1)!);
+  const slots = runSlots(RUN_TYPE_INFO[info.id]);
+  const ids = slots.flatMap(slotIds);
+  const lastSlot = slotIds(slots.at(-1)!);
+  const last = boss(lastSlot.at(-1)!);
+  const types = [...new Set(lastSlot.flatMap((id) => bossTypes(boss(id))))];
   const locked = info.locked !== null;
   return (
     // min-w-0: a long name is cut short, never widening its column past the list.
@@ -47,7 +51,9 @@ function RunTypeOption({ info, selected, onPick, start }: { info: RunTypeInfo; s
             under it, once beaten, a tick and how many times (the user's); the two centred together, the sprite moving up for it. */}
         <span className="flex shrink-0 flex-col items-center">
           <span className={`flex ${locked ? 'brightness-50 grayscale' : ''}`}>
-            <BossSprite id={ids.at(-1)!} />
+            {lastSlot.map((id) => (
+              <BossSprite key={id} id={id} scale={lastSlot.length === 1 ? 3 : 2} />
+            ))}
           </span>
           {info.beaten > 0 && (
             <span className="flex items-center gap-0.5 text-xs font-semibold leading-4 text-emerald-300" title={`Beaten ${info.beaten} time${info.beaten === 1 ? '' : 's'}`} aria-label={`Beaten ${info.beaten} time${info.beaten === 1 ? '' : 's'}`}>
@@ -66,15 +72,15 @@ function RunTypeOption({ info, selected, onPick, start }: { info: RunTypeInfo; s
               <LockIcon sx={{ fontSize: 13 }} />
               {info.locked}
             </span>
-          ) : ids.length === 1 ? (
+          ) : slots.length === 1 ? (
             // The leader's name and their types on one line (the user's: no "Gym Leader", which every gym run's is), the run's
             // description under them.
             <>
               <span className="flex min-w-0 items-center gap-x-2 text-xs">
-                <span className="truncate text-slate-300" title={bossLabel(last)}>
-                  {last.name}
+                <span className="truncate text-slate-300" title={lastSlot.length === 1 ? bossLabel(last) : `${last.title} ${slotName(slots[0]!)}`}>
+                  {slotName(slots[0]!)}
                 </span>
-                {bossTypes(last).map((t) => (
+                {types.map((t) => (
                   <span key={t} className="flex shrink-0 items-center gap-1 text-sky-300">
                     <EnergyIcon type={t} size="sm" />
                     {typeName(t)}

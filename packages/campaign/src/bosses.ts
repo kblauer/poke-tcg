@@ -8,6 +8,7 @@ import type { DeckList } from './decks.js';
 import { HOENN_BOSSES } from './hoenn-bosses.js';
 import { JOHTO_BOSSES } from './johto-bosses.js';
 import { SINNOH_BOSSES } from './sinnoh-bosses.js';
+import { UNOVA_BOSSES } from './unova-bosses.js';
 
 export type BossKind = 'gymLeader' | 'eliteFour' | 'champion';
 
@@ -305,7 +306,7 @@ const LEGENDARY_RONALD_DECK: DeckList = [
   ['base1-96', 4], // Double Colorless Energy
 ];
 
-/** Kanto's bosses, with their TCG 1 decks; Johto's, Hoenn's and Sinnoh's are in their own files. */
+/** Kanto's bosses, with their TCG 1 decks; Johto's, Hoenn's, Sinnoh's and Unova's are in their own files. */
 const KANTO_BOSSES = {
   brock: { name: 'Brock', title: 'Pewter Gym Leader', kind: 'gymLeader', deckName: 'Rock Crusher', counterpart: 'Gene', deck: ROCK_CRUSHER_DECK, gym: { city: 'Pewter', type: 'fighting', badge: 'boulder-badge', trainers: ['Camper Liam'] } },
   misty: { name: 'Misty', title: 'Cerulean Gym Leader', kind: 'gymLeader', deckName: 'Rain Dancer', counterpart: 'Amy', deck: RAIN_DANCER_DECK, gym: { city: 'Cerulean', type: 'water', badge: 'cascade-badge', trainers: ['Swimmer Luis', 'Picnicker Diana'] } },
@@ -327,6 +328,7 @@ export const BOSSES = {
   ...JOHTO_BOSSES,
   ...HOENN_BOSSES,
   ...SINNOH_BOSSES,
+  ...UNOVA_BOSSES,
 } satisfies Record<string, Boss>;
 
 export type BossId = keyof typeof BOSSES;
@@ -335,6 +337,26 @@ export type KantoBossId = keyof typeof KANTO_BOSSES;
 export type JohtoBossId = keyof typeof JOHTO_BOSSES;
 export type HoennBossId = keyof typeof HOENN_BOSSES;
 export type SinnohBossId = keyof typeof SINNOH_BOSSES;
+export type UnovaBossId = keyof typeof UNOVA_BOSSES;
+
+/**
+ * Where a run meets a boss: one boss, or several of one gym to meet one of at random (Striaton City's three leaders), the
+ * one picked when the run starts (createRun) and kept on its step (the option's `boss`). The several share their gym (its
+ * city, badge and room); each has his own deck and type.
+ */
+export type BossSlot<Id extends BossId = BossId> = Id | readonly Id[];
+
+/** The bosses a slot may be. */
+export const slotIds = <Id extends BossId>(slot: BossSlot<Id>): Id[] => (typeof slot === 'string' ? [slot] : [...slot]);
+
+/** A slot's first boss: its gym (city, badge, Gym Trainers) is the slot's, whoever the run meets. */
+export const slotBoss = (slot: BossSlot): Boss => boss(slotIds(slot)[0]!);
+
+/** "Brock"; "Cilan, Chili or Cress". */
+export function slotName(slot: BossSlot): string {
+  const names = slotIds(slot).map((id) => boss(id).name);
+  return names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} or ${names.at(-1)}`;
+}
 
 /** Kanto's gyms in the order the games visit them. */
 // Sabrina before Koga (agreed with the user).
@@ -349,6 +371,13 @@ export const HOENN_ELITE_FOUR: HoennBossId[] = ['sidney', 'phoebe', 'glacia', 'd
 /** Sinnoh's gyms in the order Diamond and Pearl visit them, and its Elite Four. */
 export const SINNOH_GYMS: SinnohBossId[] = ['roark', 'gardenia', 'maylene', 'crasher-wake', 'fantina', 'byron', 'candice', 'volkner'];
 export const SINNOH_ELITE_FOUR: SinnohBossId[] = ['aaron', 'bertha', 'flint', 'lucian'];
+/**
+ * Unova's gyms in the order Black and White visit them (Striaton's three leaders one slot: one met at random each run, the
+ * user's, 2026-11-15; Opelucid's Drayden, Black's), and its Elite Four in an order of ours (the games let the player choose).
+ */
+export const STRIATON_LEADERS: readonly UnovaBossId[] = ['cilan', 'chili', 'cress'];
+export const UNOVA_GYMS: BossSlot<UnovaBossId>[] = [STRIATON_LEADERS, 'lenora', 'burgh', 'elesa', 'clay', 'skyla', 'brycen', 'drayden'];
+export const UNOVA_ELITE_FOUR: UnovaBossId[] = ['shauntal', 'grimsley', 'caitlin', 'marshal'];
 
 export const boss = (id: string): Boss => {
   const b = (BOSSES as Record<string, Boss>)[id];

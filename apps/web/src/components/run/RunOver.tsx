@@ -1,6 +1,6 @@
 import CloseIcon from '@mui/icons-material/Close';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { bankablePokedollars, finalBoss, GENERATIONS, ITEMS, parsePackUnlocks, RUN_TYPE_INFO, runTypeInfo, type RunTypeInfo } from '@poke-tcg/campaign';
+import { bankablePokedollars, GENERATIONS, ITEMS, parsePackUnlocks, RUN_TYPE_INFO, runFinalBoss, runTypeInfo, type RunTypeInfo } from '@poke-tcg/campaign';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { ClientRun, Overview, RunControl } from '../../hooks/useRun';
 import { ItemShop } from './ItemShop';
@@ -78,7 +78,8 @@ const Minimized = ({ title, summary, onOpen }: { title: ReactNode; summary?: Rea
 export function RunOver({ current, overview, run }: { current: ClientRun; overview: Overview; run: RunControl }) {
   const view = current.view;
   const type = runTypeInfo(view.type);
-  const last = finalBoss(type);
+  // The boss the run ended with as it was rolled (Striaton's leader the run met).
+  const last = runFinalBoss(view);
   const won = (view.badges ?? []).map((id) => ITEMS[id]?.name).filter(Boolean);
   // The booster packs the run unlocked (its first battle completed, or beating it), from its log.
   const packs = parsePackUnlocks(view.log);

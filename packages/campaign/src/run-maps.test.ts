@@ -2,7 +2,7 @@
 // Pokémon Centers and Ace Trainers, the surfed routes' spots, Repel, Escape Rope, trades across generations, the Gym
 // Trainers' lists and the music's route per step on runs with several maps.
 import { describe, expect, it } from 'vitest';
-import { boss } from './bosses.js';
+import { boss, slotBoss, slotIds } from './bosses.js';
 import { expandDeck, STARTER_DECK } from './decks.js';
 import { runMusic } from './music.js';
 import { routeAt, RUN_TYPE_IDS, runType, type RunTypeId } from './run-types.js';
@@ -67,7 +67,7 @@ describe('the map generator, on every run type', () => {
     steps.forEach((st, i) => {
       const leader = st.options.find((o) => o.kind === 'gymLeader');
       if (!leader) return;
-      const segment = type.segments.find((seg) => seg.bosses.includes(leader.boss!))!;
+      const segment = type.segments.find((seg) => seg.bosses.some((slot) => slotIds(slot).includes(leader.boss!)))!;
       const before = steps[i - 1]?.options[0];
       if (segment.gymTrainers === false) expect(before?.kind, `${id}: ${leader.trainer}`).not.toBe('gymTrainer');
       else expect(before, `${id}: ${leader.trainer}`).toMatchObject({ kind: 'gymTrainer', boss: leader.boss });
@@ -119,7 +119,7 @@ describe('the map generator, on every run type', () => {
     }
     // Every generation has gyms with their own lists.
     for (const ids of [['pewter', 'vermilion'], ['violet', 'goldenrod'], ['rustboro', 'mauville'], ['oreburgh', 'eterna']] as const) {
-      expect(ids.some((id) => boss(runType(id).segments[0]!.bosses[0]!).gym?.trainers?.length), ids.join()).toBeTruthy();
+      expect(ids.some((id) => slotBoss(runType(id).segments[0]!.bosses[0]!).gym?.trainers?.length), ids.join()).toBeTruthy();
     }
   });
 });
@@ -141,7 +141,7 @@ describe('Repel', () => {
   });
 
   it("finds the Gym Challenge's Pokémon Center after the fourth leader, and no Center in a run without one", () => {
-    for (const id of ['kantoGyms', 'johtoGyms', 'hoennGyms', 'sinnohGyms'] as const) {
+    for (const id of ['kantoGyms', 'johtoGyms', 'hoennGyms', 'sinnohGyms', 'unovaGyms'] as const) {
       const steps = createRun(id, deck, 1).steps;
       const centers = steps.flatMap((st, i) => (st.options.every((o) => o.kind === 'center') ? [i] : []));
       expect(centers, id).toEqual([4]);
