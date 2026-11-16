@@ -68,6 +68,13 @@ const contentWidth = (el: HTMLElement | null | undefined) => {
 };
 const PHONE_CHOOSE_ZOOM = 3;
 const ZOOM_MS = 1200;
+/**
+ * The user's alternative (2026-11-15): no zooming in and out on the steps, the map at a share (STEADY_SHARE) of the zoom the steps zoom in to
+ * (CHOOSE_ZOOM, PHONE_CHOOSE_ZOOM) throughout the run, walking and choosing alike. False for the zoom in and out.
+ */
+const STEADY_ZOOM = true;
+/** The share of the steps' zoom the steady one is (the user's: 70%; 50% first). */
+const STEADY_SHARE = 0.7;
 
 function loadLocked(): boolean {
   try {
@@ -195,8 +202,11 @@ export function RouteView({
   const zoomedIn = !!optionCard && atSpot && view.position === position && (view.phase === 'map' || view.phase === 'encounter');
   // Eased out from CHOOSE_ZOOM when the step's cards don't fit the view at it (layOutCards, below), kept for the step.
   const [fit, setFit] = useState<{ position: number; zoom: number } | null>(null);
-  const chooseZoom = phone ? PHONE_CHOOSE_ZOOM : CHOOSE_ZOOM;
-  const zoom = zoomedIn ? (fit?.position === view.position ? fit.zoom : chooseZoom) : ZOOM;
+  // With STEADY_ZOOM, one zoom for the whole run (the cards laid out at it, never eased out).
+  const steadyZoom = STEADY_ZOOM && !!optionCard ? (phone ? PHONE_CHOOSE_ZOOM : CHOOSE_ZOOM) * STEADY_SHARE : null;
+  const chooseZoom = steadyZoom ?? (phone ? PHONE_CHOOSE_ZOOM : CHOOSE_ZOOM);
+  const walkZoom = steadyZoom ?? ZOOM;
+  const zoom = steadyZoom ?? (zoomedIn ? (fit?.position === view.position ? fit.zoom : chooseZoom) : ZOOM);
   const pan = usePan({ box, mapEl, map: shown, mapHeight: Math.max(...routes.map((r) => r.height), gym?.height ?? 0), panLocked, zoom, pastEdges: !!optionCard });
   const { size, setOffset, setGlide, centreOn, centreOnMap } = pan;
   // The figures as last drawn, for the walk to go around them.
@@ -369,16 +379,16 @@ export function RouteView({
   });
   const layout =
     size.w && (carded.length || uncarded.length)
-      ? layOutCards(cardFigures, uncarded, { zoom: chooseZoom, minZoom: ZOOM, card: phone ? MAP_CARD_PHONE : MAP_CARD, view: size, top: 8, bottom: cornersHeight + 16, gap: 4, redDrop: drop(walker.tile) })
+      ? layOutCards(cardFigures, uncarded, { zoom: chooseZoom, minZoom: walkZoom, card: phone ? MAP_CARD_PHONE : MAP_CARD, view: size, top: 8, bottom: cornersHeight + 16, gap: 4, redDrop: drop(walker.tile) })
       : null;
   useLayoutEffect(() => {
     if (layout && (fit?.position !== view.position || fit.zoom !== layout.zoom)) setFit({ position: view.position, zoom: layout.zoom });
   });
   /**
-   * Where the view's focus rests, down from its top: the middle; higher with the encounter's panel over the bottom of the
-   * view (a third of the way down); where the cards fit while they're chosen.
+   * Where the view's focus rests, down from its top: the middle, or where the cards fit while they're chosen. The
+   * encounter's panel opens over the bottom of the view as it is, the map not moved (the user's, 2026-11-15).
    */
-  const restY = (h: number) => (overlay ? h * 0.3 : layout ? layout.restY : h * 0.5);
+  const restY = (h: number) => (layout ? layout.restY : h * 0.5);
   /** The offset that puts a tile at the view's focus (restY) at a zoom, kept inside the map. */
   const centreAt = (t: { x: number; y: number }, z: number, view: { w: number; h: number }) => clampView(shown, { x: view.w / 2 - (t.x * 16 + 8) * z, y: restY(view.h) - (t.y * 16 + 8) * z }, view, z, !!optionCard);
   /** What the view centres on, zoomed in or out: the player (the user's: never anywhere else, so a zoom never swings the view). */
@@ -391,16 +401,6 @@ export function RouteView({
     // Only when the view's size changes; walking and panning move it otherwise.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [size.w, size.h]);
-  // The encounter's panel coming up or going: the view glides to put the focus above it, or back in the middle.
-  const overlaid = !!overlay;
-  useEffect(() => {
-    // Not while a zoom moves the view (it puts him there itself).
-    if (!size.w || zoomAt.current || zoom !== shownZoom) return;
-    setGlide({ ms: 500, ease: 'ease-in-out' });
-    setOffset(centreAt(focusTile(), shownZoom, size));
-    // When the panel comes up or goes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [overlaid]);
   useEffect(() => {
     const el = mapEl.current;
     // Not measured yet (or no map): at the new zoom at once.

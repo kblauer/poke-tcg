@@ -399,7 +399,7 @@ export function MapOption({ view, run, index, deckId }: { view: RunViewData; run
       // Every card one size (the user's: uniform): the title, then what it leads to (cut to the lines left), and the
       // reward lean and action always along the bottom.
       style={{ width: size.w, height: size.h }}
-      className={`group flex flex-col gap-0.5 rounded-lg bg-slate-900/75 px-2 py-1.5 text-left shadow-lg shadow-black/50 ring-1 ring-slate-600 transition hover:bg-slate-900 hover:ring-yellow-300 active:scale-[0.98] disabled:opacity-60`}
+      className={`group flex flex-col gap-0.5 rounded-lg bg-slate-900/95 px-2 py-1.5 text-left shadow-lg shadow-black/50 ring-1 ring-slate-600 transition hover:bg-slate-900 hover:ring-yellow-300 active:scale-[0.98] disabled:opacity-60`}
     >
       <span className="flex shrink-0 items-center gap-1.5">
         <EncounterBadge kind={option.kind} size={20} />
