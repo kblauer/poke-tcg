@@ -4,9 +4,10 @@
 // archives the maps come from are Black's). No Game Boy TCG plays the Black & White era, so their decks are our own, as
 // Johto's, Hoenn's and Sinnoh's are: built around each character's team in Black and White, from Gen 5's sets only
 // (GEN5_SETS), with Gen 5's basic Energy (Black & White prints) and Trainers, and the Supporters that print a character
-// (Cilan, Elesa, Skyla, Caitlin) in their own decks. No ACE SPEC. Their Gym Trainers are the general list's until the
-// gyms' own trainers are read from Black's trainer data (tools/routes/bw/, to come). `favorites` for a gym whose type has
-// no basic Energy (Lenora's Normal, Skyla's Flying, Drayden's Dragon: the Colorless prints of his lines).
+// (Cilan, Elesa, Skyla, Caitlin) in their own decks. No ACE SPEC. Their Gym Trainers are the trainers in their gym in Black
+// (tools/routes/bw/bw_data.py's `gyms`: each gym zone's people whose scripts are trainers'; Nacrene Gym has only one).
+// `favorites` for a gym whose type has no basic Energy (Lenora's Normal, Skyla's Flying, Drayden's Dragon: the Colorless
+// prints of his lines).
 // A Unova boss is the same as a Kanto one (Boss, bosses.ts; a type-only import, so no cycle), with no Game Boy counterpart.
 import type { Boss } from './bosses.js';
 import type { DeckList } from './decks.js';
@@ -308,7 +309,7 @@ const ALDER_DECK: DeckList = [
 ];
 
 /** Each Striaton leader's gym: the same gym, city and badge; his own type (his Gym Trainer's deck is of the leader the run meets). */
-const striaton = (type: 'grass' | 'fire' | 'water') => ({ city: 'Striaton', type, badge: 'trio-badge' });
+const striaton = (type: 'grass' | 'fire' | 'water') => ({ city: 'Striaton', type, badge: 'trio-badge', trainers: ['Waiter Maxwell', 'Waitress Tia'] });
 
 export const UNOVA_BOSSES = {
   cilan: { name: 'Cilan', title: 'Striaton Gym Leader', kind: 'gymLeader', deckName: 'Leaf Course', deck: CILAN_DECK, gym: striaton('grass') },
@@ -320,31 +321,51 @@ export const UNOVA_BOSSES = {
     kind: 'gymLeader',
     deckName: 'Head Curator',
     deck: LENORA_DECK,
-    gym: { city: 'Nacrene', type: 'colorless', badge: 'basic-badge', favorites: ['Patrat', 'Watchog', 'Lillipup', 'Herdier', 'Stoutland', 'Minccino', 'Cinccino', 'Audino', 'Bouffalant', 'Deerling', 'Sawsbuck'] },
+    gym: { city: 'Nacrene', type: 'colorless', badge: 'basic-badge', trainers: ['School Kid Carter'], favorites: ['Patrat', 'Watchog', 'Lillipup', 'Herdier', 'Stoutland', 'Minccino', 'Cinccino', 'Audino', 'Bouffalant', 'Deerling', 'Sawsbuck'] },
     types: ['colorless'],
   },
-  burgh: { name: 'Burgh', title: 'Castelia Gym Leader', kind: 'gymLeader', deckName: 'Bug Gallery', deck: BURGH_DECK, gym: { city: 'Castelia', type: 'grass', badge: 'insect-badge' } },
-  elesa: { name: 'Elesa', title: 'Nimbasa Gym Leader', kind: 'gymLeader', deckName: 'Electric Runway', deck: ELESA_DECK, gym: { city: 'Nimbasa', type: 'lightning', badge: 'bolt-badge' } },
-  clay: { name: 'Clay', title: 'Driftveil Gym Leader', kind: 'gymLeader', deckName: 'Gold Rush', deck: CLAY_DECK, gym: { city: 'Driftveil', type: 'fighting', badge: 'quake-badge' } },
+  burgh: { name: 'Burgh', title: 'Castelia Gym Leader', kind: 'gymLeader', deckName: 'Bug Gallery', deck: BURGH_DECK, gym: { city: 'Castelia', type: 'grass', badge: 'insect-badge', trainers: ['Harlequin Louis', 'Harlequin Jack'] } },
+  elesa: { name: 'Elesa', title: 'Nimbasa Gym Leader', kind: 'gymLeader', deckName: 'Electric Runway', deck: ELESA_DECK, gym: { city: 'Nimbasa', type: 'lightning', badge: 'bolt-badge', trainers: ['Lady Magnolia', 'Rich Boy Cody'] } },
+  clay: {
+    name: 'Clay',
+    title: 'Driftveil Gym Leader',
+    kind: 'gymLeader',
+    deckName: 'Gold Rush',
+    deck: CLAY_DECK,
+    gym: { city: 'Driftveil', type: 'fighting', badge: 'quake-badge', trainers: ['Worker Sterling', 'Clerk Katie', 'Clerk Isaac', 'Worker Don', 'Worker Felix'] },
+  },
   skyla: {
     name: 'Skyla',
     title: 'Mistralton Gym Leader',
     kind: 'gymLeader',
     deckName: 'Sky Cargo',
     deck: SKYLA_DECK,
-    gym: { city: 'Mistralton', type: 'colorless', badge: 'jet-badge', favorites: ['Pidove', 'Tranquill', 'Unfezant', 'Woobat', 'Swoobat', 'Ducklett', 'Swanna', 'Rufflet', 'Braviary', 'Emolga', 'Sigilyph'] },
+    gym: { city: 'Mistralton', type: 'colorless', badge: 'jet-badge', trainers: ['Pilot Ted', 'Pilot Chase', 'Worker Cliff', 'Worker Brady', 'Worker Arnold'], favorites: ['Pidove', 'Tranquill', 'Unfezant', 'Woobat', 'Swoobat', 'Ducklett', 'Swanna', 'Rufflet', 'Braviary', 'Emolga', 'Sigilyph'] },
     types: ['colorless', 'water', 'psychic'],
   },
-  brycen: { name: 'Brycen', title: 'Icirrus Gym Leader', kind: 'gymLeader', deckName: 'Frozen Stage', deck: BRYCEN_DECK, gym: { city: 'Icirrus', type: 'water', badge: 'freeze-badge' } },
+  brycen: {
+    name: 'Brycen',
+    title: 'Icirrus Gym Leader',
+    kind: 'gymLeader',
+    deckName: 'Frozen Stage',
+    deck: BRYCEN_DECK,
+    gym: { city: 'Icirrus', type: 'water', badge: 'freeze-badge', trainers: ['Black Belt Grant', 'Battle Girl Miriam', 'Black Belt Kendrew', 'Battle Girl Mikiko', 'Battle Girl Chandra', 'Black Belt Thomas'] },
+  },
   drayden: {
     name: 'Drayden',
     title: 'Opelucid Gym Leader',
     kind: 'gymLeader',
     deckName: 'Dragon Legend',
     deck: DRAYDEN_DECK,
-    // His own lines and Deino's: the Gym Trainer's random deck can only use their Colorless and Darkness prints (a line
-    // takes one print a stage at random, generateDeck), so it holds some of them, not all.
-    gym: { city: 'Opelucid', type: 'dragon', badge: 'legend-badge', favorites: ['Axew', 'Fraxure', 'Haxorus', 'Druddigon', 'Deino', 'Zweilous', 'Hydreigon'] },
+    // His own lines and Deino's (his gym's Ace Trainers' Pokémon in Black): the Gym Trainer's random deck can only use their
+    // Colorless and Darkness prints (a line takes one print a stage at random, generateDeck), so it holds some of them, not all.
+    gym: {
+      city: 'Opelucid',
+      type: 'dragon',
+      badge: 'legend-badge',
+      trainers: ['Ace Trainer Tom', 'Ace Trainer Jose', 'Ace Trainer Olwen', 'Ace Trainer Webster', 'Ace Trainer Clara', 'Veteran Kim', 'Ace Trainer Dara'],
+      favorites: ['Axew', 'Fraxure', 'Haxorus', 'Druddigon', 'Deino', 'Zweilous', 'Hydreigon'],
+    },
     types: ['dragon'],
   },
   shauntal: { name: 'Shauntal', title: 'Elite Four', kind: 'eliteFour', deckName: 'Ghost Story', deck: SHAUNTAL_DECK },
