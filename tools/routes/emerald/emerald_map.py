@@ -51,10 +51,15 @@ def u16s(path):
     return list(struct.unpack('<%dH' % (len(data) // 2), data))
 
 
+# A map drawn with another of its layouts than map.json's, by name (the one a script sets: setmaplayoutindex; the Idle
+# Adventure's Route 130 with Mirage Island, tools/idle/hoenn_areas.py's).
+LAYOUT_OVERRIDES = {}
+
+
 def load(repo, map_name):
     """The map's json, its layout's size and blocks, and its tilesets (tiles, palettes, metatiles, attributes)."""
     m = json.load(open(os.path.join(repo, 'data', 'maps', map_name, 'map.json')))
-    layout = next(l for l in json.load(open(os.path.join(repo, 'data', 'layouts', 'layouts.json')))['layouts'] if l.get('id') == m['layout'])
+    layout = next(l for l in json.load(open(os.path.join(repo, 'data', 'layouts', 'layouts.json')))['layouts'] if l.get('id') == LAYOUT_OVERRIDES.get(map_name, m['layout']))
     W, H = layout['width'], layout['height']
     blocks = u16s(os.path.join(repo, layout['blockdata_filepath']))
     assert len(blocks) == W * H, (len(blocks), W, H)

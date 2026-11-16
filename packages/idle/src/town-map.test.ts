@@ -53,6 +53,14 @@ describe('the Town Map', () => {
       expect(townMapPlaceAt(0, 8)?.name).toBe('PETALBURG WOODS');
       expect(townMapPlaceAt(7, 2)?.name).toBe('JAGGED PASS');
       expect(townMapPlaces().find((p) => p.section === 'littleroot_town')?.areas).toEqual(['route-101']);
+      // The places off the main road (issue #226's 'Later' list): under the sea on its route's first cell only, the Magma
+      // Hideout beside Fiery Path's and Jagged Pass's cells, Terra Cave's and Marine Cave's legendaries on their routes'.
+      expect(townMapPlaceAt(20, 3)?.name).toBe('UNDERWATER');
+      expect(townMapPlaceAt(21, 4)?.name).toBe('ROUTE 124');
+      expect(townMapPlaceAt(6, 2)?.name).toBe('MAGMA HIDEOUT');
+      expect(townMapPlaces().find((p) => p.section === 'route_114')?.areas).toEqual(['route-114', 'groudon']);
+      expect(townMapPlaces().find((p) => p.section === 'route_127')?.areas).toEqual(['route-128', 'kyogre']);
+      expect(townMapPlaces().find((p) => p.section === 'southern_island')?.areas).toEqual(['latias', 'latios']);
     });
   });
 

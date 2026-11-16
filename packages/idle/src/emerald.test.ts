@@ -1,7 +1,7 @@
 import { rngFrom } from '@poke-tcg/campaign';
 import { describe, expect, it } from 'vitest';
 import { Battle, opponentMon, simulateBattle, type BattleSetup } from './battle.js';
-import { fishBiteE, pickWildE, wildCheckE, type EncounterStateE } from './encounters-emerald.js';
+import { EXTRA_PERCENT, fishBiteE, pickWildE, wildCheckE, type EncounterStateE } from './encounters-emerald.js';
 import { inGeneration } from './generation.js';
 import { createMon } from './mon.js';
 import type { EncounterSlots, Mon, Stats } from './types.js';
@@ -71,6 +71,22 @@ describe("Emerald's wild encounters", () => {
     });
   });
 
+  it("takes a table's extra slots EXTRA_PERCENT of the time each, at their levels, Static never steering them (the user's, 2026-11-15)", () => {
+    hoenn(() => {
+      const odds = [20, 20, 10, 10, 10, 10, 5, 5, 4, 4, 1, 1];
+      // Zigzagoon's table with Beldum (#374) and Castform (#351) as extra slots at 20 to 25: about 5% each.
+      const extra: EncounterSlots = { ...table(), extra: [[20, 25, 374], [20, 25, 351]] };
+      const picks = Array.from({ length: 4000 }, (_, s) => pickWildE(rngFrom(s + 1), extra, odds, 'land', mon(25, 50))!);
+      for (const id of [374, 351]) {
+        const got = picks.filter((p) => p.species === id);
+        expect(got.length / 4000).toBeGreaterThan(0.035);
+        expect(got.length / 4000).toBeLessThan(0.065);
+        expect(got.every((p) => p.level >= 20 && p.level <= 25)).toBe(true);
+      }
+      expect(EXTRA_PERCENT).toBe(5);
+    });
+  });
+
   it('bites 85% of casts and half the rest with Suction Cups or Sticky Hold leading, half otherwise', () => {
     hoenn(() => {
       // Octillery's Suction Cups; Treecko's Overgrow.
@@ -111,5 +127,13 @@ describe("Emerald's battles", () => {
     };
     hoenn(() => expect(speeds(3)).toBe(Math.floor((speeds(2) * 110) / 100)));
     expect(speeds(3)).toBe(Math.floor((speeds(2) * 110) / 100));
+  });
+
+  it("give the Dive Ball its bonus only underwater (the Dive's maps, Hoenn's Underwater area: MAP_TYPE_UNDERWATER), not surfing", () => {
+    hoenn(() => {
+      const water = (terrain: BattleSetup['terrain']) => new Battle(setup([mon(258, 30)], [opponentMon(mon(170, 30))], { terrain }), rngFrom(1)).ballSituation().water;
+      expect(water('underwater')).toBe(true);
+      expect(water('water')).toBe(false);
+    });
   });
 });

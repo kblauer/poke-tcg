@@ -447,20 +447,23 @@ export const IDLE_JOHTO_MUSIC: Record<Soundtrack, Record<string, Song>> = {
 /**
  * The same for Emerald's maps (issue #226, step 5: each map.json's MUS_ constant), the Ruby & Sapphire album's for the
  * original soundtrack and Omega Ruby & Alpha Sapphire's for the remastered one (Petalburg Woods is Ruby & Sapphire's
- * Petalburg Forest). Route 118's own theme (MUS_ROUTE118) is in neither album: it plays the fallback, Route 110's,
- * until it's added.
+ * Petalburg Forest; the Abandoned Ship is the remake's Sea Mauville). Route 118's own theme (MUS_ROUTE118) is in
+ * neither album: it plays the fallback, Route 110's, until it's added; so do the places off the main road's whose songs
+ * neither has (issue #226's 'Later' list: Routes 122 and 123's MUS_ROUTE122, the Safari Zone's, Altering Cave's
+ * FireRed MUS_RG_SEVII_CAVE).
  */
 const HOENN_IDLE_SONGS: Record<string, string> = {
   MUS_LITTLEROOT: 'Littleroot Town', MUS_ROUTE101: 'Route 101', MUS_OLDALE: 'Oldale Town', MUS_PETALBURG: 'Petalburg City', MUS_ROUTE104: 'Route 104', MUS_RUSTBORO: 'Rustboro City', MUS_DEWFORD: 'Dewford Town',
   MUS_SLATEPORT: 'Slateport City', MUS_ROUTE110: 'Route 110', MUS_MT_CHIMNEY: 'Mt. Chimney', MUS_VERDANTURF: 'Verdanturf Town', MUS_ROUTE119: 'Route 119', MUS_FORTREE: 'Fortree City', MUS_ROUTE120: 'Route 120',
   MUS_LILYCOVE: 'Lilycove City', MUS_SOOTOPOLIS: 'Sootopolis City', MUS_EVER_GRANDE: 'Ever Grande City', MUS_VICTORY_ROAD: 'Victory Road', MUS_GYM: 'Pokémon Gym', MUS_POKE_CENTER: 'Pokémon Center', MUS_POKE_MART: 'Poké Mart',
+  MUS_ROUTE113: 'Route 113', MUS_MT_PYRE: 'Mt. Pyre', MUS_MT_PYRE_EXTERIOR: 'Mt. Pyre Exterior', MUS_AQUA_MAGMA_HIDEOUT: 'Hideout', MUS_UNDERWATER: 'Dive', MUS_CAVE_OF_ORIGIN: 'Cave of Origin', MUS_SEALED_CHAMBER: 'Sealed Chamber',
 };
 export const IDLE_HOENN_MUSIC: Record<Soundtrack, Record<string, Song>> = {
   original: Object.fromEntries(
-    Object.entries({ ...HOENN_IDLE_SONGS, MUS_PETALBURG_WOODS: 'Petalburg Forest' }).map(([k, title]) => [k, { game: 'Ruby & Sapphire', title }]),
+    Object.entries({ ...HOENN_IDLE_SONGS, MUS_PETALBURG_WOODS: 'Petalburg Forest', MUS_ABANDONED_SHIP: 'Abandoned Ship' }).map(([k, title]) => [k, { game: 'Ruby & Sapphire', title }]),
   ),
   remastered: Object.fromEntries(
-    Object.entries({ ...HOENN_IDLE_SONGS, MUS_PETALBURG_WOODS: 'Petalburg Woods' }).map(([k, title]) => [k, { game: 'Omega Ruby & Alpha Sapphire', title }]),
+    Object.entries({ ...HOENN_IDLE_SONGS, MUS_PETALBURG_WOODS: 'Petalburg Woods', MUS_ABANDONED_SHIP: 'Sea Mauville' }).map(([k, title]) => [k, { game: 'Omega Ruby & Alpha Sapphire', title }]),
   ),
 };
 

@@ -13,7 +13,7 @@ import { itemData, species } from './data.js';
 import { generation, inGeneration, perGeneration, type IdleGen } from './generation.js';
 import { evolve, leavesShedinja, levelEvolution, SHEDINJA, stoneEvolution, usableStones } from './evolution.js';
 import { fishBite4, pickWild4, ROD_TABLES, timeOfDay, wildCheck4, type TimeOfDay } from './encounters4.js';
-import { fishBiteE, pickWildE, wildCheckE } from './encounters-emerald.js';
+import { EXTRA_PERCENT, fishBiteE, pickWildE, wildCheckE } from './encounters-emerald.js';
 import { abilityOf, autoSlots, basicFor, createMon, familyMovesUpTo, isBaseForm, newUid } from './mon.js';
 import { MAX_LEVEL } from './stats.js';
 import { isMachine, machinePrice, slotMoves } from './tms.js';
@@ -173,6 +173,11 @@ export interface IdleState {
    * only): whether Routes 119 and 123 rain (IdleMap.weatherCycle). None (Kanto's, Johto's, older runs): no rain there.
    */
   weatherDay?: number;
+  /**
+   * Which of Latias (380) and Latios (381) is on Southern Island in this run (the user's, issue #226: one a run, rolled at
+   * its start, Hoenn's only: WalkArea.legend's `eon`). None (an older run): Latias.
+   */
+  eon?: number;
   /**
    * A Pokémon caught with the party full while the player watched (the user's): the run waits for their choice, which party
    * Pokémon it takes the place of or Release (CAUGHT_CHOICE); away, after TOWN_WAIT_MS, the settings' (choiceWait).
@@ -393,6 +398,8 @@ function newRun(choice: StarterChoice, seed: number): IdleState {
   };
   // Emerald's weather cycles' day, once for the run (the user's): Hoenn's only, so Kanto's and Johto's runs draw as before.
   if (generation().game === 'emerald') state.weatherDay = int(rng, WEATHER_CYCLE_DAYS);
+  // Southern Island's Latias or Latios, once for the run (the user's): Hoenn's only.
+  if (generation().game === 'emerald') state.eon = int(rng, 2) ? 381 : 380;
   state.rngState = rng.state;
   return state;
 }
@@ -652,20 +659,27 @@ export function mapGrindPlan(state: Pick<IdleState, 'reached' | 'area' | 'leg' |
   return { error: `No wild Pokémon in ${a.name}` };
 }
 
-/**
- * Why the Town Map can't send the run to an area's legendary Pokémon (LEGEND), or null: one there, the Indigo Plateau
- * reached (its `opens`), not beaten nor caught in this run yet, and not on the way to it already.
- */
-export function legendError(state: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges' | 'legends' | 'phase'>, index: number): string | null {
+/** An area's legendary Pokémon in a run (WalkArea.legend): Southern Island's only the run's one of Latias and Latios (IdleState.eon). */
+export function runLegendOf(state: Pick<IdleState, 'eon'>, index: number) {
   const legend = legendOf(index);
+  return legend && (!legend.eon || legend.species === (state.eon ?? 380)) ? legend : null;
+}
+
+/**
+ * Why the Town Map can't send the run to an area's legendary Pokémon (LEGEND), or null: one there (runLegendOf), the
+ * region's League town reached (its `opens`: the Indigo Plateau, Ever Grande City), not beaten nor caught in this run
+ * yet, and not on the way to it already.
+ */
+export function legendError(state: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges' | 'legends' | 'phase' | 'eon'>, index: number): string | null {
+  const legend = runLegendOf(state, index);
   if (!legend) return 'No legendary Pokémon there';
-  if (!areaOpen(index, reachedArea(state))) return 'Reach the Indigo Plateau first';
+  if (!areaOpen(index, reachedArea(state))) return `Reach ${generation().league.name} first`;
   if (state.legends?.includes(legend.species)) return `${species(legend.species).name} is gone`;
   if (state.phase === 'walking' && state.area === index) return 'On the way there';
   return null;
 }
 
-/** After a legendary Pokémon's battle, or a Stop on the way to it (the user's): back to the Indigo Plateau, its choices waiting. */
+/** After a legendary Pokémon's battle, or a Stop on the way to it (the user's): back to the region's League town (the Indigo Plateau, Ever Grande City), its choices waiting. */
 function leaveLegend(state: IdleState, events: SegmentEvent[]) {
   delete state.loop;
   delete state.stopped;
@@ -1103,8 +1117,8 @@ const ROD_SLOTS: [first: number, odds: number[]][] = [
   [5, [40, 40, 15, 4, 1]],
 ];
 
-/** Each of a table's extra slots' share of its encounters (EncounterSlots.extra: a placeholder, to balance later). */
-export const EXTRA_PERCENT = 5;
+// Each of a table's extra slots' share of its encounters (encounters-emerald.ts's, Hoenn's too).
+export { EXTRA_PERCENT };
 
 /**
  * A wild Pokémon of a table: [min level, max level, dex number]. One of its extra slots EXTRA_PERCENT of the time each,

@@ -1,7 +1,8 @@
 """Makes the Idle Adventure's Hoenn areas (README: Idle Adventure, Hoenn's main road; issue #226, step 4) from a checkout
 of the pret/pokeemerald decompilation: packages/idle/src/data/gen3/maps.ts (each Emerald map the run walks: its picture,
 size, wild table, battle scene, map section, music and weather), areas.ts (the run's areas on Hoenn's main road in the
-game's order, each with the player's planned track and its trainers), collision.ts (each map's collision, only for
+game's order, each with the player's planned track and its trainers; then the places off it and the legendaries, issue
+#226's 'Later' list: `optional`, `legend`, as kanto_areas.py's), collision.ts (each map's collision, only for
 hoenn-areas.test.ts), the maps' pictures (a map the Hoenn Badge Challenge already draws keeps its picture, public/routes/;
 the others apps/web/public/idle/gen3/maps/<map>.png, as tools/routes/emerald/emerald_map.py renders them, with
 <map>_overhead.png, the game's top layer) and any person's overworld sprite not drawn yet (public/overworld/rse/, as
@@ -81,6 +82,10 @@ for group in _WILD:
 # The maps with fishing: an area walking one fishes there (WalkArea.fishing).
 FISH_TABLES = {e['map'] for group in _WILD for e in group['encounters'] if 'fishing_mons' in e}
 
+# Mirage Island always there (the user's, 2026-11-15): Route 130 with its layout (Route130_OnTransition's
+# setmaplayoutindex LAYOUT_ROUTE130_MIRAGE_ISLAND when IsMirageIslandPresent), its island the map's land table's grass.
+em.LAYOUT_OVERRIDES['Route130'] = 'LAYOUT_ROUTE130_MIRAGE_ISLAND'
+
 # Graphics that don't block: item balls, Cut trees, Rock Smash rocks, Strength boulders (walked through: no HMs needed),
 # and the Kecleon the Devon Scope shows on Routes 119 and 120 (the user's: story obstacles walked through).
 FREE_GFX = ('ITEM_BALL', 'CUTTABLE_TREE', 'BREAKABLE_ROCK', 'PUSHABLE_BOULDER', 'KECLEON')
@@ -94,7 +99,7 @@ class Map:
     def __init__(self, name):
         self.name = name
         self.json = json.loads(read(f'data/maps/{name}/map.json'))
-        layout = LAYOUTS[self.json['layout']]
+        layout = LAYOUTS[em.LAYOUT_OVERRIDES.get(name, self.json['layout'])]
         self.w, self.h = layout['width'], layout['height']
         self.blocks = em.u16s(os.path.join(SRC, layout['blockdata_filepath']))
         p, s = em.tileset_dir(SRC, 'primary', layout['primary_tileset']), em.tileset_dir(SRC, 'secondary', layout['secondary_tileset'])
@@ -561,6 +566,20 @@ def plan_leg(leg, trainers_seen, report):
 
         if not leg.get('no_wild') and not any(wild(n) for n, _ in track):
             into_patch({(mi, x, y) for mi, g in enumerate(grids) for y in range(g.m.h) for x in range(g.m.w) if g.walkable(x, y) and wild((mi, x, y))})
+        if leg.get('every_table'):
+            # Off the main road (kanto_areas.py's, the user's: every Pokémon of the place can be grinded for): into a patch
+            # of each of its maps' wild tables (land, and water where it surfs) the track hasn't walked yet, nearest first.
+            def met(mi, e):
+                return any(n[0] == mi and grids[mi].m.encounter(n[1], n[2]) == e for n, _ in track)
+            missed = set()
+            while True:
+                groups = [(mi, e) for mi, g in enumerate(grids) for e in sorted(WILD_TABLES.get(g.m.id, ())) if (e == 1 or g.surf) and (mi, e) not in missed and not met(mi, e)]
+                if not groups:
+                    break
+                tiles = {(mi, x, y) for mi, e in groups for y in range(grids[mi].m.h) for x in range(grids[mi].m.w) if grids[mi].walkable(x, y) and grids[mi].m.encounter(x, y) == e}
+                if into_patch(tiles) is None:
+                    report.extend(f"{names[mi]}: its {'land' if e == 1 else 'water'} Pokémon out of reach" for mi, e in groups)
+                    missed.update(groups)
         path = bfs(grids, links, here, {end})
         if path is None:
             raise SystemExit(f'{names}: no way from {here} to the end {end}')
@@ -633,6 +652,62 @@ def league(area_id, name, key_, boss):
 
 def town(area_id, name, m, marts, gym=None, **kw):
     return {'id': area_id, 'name': name, 'kind': 'town', 'map': m, 'marts': marts, 'gym': gym, **kw}
+
+
+def optional(area_id, name, kind, opens, legs):
+    """An area off the main road (WalkArea.opens, kanto_areas.py's; the user's, 2026-11-15: Kanto's rule): grinded in from
+    the Town Map once the run has reached `opens`, its legs walking into every wild table of their maps (`every_table`)."""
+    return {'id': area_id, 'name': name, 'kind': kind, 'opens': opens, 'legs': [{**lg, 'every_table': True} for lg in legs]}
+
+
+def legend(area_id, name, m, dex, gfx, obj_at=None, at=None, stand=None, steps=4, surf=False, eon=False):
+    """A legendary Pokémon (WalkArea.legend, kanto_areas.py's; the user's, 2026-11-15): once the run reaches Ever Grande
+    City, picked on the Town Map; the run walks `steps` tiles up to it where the game has it (its map object, by its
+    graphics `gfx`, or at `obj_at`: Southern Island's, whose graphics a variable sets), meeting nothing on the way, and
+    battles it at the game's level (its script's setwildbattle, Southern Island's seteventmon). Where its scene moves it
+    to the player (Terra and Marine Cave's walk 2 tiles down to the coord event's tile, Southern Island's flies down to
+    its sign), it stands at the move's end (`at`) and the player where the scene has them (`stand`); else the player
+    stands in front of it. Its object is the story's (a FLAG_HIDE_ flag), so its tile is blocked here. Its sprite is
+    public/overworld/rse/<area id>.png. `eon`: Latias or Latios, only the run's one there (IdleState.eon)."""
+    objects = load(m).objects
+    obj = next(o for o in objects if (o['x'], o['y']) == obj_at) if obj_at else next(o for o in objects if o['graphics_id'] == gfx)
+    x, y = at or (obj['x'], obj['y'])
+    face = facings(obj)[0]
+    level = int(re.search(r'(?:setwildbattle|seteventmon) SPECIES_' + species_const(dex) + r', (\d+)', read(f'data/maps/{m}/scripts.inc')).group(1))
+    # Where the player stands to battle it, and the walk's start `steps` tiles from there (the straightest, in front of
+    # it), by the map's walkable tiles.
+    g = Grid(load(m), surf)
+    g.blocked.add((x, y))
+    dx, dy = DIRS[face]
+    stand = stand or (x + dx, y + dy)
+    dist = {stand: 0}
+    q = collections.deque([stand])
+    while q:
+        cx, cy = q.popleft()
+        for ex, ey in DIRS.values():
+            n = (cx + ex, cy + ey)
+            if n not in dist and g.walkable(*n) and elev_ok(g.m, cx, cy, *n):
+                dist[n] = dist[(cx, cy)] + 1
+                q.append(n)
+    ahead = lambda n: (n[0] - x) * dx + (n[1] - y) * dy
+    far = [n for n, d in dist.items() if d == steps and ahead(n) > 0] or [max((n for n in dist if ahead(n) > 0), key=dist.get)]
+    start = min(far, key=lambda n: (abs((n[0] - x) * dy) + abs((n[1] - y) * dx), -ahead(n), n))
+    return {'id': area_id, 'name': name, 'kind': 'dungeon', 'opens': 'ever-grande-city', 'gfx': gfx,
+            'legend': {'species': dex, 'level': level, 'map': 0, 'x': x, 'y': y, 'face': face, 'sprite': 'rse/' + area_id, **({'eon': True} if eon else {})},
+            'legs': [leg([m], tile(m, *start), tile(m, *stand), no_wild=True, surf=surf, blocked={m: [(x, y)]})]}
+
+
+def species_const(dex):
+    """A species' constant's name (SPECIES_GROUDON's GROUDON) by its national dex number (include/constants/pokedex.h)."""
+    names = re.findall(r'NATIONAL_DEX_(\w+),', read('include/constants/pokedex.h').split('NATIONAL_DEX_NONE,')[1])
+    return names[dex - 1]
+
+
+def deep_near(m, x, y):
+    """A map's deep water (MetatileBehavior_IsDiveable) nearest a tile: where its Dive goes down (the user's: a fade)."""
+    mm = load(m)
+    spots = [(tx, ty) for ty in range(mm.h) for tx in range(mm.w) if mm.behavior(tx, ty) in ('MB_DEEP_WATER', 'MB_INTERIOR_DEEP_WATER', 'MB_SOOTOPOLIS_DEEP_WATER') and mm.collision(tx, ty) == 0]
+    return min(spots, key=lambda t: (abs(t[0] - x) + abs(t[1] - y), t))
 
 
 def dive_spot(above, below, to):
@@ -716,6 +791,27 @@ def waterfall_ends(m):
 
 WATERFALL = waterfall_ends('EverGrandeCity')
 
+
+def waterfalls(m):
+    """Each waterfall of a map (its MB_WATERFALL tiles joined), from the water at its foot to the water at its top up its
+    middle column (the user's: a fade, as Ever Grande City's): [((m, x, y), (m, x, y))]."""
+    mm = load(m)
+    left = {(x, y) for y in range(mm.h) for x in range(mm.w) if mm.behavior(x, y) == 'MB_WATERFALL'}
+    out = []
+    while left:
+        group, q = set(), [min(left)]
+        while q:
+            t = q.pop()
+            if t in left:
+                left.discard(t)
+                group.add(t)
+                q.extend((t[0] + dx, t[1] + dy) for dx, dy in DIRS.values())
+        xs = sorted({x for x, _ in group})
+        x = xs[len(xs) // 2]
+        ys = [y for gx, y in group if gx == x]
+        out.append(((m, x, max(ys) + 1), (m, x, min(ys) - 1)))
+    return sorted(out)
+
 AREAS = [
     # A run starts coming out of Professor Birch's lab, on its door (as Kanto's from Oak's, Johto's from Elm's; mine, to
     # check with the user: the player's house's door the other choice), then up Route 101.
@@ -796,6 +892,86 @@ AREAS = [
     league('glacia', "Glacia's Room", 'glacia', 'glacia'),
     league('drake', "Drake's Room", 'drake', 'drake'),
     league('wallace', "The Champion's Room", 'wallace', 'wallace'),
+    # Off the main road (the user's, 2026-11-15: Kanto's rule, every Town Map place with wild Pokémon the road doesn't
+    # walk), after the Champion: never walked on to, only grinded in from the Town Map once the run reaches the area that
+    # opens it (mine, to check with the user: the road's area the game reaches each from). Story blocks walked through as
+    # on the road; HMs never needed; the Safari Zone's Pokémon in ordinary battles.
+    optional('route-103', 'Route 103', 'route', 'oldale-town', [leg(['Route103'], edge('Route103', 'down'), edge('Route103', 'down'), surf=True)]),
+    # Altering Cave (Route 103's, its Zubat as Emerald's first state has it).
+    optional('altering-cave', 'Altering Cave', 'dungeon', 'oldale-town', [leg(['AlteringCave'], warp('AlteringCave', 0), warp('AlteringCave', 0))]),
+    # Route 111's desert (its sandstorm's, the road keeping to its south): in from Mauville City, out to Route 113.
+    optional('route-111-desert', 'Route 111 (desert)', 'route', 'route-111', [leg(['Route111'], edge('Route111', 'down'), edge('Route111', 'left', 'Route113'), surf=True)]),
+    optional('mirage-tower', 'Mirage Tower', 'dungeon', 'route-111', [leg(['MirageTower_1F', 'MirageTower_2F', 'MirageTower_3F', 'MirageTower_4F'], warp('MirageTower_1F', 0), warp('MirageTower_1F', 0), via=('MirageTower_4F',))]),
+    # Routes 113 and 114 from Route 111's north (the road's Fiery Path leg walks Route 112's north to it), Fallarbor Town
+    # (no wild Pokémon) between them.
+    optional('route-113', 'Route 113', 'route', 'fiery-path', [leg(['Route113'], edge('Route113', 'right'), edge('Route113', 'left'))]),
+    optional('route-114', 'Route 114', 'route', 'fiery-path', [leg(['Route114'], edge('Route114', 'right'), edge('Route114', 'right'), surf=True)]),
+    # Meteor Falls up its waterfalls (fades, as Ever Grande City's), Steven's cave too.
+    optional('meteor-falls', 'Meteor Falls', 'dungeon', 'fiery-path', [
+        leg(['MeteorFalls_1F_1R', 'MeteorFalls_1F_2R', 'MeteorFalls_B1F_1R', 'MeteorFalls_B1F_2R', 'MeteorFalls_StevensCave'], warp('MeteorFalls_1F_1R', 0), warp('MeteorFalls_1F_1R', 1), via=('MeteorFalls_1F_2R', 'MeteorFalls_B1F_1R', 'MeteorFalls_B1F_2R', 'MeteorFalls_StevensCave'), surf=True, links=waterfalls('MeteorFalls_1F_1R'))]),
+    optional('desert-underpass', 'Desert Underpass', 'dungeon', 'fiery-path', [leg(['DesertUnderpass'], warp('DesertUnderpass', 0), warp('DesertUnderpass', 0))]),
+    optional('route-115', 'Route 115', 'route', 'rustboro-city', [leg(['Route115'], edge('Route115', 'down'), edge('Route115', 'down'), surf=True)]),
+    optional('granite-cave', 'Granite Cave', 'dungeon', 'dewford-town', [
+        leg(['GraniteCave_1F', 'GraniteCave_B1F', 'GraniteCave_B2F', 'GraniteCave_StevensRoom'], warp('GraniteCave_1F', 0), warp('GraniteCave_1F', 0), via=('GraniteCave_B2F', 'GraniteCave_StevensRoom'))]),
+    # Route 108's ship: its hidden floor by the Dive in the flooded room (a fade, as Route 126's to Sootopolis).
+    optional('abandoned-ship', 'Abandoned Ship', 'dungeon', 'route-107', [
+        leg(['AbandonedShip_Deck', 'AbandonedShip_Corridors_1F', 'AbandonedShip_Corridors_B1F', 'AbandonedShip_Rooms_B1F', 'AbandonedShip_HiddenFloorCorridors'], warp('AbandonedShip_Deck', 0), warp('AbandonedShip_Deck', 0),
+            via=('AbandonedShip_HiddenFloorCorridors',), surf=True, links=[(('AbandonedShip_Rooms_B1F', *deep_near('AbandonedShip_Rooms_B1F', 13, 7)), ('AbandonedShip_HiddenFloorCorridors', *emerge_spot('AbandonedShip_HiddenFloorCorridors', 'AbandonedShip_Underwater1')))])]),
+    optional('new-mauville', 'New Mauville', 'dungeon', 'mauville-city', [leg(['NewMauville_Entrance', 'NewMauville_Inside'], warp('NewMauville_Entrance', 0), warp('NewMauville_Entrance', 0), via=('NewMauville_Inside',))]),
+    optional('magma-hideout', 'Magma Hideout', 'dungeon', 'mt-chimney', [
+        leg(['MagmaHideout_1F', 'MagmaHideout_2F_1R', 'MagmaHideout_2F_2R', 'MagmaHideout_2F_3R', 'MagmaHideout_3F_1R', 'MagmaHideout_3F_2R', 'MagmaHideout_3F_3R', 'MagmaHideout_4F'], warp('MagmaHideout_1F', 0), warp('MagmaHideout_1F', 0),
+            via=('MagmaHideout_2F_1R', 'MagmaHideout_2F_2R', 'MagmaHideout_2F_3R', 'MagmaHideout_3F_1R', 'MagmaHideout_3F_2R', 'MagmaHideout_3F_3R', 'MagmaHideout_4F'))]),
+    # Route 121's Safari Zone, Emerald's expansion (its northeast and southeast) too: in and out beside its exit's
+    # attendant, who stands below its gate.
+    optional('safari-zone', 'Safari Zone', 'dungeon', 'route-120', [
+        leg(['SafariZone_South', 'SafariZone_Southwest', 'SafariZone_North', 'SafariZone_Northwest', 'SafariZone_Southeast', 'SafariZone_Northeast'], tile('SafariZone_South', 31, 34), tile('SafariZone_South', 31, 34),
+            via=('SafariZone_Southwest', 'SafariZone_North', 'SafariZone_Northwest', 'SafariZone_Southeast', 'SafariZone_Northeast'), surf=True)]),
+    # South from Route 121, round Mt. Pyre's island and on east to Route 118.
+    # (Route 123's sea is walled off from the rest by its rocks: a leg of its own, from the water below Route 122.)
+    optional('route-122', 'Routes 122 and 123', 'route', 'route-120', [
+        leg(['Route122', 'Route123'], edge('Route122', 'up'), edge('Route123', 'left'), surf=True),
+        leg(['Route123'], tile('Route123', 101, 1), tile('Route123', 114, 8), surf=True)]),
+    optional('mt-pyre', 'Mt. Pyre', 'dungeon', 'route-120', [
+        leg(['MtPyre_1F', 'MtPyre_2F', 'MtPyre_3F', 'MtPyre_4F', 'MtPyre_5F', 'MtPyre_6F', 'MtPyre_Exterior', 'MtPyre_Summit'], warp('MtPyre_1F', 0), warp('MtPyre_1F', 0),
+            via=('MtPyre_6F', 'MtPyre_Summit'))]),
+    # Route 125 and its Shoal Cave, at low tide (mine, to check with the user: only the low tide's rooms have wild
+    # Pokémon, its Ice Room Snorunt's only home).
+    optional('route-125', 'Route 125', 'route', 'mossdeep-city', [leg(['Route125'], edge('Route125', 'down'), edge('Route125', 'down'), surf=True)]),
+    optional('shoal-cave', 'Shoal Cave', 'dungeon', 'mossdeep-city', [
+        leg(['ShoalCave_LowTideEntranceRoom', 'ShoalCave_LowTideInnerRoom', 'ShoalCave_LowTideStairsRoom', 'ShoalCave_LowTideLowerRoom', 'ShoalCave_LowTideIceRoom'], warp('ShoalCave_LowTideEntranceRoom', 0), warp('ShoalCave_LowTideEntranceRoom', 0),
+            via=('ShoalCave_LowTideStairsRoom', 'ShoalCave_LowTideLowerRoom', 'ShoalCave_LowTideIceRoom'), surf=True)]),
+    # Under Routes 124 and 126 (the Dive: Chinchou, Clamperl and Relicanth's only home), down from Route 124 by Lilycove.
+    optional('underwater', 'Underwater', 'route', 'route-124', [
+        leg(['Underwater_Route124'], tile('Underwater_Route124', *deep_near('Route124', 0, 0)), tile('Underwater_Route124', *deep_near('Route124', 0, 0)), surf=True),
+        # Route 126's part, its rocks walling it off from Route 124's: down where the road dives to Sootopolis.
+        leg(['Underwater_Route126'], tile('Underwater_Route126', *DIVE), tile('Underwater_Route126', *DIVE), surf=True)]),
+    optional('cave-of-origin', 'Cave of Origin', 'dungeon', 'sootopolis-city', [leg(['CaveOfOrigin_Entrance', 'CaveOfOrigin_1F'], warp('CaveOfOrigin_Entrance', 0), warp('CaveOfOrigin_Entrance', 0), via=('CaveOfOrigin_1F',))]),
+    # Down by Route 128's Dive to the Seafloor Cavern's entrance (its rooms' boulders walked through).
+    optional('seafloor-cavern', 'Seafloor Cavern', 'dungeon', 'route-128', [
+        leg(['SeafloorCavern_Entrance', 'SeafloorCavern_Room1', 'SeafloorCavern_Room2', 'SeafloorCavern_Room3', 'SeafloorCavern_Room4', 'SeafloorCavern_Room5', 'SeafloorCavern_Room6', 'SeafloorCavern_Room7', 'SeafloorCavern_Room8'],
+            tile('SeafloorCavern_Entrance', *emerge_spot('SeafloorCavern_Entrance', 'Underwater_SeafloorCavern')), tile('SeafloorCavern_Entrance', *emerge_spot('SeafloorCavern_Entrance', 'Underwater_SeafloorCavern')),
+            via=('SeafloorCavern_Room1', 'SeafloorCavern_Room2', 'SeafloorCavern_Room3', 'SeafloorCavern_Room4', 'SeafloorCavern_Room5', 'SeafloorCavern_Room6', 'SeafloorCavern_Room7', 'SeafloorCavern_Room8'), surf=True)]),
+    # The seas south of Ever Grande City (mine, to check with the user: grouped Route 129 to Pacifidlog Town, Mirage
+    # Island always there on Route 130; then Pacifidlog to Slateport, opened from Slateport's end, Route 134). Route 129
+    # in from Route 128 in its middle (its rocks wall its seas apart: the middle one goes on west to Pacifidlog).
+    optional('route-129', 'Routes 129, 130 and 131', 'route', 'route-128', [leg(['Route129', 'Route130', 'Route131'], tile('Route129', 37, 0), edge('Route131', 'left'), surf=True)]),
+    # Sky Pillar's 4F cracked floor fallen through to 3F's middle (a fade), the game's way on to its 5F without the Mach Bike.
+    optional('sky-pillar', 'Sky Pillar', 'dungeon', 'route-128', [
+        leg(['SkyPillar_Entrance', 'SkyPillar_Outside', 'SkyPillar_1F', 'SkyPillar_2F', 'SkyPillar_3F', 'SkyPillar_4F', 'SkyPillar_5F'], warp('SkyPillar_Entrance', 0), warp('SkyPillar_Entrance', 0), via=('SkyPillar_5F',),
+            links=[(('SkyPillar_4F', 6, 4), ('SkyPillar_3F', 6, 4))])]),
+    optional('route-134', 'Routes 134, 133 and 132', 'route', 'slateport-city', [leg(['Route134', 'Route133', 'Route132'], edge('Route134', 'left'), edge('Route132', 'right'), surf=True)]),
+    # The legendary Pokémon (the user's, 2026-11-15), after Ever Grande City: walked up to and battled once a run (as
+    # Kanto's). Terra Cave and Marine Cave, moving from route to route in the game, are fixed (mine, to check with the
+    # user): Terra Cave Route 114's, Marine Cave Route 127's (SHELTERS). The Regis' Braille puzzles
+    # counted solved; Latias or Latios on Southern Island, one a run (IdleState.eon).
+    legend('groudon', 'Groudon (Terra Cave)', 'TerraCave_End', 383, 'OBJ_EVENT_GFX_GROUDON_FRONT', at=(17, 24), stand=(17, 26)),
+    legend('kyogre', 'Kyogre (Marine Cave)', 'MarineCave_End', 382, 'OBJ_EVENT_GFX_KYOGRE_FRONT', at=(9, 24), stand=(9, 26)),
+    legend('rayquaza', 'Rayquaza (Sky Pillar)', 'SkyPillar_Top', 384, 'OBJ_EVENT_GFX_RAYQUAZA_STILL'),
+    legend('regirock', 'Regirock (Desert Ruins)', 'DesertRuins', 377, 'OBJ_EVENT_GFX_REGIROCK'),
+    legend('regice', 'Regice (Island Cave)', 'IslandCave', 378, 'OBJ_EVENT_GFX_REGICE'),
+    legend('registeel', 'Registeel (Ancient Tomb)', 'AncientTomb', 379, 'OBJ_EVENT_GFX_REGISTEEL'),
+    legend('latias', 'Latias (Southern Island)', 'SouthernIsland_Interior', 380, 'OBJ_EVENT_GFX_LATIAS', obj_at=(13, 2), at=(13, 11), stand=(13, 12), eon=True),
+    legend('latios', 'Latios (Southern Island)', 'SouthernIsland_Interior', 381, 'OBJ_EVENT_GFX_LATIOS', obj_at=(13, 2), at=(13, 11), stand=(13, 12), eon=True),
 ]
 
 
@@ -807,11 +983,14 @@ def wild_letter(m, x, y):
 
 # ---- Battle terrain (BattleSetup_GetEnvironmentId) ----
 def terrain(m, x, y):
-    """A tile's battle terrain letter (areas.ts's TERRAIN_LETTERS): tall grass, long grass (Emerald's 'L'), sand, then by
+    """A tile's battle terrain letter (areas.ts's TERRAIN_LETTERS): underwater ('u'), tall grass, long grass (Emerald's 'L'), sand, then by
     the map's type: a cave's floor, pond water or an indoor encounter; a building; the ocean's water; deep or ocean water,
     pond water, the mountain top, else plain."""
     b = m.behavior(x, y)
     surfable = bool(TILE_BITS.get(b, 0) & SURFABLE)
+    # Under the sea (the Dive's maps, places off the main road): the game's first check.
+    if m.type == 'MAP_TYPE_UNDERWATER':
+        return 'u'
     if b == 'MB_TALL_GRASS':
         return 'g'
     if b == 'MB_LONG_GRASS':
@@ -858,6 +1037,12 @@ def weather_of(m):
         return {'weather': 'rain', 'weatherCycle': 'route123'}
     weather = {'WEATHER_RAIN': 'rain', 'WEATHER_RAIN_THUNDERSTORM': 'rain', 'WEATHER_DOWNPOUR': 'rain', 'WEATHER_SANDSTORM': 'sandstorm', 'WEATHER_DROUGHT': 'sun'}.get(mm.json['weather'])
     return {'weather': weather} if weather else {}
+
+
+# Terra Cave and Marine Cave move from route to route in the game (their map section's place the shelter's route:
+# region_map.c's GetTerraOrMarineCaveMapSecId); here fixed (mine, to check with the user): Terra Cave Route 114's (its
+# warp at 6,46), Marine Cave Route 127's (Underwater_Route127's), their maps on those routes' Town Map places.
+SHELTERS = {'TerraCave_End': 'route_114', 'MarineCave_End': 'route_127'}
 
 
 # ---- Auto-grind (the user's): a loop near the exit of the area before a gym's town, as Kanto's ----
@@ -1101,7 +1286,7 @@ def main():
         area = {'id': a['id'], 'name': a['name'], 'kind': a['kind'], 'legs': legs, 'trainers': trainers}
         if fishing_maps:
             area['fishing'] = list(fishing_maps.values())
-        for k in ('town', 'badge', 'leader'):
+        for k in ('town', 'badge', 'leader', 'opens', 'legend'):
             if a.get(k):
                 area[k] = a[k]
         if a['kind'] in ('gym', 'league') and not any(t['key'] == a['leader'] for t in trainers):
@@ -1139,7 +1324,7 @@ def main():
             'height': m.h,
             'encounters': m.id[len('MAP_'):],
             'scene': m.json.get('battle_scene', 'MAP_BATTLE_SCENE_NORMAL')[len('MAP_BATTLE_SCENE_'):].lower(),
-            'section': m.json['region_map_section'][len('MAPSEC_'):].lower(),
+            'section': SHELTERS.get(n, m.json['region_map_section'][len('MAPSEC_'):].lower()),
             'music': m.json.get('music', ''),
             'top': top,
             **weather_of(n),
@@ -1156,6 +1341,18 @@ def main():
                 print('  cut', sprite_name(s))
             except Exception as e:  # noqa: BLE001
                 report.append(f'sprite {s}: {e}')
+    # The legendaries' (kanto_areas.py's: their frames on 32px tall ones at the least, their feet on the tile).
+    for a in AREAS:
+        p = a.get('legend') and os.path.join(PUB, 'overworld', a['legend']['sprite'] + '.png')
+        if p and not os.path.exists(p):
+            frames = gfx.frames(a['gfx'])
+            padded = []
+            for f in frames:
+                big = Image.new('RGBA', (f.width, max(32, f.height)), (0, 0, 0, 0))
+                big.alpha_composite(f, (0, big.height - f.height))
+                padded.append(big)
+            es.strip(padded).save(p)
+            print('  cut', a['legend']['sprite'])
     # The player's fishing sprites (fishing on the map, as kanto_areas.py cuts Red's): Brendan's and May's 12 frames,
     # left, up, down (4 each: sAnim_TakeOutRod*), and the surf blob under them fishing from the water, in FireRed's
     # surf_blob.png's layout (6 frames, 32x32: down, up, left, two each), Emerald's 3 in the player's palette (as

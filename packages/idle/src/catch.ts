@@ -37,7 +37,7 @@ export interface BallSituation {
   gen4?: boolean;
 }
 
-/** A ball's multiplier in tenths here (Gen 3's and Gen 4's: Net 3x on Water and Bug, Dive 3.5x on water (Gen 4's surfing; Gen 3's only underwater, MAP_TYPE_UNDERWATER, where no run goes), Nest up to 4x below level 40, Repeat 3x on a caught species, Timer up by a tenth a turn to 4x; Gen 4's Dusk 3.5x at night or in a cave, Quick 4x on the first turn). */
+/** A ball's multiplier in tenths here (Gen 3's and Gen 4's: Net 3x on Water and Bug, Dive 3.5x on water (Gen 4's surfing; Gen 3's only underwater, MAP_TYPE_UNDERWATER: Hoenn's Underwater area), Nest up to 4x below level 40, Repeat 3x on a caught species, Timer up by a tenth a turn to 4x; Gen 4's Dusk 3.5x at night or in a cave, Quick 4x on the first turn). */
 export function ballTenths(ball: string, s: BallSituation): number {
   switch (ball) {
     case 'net-ball':

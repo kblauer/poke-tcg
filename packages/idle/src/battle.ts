@@ -26,8 +26,8 @@ export type BattleStat = 'atk' | 'def' | 'spe' | 'spa' | 'spd' | 'acc' | 'eva';
 export const BATTLE_STATS: BattleStat[] = ['atk', 'def', 'spe', 'spa', 'spd', 'acc', 'eva'];
 const STAT_LABEL: Record<BattleStat, string> = { atk: 'Attack', def: 'Defense', spe: 'Speed', spa: 'Sp. Atk', spd: 'Sp. Def', acc: 'accuracy', eva: 'evasiveness' };
 
-/** The battle terrain under the player (GetBattleTerrain; Gen 4's snow and ice, HGSS's maps only), for the background, Camouflage, Secret Power and Nature Power. */
-export type Terrain = 'grass' | 'longgrass' | 'sand' | 'water' | 'pond' | 'mountain' | 'cave' | 'building' | 'plain' | 'snow' | 'ice';
+/** The battle terrain under the player (GetBattleTerrain; Gen 4's snow and ice, HGSS's maps only; Emerald's underwater, the Dive's maps only), for the background, Camouflage, Secret Power and Nature Power. */
+export type Terrain = 'grass' | 'longgrass' | 'sand' | 'water' | 'underwater' | 'pond' | 'mountain' | 'cave' | 'building' | 'plain' | 'snow' | 'ice';
 
 /** What the browser shows of a Pokémon in battle. */
 export interface BattlerView {
@@ -2052,7 +2052,7 @@ export class Battle {
   /** What the special balls see of the wild Pokémon and the battle now (BallSituation): the turn counted from 0. */
   ballSituation(): BallSituation {
     const t = this.active[1];
-    return { types: t.types, level: t.level, turn: Math.max(0, this.tick - 1), night: this.setup.night, cave: this.setup.terrain === 'cave', water: this.gen4 && this.setup.terrain === 'water', caught: this.setup.caughtBefore, gen4: this.gen4 };
+    return { types: t.types, level: t.level, turn: Math.max(0, this.tick - 1), night: this.setup.night, cave: this.setup.terrain === 'cave', water: this.gen4 ? this.setup.terrain === 'water' : this.setup.terrain === 'underwater', caught: this.setup.caughtBefore, gen4: this.gen4 };
   }
 
   /** The best ball in the bag for the wild Pokémon now (bestBall), never the Master Ball (the user's: it has its own button). */

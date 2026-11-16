@@ -70,16 +70,20 @@ export const stripFrames = (name: string) => (bobs(name) ? 16 : isHgss(name) ? 1
 
 /**
  * Sprites 32px wide: the bikers (FireRed's, and Emerald's cycling triathletes) and Red and Brendan on a bike, with their bikes,
- * and surfing, on their Pokémon; the legendary birds (the Idle Adventure's); every HGSS sprite.
+ * and surfing, on their Pokémon; the legendary birds and Hoenn's legendaries (the Idle Adventure's); every HGSS sprite.
  */
-const WIDE = new Set(['biker', 'red_bike', 'red_surf', 'leaf_bike', 'leaf_surf', 'rse/brendan_bike', 'rse/brendan_surf', 'rse/may_bike', 'rse/may_surf', 'rse/cyclist_m', 'rse/cyclist_f', 'articuno', 'zapdos', 'moltres']);
-export const spriteWidth = (name: string) => (WIDE.has(name) || isHgss(name) ? 32 : 16);
+const WIDE = new Set(['biker', 'red_bike', 'red_surf', 'leaf_bike', 'leaf_surf', 'rse/brendan_bike', 'rse/brendan_surf', 'rse/may_bike', 'rse/may_surf', 'rse/cyclist_m', 'rse/cyclist_f', 'articuno', 'zapdos', 'moltres', 'rse/groudon', 'rse/kyogre', 'rse/regirock', 'rse/regice', 'rse/registeel', 'rse/latias', 'rse/latios']);
+/** Sprites 64x64: Emerald's Rayquaza at the top of Sky Pillar (the Idle Adventure's), its feet on its tile as the others'. */
+const HUGE = new Set(['rse/rayquaza']);
+export const spriteWidth = (name: string) => (HUGE.has(name) ? 64 : WIDE.has(name) || isHgss(name) ? 32 : 16);
 /**
  * A sprite's height in map pixels: 32, but Brendan's and May's surfing, 40, the surf blob's bottom below the rider (the
- * user's: the whole blob, as Emerald draws it; emerald_sprites.py's SURF_HEIGHT), drawn from the same top.
+ * user's: the whole blob, as Emerald draws it; emerald_sprites.py's SURF_HEIGHT), drawn from the same top; Rayquaza's 64.
  */
 const TALL = new Set(['rse/brendan_surf', 'rse/may_surf']);
-export const spriteHeight = (name: string) => (TALL.has(name) ? 40 : 32);
+export const spriteHeight = (name: string) => (HUGE.has(name) ? 64 : TALL.has(name) ? 40 : 32);
+/** How much higher than a 32px sprite's a sprite's top is drawn, its feet on its tile: Rayquaza's 32. */
+export const spriteRise = (name: string) => (HUGE.has(name) ? 32 : 0);
 
 /** Each sprite set's player, the boy and the girl (the Inventory's choice): their walking, bike and surfing sprites. */
 const PLAYERS: Record<SpriteSet, Record<'male' | 'female', [walk: string, bike: string, surf: string]>> = {

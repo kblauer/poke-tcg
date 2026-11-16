@@ -27,7 +27,7 @@ const GEN3 = '/idle/gen3';
  * Emerald's battle backgrounds by the terrain under the player (public/idle/gen3/terrain/, sBattleEnvironmentTable by
  * BattleSetup_GetEnvironmentId's environments; no snow or ice in Hoenn).
  */
-const RSE_TERRAIN: Record<string, string> = { grass: 'tall_grass', longgrass: 'long_grass', sand: 'sand', water: 'water', pond: 'pond_water', mountain: 'rock', cave: 'cave', building: 'building', plain: 'plain' };
+const RSE_TERRAIN: Record<string, string> = { grass: 'tall_grass', longgrass: 'long_grass', sand: 'sand', water: 'water', underwater: 'underwater', pond: 'pond_water', mountain: 'rock', cave: 'cave', building: 'building', plain: 'plain' };
 
 /**
  * Emerald's background for a battle (battle_bg.c's DrawMainBattleBackground): a gym leader's (TRAINER_CLASS_LEADER, on

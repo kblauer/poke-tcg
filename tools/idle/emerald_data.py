@@ -9,7 +9,8 @@ engine and file layout; its helpers copied here, the differences noted where the
   party icons' palettes, Emerald's Pokédex entry and battle picture offsets;
 - moves.ts, abilities.ts, types.ts: as FireRed's (battle_moves.h, abilities.h, battle_main.c's gTypeEffectiveness);
 - items.ts: the items (src/data/items.h's gItems, not FireRed's items.json): name, price, pocket, hold effect, description;
-- encounters.ts: Emerald's wild tables (wild_encounters.json's gWildMonHeaders): land, water, Rock Smash and fishing, by map;
+- encounters.ts: Emerald's wild tables (wild_encounters.json's gWildMonHeaders): land, water, Rock Smash and fishing, by map,
+  with the extra slots (`extra`, EXTRA_SLOTS: the Pokémon Emerald never has wild, issue #226's 'Later' list);
 - trainers.ts: Emerald's trainers (trainers.h, trainer_parties.h), with their class's prize money and whether the game
   battles them as a double battle (`double`: played as a single battle against the party, issue #226);
 - marts.ts: each mart's stock (data/maps/*/scripts.inc's pokemart lists, ended by `pokemartlistend`), and the evolution
@@ -289,7 +290,50 @@ write('items.ts', 'src/data/items.h, src/data/text/item_descriptions.h',
       "import type { ItemData } from '../../types.js';\n\n/** Every item, by key (ITEM_POKE_BALL: 'poke-ball'): its name, price, pocket, hold effect and description (the game's lines). */\nexport const ITEMS: Record<string, ItemData> = {\n"
       + ''.join(f'  {js(k)}: {js(v)},\n' for k, v in items.items()) + '};\n')
 
-# ---- Wild encounters (Emerald's own tables: no other version's slots, unlike FireRed's LeafGreen ones) ----
+# ---- Wild encounters (Emerald's own tables: no other version's slots, unlike FireRed's LeafGreen ones), and the extra slots ----
+# The Pokémon Emerald never has wild (the user's, 2026-11-15: issue #226's 'Later' list, Kanto's rule: firered_data.py's
+# EXTRA_SLOTS), as extra slots in a table or two near where the game gives them, their levels the table's (each
+# EXTRA_PERCENT of the table's encounters, idle.ts), by map and kind, dex numbers; only tables the areas' tracks walk
+# (hoenn-areas.test.ts checks). The gifts: Castform (the Weather Institute's, Route 119), Beldum (Steven's, Mossdeep City:
+# Shoal Cave's rooms, the land nearest it), Wynaut (the egg from Lavaridge's old lady: Jagged Pass, Route 112), Lileep and
+# Anorith (the Mirage Tower's fossils: Route 111's desert, the Mirage Tower) and the starters (Birch's bag: Routes 101 and
+# 103, all three, so a run's own comes too; mine, to check with the user). Azurill with Marill (Route 112's land, Route
+# 114's water), Igglybuff with Jigglypuff (Route 115) and Pichu with Pikachu (the Safari Zone's south): the babies only
+# eggs give (Azurill the user's, the other two mine). Nosepass (Granite Cave B2F) and Shuckle (the Safari Zone's
+# northeast), Emerald's only Rock Smash Pokémon (no Rock Smash grind: the user's). Staryu, Lilycove City's sea's (a town:
+# no grinds there, Kanto's rule), on Route 124's water beside it (mine). The in-game trades' (src/data/trade.h) need
+# none: Seedot and Plusle are wild, Horsea fished on Routes 132 to 134, Meowth no Hoenn Pokémon. And Ruby's and
+# Sapphire's Pokémon Emerald has nowhere wild (the user's), in the tables of the maps pokeruby's wild_encounters.json has
+# them in that a track walks: Surskit (Route 102's grass; Routes 111 and 114's water: Routes 102, 117 and 120's water,
+# never surfed, left out), Meditite (Mt. Pyre's outside, Victory Road B1F), Roselia (Route 117), Zangoose (Ruby's Route
+# 114) and Lunatone (Sapphire's Meteor Falls).
+EXTRA_SLOTS = {
+    ('ROUTE119', 'land'): [351],
+    ('SHOAL_CAVE_LOW_TIDE_ENTRANCE_ROOM', 'land'): [374],
+    ('SHOAL_CAVE_LOW_TIDE_INNER_ROOM', 'land'): [374],
+    ('JAGGED_PASS', 'land'): [360],
+    ('ROUTE112', 'land'): [360, 298],
+    ('ROUTE111', 'land'): [345, 347],
+    ('MIRAGE_TOWER_1F', 'land'): [345, 347],
+    ('ROUTE101', 'land'): [252, 255, 258],
+    ('ROUTE103', 'land'): [252, 255, 258],
+    ('ROUTE114', 'water'): [298, 283],
+    ('ROUTE115', 'land'): [174],
+    ('SAFARI_ZONE_SOUTH', 'land'): [172],
+    ('GRANITE_CAVE_B2F', 'land'): [299],
+    ('SAFARI_ZONE_NORTHEAST', 'land'): [213],
+    ('ROUTE124', 'water'): [120],
+    ('ROUTE102', 'land'): [283],
+    ('ROUTE111', 'water'): [283],
+    ('MT_PYRE_EXTERIOR', 'land'): [307],
+    ('VICTORY_ROAD_B1F', 'land'): [307],
+    ('ROUTE117', 'land'): [315],
+    ('ROUTE114', 'land'): [335],
+    ('METEOR_FALLS_1F_1R', 'land'): [337],
+    ('METEOR_FALLS_1F_2R', 'land'): [337],
+    ('METEOR_FALLS_B1F_1R', 'land'): [337],
+    ('METEOR_FALLS_B1F_2R', 'land'): [337],
+}
 enc = {}
 groups = json.load(open(os.path.join(SRC, 'src/data/wild_encounters.json'), encoding='utf8'))['wild_encounter_groups']
 for e in next(g for g in groups if g['label'] == 'gWildMonHeaders')['encounters']:
@@ -297,8 +341,15 @@ for e in next(g for g in groups if g['label'] == 'gWildMonHeaders')['encounters'
     for kind, name in (('land_mons', 'land'), ('water_mons', 'water'), ('rock_smash_mons', 'rockSmash'), ('fishing_mons', 'fishing')):
         if kind in e and e[kind].get('mons'):
             entry[name] = {'rate': e[kind]['encounter_rate'], 'mons': [[m['min_level'], m['max_level'], by_const[m['species']]] for m in e[kind]['mons']]}
-    if entry:
+            if (e['map'][len('MAP_'):], name) in EXTRA_SLOTS:
+                levels = [l for m in entry[name]['mons'] for l in m[:2]]
+                entry[name]['extra'] = [[min(levels), max(levels), d] for d in EXTRA_SLOTS[(e['map'][len('MAP_'):], name)]]
+    # Altering Cave's first set (its 9 follow, by VAR_ALTERING_CAVE_WILD_SET, which only the Mystery Gift changes: Zubat's).
+    if entry and e['map'][len('MAP_'):] not in enc:
         enc[e['map'][len('MAP_'):]] = entry
+missing = [k for k in EXTRA_SLOTS if k[1] not in enc.get(k[0], {})]
+if missing:
+    sys.exit(f'No such wild tables: {missing}')
 write('encounters.ts', 'src/data/wild_encounters.json',
       "import type { EncounterTable } from '../../types.js';\n\n/** Emerald's wild Pokémon by map (MAP_ROUTE101: 'ROUTE101'): each table's (land, water, Rock Smash, fishing: its 10 slots the Old Rod's 2, the Good Rod's 3, the Super Rod's 5) encounter rate and slots, [min level, max level, dex number]. */\nexport const ENCOUNTERS: Record<string, EncounterTable> = {\n"
       + ''.join(f'  {js(k)}: {js(v)},\n' for k, v in enc.items()) + '};\n')
