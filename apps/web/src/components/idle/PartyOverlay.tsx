@@ -4,10 +4,11 @@ import { CSS } from '@dnd-kit/utilities';
 import { generation, basicFor, calcStats, cooldownTicks, machineMoves, moveData, species, usableStones, type IdleAction, type Mon } from '@poke-tcg/idle';
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import { useEscape } from '../../hooks/useEscape';
-import { pokemonPics } from '../../utils/idleLook';
+import { gbaArt, pokemonPics } from '../../utils/idleLook';
 import { screenPx as px } from './GameScreen';
 import { HgssParty } from './HgssParty';
-const PARTY = '/idle/gen1/party';
+/** Its pictures, the region's (FireRed's or Emerald's: gbaArt). */
+const PARTY = () => gbaArt('party');
 /** FireRed's party text: white with its grey shadow (sFontColorTable[0]), in the Gen 3 font. */
 export const TEXT = { color: '#ffffff', textShadow: `${px(1)} ${px(1)} 0 #737373`, fontFamily: '"Pokemon Emerald", monospace', lineHeight: 1 } as const;
 /**
@@ -77,7 +78,10 @@ export function PartyOverlay({
   return <FireRedParty party={party} bag={bag} busy={busy} pending={pending} open={opened} onToggle={onToggle} onAct={onAct} replacing={replacing} onReplace={onReplace} />;
 }
 
-/** FireRed's party screen sliding out from the right (PartyOverlay's in Kanto). */
+/**
+ * FireRed's party screen sliding out from the right (PartyOverlay's in Kanto); Hoenn's Emerald's, the same party_menu.c
+ * layout with its own background and type labels (party/ by party_menu.py --game emerald).
+ */
 function FireRedParty({
   party,
   bag,
@@ -153,7 +157,7 @@ function FireRedParty({
       <div
         ref={slots}
         className="pointer-events-auto absolute top-0 h-full transition-transform duration-300 ease-out"
-        style={{ left: px(LIST_LEFT), width: px(240 - LIST_LEFT), transform: open ? 'none' : 'translateX(101%)', backgroundImage: `url(${PARTY}/bg.png)`, backgroundSize: `${px(240)} ${px(160)}`, backgroundPosition: `-${px(LIST_LEFT)} 0` }}
+        style={{ left: px(LIST_LEFT), width: px(240 - LIST_LEFT), transform: open ? 'none' : 'translateX(101%)', backgroundImage: `url(${PARTY()}/bg.png)`, backgroundSize: `${px(240)} ${px(160)}`, backgroundPosition: `-${px(LIST_LEFT)} 0` }}
         aria-hidden={!open}
       >
         {party.map((m) => {
@@ -177,7 +181,7 @@ function FireRedParty({
         <button
           type="button"
           className="absolute"
-          style={{ left: px(10 + SLOT_W - 56), top: px(144), width: px(56), height: px(16), backgroundImage: `url(${PARTY}/cancel.png)`, backgroundSize: '100% 100%' }}
+          style={{ left: px(10 + SLOT_W - 56), top: px(144), width: px(56), height: px(16), backgroundImage: `url(${PARTY()}/cancel.png)`, backgroundSize: '100% 100%' }}
           disabled={!!replacing && busy}
           onClick={() => (replacing ? onReplace?.() : close())}
           title={replacing ? `Release ${species(replacing.species).name}` : undefined}
@@ -249,9 +253,9 @@ function Slot({
       aria-pressed={selected}
       title={choosing ? `${s.name}: click to replace it` : `${s.name}: drag to reorder, click for details`}
     >
-      <span className="absolute inset-0" style={{ backgroundImage: `url(${PARTY}/${selected || held ? 'slot_selected' : 'slot'}.png)`, backgroundSize: '100% 100%' }} />
+      <span className="absolute inset-0" style={{ backgroundImage: `url(${PARTY()}/${selected || held ? 'slot_selected' : 'slot'}.png)`, backgroundSize: '100% 100%' }} />
       {/* The ball (closed, open when chosen) and the icon over it, as FireRed places them (sPartyMenuSpriteCoords). */}
-      <span className="absolute" style={{ left: px(-10), top: px(1), width: px(32), height: px(32), backgroundImage: `url(${PARTY}/pokeball.png)`, backgroundSize: `${px(32)} ${px(64)}`, backgroundPosition: `0 ${selected ? `-${px(32)}` : '0'}` }} />
+      <span className="absolute" style={{ left: px(-10), top: px(1), width: px(32), height: px(32), backgroundImage: `url(${PARTY()}/pokeball.png)`, backgroundSize: `${px(32)} ${px(64)}`, backgroundPosition: `0 ${selected ? `-${px(32)}` : '0'}` }} />
       <span
         className="absolute bg-no-repeat"
         style={{ left: px(-8), top: px(-6), width: px(32), height: px(32), backgroundImage: `url(${pokemonPics()}/icon/${mon.species}.png)`, backgroundSize: `${px(32)} ${px(64)}`, animation: `idle-icon-cqw ${selected || held ? '0.25s' : '0.5s'} steps(1) infinite` }}
@@ -459,11 +463,12 @@ export function MonPanel({
           Replace with {species(replacing.species).name}
         </button>
       )}
-      {/* Its types (FireRed's labels, menu_info.png's, at three quarters) over its stats, small (the user's), in one white window. */}
+      {/* Its types (FireRed's labels, menu_info.png's, 32x12; Emerald's summary screen's, 32x14: at three quarters) over its
+          stats, small (the user's), in one white window. */}
       <div style={{ background: '#ffffff', borderRadius: px(2), marginTop: px(2), border: `${px(1)} solid ${FRAME.shade}`, padding: px(2) }}>
         <div className="flex justify-center" style={{ gap: px(2) }}>
           {s.types.map((t) => (
-            <img key={t} src={`${PARTY}/types/${t}.png`} alt={t} style={{ width: px(24), height: px(9) }} draggable={false} />
+            <img key={t} src={`${PARTY()}/types/${t}.png`} alt={t} style={{ width: px(24), height: px(generation().look === 'rse' ? 10.5 : 9) }} draggable={false} />
           ))}
         </div>
         <div style={{ marginTop: px(1) }}>

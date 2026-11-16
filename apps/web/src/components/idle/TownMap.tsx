@@ -20,13 +20,18 @@ const TEXT = { fontFamily: '"Pokemon Emerald", monospace', fontSize: px(8), line
 const BOX = { background: '#ffffff', border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(4), boxShadow: `0 ${px(1)} 0 rgba(0,0,0,0.35)` };
 /**
  * The map's picture is drawn where the game draws it: Kanto's at (16, 16) on the screen, its grid's cells from (32, 32);
- * Johto's Pokégear map (232x144, tools/idle/johto_town_map.py) centred under the top bar on HGSS's 256x192.
+ * Johto's Pokégear map (232x144, tools/idle/johto_town_map.py) centred under the top bar on HGSS's 256x192; Hoenn's
+ * Fly map (tools/idle/hoenn_town_map.py) the whole screen, its frame's top under the top bar, its cells from (8, 16).
  */
-const mapAt = () => (generation().look === 'hgss' ? { x: 12, y: 32 } : { x: 16, y: 16 });
+const mapAt = () => (generation().look === 'hgss' ? { x: 12, y: 32 } : generation().look === 'rse' ? { x: 0, y: 0 } : { x: 16, y: 16 });
 const cellX = (x: number) => mapAt().x + townMapGrid().x + x * townMapGrid().cell;
 const cellY = (y: number) => mapAt().y + townMapGrid().y + y * townMapGrid().cell;
-/** The player's icon on the map: FireRed's Red or Leaf, the Pokégear's Ethan or Lyra. */
-const playerIcon = (gender: 'male' | 'female') => (generation().look === 'hgss' ? `/idle/gen2/town-map/${gender === 'female' ? 'lyra' : 'ethan'}.png` : `/idle/gen1/town-map/${gender === 'female' ? 'leaf' : 'red'}.png`);
+/** The player's icon on the map: FireRed's Red or Leaf, the Pokégear's Ethan or Lyra, Emerald's Brendan or May. */
+const PLAYER_ICONS = { frlg: ['gen1', 'red', 'leaf'], hgss: ['gen2', 'ethan', 'lyra'], rse: ['gen3', 'brendan', 'may'] } as const;
+const playerIcon = (gender: 'male' | 'female') => {
+  const [gen, male, female] = PLAYER_ICONS[generation().look];
+  return `/idle/${gen}/town-map/${gender === 'female' ? female : male}.png`;
+};
 /** The route choice's box: its least width, a choice's height and the gap between them (game pixels). */
 const CHOICE_W = 88;
 const CHOICE_ROW = 14;
@@ -37,7 +42,7 @@ const MODE_LABEL: Record<IdleMode, string> = { route: 'Walking', wild: 'Wild gri
 
 /**
  * The Town Map (the user's, in place of the mode drop-down): a Map button in the game screen's top left corner, on
- * every scene, opens FireRed's Kanto map (region_map.c's, by tools/idle/town_map.py) over the game screen. Its places
+ * every scene, opens the region's map over the game screen (FireRed's Kanto map, region_map.c's, by tools/idle/town_map.py; the Pokégear's Johto; Emerald's Fly map of Hoenn). Its places
  * are the run's towns, routes and dungeons (townMapPlaces()); those not reached yet are darkened. A town clicked takes
  * the run there (TRAVEL), its usual choices waiting; a route or dungeon clicked offers Wild grind and Trainer grind there
  * (GRIND_AT; one that can't start greyed out with why, mapGrindPlan), a wild grind for each of the place's own maps' wild

@@ -1,4 +1,4 @@
-import { IDLE_JOHTO_MUSIC, IDLE_MAP_MUSIC, SOUNDTRACKS } from '@poke-tcg/campaign';
+import { IDLE_HOENN_MUSIC, IDLE_JOHTO_MUSIC, IDLE_MAP_MUSIC, SOUNDTRACKS } from '@poke-tcg/campaign';
 import { describe, expect, it } from 'vitest';
 import { areas, areaIndex, badgeList, isTown, mapView, type WalkArea } from './areas.js';
 import { ENCOUNTERS } from './data/gen1/encounters.js';
@@ -185,6 +185,19 @@ describe("the Idle Adventure's music", () => {
         if ('map' in area) maps.add(area.map), maps.add(area.mart!.map);
       }
       for (const map of maps) for (const soundtrack of SOUNDTRACKS) expect(IDLE_JOHTO_MUSIC[soundtrack][mapView(map).music], `${map} (${mapView(map).music}), ${soundtrack}`).toBeDefined();
+    });
+  });
+
+  it("has each Hoenn map's own song (its MUS_ constant) in both soundtracks, its marts' and the starter's scene's too", () => {
+    inGeneration(3, () => {
+      const maps = new Set([generation().lab]);
+      for (const area of areas()) {
+        if ('legs' in area) for (const leg of area.legs) for (const map of leg.maps) maps.add(map);
+        if ('map' in area) maps.add(area.map), area.mart && maps.add(area.mart.map);
+      }
+      // Route 118's own theme isn't in either album (it plays Route 110's): to add to tracks.json.
+      const missing = new Set(['MUS_ROUTE118']);
+      for (const map of maps) for (const soundtrack of SOUNDTRACKS) if (!missing.has(mapView(map).music)) expect(IDLE_HOENN_MUSIC[soundtrack][mapView(map).music], `${map} (${mapView(map).music}), ${soundtrack}`).toBeDefined();
     });
   });
 });

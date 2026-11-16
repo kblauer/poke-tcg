@@ -1,12 +1,18 @@
-import { CATCH, FOE_SEND, FRAME_MS, HEALTHBOX_FRAMES, INTRO_FRAMES, INTRO_SPEED, OPEN_FRAMES, PLAYER_SEND, SHAKES_AT, species, type BattleEvent, type BattlerView } from '@poke-tcg/idle';
+import { CATCH, FOE_SEND, FRAME_MS, generation, HEALTHBOX_FRAMES, INTRO_FRAMES, INTRO_SPEED, OPEN_FRAMES, PLAYER_SEND, SHAKES_AT, species, type BattleEvent, type BattlerView } from '@poke-tcg/idle';
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { BattleSegment } from '../../hooks/useIdle';
 import { idleSpeed } from '../../utils/idleSpeed';
 import { GAME_HEIGHT, GAME_WIDTH } from './GameScreen';
 import { Healthbox } from './Healthbox';
+import { gbaArt, pokemonPics } from '../../utils/idleLook';
 
 const GEN1 = '/idle/gen1';
-const B = '/idle/gen1/battle';
+/** Its pictures, the region's (FireRed's or Emerald's: gbaArt). */
+const B = () => gbaArt('battle');
+/** Whether the scene is Emerald's (Hoenn's, issue #226, step 5): FireRed's with Emerald's pictures, and its player's throw. */
+const rse = () => generation().look === 'rse';
+/** The trainers' pictures (and the player's back pic sheets), the region's game's. */
+const trainerPics = () => `${rse() ? '/idle/gen3' : GEN1}/trainers`;
 
 /** The colour a ball's Pokémon is blended to as it comes out or goes in (sBallOpenFadeColors, 5 bits a channel). */
 const BALL_COLOR: Record<string, [number, number, number]> = {
@@ -49,7 +55,7 @@ function Ball({ item, frame, x, y, rot = 0, dark = 0 }: { item: string; frame: n
         top: Math.round(y) - 8,
         width: 16,
         height: 16,
-        backgroundImage: `url(${B}/balls/${ballOf(item)}.png)`,
+        backgroundImage: `url(${B()}/balls/${ballOf(item)}.png)`,
         backgroundPosition: `0 ${-frame * 16}px`,
         transform: rot ? `rotate(${(-rot * 360) / 256}deg)` : undefined,
         filter: dark ? `brightness(${1 - dark / 16})` : undefined,
@@ -74,7 +80,7 @@ function Burst({ item, f, x, y }: { item: string; f: number; x: number; y: numbe
           <span
             key={i}
             className="absolute"
-            style={{ left: Math.round(x + sin(angle) * r) - 4, top: Math.round(y + sin(angle + 64) * r) - 4, width: 8, height: 8, backgroundImage: `url(${B}/particles.png)`, backgroundPosition: `0 ${-fr * 8}px`, transform: frames === STREAKS && age % 6 === 3 ? 'scaleX(-1)' : undefined }}
+            style={{ left: Math.round(x + sin(angle) * r) - 4, top: Math.round(y + sin(angle + 64) * r) - 4, width: 8, height: 8, backgroundImage: `url(${B()}/particles.png)`, backgroundPosition: `0 ${-fr * 8}px`, transform: frames === STREAKS && age % 6 === 3 ? 'scaleX(-1)' : undefined }}
           />
         );
       })}
@@ -107,7 +113,7 @@ function Pic({ src, x, y, scale = 1, tint, clipBottom, anim }: { src: string; x:
 /** Where a Pokémon is drawn (GetBattlerSpriteDefault_Y): the foe's centre at 176, 40 less its elevation, the player's at 72, 80, each lowered by its picture's offset. */
 const foeY = (id: number) => 40 + species(id).pic.frontY - species(id).pic.elevation;
 const meY = (id: number) => 80 + species(id).pic.backY;
-const monSrc = (m: BattlerView, side: 0 | 1) => `${GEN1}/pokemon/${m.shiny ? 'shiny/' : ''}${side ? 'front' : 'back'}/${m.species}.png`;
+const monSrc = (m: BattlerView, side: 0 | 1) => `${pokemonPics()}/${m.shiny ? 'shiny/' : ''}${side ? 'front' : 'back'}/${m.species}.png`;
 
 /** The frame a ball's Pokémon is at once it opens (`o` frames in): its scale, how far below its place, its colour's sixteenths, the background's flash. */
 function emerging(g: number) {
@@ -132,6 +138,8 @@ interface Shown {
  * their ball opening (16 frames, its particles, the white flash, the Pokémon growing out of it in its colour), the
  * player's back pic throwing (its sheet's frames) and the ball's arc, healthboxes sliding in, a thrown ball's whole catch
  * (the throw, the Pokémon drawn in, the bounces, each shake, the click and stars, or the break out), and fainting.
+ * Hoenn's is Emerald's (issue #226, step 5): the same frames (its battle_intro.c, pokeball.c and battle_anim_throw.c
+ * time them as FireRed's), with its pictures, Brendan's or May's throw and the ball's start.
  */
 export function BattleScene({
   battle,
@@ -226,7 +234,7 @@ export function BattleScene({
     // (Gone for good once they've sent one out: a later send-out is the ball alone.)
     const sent = !foeSend ? -1 : opening(foeSend.index) ? Math.max(0, foeFrames(foeSend.at, foeSend.index)) : Infinity;
     const x = sent < 0 ? 176 - off : 176 + ((280 - 176) * Math.min(sent, FOE_SEND.trainerOut)) / FOE_SEND.trainerOut;
-    if (pic && sent < FOE_SEND.trainerOut) parts.push(<Pic key="trainer" src={`${GEN1}/trainers/${pic}.png`} x={x} y={40} />);
+    if (pic && sent < FOE_SEND.trainerOut) parts.push(<Pic key="trainer" src={`${trainerPics()}/${pic}.png`} x={x} y={40} />);
   }
   if (foeSend || (wild && firstFoe)) {
     const mon = foeSend?.mon ?? firstFoe!;
@@ -312,7 +320,7 @@ export function BattleScene({
         if (c < 24 && c % 2 === 0)
           stars.forEach(([dx, dy, h], i) => {
             const [sx, sy] = arc(c, 24, [176, 64], [176 + dx, 64 + dy], h);
-            parts.push(<span key={`star${i}`} className="absolute" style={{ left: Math.round(sx) - 4, top: Math.round(sy) - 4, width: 8, height: 8, backgroundImage: `url(${B}/particles.png)`, backgroundPosition: '0 -24px' }} />);
+            parts.push(<span key={`star${i}`} className="absolute" style={{ left: Math.round(sx) - 4, top: Math.round(sy) - 4, width: 8, height: 8, backgroundImage: `url(${B()}/particles.png)`, backgroundPosition: '0 -24px' }} />);
           });
       }
       if (broke) {
@@ -359,16 +367,21 @@ export function BattleScene({
 
   // ---- The player's side ----
   const meSend = sendOf(0);
-  const backSheet = `${GEN1}/trainers/${gender === 'female' ? 'leaf' : 'red'}_back_sheet.png`;
+  const backSheet = rse() ? `${trainerPics()}/${gender === 'female' ? 'may' : 'brendan'}_back_sheet.png` : `${GEN1}/trainers/${gender === 'female' ? 'leaf' : 'red'}_back_sheet.png`;
   const throwF = meSend && opening(meSend.index) ? frames(meSend.at) : meSend ? Infinity : -1;
   if (throwF < PLAYER_SEND.slide) {
-    // The back pic: in with the intro, then its throw (sheet frames 1, 2, 3, 4) as it slides off to the left.
+    // The back pic: in with the intro, then its throw (sheet frames 1, 2, 3, 4) as it slides off to the left. Emerald's
+    // (sBackAnims_Brendan, _May): standing in its frame 3, the throw frames 0, 1, 2 for 24, 9 and 24 frames, and drawn
+    // where it is (StartAnimLinearTranslation: no 16 pixels right).
     let x = 80 + off;
-    let sheet = 0;
+    let sheet = rse() ? 3 : 0;
     if (throwF >= 0) {
       x = 80 - (120 * Math.min(throwF, PLAYER_SEND.slide)) / PLAYER_SEND.slide;
-      sheet = throwF < 20 ? 1 : throwF < 26 ? 2 : throwF < 32 ? 3 : throwF < 56 ? 4 : 0;
-      if (sheet === 2 || sheet === 3) x += 16;
+      if (rse()) sheet = throwF < 24 ? 0 : throwF < 33 ? 1 : throwF < 57 ? 2 : throwF < 66 ? 0 : 3;
+      else {
+        sheet = throwF < 20 ? 1 : throwF < 26 ? 2 : throwF < 32 ? 3 : throwF < 56 ? 4 : 0;
+        if (sheet === 2 || sheet === 3) x += 16;
+      }
     }
     parts.push(<span key="back" className="absolute" style={{ left: Math.round(x) - 32, top: 48, width: 64, height: 64, backgroundImage: `url(${backSheet})`, backgroundPosition: `0 ${-sheet * 64}px` }} />);
   }
@@ -379,7 +392,8 @@ export function BattleScene({
     const faint = after(0, 'faint', meSend.index);
     const target: [number, number] = [72, Math.min(104, 88 + species(mon.species).pic.backY) + 24];
     const spin = SEND_SPIN * Math.max(0, g - SEND_SPIN_FROM + 1);
-    if (g >= 0 && g < PLAYER_SEND.arc) parts.push(<Ball key="me-ball" item="poke-ball" frame={0} rot={spin % 256} {...xy(arc(g, PLAYER_SEND.arc, [48, 70], target, 30))} />);
+    // (Thrown from 48,70, Emerald's from 24,68: Task_DoPokeballSendOutAnim.)
+    if (g >= 0 && g < PLAYER_SEND.arc) parts.push(<Ball key="me-ball" item="poke-ball" frame={0} rot={spin % 256} {...xy(arc(g, PLAYER_SEND.arc, rse() ? [24, 68] : [48, 70], target, 30))} />);
     const o = g - PLAYER_SEND.arc;
     if (o >= 0) {
       if (o < OPEN_FRAMES.anim) parts.push(<Ball key="me-ball" item="poke-ball" frame={o < 5 ? 1 : 2} x={target[0]} y={target[1]} />);

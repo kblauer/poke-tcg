@@ -91,8 +91,9 @@ export function IdlePage() {
 
   // The music (auto play), as FireRed plays it where the player is: the battle's theme, the Hall of Fame once won, Oak's
   // lab with no run under way (its starters), otherwise the map's own song; Surfing on any water the player surfs (cave
-  // water too), but on Route 23, Victory Road and the Indigo Plateau (Overworld_MusicCanOverrideMapMusic); the bike's on
-  // the Cycling Road (Route 17), where the game puts the player on the bike.
+  // water too), but on Route 23, Victory Road and the Indigo Plateau (Overworld_MusicCanOverrideMapMusic; Emerald's
+  // surfing plays it everywhere: Overworld_PlaySpecialMapMusic); the bike's on the Cycling Road (Route 17), where the
+  // game puts the player on the bike.
   const place = active ? (play.place ?? placeOf(active.view)) : null;
   const area = place ? areas()[place.area] : null;
   let mapName: string | null = active ? null : inGeneration(picked?.gen, () => generation().lab);
@@ -102,7 +103,7 @@ export function IdlePage() {
     const track = placeTrack(place!);
     const step = track[Math.min(place!.step, track.length - 1)]!;
     mapName = leg.maps[step[0]]!;
-    surfing = (step[4][1] === 'w' || step[4][1] === 'p') && !/^(Route23|VictoryRoad_|IndigoPlateau_)/.test(mapName);
+    surfing = (step[4][1] === 'w' || step[4][1] === 'p') && (generation().game === 'emerald' || !/^(Route23|VictoryRoad_|IndigoPlateau_)/.test(mapName));
   } else if (area && 'map' in area) mapName = area.map;
   const mapMusic = mapName ? mapView(mapName).music : null;
   const cycling = mapName === 'Route17';

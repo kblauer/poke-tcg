@@ -97,7 +97,7 @@ export function MapScene({
   spotted?: string | null;
   dialogue?: Dialogue | null;
   /** A cast on screen (the user's: fishing): the player's fishing sprite in its phase, in place of the player's. */
-  fishing?: { sprite: string; right?: boolean; surfing: boolean; phase: 'cast' | 'hooked' | 'away'; stamp: number };
+  fishing?: { sprite: string; right?: boolean; blob?: string; surfing: boolean; phase: 'cast' | 'hooked' | 'away'; stamp: number };
   /** What's over the player while he's under it (the map's overhead: Goldenrod Gym's bridges, the user's), or nothing. */
   overhead?: string | null;
   /** What's over everyone always (the map's `top`: FireRed's top layer, its treetops and counters' edges), or nothing. */
@@ -196,7 +196,7 @@ const FISH_RIGHT = 12;
 /** 4 game frames a frame (sAnim_TakeOutRod*), 6 for the bite's jerks (sAnim_HookedPokemon*), at 60 a second. */
 const FISH_FRAME_MS = 67;
 
-/** The surf blob's frame by facing (surf_blob.png's 6, 32x32: down, up, left, two each; right the left mirrored). */
+/** The surf blob's frame by facing (surf_blob.png's 6, 32x32: down, up, left, two each; right the left mirrored; Emerald's in the same layout). */
 const BLOB_FRAME: Record<Facing, number> = { down: 0, up: 2, left: 4, right: 4 };
 
 /**
@@ -205,7 +205,7 @@ const BLOB_FRAME: Record<Facing, number> = { down: 0, up: 2, left: 4, right: 4 }
  * (a little below, as surf_frames draws Red surfing), the two bobbing together (SURF_BOB), the blob's bottom fading into
  * the water as the surfing sprite's does (surfMask: the run maps' SURF_MASK). `lift`: raised by its tile's height (MapScene's).
  */
-function FishingSprite({ sprite, right = false, surfing, phase, stamp, tile, face, lift = 0 }: { sprite: string; right?: boolean; surfing: boolean; phase: 'cast' | 'hooked' | 'away'; stamp: number; tile: { x: number; y: number }; face: Facing; lift?: number }) {
+function FishingSprite({ sprite, right = false, blob = 'surf_blob', surfing, phase, stamp, tile, face, lift = 0 }: { sprite: string; right?: boolean; blob?: string; surfing: boolean; phase: 'cast' | 'hooked' | 'away'; stamp: number; tile: { x: number; y: number }; face: Facing; lift?: number }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), FISH_FRAME_MS / 2);
@@ -221,7 +221,7 @@ function FishingSprite({ sprite, right = false, surfing, phase, stamp, tile, fac
       {surfing && (
         <div
           className={`absolute [image-rendering:pixelated] ${SURF_BOB}`}
-          style={{ left: tile.x * 16 + 8 - 16, top: tile.y * 16 - 8 - lift, width: 32, height: 24, backgroundImage: 'url(/overworld/surf_blob.png)', backgroundSize: '192px 32px', backgroundPosition: `${-BLOB_FRAME[face] * 32}px 0`, transform: flip, zIndex: tile.y, ...surfMask(24) }}
+          style={{ left: tile.x * 16 + 8 - 16, top: tile.y * 16 - 8 - lift, width: 32, height: 24, backgroundImage: `url(/overworld/${blob}.png)`, backgroundSize: '192px 32px', backgroundPosition: `${-BLOB_FRAME[face] * 32}px 0`, transform: flip, zIndex: tile.y, ...surfMask(24) }}
         />
       )}
       <div
@@ -278,7 +278,7 @@ export function AreaScene({ playback, gender, dialogue, children }: { playback: 
       height={map.height}
       tile={at}
       player={(fishAt ? fishAt[5] : water) ? sprites.surf : sprites.walk}
-      {...(fishAt && playback.fishing && (sprites.fishSurfing || !fishAt[5]) && { fishing: { sprite: sprites.fish, right: sprites.fishRight, surfing: !!fishAt[5], ...playback.fishing } })}
+      {...(fishAt && playback.fishing && (sprites.fishSurfing || !fishAt[5]) && { fishing: { sprite: sprites.fish, right: sprites.fishRight, blob: sprites.blob, surfing: !!fishAt[5], ...playback.fishing } })}
       face={face}
       walkTick={playback.walkTick}
       moveMs={playback.moveMs}

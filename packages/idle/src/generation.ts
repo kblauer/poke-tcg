@@ -41,6 +41,7 @@ import { MARTS as HOENN_MARTS } from './data/gen3/marts.js';
 import { MOVES as HOENN_MOVES } from './data/gen3/moves.js';
 import { SPECIES as HOENN_SPECIES } from './data/gen3/species.js';
 import { TM_LEARNERS as HOENN_TM_LEARNERS, TM_MOVES as HOENN_TM_MOVES } from './data/gen3/tms.js';
+import { HOENN_TOWN_MAP_GRID, HOENN_TOWN_MAP_PLACES } from './data/gen3/town-map.js';
 import { TRAINERS as HOENN_TRAINERS } from './data/gen3/trainers.js';
 import { TYPE_CHART as HOENN_TYPE_CHART } from './data/gen3/types.js';
 
@@ -85,13 +86,14 @@ export interface Generation {
   starters: readonly number[];
   /** The town a run sets off from (its log's first line): Pallet Town, New Bark Town. */
   home: string;
-  /** The starter scene's map (StarterScene, with no run under way): the professor's lab. */
+  /** The starter scene's map (StarterScene, with no run under way): the professor's lab (Hoenn's Route 101: Birch's bag). */
   lab: string;
   /**
    * Which game the region's screens are drawn as (the page's components: the battle screen, the party menu, the mart,
-   * the Town Map, the player's sprites, the battle's timing): FireRed's GBA screens or HeartGold's DS ones.
+   * the Town Map, the player's sprites, the battle's timing): FireRed's GBA screens, HeartGold's DS ones, or Emerald's
+   * (issue #226, step 5: FireRed's screens, the same console's, with Emerald's pictures where they differ: gbaArt).
    */
-  look: 'frlg' | 'hgss';
+  look: 'frlg' | 'hgss' | 'rse';
   /**
    * The game whose rules outside the battle rules it plays by (FireRed's, HeartGold's, Emerald's), where two games with
    * the same battle rules differ (issue #226: Emerald's wild encounters, its leads' abilities, its prize for double
@@ -197,9 +199,9 @@ const JOHTO: Generation = {
 
 /**
  * Hoenn (Emerald, issue #226): its tables (data/gen3/, tools/idle/emerald_data.py), its areas and maps (step 4,
- * tools/idle/hoenn_areas.py). Its Town Map is to come (step 5): until then it has no places, and its grid is Kanto's, a
- * placeholder. Its places are the user's and mine, in the issue: Ever Grande City before the League, Lilycove's
- * Department Store for the TMs, the rods where Emerald gives them. Emerald has no time of day, so no `day`.
+ * tools/idle/hoenn_areas.py), its Town Map (step 5: Emerald's Fly map, tools/idle/hoenn_town_map.py). Its places are the
+ * user's and mine, in the issue: Ever Grande City before the League, Lilycove's Department Store for the TMs, the rods
+ * where Emerald gives them. Emerald has no time of day, so no `day`.
  */
 const HOENN: Generation = {
   gen: 3,
@@ -216,13 +218,13 @@ const HOENN: Generation = {
   tmLearners: HOENN_TM_LEARNERS,
   areas: HOENN_AREAS,
   maps: HOENN_MAPS,
-  townMapPlaces: [],
-  townMapGrid: KANTO.townMapGrid,
+  townMapPlaces: HOENN_TOWN_MAP_PLACES,
+  townMapGrid: HOENN_TOWN_MAP_GRID,
   starters: [252, 255, 258],
   home: 'Littleroot Town',
-  lab: 'LittlerootTown_ProfessorBirchsLab',
-  // Emerald's screens are to come (step 5); FireRed's are the same console's until then.
-  look: 'frlg',
+  // Emerald gives the starter from Birch's bag on Route 101 (Route101_EventScript_BirchsBag), not in his lab.
+  lab: 'Route101',
+  look: 'rse',
   game: 'emerald',
   battleRules: 3,
   tmShop: 'lilycove-city',

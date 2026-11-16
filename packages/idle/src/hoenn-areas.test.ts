@@ -155,6 +155,10 @@ describe('the Hoenn areas', () => {
       if (m.top) expect(existsSync(new URL(m.top.slice(1), PUBLIC)), m.top).toBe(true);
     }
     expect(hoenn.maps[inGeneration(3, () => generation().lab)]).toBeDefined();
+    // The marts' people, and what the player and the starter's scene draw (the web's playerSprites and StarterScene).
+    for (const a of hoenn.areas) if (isTown(a)) for (const p of (a as TownArea).mart?.people ?? []) expect(existsSync(new URL(`overworld/${p.sprite}.png`, PUBLIC)), `${a.id}: ${p.sprite}`).toBe(true);
+    for (const who of ['brendan', 'may']) for (const s of ['', '_surf', '_fish', '_surf_blob']) expect(existsSync(new URL(`overworld/rse/${who}${s}.png`, PUBLIC)), who + s).toBe(true);
+    for (const s of ['prof_birch', 'birchs_bag']) expect(existsSync(new URL(`overworld/rse/${s}.png`, PUBLIC)), s).toBe(true);
   });
 });
 

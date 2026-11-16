@@ -445,16 +445,37 @@ export const IDLE_JOHTO_MUSIC: Record<Soundtrack, Record<string, Song>> = {
 };
 
 /**
+ * The same for Emerald's maps (issue #226, step 5: each map.json's MUS_ constant), the Ruby & Sapphire album's for the
+ * original soundtrack and Omega Ruby & Alpha Sapphire's for the remastered one (Petalburg Woods is Ruby & Sapphire's
+ * Petalburg Forest). Route 118's own theme (MUS_ROUTE118) is in neither album: it plays the fallback, Route 110's,
+ * until it's added.
+ */
+const HOENN_IDLE_SONGS: Record<string, string> = {
+  MUS_LITTLEROOT: 'Littleroot Town', MUS_ROUTE101: 'Route 101', MUS_OLDALE: 'Oldale Town', MUS_PETALBURG: 'Petalburg City', MUS_ROUTE104: 'Route 104', MUS_RUSTBORO: 'Rustboro City', MUS_DEWFORD: 'Dewford Town',
+  MUS_SLATEPORT: 'Slateport City', MUS_ROUTE110: 'Route 110', MUS_MT_CHIMNEY: 'Mt. Chimney', MUS_VERDANTURF: 'Verdanturf Town', MUS_ROUTE119: 'Route 119', MUS_FORTREE: 'Fortree City', MUS_ROUTE120: 'Route 120',
+  MUS_LILYCOVE: 'Lilycove City', MUS_SOOTOPOLIS: 'Sootopolis City', MUS_EVER_GRANDE: 'Ever Grande City', MUS_VICTORY_ROAD: 'Victory Road', MUS_GYM: 'Pokémon Gym', MUS_POKE_CENTER: 'Pokémon Center', MUS_POKE_MART: 'Poké Mart',
+};
+export const IDLE_HOENN_MUSIC: Record<Soundtrack, Record<string, Song>> = {
+  original: Object.fromEntries(
+    Object.entries({ ...HOENN_IDLE_SONGS, MUS_PETALBURG_WOODS: 'Petalburg Forest' }).map(([k, title]) => [k, { game: 'Ruby & Sapphire', title }]),
+  ),
+  remastered: Object.fromEntries(
+    Object.entries({ ...HOENN_IDLE_SONGS, MUS_PETALBURG_WOODS: 'Petalburg Woods' }).map(([k, title]) => [k, { game: 'Omega Ruby & Alpha Sapphire', title }]),
+  ),
+};
+
+/**
  * Each Idle Adventure region's map songs (by its generation, as the idle package's `IdleGen`), and the song a map with
- * none listed plays (the region's music's): Kanto's Route 4, Johto's Route 30.
+ * none listed plays (the region's music's): Kanto's Route 4, Johto's Route 30, Hoenn's Route 110.
  */
 const IDLE_REGION_MUSIC: Record<number, { maps: Record<Soundtrack, Record<string, Song>>; fallback: (m: RegionMusic) => string }> = {
   1: { maps: IDLE_MAP_MUSIC, fallback: (m) => m.routes['Route 4']! },
   2: { maps: IDLE_JOHTO_MUSIC, fallback: () => 'Route 30' },
+  3: { maps: IDLE_HOENN_MUSIC, fallback: () => 'Route 110' },
 };
 
 /**
- * The Idle Adventure's music in a run's region (`gen`: Kanto's FireRed and Red albums, Johto's HeartGold and Gold): a map's song (IDLE_REGION_MUSIC; Surfing on the water, the bike's on the Cycling Road, where the
+ * The Idle Adventure's music in a run's region (`gen`: Kanto's FireRed and Red albums, Johto's HeartGold and Gold, Hoenn's Omega Ruby and Ruby): a map's song (IDLE_REGION_MUSIC; Surfing on the water, the bike's on the Cycling Road, where the
  * page says FireRed plays them), or a battle's: the wild, trainer,
  * gym leader (and Elite Four) or Champion theme, from the start, or the Hall of Fame once the Champion is beaten.
  */
