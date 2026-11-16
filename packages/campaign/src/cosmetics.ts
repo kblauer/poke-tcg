@@ -32,6 +32,9 @@ const BASE_COSMETICS: CosmeticDef[] = [
   { id: 'tidal', kind: 'cardBack', name: 'Tidal', description: 'The classic back with a rolling-wave foil.', unlock: { type: 'beat', runType: 'hoennChampion' } },
   { id: 'pearl', kind: 'cardBack', name: 'Pearl', description: 'The classic back with a pearlescent sheen.', unlock: { type: 'beat', runType: 'sinnohGyms' } },
   { id: 'diamond', kind: 'cardBack', name: 'Diamond', description: 'The classic back with a diamond-cut sparkle foil.', unlock: { type: 'beat', runType: 'sinnohChampion' } },
+  // Unova's (issue #231; my picks, to check with the user): tools/cardbacks/unova_backs.py.
+  { id: 'truth', kind: 'cardBack', name: 'Truth', description: 'The classic back with a foil of pale, rising flame.', unlock: { type: 'beat', runType: 'unovaGyms' } },
+  { id: 'ideals', kind: 'cardBack', name: 'Ideals', description: 'The classic back, darkened, with crackling lightning.', unlock: { type: 'beat', runType: 'unovaChampion' } },
   // Mats (the user's, 2026-11-06, after Pokémon TCG Live's): the table under the cards, the whole table (both sides) on a
   // big screen and the whole battle screen on a phone, drawn by the web app (TypeMat.tsx, utils/typeMats.ts).
   { id: 'mat-plain', kind: 'mat', name: 'Bare table', description: 'The table as it is.', unlock: { type: 'default' } },
@@ -182,7 +185,8 @@ const SLEEVES: [slug: string, name: string, unlock: CosmeticUnlock][] = [
   ['tyranitar', 'Tyranitar', { type: 'beat', runType: 'johtoChampion' }],
   ['ultra-necrozma', 'Ultra Necrozma', { type: 'buy', price: 1500 }],
   ['venusaur', 'Venusaur', { type: 'buy', price: 1500 }],
-  ['zoroark', 'Zoroark', { type: 'buy', price: 1500 }],
+  // The only Unova Pokémon among the sleeves: behind the Unova Gym Challenge (my pick, to check with the user).
+  ['zoroark', 'Zoroark', { type: 'beat', runType: 'unovaGyms' }],
 ];
 
 const COSMETIC_LIST: CosmeticDef[] = [
