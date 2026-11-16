@@ -1,5 +1,5 @@
 import { idleMusic } from '@poke-tcg/campaign';
-import { areas, cuts, dexSpecies, mapView, showGeneration, TICK_MS, type IdleAction, type IdleGen, type WalkArea } from '@poke-tcg/idle';
+import { areas, cuts, dexSpecies, generation, inGeneration, mapView, showGeneration, TICK_MS, type IdleAction, type IdleGen, type WalkArea } from '@poke-tcg/idle';
 import { useEffect, useState } from 'react';
 import type { Dialogue } from '../components/DialogueBox';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
@@ -91,18 +91,19 @@ export function IdlePage() {
 
   // The music (auto play), as FireRed plays it where the player is: the battle's theme, the Hall of Fame once won, Oak's
   // lab with no run under way (its starters), otherwise the map's own song; Surfing on any water the player surfs (cave
-  // water too), but on Route 23, Victory Road and the Indigo Plateau (Overworld_MusicCanOverrideMapMusic); the bike's on
-  // the Cycling Road (Route 17), where the game puts the player on the bike.
+  // water too), but on Route 23, Victory Road and the Indigo Plateau (Overworld_MusicCanOverrideMapMusic; Emerald's
+  // surfing plays it everywhere: Overworld_PlaySpecialMapMusic); the bike's on the Cycling Road (Route 17), where the
+  // game puts the player on the bike.
   const place = active ? (play.place ?? placeOf(active.view)) : null;
   const area = place ? areas()[place.area] : null;
-  let mapName: string | null = active ? null : picked?.gen === 2 ? 'NewBarkElmsLab1f' : 'PalletTown_ProfessorOaksLab';
+  let mapName: string | null = active ? null : inGeneration(picked?.gen, () => generation().lab);
   let surfing = false;
   if (area && 'legs' in area) {
     const leg = area.legs[Math.min(place!.leg, area.legs.length - 1)]!;
     const track = placeTrack(place!);
     const step = track[Math.min(place!.step, track.length - 1)]!;
     mapName = leg.maps[step[0]]!;
-    surfing = (step[4][1] === 'w' || step[4][1] === 'p') && !/^(Route23|VictoryRoad_|IndigoPlateau_)/.test(mapName);
+    surfing = (step[4][1] === 'w' || step[4][1] === 'p') && (generation().game === 'emerald' || !/^(Route23|VictoryRoad_|IndigoPlateau_)/.test(mapName));
   } else if (area && 'map' in area) mapName = area.map;
   const mapMusic = mapName ? mapView(mapName).music : null;
   const cycling = mapName === 'Route17';
@@ -171,7 +172,7 @@ export function IdlePage() {
     <div className={`${PAGE_WIDTH} space-y-4`}>
       <PageHeader
         title="Idle Adventure"
-        info={active && v ? `${v.areaName}${v.phase === 'grinding' ? ` (grinding to Lv. ${v.grindTarget})` : v.loop ? (v.loop.kind === 'fish' ? ' (fishing)' : ' (grinding)') : ''} · ${v.badges.length} badge${v.badges.length === 1 ? '' : 's'} · ₱${commas(v.money)}` : picked?.gen === 2 ? 'Walk Johto from New Bark Town to the Indigo Plateau' : 'Walk Kanto from Pallet Town to the Indigo Plateau'}
+        info={active && v ? `${v.areaName}${v.phase === 'grinding' ? ` (grinding to Lv. ${v.grindTarget})` : v.loop ? (v.loop.kind === 'fish' ? ' (fishing)' : ' (grinding)') : ''} · ${v.badges.length} badge${v.badges.length === 1 ? '' : 's'} · ₱${commas(v.money)}` : inGeneration(picked?.gen, () => `Walk ${generation().region} from ${generation().home} to ${generation().league.name}`)}
         actions={
           active ? (
             <span className="flex items-center gap-2">
@@ -241,7 +242,7 @@ export function IdlePage() {
             <section className="space-y-2">
               <h3 className="text-lg font-semibold">Or start from your Pokédex</h3>
               <p className="text-sm text-slate-400">Any species you've caught, at level 5 with its best IVs and EVs on record.</p>
-              <Pokedex dex={data.dex} starters={picked.starters} shinyStarters={picked.shinyStarters} onPick={(id, shiny) => void start(id, shiny)} busy={actions.busy} />
+              <Pokedex dex={data.dex} gen={picked.gen} starters={picked.starters} shinyStarters={picked.shinyStarters} onPick={(id, shiny) => void start(id, shiny)} busy={actions.busy} />
             </section>
           )}
           <ReturnToPlay />

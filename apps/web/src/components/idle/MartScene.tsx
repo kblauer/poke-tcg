@@ -4,17 +4,15 @@ import { useEscape } from '../../hooks/useEscape';
 import { useDragSteps, useOutsideTap } from './martGestures';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import type { ClientIdleRun } from '../../hooks/useIdle';
-import { playerSprites } from '../../utils/idleLook';
+import { gbaArt, playerSprites } from '../../utils/idleLook';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
 import { OverworldSprite } from '../run/RouteSprites';
 import { MapScene } from './AreaScene';
 import { HgssBuyScreen } from './HgssBuyScreen';
 import { DIALOGUE_TEXT, GAME_HEIGHT, GAME_WIDTH, useGameScale } from './GameScreen';
 
-/** The buy screen's pictures (tools/idle/shop_menu.py). */
-const SHOP = '/idle/gen1/shop';
-/** How many of the list's rows show at once (BuyMenuBuildListMenuTemplate's maxShowed). */
-const ROWS = 6;
+/** The buy screen's pictures (tools/idle/shop_menu.py), the region's (FireRed's or Emerald's: gbaArt). */
+const SHOP = () => gbaArt('shop');
 /** How much wheel scrolling (CSS pixels) moves the list a row: about a mouse wheel's notch. */
 const WHEEL_ROW = 100;
 /** The text's colours: the list's and the money box's (the menu window palette's 2 on 3), the description's (1 on 2). */
@@ -23,6 +21,101 @@ const WHITE = { color: '#ffffff', textShadow: '1px 0 0 #626262, 0 1px 0 #626262,
 const FONT: CSSProperties = { fontFamily: '"Pokemon Emerald", monospace', lineHeight: 1, whiteSpace: 'pre' };
 const NORMAL: CSSProperties = { ...FONT, fontSize: 11 };
 const SMALL: CSSProperties = { ...FONT, fontSize: 9 };
+
+/** A window's place and size in tiles, and its frame. */
+type WinAt = { x: number; y: number; w: number; h: number; frame: 'std' | 'user' };
+
+/**
+ * Where the buy screen's parts are, in game pixels (windows in tiles): FireRed's (buy_menu_helpers.c's window templates,
+ * shop.c's BuyMenuDrawMapBg) or Emerald's (issue #226, step 5: its shop.c's sShopBuyMenuWindowTemplates).
+ */
+interface BuyLayout {
+  /** How many of the list's rows show at once (the list template's maxShowed). */
+  rows: number;
+  /**
+   * The map behind: the box it shows in, the faced tile's place in it (its tile column and row from the box's corner),
+   * and the people drawn (BuyMenuCollectObjectEventData's 7 by 5 tiles round the faced tile: `px` left of it to `px2`
+   * right, 2 above and below).
+   */
+  map: { left: number; top: number; width: number; height: number; col: number; row: number; px: number; px2: number };
+  /** The frame's picture while choosing from the list and while a quantity is chosen. */
+  frame: { list: string; quantity: string };
+  /** The money box (the user's: never in the top left corner, where the Map button is) and, Emerald's, its MONEY label. */
+  money: WinAt & { quantityY: number; label: boolean };
+  list: { left: number; top: number; width: number; rowY: number; nameX: number; cursorX: number };
+  arrows: { x: number; up: number; down: number };
+  description: { x: number; y: number; style: CSSProperties };
+  icon: { x: number; y: number };
+  inBag: WinAt;
+  quantity: WinAt & { textY: number; arrows: { x: number; up: number; down: number } };
+  /** The clerk's lines (FireRed's or Emerald's data/text/… strings). */
+  lines: {
+    howMany: (name: string) => string;
+    confirm: (name: string, count: number, total: number) => string;
+    machine: (name: string, price: number) => string;
+    thanks: string;
+  };
+}
+
+/** FireRed's buy screen. */
+const FIRERED_BUY: BuyLayout = {
+  rows: 6,
+  // The map round the tile the player faces: 5 by 10 tiles from 2 left of and 3 above it, drawn from 16 pixels down.
+  map: { left: 0, top: 16, width: 80, height: GAME_HEIGHT - 16, col: 2, row: 3, px: 3, px2: 3 },
+  frame: { list: 'frame', quantity: 'frame_quantity' },
+  // Window 0's 8 by 3 tiles (the user's: on the left, just above the description's bar; above IN BAG while it's there).
+  money: { x: 1, y: 10, quantityY: 6, w: 8, h: 3, frame: 'std', label: false },
+  // Window 4: 11,1, 17 by 12 tiles: the name from 9, the price from 105, rows of 16 from 2.
+  list: { left: 88, top: 8, width: 136, rowY: 2, nameX: 9, cursorX: 1 },
+  arrows: { x: 160, up: 8, down: 104 },
+  // Window 5: 5,14, white on the bar; the icon at 24,140.
+  description: { x: 40, y: 115, style: { ...NORMAL, ...WHITE, lineHeight: '15px' } },
+  icon: { x: 8, y: 124 },
+  // IN BAG: window 1, 1,11; the quantity: window 3, 17,9, its arrows at 152,72 and 152,104.
+  inBag: { x: 1, y: 11, w: 13, h: 2, frame: 'std' },
+  quantity: { x: 17, y: 9, w: 12, h: 4, frame: 'user', textY: 10, arrows: { x: 152, up: 72, down: 104 } },
+  lines: {
+    howMany: (name) => `${name}? Certainly.\nHow many would you like?`,
+    confirm: (name, count, total) => `${name}, and you want ${count}.\nThat will be ₱${total}. Okay?`,
+    machine: (name, price) => `${name}?\nThat will be ₱${price}. Okay?`,
+    thanks: 'Here you are!\nThank you!',
+  },
+};
+
+/** Emerald's buy screen: the list on the right over the shop's map, the item's icon and description bottom left. */
+const EMERALD_BUY: BuyLayout = {
+  rows: 8,
+  // BuyMenuDrawMapBg: the whole screen's 15 by 10 tiles from 4 left of and 4 above the faced tile; the people from 4 left
+  // of it to 2 right (BuyMenuCollectObjectEventData).
+  map: { left: 0, top: 0, width: GAME_WIDTH, height: GAME_HEIGHT, col: 4, row: 4, px: 4, px2: 2 },
+  // Emerald leaves its frame as it is while a quantity is chosen.
+  frame: { list: 'frame', quantity: 'frame' },
+  // Window 0's 10 by 2 tiles (Emerald's at 1,1; the user's rule moves it out of the top left corner, above the icon's box),
+  // its MONEY label over its corner (AddMoneyLabelObject(19, 11)), the player's frame (PrintMoneyAmountInMoneyBoxWithBorder).
+  money: { x: 1, y: 5, quantityY: 5, w: 10, h: 2, frame: 'user', label: true },
+  // Window 1: 14,2, 15 by 16 tiles: the cursor at 0, the name from 8, the price right-aligned to 120, rows of 16 from 1.
+  list: { left: 112, top: 16, width: 120, rowY: 1, nameX: 8, cursorX: 0 },
+  // AddScrollIndicatorArrowPairParameterized(SCROLL_ARROW_UP, 172, 12, 148, …).
+  arrows: { x: 172, up: 12, down: 148 },
+  // Window 2: 0,13, printed at 3,1 (COLORID_NORMAL: dark on white); the icon's sprite at 24,88 (BuyMenuAddItemIcon).
+  description: { x: 3, y: 105, style: { ...NORMAL, ...DARK, lineHeight: '16px' } },
+  icon: { x: 8, y: 72 },
+  // IN BAG: window 3, 1,11, 12 by 2; the quantity: window 4, 18,11, 10 by 2 (Emerald draws no arrows: ours to click, above
+  // and below it).
+  inBag: { x: 1, y: 11, w: 12, h: 2, frame: 'user' },
+  quantity: { x: 18, y: 11, w: 10, h: 2, frame: 'user', textY: 1, arrows: { x: 184, up: 78, down: 114 } },
+  // gText_Var1CertainlyHowMany, gText_Var1AndYouWantedVar2, gText_Var1IsItThatllBeVar2 (the decorations' one of a kind:
+  // a TM's here), gText_HereYouGoThankYou.
+  lines: {
+    howMany: (name) => `${name}? Certainly.\nHow many would you like?`,
+    confirm: (name, count, total) => `${name}? And you wanted ${count}?\nThat will be ₱${total}.`,
+    machine: (name, price) => `${name}, is it?\nThat'll be ₱${price}. Do you want it?`,
+    thanks: 'Here you go!\nThank you very much.',
+  },
+};
+
+/** The shown region's buy screen. */
+const buyLayout = () => (generation().look === 'rse' ? EMERALD_BUY : FIRERED_BUY);
 
 /** An item's name as FireRed's lists print it: in capitals, its "é" small (POKé BALL). */
 const caps = (name: string) => name.toUpperCase().replace(/É/g, 'é');
@@ -64,13 +157,15 @@ export function MartScene({
   buyChildren?: ReactNode;
 }) {
   const town = areas()[run.view.area] as TownArea;
-  const mart = town.mart;
+  const mart = town.mart!;
   const map = mapView(mart.map);
   const player = playerSprites(gender).walk;
   const [stage, setStage] = useState<'hello' | 'again' | 'buy' | 'tms' | 'bye'>('hello');
   const tms = tmShopOpen(run.view);
   // Johto's: HeartGold's buy screen on the DS's two screens (HgssBuyScreen), its clerk's words HGSS's (msg_0040, msg_0435).
-  const hgss = generation().gen === 2;
+  const hgss = generation().look === 'hgss';
+  // Hoenn's: Emerald's (data/text/mart_clerk.inc, shop.c's QUIT and gText_AnythingElseICanHelp).
+  const rse = generation().look === 'rse';
   const Buy = hgss ? HgssBuyScreen : BuyScreen;
   if ((stage === 'buy' || stage === 'tms') && !dialogue)
     return (
@@ -78,9 +173,9 @@ export function MartScene({
         {buyChildren}
       </Buy>
     );
-  const choices = ['BUY', ...(tms ? ['BUY TM/HM'] : []), 'SEE YA!'];
-  const hello = hgss ? 'Welcome!\nWhat do you need?' : 'Hi, there!\nMay I help you?';
-  const again = hgss ? 'Is there anything else I may do\nfor you?' : 'Is there anything else I can do?';
+  const choices = ['BUY', ...(tms ? ['BUY TM/HM'] : []), rse ? 'QUIT' : 'SEE YA!'];
+  const hello = hgss ? 'Welcome!\nWhat do you need?' : rse ? 'Welcome!\nHow may I serve you?' : 'Hi, there!\nMay I help you?';
+  const again = hgss ? 'Is there anything else I may do\nfor you?' : rse ? 'Is there anything else I can help\nyou with?' : 'Is there anything else I can do?';
   const clerk: Dialogue =
     stage === 'bye'
       ? { text: 'Please come again!', answer: () => !busy && onLeave() }
@@ -92,12 +187,12 @@ export function MartScene({
   );
 }
 
-/** A window with one of FireRed's frames (its 3 by 3 tiles drawn round it), at a tile position and size in tiles. */
-function Win({ x, y, w, h, frame, children }: { x: number; y: number; w: number; h: number; frame: 'std' | 'user'; children?: ReactNode }) {
+/** A window with one of the game's frames (its 3 by 3 tiles drawn round it), at a tile position and size in tiles. */
+function Win({ x, y, w, h, frame, children }: WinAt & { children?: ReactNode }) {
   return (
     <div
       className="absolute"
-      style={{ left: x * 8 - 8, top: y * 8 - 8, width: w * 8, height: h * 8, boxSizing: 'content-box', borderStyle: 'solid', borderWidth: 8, borderImage: `url(${SHOP}/window_${frame}.png) 8 fill` }}
+      style={{ left: x * 8 - 8, top: y * 8 - 8, width: w * 8, height: h * 8, boxSizing: 'content-box', borderStyle: 'solid', borderWidth: 8, borderImage: `url(${SHOP()}/window_${frame}.png) 8 fill` }}
     >
       <div className="relative h-full w-full">{children}</div>
     </div>
@@ -113,11 +208,11 @@ function Text({ x, y, style, children }: { x: number; y: number; style: CSSPrope
   );
 }
 
-/** A Pokédollar amount in the small font, its sign FireRed's (pokedollar.png), right-aligned to `right`. */
-function Money({ right, y, amount }: { right: number; y: number; amount: number }) {
+/** A Pokédollar amount in the small font (or `font`), its sign the game's (pokedollar.png), right-aligned to `right`. */
+function Money({ right, y, amount, font = SMALL }: { right: number; y: number; amount: number; font?: CSSProperties }) {
   return (
-    <span className="absolute flex items-start" style={{ right, top: y, ...SMALL, ...DARK }}>
-      <img src={`${SHOP}/pokedollar.png`} alt="₱" style={{ width: 8, height: 16, marginTop: -1, marginRight: -2 }} draggable={false} />
+    <span className="absolute flex items-start" style={{ right, top: y, ...font, ...DARK }}>
+      <img src={`${SHOP()}/pokedollar.png`} alt="₱" style={{ width: 8, height: 16, marginTop: -1, marginRight: -2 }} draggable={false} />
       {amount}
     </span>
   );
@@ -152,7 +247,8 @@ function Arrow({ x, y, up, label, onClick }: { x: number; y: number; up: boolean
  * FireRed's buy screen (src/shop.c, buy_menu_helpers.c), in game pixels: the map round the counter on the left (5 by
  * 10 tiles from two tiles left of and three above the tile the player faces, everyone within 3 tiles of it), the frame
  * over it (frame.png), the money box, the list (6 rows, prices in the small font, CANCEL last), the item's description
- * and icon. Choosing an item: "X? Certainly. How many would you like?", IN BAG and the quantity box (up and down 1,
+ * and icon. Hoenn's Emerald's (EMERALD_BUY: the map behind the whole screen, the list's 8 rows on the right, the icon and
+ * description bottom left, its clerk's lines), the same steps. Choosing an item: "X? Certainly. How many would you like?", IN BAG and the quantity box (up and down 1,
  * left and right 10, up to 99 or what the money buys), then "X, and you want N. That will be ₱T. Okay?" YES or NO,
  * then "Here you are! Thank you!". Pointer (hover to point, click to choose) or keys (arrows, Enter, Escape). With
  * `machines` (Buy TMs), those TMs or HMs, each with its move; one of each (no quantity: "X? That will be ₱T. Okay?"),
@@ -163,7 +259,7 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
   const { ref, scale } = useGameScale();
   const pressDialogue = useRef<(() => void) | null>(null);
   const town = areas()[run.view.area] as TownArea;
-  const mart = town.mart;
+  const mart = town.mart!;
   const map = mapView(mart.map);
   const stock = machines ?? run.view.store;
   const owned = (it: string) => isMachine(it) && (run.view.bag[it] ?? 0) > 0;
@@ -173,6 +269,8 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
   const [count, setCount] = useState(1);
   /** Where the purchase is: the list, the quantity, the YES/NO, or a line to read before the list again. */
   const [step, setStep] = useState<{ kind: 'list' } | { kind: 'quantity' | 'confirm'; item: string } | { kind: 'said'; text: string }>({ kind: 'list' });
+  const L = buyLayout();
+  const ROWS = L.rows;
   const rows = [...stock, null];
   const item = cursor < stock.length ? stock[cursor]! : null;
   const chosen = step.kind === 'quantity' || step.kind === 'confirm' ? step.item : null;
@@ -198,7 +296,7 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
   const buy = async () => {
     if (step.kind !== 'confirm' || busy) return;
     const ok = await onBuy(step.item, count);
-    setStep(ok ? { kind: 'said', text: 'Here you are!\nThank you!' } : { kind: 'list' });
+    setStep(ok ? { kind: 'said', text: L.lines.thanks } : { kind: 'list' });
   };
   // The keys: the arrows move the cursor (or the quantity); Enter chooses (on a line, the text box takes it).
   const onKey = (e: KeyboardEvent) => {
@@ -274,19 +372,19 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
   const name = itemName;
   const dialogue: Dialogue | null =
     step.kind === 'quantity'
-      ? { text: `${name(step.item)}? Certainly.\nHow many would you like?`, answer: () => setStep({ kind: 'confirm', item: step.item }) }
+      ? { text: L.lines.howMany(name(step.item)), answer: () => setStep({ kind: 'confirm', item: step.item }) }
       : step.kind === 'confirm'
-        ? { text: isMachine(step.item) ? `${name(step.item)}?\nThat will be ₱${price}. Okay?` : `${name(step.item)}, and you want ${count}.\nThat will be ₱${price * count}. Okay?`, choices: [{ label: 'YES', disabled: busy }, 'NO'], answer: (i) => (i === 0 ? void buy() : setStep({ kind: 'list' })) }
+        ? { text: isMachine(step.item) ? L.lines.machine(name(step.item), price) : L.lines.confirm(name(step.item), count, price * count), choices: [{ label: 'YES', disabled: busy }, 'NO'], answer: (i) => (i === 0 ? void buy() : setStep({ kind: 'list' })) }
         : step.kind === 'said'
           ? { text: step.text, answer: () => setStep({ kind: 'list' }) }
           : null;
-  // The map round the tile the player faces: 5 by 10 tiles from 2 left of and 3 above it, drawn from 16 pixels down.
+  // The map round the tile the player faces (L.map), and everyone near it.
   const [dx, dy] = ({ up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] } as const)[mart.face];
   const fx = mart.x + dx;
   const fy = mart.y + dy;
-  const ox = -(fx - 2) * 16;
-  const oy = 16 - (fy - 3) * 16;
-  const people = [...mart.people, { sprite: player, x: mart.x, y: mart.y, face: mart.face }].filter((p) => Math.abs(p.x - fx) <= 3 && Math.abs(p.y - fy) <= 2);
+  const ox = L.map.left - (fx - L.map.col) * 16;
+  const oy = L.map.top - (fy - L.map.row) * 16;
+  const people = [...mart.people, { sprite: player, x: mart.x, y: mart.y, face: mart.face }].filter((p) => p.x - fx >= -L.map.px && p.x - fx <= L.map.px2 && Math.abs(p.y - fy) <= 2);
   const shown = rows.slice(top, top + ROWS);
   const listing = step.kind === 'list';
   return (
@@ -300,8 +398,8 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
         {scale > 0 && (
           <div className="absolute left-0 top-0 origin-top-left select-none [image-rendering:pixelated]" style={{ width: GAME_WIDTH, height: GAME_HEIGHT, transform: `scale(${scale})` }}>
             {/* The map (its 10 tile columns) and everyone near the counter, behind the frame. */}
-            <div className="absolute overflow-hidden" style={{ left: 0, top: 16, width: 80, height: GAME_HEIGHT - 16 }}>
-              <img src={map.image} alt="" className="absolute max-w-none" style={{ left: ox, top: oy - 16, width: map.width * 16, height: map.height * 16 }} draggable={false} />
+            <div className="absolute overflow-hidden" style={{ left: L.map.left, top: L.map.top, width: L.map.width, height: L.map.height }}>
+              <img src={map.image} alt="" className="absolute max-w-none" style={{ left: ox - L.map.left, top: oy - L.map.top, width: map.width * 16, height: map.height * 16 }} draggable={false} />
             </div>
             {/* (Its own stacking context: the sprites' z-index, lower on the map in front, stays under the frame.) */}
             <div className="absolute isolate" style={{ left: ox, top: oy, width: map.width * 16, height: map.height * 16, zIndex: 0 }}>
@@ -311,15 +409,19 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
               {/* The counter's near edge over the clerk and the player (the map's top layer). */}
               {map.top && <img src={map.top} alt="" className="absolute left-0 top-0 max-w-none" style={{ width: map.width * 16, height: map.height * 16, zIndex: 899 }} draggable={false} />}
             </div>
-            <img src={`${SHOP}/${listing ? 'frame' : 'frame_quantity'}.png`} alt="" className="absolute left-0 top-0" style={{ width: GAME_WIDTH, height: GAME_HEIGHT }} draggable={false} />
-            {/* The money box (window 0's 8 by 3 tiles; the user's: on the left, just above the description's bar, not in the
-                top left corner, where the Map button is; above IN BAG while it's there). */}
-            <Win x={1} y={step.kind === 'quantity' ? 6 : 10} w={8} h={3} frame="std">
-              <Text x={0} y={1} style={{ ...NORMAL, ...DARK }}>MONEY</Text>
-              <Money right={0} y={12} amount={money} />
+            <img src={`${SHOP()}/${listing ? L.frame.list : L.frame.quantity}.png`} alt="" className="absolute left-0 top-0" style={{ width: GAME_WIDTH, height: GAME_HEIGHT }} draggable={false} />
+            {/* The money box (L.money): FireRed's MONEY over the amount, Emerald's amount beside its MONEY label. */}
+            <Win {...L.money} y={step.kind === 'quantity' ? L.money.quantityY : L.money.y}>
+              {L.money.label ? <Money right={0} y={1} amount={money} font={NORMAL} /> : (
+                <>
+                  <Text x={0} y={1} style={{ ...NORMAL, ...DARK }}>MONEY</Text>
+                  <Money right={0} y={12} amount={money} />
+                </>
+              )}
             </Win>
-            {/* The list (window 4: 11,1, 17 by 12 tiles): the name from 9, the price from 105, rows of 16 from 2. */}
-            <div ref={list} className="absolute" style={{ left: 88, top: 8, width: 136, height: 96 }}>
+            {L.money.label && <img src={`${SHOP()}/money.png`} alt="" className="absolute" style={{ left: L.money.x * 8 - 5, top: (step.kind === 'quantity' ? L.money.quantityY : L.money.y) * 8 - 5, width: 32, height: 16 }} draggable={false} />}
+            {/* The list (L.list), rows of 16. */}
+            <div ref={list} className="absolute" style={{ left: L.list.left, top: L.list.top, width: L.list.width, height: ROWS * 16 }}>
               {shown.map((it, i) => {
                 const row = top + i;
                 return (
@@ -327,46 +429,46 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
                     key={it ?? 'cancel'}
                     type="button"
                     className="absolute left-0 block w-full text-left"
-                    style={{ top: 2 + i * 16, height: 16 }}
+                    style={{ top: L.list.rowY + i * 16, height: 16 }}
                     disabled={!listing}
                     onPointerEnter={() => listing && point(row)}
                     onClick={(e) => (e.stopPropagation(), listing && (point(row), choose(row)))}
                     aria-label={it ? `${name(it)}, ${owned(it) ? 'owned' : `₱${priceOf(it)}`}` : 'Cancel'}
                   >
-                    {row === cursor && <Cursor x={1} y={2} grey={!listing} />}
-                    <Text x={9} y={2} style={{ ...NORMAL, ...DARK }}>
+                    {row === cursor && <Cursor x={L.list.cursorX} y={2} grey={!listing} />}
+                    <Text x={L.list.nameX} y={2} style={{ ...NORMAL, ...DARK }}>
                       {it ? name(it) : 'CANCEL'}
                     </Text>
-                    {it && (owned(it) ? <Text x={136 - 34} y={4} style={{ ...SMALL, ...DARK }}>OWNED</Text> : <Money right={0} y={3} amount={priceOf(it)} />)}
+                    {it && (owned(it) ? <Text x={L.list.width - 34} y={4} style={{ ...SMALL, ...DARK }}>OWNED</Text> : <Money right={0} y={3} amount={priceOf(it)} />)}
                   </button>
                 );
               })}
             </div>
-            {listing && top > 0 && <Arrow x={160} y={8} up label="Scroll up" onClick={() => scroll(-1)} />}
-            {listing && top + ROWS < rows.length && <Arrow x={160} y={104} up={false} label="Scroll down" onClick={() => scroll(1)} />}
-            {/* The item's description (window 5: 5,14) and icon (at 24,140), hidden while it's being bought. */}
+            {listing && top > 0 && <Arrow x={L.arrows.x} y={L.arrows.up} up label="Scroll up" onClick={() => scroll(-1)} />}
+            {listing && top + ROWS < rows.length && <Arrow x={L.arrows.x} y={L.arrows.down} up={false} label="Scroll down" onClick={() => scroll(1)} />}
+            {/* The item's description and icon (L.description, L.icon), the description hidden while it's being bought. */}
             {listing && (
-              <Text x={40} y={115} style={{ ...NORMAL, ...WHITE, lineHeight: '15px' }}>
+              <Text x={L.description.x} y={L.description.y} style={L.description.style}>
                 {item ? generation().items[item]!.description : 'Quit shopping.'}
               </Text>
             )}
-            <img src={`${SHOP}/items/${item ?? 'cancel'}.png`} alt="" className="absolute" style={{ left: 8, top: 124, width: 24, height: 24 }} draggable={false} />
-            {/* How many (IN BAG: window 1, 1,11; the quantity: window 3, 17,9, its arrows at 152,72 and 152,104). */}
+            <img src={`${SHOP()}/items/${item ?? 'cancel'}.png`} alt="" className="absolute" style={{ left: L.icon.x, top: L.icon.y, width: 24, height: 24 }} draggable={false} />
+            {/* How many (IN BAG: L.inBag; the quantity: L.quantity, with its arrows). */}
             {step.kind === 'quantity' && (
               <>
-                <Win x={1} y={11} w={13} h={2} frame="std">
+                <Win {...L.inBag}>
                   <Text x={0} y={2} style={{ ...NORMAL, ...DARK }}>
                     IN BAG: <span style={SMALL}>{String(run.view.bag[step.item] ?? 0).padStart(3)}</span>
                   </Text>
                 </Win>
-                <Win x={17} y={9} w={12} h={4} frame="user">
+                <Win {...L.quantity}>
                   <button type="button" className="absolute inset-0" aria-label="One more" onClick={(e) => (e.stopPropagation(), adjust(1))} style={{ height: '50%' }} />
                   <button type="button" className="absolute inset-x-0 bottom-0" aria-label="One fewer" onClick={(e) => (e.stopPropagation(), adjust(-1))} style={{ height: '50%' }} />
-                  <Text x={2} y={10} style={{ ...SMALL, ...DARK }}>×{String(count).padStart(2, '0')}</Text>
-                  <Money right={2} y={10} amount={price * count} />
+                  <Text x={2} y={L.quantity.textY} style={{ ...SMALL, ...DARK }}>×{String(count).padStart(2, '0')}</Text>
+                  <Money right={2} y={L.quantity.textY} amount={price * count} />
                 </Win>
-                {most > 1 && <Arrow x={152} y={72} up label="One more" onClick={() => adjust(1)} />}
-                {most > 1 && <Arrow x={152} y={104} up={false} label="One fewer" onClick={() => adjust(-1)} />}
+                {most > 1 && <Arrow x={L.quantity.arrows.x} y={L.quantity.arrows.up} up label="One more" onClick={() => adjust(1)} />}
+                {most > 1 && <Arrow x={L.quantity.arrows.x} y={L.quantity.arrows.down} up={false} label="One fewer" onClick={() => adjust(-1)} />}
               </>
             )}
           </div>

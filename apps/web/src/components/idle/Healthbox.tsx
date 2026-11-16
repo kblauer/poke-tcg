@@ -1,14 +1,20 @@
-import { expForLevel, species, type BattlerView, type StatusKind } from '@poke-tcg/idle';
+import { expForLevel, generation, species, type BattlerView, type StatusKind } from '@poke-tcg/idle';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { SMALL_GLYPHS, SMALL_WIDTHS } from './fontSmall';
+import { SMALL_WIDTHS_RSE } from './fontSmallRse';
+import { gbaArt } from '../../utils/idleLook';
 
-/** The healthboxes' pictures (tools/idle/battle_interface.py). */
-const B = '/idle/gen1/battle';
+/** The healthboxes' pictures, the region's (FireRed's or Emerald's: gbaArt; tools/idle/battle_interface.py). */
+const B = () => gbaArt('battle');
 /** The {LV_2} symbol (the small font's extra symbol 5). */
 const LV = 0x105;
 /** The HP bar's 6 tiles, the EXP. bar's 8 (B_HEALTHBAR_NUM_TILES, B_EXPBAR_NUM_TILES). */
 const HP_TILES = 6;
 const EXP_TILES = 8;
+/** Whether the healthboxes are Emerald's (Hoenn's: its pictures, its small font's widths, its HP numbers' window). */
+const rse = () => generation().look === 'rse';
+/** The small font's glyph widths, the region's game's. */
+const widths = () => (rse() ? SMALL_WIDTHS_RSE : SMALL_WIDTHS);
 
 /** A Pokémon's name as FireRed prints it: in capitals, "é" small, the apostrophe its own (FARFETCH’D). */
 const caps = (name: string) => name.toUpperCase().replace(/É/g, 'é').replace(/'/g, '’');
@@ -23,8 +29,8 @@ function SmallText({ codes, x, y, font = 'font_small' }: { codes: number[]; x: n
     <>
       {codes.map((g, i) => {
         const at = cx;
-        cx += SMALL_WIDTHS[g] ?? 5;
-        return <span key={i} className="absolute" style={{ left: at, top: y, width: 8, height: 16, backgroundImage: `url(${B}/${font}.png)`, backgroundPosition: `${-(g % 32) * 8}px ${-Math.floor(g / 32) * 16}px` }} />;
+        cx += widths()[g] ?? 5;
+        return <span key={i} className="absolute" style={{ left: at, top: y, width: 8, height: 16, backgroundImage: `url(${B()}/${font}.png)`, backgroundPosition: `${-(g % 32) * 8}px ${-Math.floor(g / 32) * 16}px` }} />;
       })}
     </>
   );
@@ -84,7 +90,8 @@ export const STATUS: Record<StatusKind, string> = { sleep: 'slp', poison: 'psn',
  * status icon, the HP bar (its sprite: "HP" or, for the opponent's with a status, its left end, then 6 tiles, green
  * over half, yellow over a fifth, red), and the player's HP numbers and EXP. bar. Bars move a step a frame, as the
  * game's do. `x`, `y` the picture's top left on the screen (InitBattlerHealthboxCoords' centre less the sprite's
- * centre-to-corner: the player's 126,72, the opponent's 12,14).
+ * centre-to-corner: the player's 126,72, the opponent's 12,14). Hoenn's as Emerald draws it (issue #226, step 5): the
+ * same places, its pictures and small font.
  */
 export function Healthbox({ mon, player, exp, caught, x, y, style }: { mon: BattlerView; player: boolean; exp?: number; caught?: boolean; x: number; y: number; style?: CSSProperties }) {
   const s = species(mon.species);
@@ -106,40 +113,44 @@ export function Healthbox({ mon, player, exp, caught, x, y, style }: { mon: Batt
     ? { name: [16, 72], level: [72, 96], bar: 32, status: [16, 24] }
     : { name: [8, 64], level: [64, 88], bar: 24, status: [8, 16] };
   const barY = 16;
+  const hpTop = rse() ? 24 : 21;
+  // A number right-aligned in 3 (ConvertIntToDecimalStringN: FireRed pads with spaces, Emerald with CHAR_SPACER).
+  const hpDigits = (n: number) => glyphs(String(n).padStart(3)).map((g) => (g === SMALL_GLYPHS[' '] && rse() ? 0x77 : g));
   return (
     <div className="absolute" style={{ left: x, top: y, width: 128, height: player ? 64 : 32, ...style }}>
-      <img src={`${B}/healthbox_${player ? 'player' : 'opponent'}.png`} alt="" className="absolute left-0 top-0" draggable={false} />
+      <img src={`${B()}/healthbox_${player ? 'player' : 'opponent'}.png`} alt="" className="absolute left-0 top-0" draggable={false} />
       <Clip x0={L.name[0]!} x1={L.name[1]!} y0={5} y1={16}>
         <SmallText codes={glyphs(name)} x={L.name[0]!} y={3} />
-        {gender && <SmallText codes={glyphs(gender === 'male' ? '♂' : '♀')} x={L.name[0]! + glyphs(name).reduce((w, g) => w + (SMALL_WIDTHS[g] ?? 5), 0)} y={3} font={gender === 'male' ? 'font_small_male' : 'font_small_female'} />}
+        {gender && <SmallText codes={glyphs(gender === 'male' ? '♂' : '♀')} x={L.name[0]! + glyphs(name).reduce((w, g) => w + (widths()[g] ?? 5), 0)} y={3} font={gender === 'male' ? 'font_small_male' : 'font_small_female'} />}
       </Clip>
       <Clip x0={L.level[0]!} x1={L.level[1]!} y0={5} y1={16}>
         <SmallText codes={[LV, ...glyphs(lv)]} x={L.level[0]! + 5 * (3 - lv.length)} y={3} />
       </Clip>
       {/* The HP bar: "HP" (or, the opponent's with a status, nothing and its left end), then the bar's 6 tiles. */}
       {player || !status ? (
-        <span className="absolute" style={{ left: L.bar, top: barY, width: 16, height: 8, backgroundImage: `url(${B}/hp_text.png)` }} />
+        <span className="absolute" style={{ left: L.bar, top: barY, width: 16, height: 8, backgroundImage: `url(${B()}/hp_text.png)` }} />
       ) : (
-        <span className="absolute" style={{ left: L.bar + 8, top: barY, width: 8, height: 8, backgroundImage: `url(${B}/hp_left_border.png)` }} />
+        <span className="absolute" style={{ left: L.bar + 8, top: barY, width: 8, height: 8, backgroundImage: `url(${B()}/hp_left_border.png)` }} />
       )}
       {bar.perTile.map((n, i) => (
-        <span key={i} className="absolute" style={{ left: L.bar + 16 + i * 8, top: barY, width: 8, height: 8, backgroundImage: `url(${B}/hp_bar.png)`, backgroundPosition: `${-n * 8}px ${-color * 8}px` }} />
+        <span key={i} className="absolute" style={{ left: L.bar + 16 + i * 8, top: barY, width: 8, height: 8, backgroundImage: `url(${B()}/hp_bar.png)`, backgroundPosition: `${-n * 8}px ${-color * 8}px` }} />
       ))}
-      {status && <img src={`${B}/status/${status}_${player ? 0 : 1}.png`} alt={status.toUpperCase()} className="absolute" style={{ left: L.status[0], top: L.status[1] }} draggable={false} />}
+      {status && <img src={`${B()}/status/${status}_${player ? 0 : 1}.png`} alt={status.toUpperCase()} className="absolute" style={{ left: L.status[0], top: L.status[1] }} draggable={false} />}
       {/* A wild Pokémon whose species is caught already: FireRed's Poké Ball left of the bar (TryAddPokeballIconToHealthbox:
           the health bar's tile 8, 32 pixels left of its centre), where a status icon goes instead. */}
-      {!player && caught && !status && <img src={`${B}/ball_caught.png`} alt="Caught" title="Caught before" className="absolute" style={{ left: 8, top: barY }} draggable={false} />}
+      {!player && caught && !status && <img src={`${B()}/ball_caught.png`} alt="Caught" title="Caught before" className="absolute" style={{ left: 8, top: barY }} draggable={false} />}
       {player && (
         <>
-          {/* The HP numbers: the current right-aligned with its "/" (from 4 in its window at 56), the maximum (at 80). */}
-          <Clip x0={56} x1={80} y0={21} y1={32}>
-            <SmallText codes={glyphs(`${String(hp).padStart(3)}/`)} x={60} y={21} />
+          {/* The HP numbers: the current right-aligned with its "/" (from 4 in its window at 56), the maximum (at 80);
+              Emerald's only their window's bottom tiles (HpTextIntoHealthboxObject), padded with its spacer. */}
+          <Clip x0={56} x1={80} y0={hpTop} y1={32}>
+            <SmallText codes={[...hpDigits(hp), ...glyphs('/')]} x={60} y={21} />
           </Clip>
-          <Clip x0={80} x1={96} y0={21} y1={32}>
-            <SmallText codes={glyphs(String(mon.maxHp).padStart(3))} x={80} y={21} />
+          <Clip x0={80} x1={96} y0={hpTop} y1={32}>
+            <SmallText codes={hpDigits(mon.maxHp)} x={80} y={21} />
           </Clip>
           {expBar.map((n, i) => (
-            <span key={i} className="absolute" style={{ left: 32 + i * 8, top: 32, width: 8, height: 8, backgroundImage: `url(${B}/exp_bar.png)`, backgroundPosition: `${-n * 8}px 0` }} />
+            <span key={i} className="absolute" style={{ left: 32 + i * 8, top: 32, width: 8, height: 8, backgroundImage: `url(${B()}/exp_bar.png)`, backgroundPosition: `${-n * 8}px 0` }} />
           ))}
         </>
       )}

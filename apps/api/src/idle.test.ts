@@ -1,7 +1,7 @@
 import { CATCH_UP_CAP_MS, createIdleRun, cutSegment, DEFAULT_IDLE_SETTINGS, simulateSegment, tickStartMs, TOWN_WAIT_MS, type IdleAction, type IdleSettings, type IdleState, type SegmentEvent } from '@poke-tcg/idle';
 import { describe, expect, it } from 'vitest';
 import { bankedMoney } from '@poke-tcg/idle';
-import { AHEAD_MS, catchUpWindow, caughtWithDue, dueNotes, idleStatusOf, mergeNotes, nextWait, restartAt, splitNotes, THROW_GRACE_MS, throwError, throwPlayedTo, throwTimeError, withoutDueNotes } from './idle.js';
+import { AHEAD_MS, catchUpWindow, caughtWithDue, dueNotes, generationLocked, idleStatusOf, mergeNotes, nextWait, restartAt, splitNotes, THROW_GRACE_MS, throwError, throwPlayedTo, throwTimeError, withoutDueNotes } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
 const SETTINGS: IdleSettings = { ...DEFAULT_IDLE_SETTINGS, autoGrind: false, autoCatch: 'all' };
@@ -123,5 +123,18 @@ describe("the Idle Adventure's Pokédex notes", () => {
     expect(past).toBe(saved);
     expect(dueNotes(withoutDueNotes(past))).toEqual([]);
     expect(withoutDueNotes(past).replay?.from).toBe(0);
+  });
+});
+
+describe("the regions' locks", () => {
+  it('opens each region once a run of the one before it has beaten the Champion (Kanto opens Johto, issue #226)', () => {
+    expect(generationLocked(1, new Set())).toBeNull();
+    expect(generationLocked(2, new Set())).toBe('Johto opens once a Kanto run has beaten the Champion');
+    expect(generationLocked(2, new Set([1]))).toBeNull();
+    // Johto's win alone opens nothing before it: Kanto needs none.
+    expect(generationLocked(2, new Set([2]))).toBe('Johto opens once a Kanto run has beaten the Champion');
+    // Hoenn, startable now its areas exist (step 4), once a Johto run has beaten the Champion.
+    expect(generationLocked(3, new Set([1]))).toBe('Hoenn opens once a Johto run has beaten the Champion');
+    expect(generationLocked(3, new Set([1, 2]))).toBeNull();
   });
 });

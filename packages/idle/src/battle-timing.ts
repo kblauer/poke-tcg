@@ -66,7 +66,7 @@ export const HGSS_SHAKES_AT = HGSS_CATCH.throw + HGSS_CATCH.open + HGSS_CATCH.fl
 export const hgssShake = (k: number) => HGSS_CATCH.still + HGSS_CATCH.wobble[Math.min(2, k)]! + HGSS_CATCH.wait;
 
 /** Whether the active generation's battles look like HeartGold's (Johto's) rather than FireRed's. */
-const hgss = () => generation().gen === 2;
+const hgss = () => generation().look === 'hgss';
 
 /** The frame a thrown ball's line comes up (its animation played): "Gotcha!" after the click, or the Pokémon out again. */
 export function catchTextFrame(shakes: number, caught: boolean): number {

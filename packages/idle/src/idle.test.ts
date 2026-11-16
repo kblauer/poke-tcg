@@ -1226,7 +1226,7 @@ describe('an idle run', () => {
 
   it("knows each town's Poké Mart: the player across the counter from the clerk, facing them", () => {
     for (const a of areas().filter(isTown)) {
-      const m = a.mart;
+      const m = a.mart!;
       const clerk = m.people.find((p) => p.sprite === 'clerk' && Math.abs(p.x - m.x) + Math.abs(p.y - m.y) === 2 && (p.x === m.x || p.y === m.y));
       expect(clerk, a.id).toBeDefined();
     }
@@ -1253,5 +1253,19 @@ describe('an idle run', () => {
     expect(applyIdleAction(s, { type: 'BUY', item: 'potion', count: 1 }).ok).toBe(false);
     expect(applyIdleAction(s, { type: 'SET_SLOTS', uid: s.party[0]!.uid, slots: ['tackle'] }).ok).toBe(false);
     expect(applyIdleAction(s, { type: 'SET_SLOTS', uid: s.party[0]!.uid, slots: ['growl'] }).ok).toBe(true);
+  });
+});
+
+describe('auto-evolve with stones', () => {
+  it("buys and uses each Pokémon's stone at Celadon's store, never Eevee's (the user's, 2026-11-15: its stone is the player's pick)", () => {
+    const index = (id: string) => areas().findIndex((a) => a.id === id);
+    const base = createIdleRun({ species: 4 }, 2);
+    const mon = base.party[0]!;
+    const celadon: IdleState = { ...base, area: index('celadon-city'), phase: 'town', reached: index('celadon-city'), money: 20000, party: [{ ...mon, uid: 'eevee', species: 133 }, { ...mon, uid: 'growlithe', species: 58 }] };
+    const after = visitStore(celadon, DEFAULT_IDLE_SETTINGS).state;
+    expect(after.party.map((m) => m.species)).toEqual([133, 59]);
+    // Bought by hand, Eevee's stone is used from the party menu.
+    const used = applyIdleAction({ ...after, bag: { 'water-stone': 1 } }, { type: 'USE_STONE', uid: 'eevee', item: 'water-stone' });
+    expect(used.ok && used.state.party[0]!.species).toBe(134);
   });
 });

@@ -32,9 +32,24 @@ import { SPECIES as JOHTO_SPECIES } from './data/gen2/species.js';
 import { TM_LEARNERS as JOHTO_TM_LEARNERS, TM_MOVES as JOHTO_TM_MOVES } from './data/gen2/tms.js';
 import { TRAINERS as JOHTO_TRAINERS } from './data/gen2/trainers.js';
 import { TYPE_CHART as JOHTO_TYPE_CHART } from './data/gen2/types.js';
+import { ABILITY_NAMES as HOENN_ABILITY_NAMES } from './data/gen3/abilities.js';
+import { HOENN_AREAS } from './data/gen3/areas.js';
+import { ENCOUNTERS as HOENN_ENCOUNTERS } from './data/gen3/encounters.js';
+import { ITEMS as HOENN_ITEMS } from './data/gen3/items.js';
+import { HOENN_MAPS } from './data/gen3/maps.js';
+import { MARTS as HOENN_MARTS } from './data/gen3/marts.js';
+import { MOVES as HOENN_MOVES } from './data/gen3/moves.js';
+import { SPECIES as HOENN_SPECIES } from './data/gen3/species.js';
+import { TM_LEARNERS as HOENN_TM_LEARNERS, TM_MOVES as HOENN_TM_MOVES } from './data/gen3/tms.js';
+import { HOENN_TOWN_MAP_GRID, HOENN_TOWN_MAP_PLACES } from './data/gen3/town-map.js';
+import { TRAINERS as HOENN_TRAINERS } from './data/gen3/trainers.js';
+import { TYPE_CHART as HOENN_TYPE_CHART } from './data/gen3/types.js';
 
-/** The generations a run can be: Kanto's 1 and Johto's 2 (issue #170: HGSS's tables and areas, Gen 4's battles; open once a Kanto run has beaten the Champion). */
-export const IDLE_GENERATIONS = [1, 2] as const;
+/**
+ * The generations a run can be: Kanto's 1, Johto's 2 (issue #170: HGSS's tables and areas, Gen 4's battles; open once a
+ * Kanto run has beaten the Champion) and Hoenn's 3 (issue #226: Emerald's, Gen 3's battles; open once a Johto run has).
+ */
+export const IDLE_GENERATIONS = [1, 2, 3] as const;
 export type IdleGen = (typeof IDLE_GENERATIONS)[number];
 
 /** A Town Map's picture (in apps/web/public) and its grid of cells on it. */
@@ -71,12 +86,31 @@ export interface Generation {
   starters: readonly number[];
   /** The town a run sets off from (its log's first line): Pallet Town, New Bark Town. */
   home: string;
+  /** The starter scene's map (StarterScene, with no run under way): the professor's lab (Hoenn's Route 101: Birch's bag). */
+  lab: string;
+  /**
+   * Which game the region's screens are drawn as (the page's components: the battle screen, the party menu, the mart,
+   * the Town Map, the player's sprites, the battle's timing): FireRed's GBA screens, HeartGold's DS ones, or Emerald's
+   * (issue #226, step 5: FireRed's screens, the same console's, with Emerald's pictures where they differ: gbaArt).
+   */
+  look: 'frlg' | 'hgss' | 'rse';
+  /**
+   * The game whose rules outside the battle rules it plays by (FireRed's, HeartGold's, Emerald's), where two games with
+   * the same battle rules differ (issue #226: Emerald's wild encounters, its leads' abilities, its prize for double
+   * battles, its Repeat Ball and Shedinja; Kanto's FireRed's as they were).
+   */
+  game: 'firered' | 'heartgold' | 'emerald';
   /** Whose battle rules its battles play by (battle.ts): FireRed's (3) or HeartGold's (4: the physical/special split, Gen 4's damage, effects, abilities and items; and its wild encounters, encounters4.ts). */
   battleRules: 3 | 4;
   /** The town from which every store sells TMs and HMs (Buy TMs, the user's: Kanto's Celadon City, Johto's Goldenrod City, their department stores'). */
   tmShop: string;
   /** The Champion's room (its area's id): beating its boss wins the run. */
   champion: string;
+  /**
+   * The town before the League's rooms (its area's id, and its name in a sentence): where every store sells every item
+   * once reached (storeStock, the user's), where a League battle's end puts the run, and where the Town Map shows the rooms.
+   */
+  league: { town: string; name: string };
   /** The rods (the user's): each got once the run reaches its area, fishing with one of those it has at random each cast. */
   rods: readonly { name: string; town: string }[];
   /**
@@ -107,9 +141,13 @@ const KANTO: Generation = {
   townMapGrid: { image: '/idle/gen1/town-map/kanto.png', imageWidth: 208, imageHeight: 144, x: 16, y: 16, cell: 8, width: 22, height: 15 },
   starters: [1, 4, 7],
   home: 'Pallet Town',
+  lab: 'PalletTown_ProfessorOaksLab',
+  look: 'frlg',
+  game: 'firered',
   battleRules: 3,
   tmShop: 'celadon-city',
   champion: 'champion',
+  league: { town: 'indigo-plateau', name: 'the Indigo Plateau' },
   // The user's (2026-10-27): the Old Rod in Vermilion City, the Good Rod Fuchsia City, the Super Rod Cinnabar Island.
   rods: [
     { name: 'Old Rod', town: 'vermilion-city' },
@@ -141,9 +179,13 @@ const JOHTO: Generation = {
   townMapGrid: JOHTO_TOWN_MAP_GRID,
   starters: [152, 155, 158],
   home: 'New Bark Town',
+  lab: 'NewBarkElmsLab1f',
+  look: 'hgss',
+  game: 'heartgold',
   battleRules: 4,
   tmShop: 'goldenrod-city',
   champion: 'lance',
+  league: { town: 'indigo-plateau', name: 'the Indigo Plateau' },
   // HGSS's Old Rod on Route 32 (its Pokémon Center), the Good Rod in Olivine City; the Super Rod, Route 12's in Kanto, at
   // the Indigo Plateau (the user's, 2026-11-04).
   rods: [
@@ -155,7 +197,50 @@ const JOHTO: Generation = {
   day: { ms: 2 * 60 * 60 * 1000, startHour: 10 },
 };
 
-const GENERATIONS: Record<IdleGen, Generation> = { 1: KANTO, 2: JOHTO };
+/**
+ * Hoenn (Emerald, issue #226): its tables (data/gen3/, tools/idle/emerald_data.py), its areas and maps (step 4,
+ * tools/idle/hoenn_areas.py), its Town Map (step 5: Emerald's Fly map, tools/idle/hoenn_town_map.py). Its places are the
+ * user's and mine, in the issue: Ever Grande City before the League, Lilycove's Department Store for the TMs, the rods
+ * where Emerald gives them. Emerald has no time of day, so no `day`.
+ */
+const HOENN: Generation = {
+  gen: 3,
+  region: 'Hoenn',
+  species: HOENN_SPECIES,
+  moves: HOENN_MOVES,
+  items: HOENN_ITEMS,
+  abilityNames: HOENN_ABILITY_NAMES,
+  typeChart: HOENN_TYPE_CHART,
+  encounters: HOENN_ENCOUNTERS,
+  marts: HOENN_MARTS,
+  trainers: HOENN_TRAINERS,
+  tmMoves: HOENN_TM_MOVES,
+  tmLearners: HOENN_TM_LEARNERS,
+  areas: HOENN_AREAS,
+  maps: HOENN_MAPS,
+  townMapPlaces: HOENN_TOWN_MAP_PLACES,
+  townMapGrid: HOENN_TOWN_MAP_GRID,
+  starters: [252, 255, 258],
+  home: 'Littleroot Town',
+  // Emerald gives the starter from Birch's bag on Route 101 (Route101_EventScript_BirchsBag), not in his lab.
+  lab: 'Route101',
+  look: 'rse',
+  game: 'emerald',
+  battleRules: 3,
+  tmShop: 'lilycove-city',
+  champion: 'wallace',
+  league: { town: 'ever-grande-city', name: 'Ever Grande City' },
+  rods: [
+    { name: 'Old Rod', town: 'dewford-town' },
+    { name: 'Good Rod', town: 'route-118' },
+    { name: 'Super Rod', town: 'mossdeep-city' },
+  ],
+};
+
+const GENERATIONS: Record<IdleGen, Generation> = { 1: KANTO, 2: JOHTO, 3: HOENN };
+
+/** Whether a run can start in a region: its areas exist. */
+export const regionReady = (gen: IdleGen) => GENERATIONS[gen].areas.length > 0;
 
 let active: Generation = KANTO;
 

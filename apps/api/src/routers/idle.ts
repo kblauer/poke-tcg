@@ -1,9 +1,9 @@
 import { prisma } from '@poke-tcg/db';
-import { areas, applyIdleAction, areaIndex, generation, generationOf, IDLE_GENERATIONS, inGeneration, isBaseForm, isOptional, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, starters, visitStore, withPending, type IdleGen, type IdleSettings, type Stats } from '@poke-tcg/idle';
+import { areas, applyIdleAction, areaIndex, generation, generationOf, IDLE_GENERATIONS, inGeneration, regionReady, isBaseForm, isOptional, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, starters, visitStore, withPending, type IdleGen, type IdleSettings, type Stats } from '@poke-tcg/idle';
 import { idleActInput, idleDebugCatchInput, idleDebugNextInput, idleHereInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput, type StartIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
-import { catchUpWindow, caughtSpecies, caughtWithDue, clientIdleRun, dueNotes, idleSettings, latestIdleRun, loadOwnIdleRun, nextWait, restartAt, saveIdleRun, splitNotes, throwError, throwPlayedTo, throwTimeError, withoutDueNotes, type LoadedIdleRun } from '../idle.js';
+import { catchUpWindow, caughtSpecies, generationLocked, caughtWithDue, clientIdleRun, dueNotes, idleSettings, latestIdleRun, loadOwnIdleRun, nextWait, restartAt, saveIdleRun, splitNotes, throwError, throwPlayedTo, throwTimeError, withoutDueNotes, type LoadedIdleRun } from '../idle.js';
 import { lockUser } from '../runs.js';
 import { debugProcedure, protectedProcedure, router } from '../trpc.js';
 
@@ -19,14 +19,12 @@ const failed = (error: string) => new TRPCError({ code: 'BAD_REQUEST', message: 
 
 type Db = Parameters<Parameters<typeof prisma.$transaction>[0]>[0] | typeof prisma;
 
-/** Whether the account has beaten Kanto's Champion in a run (Johto's lock, the user's; a run with no generation is Kanto's). */
-async function kantoBeaten(userId: string, db: Db = prisma) {
-  const rows = await db.$queryRaw<unknown[]>`SELECT 1 FROM "IdleRun" WHERE "ownerId" = ${userId}::uuid AND status = 'BEATEN' AND COALESCE(state->>'gen', '1') = '1' LIMIT 1`;
-  return rows.length > 0;
+/** The generations whose Champion the account has beaten in a run (the regions' locks, the user's; a run with no generation is Kanto's). */
+async function championsBeaten(userId: string, db: Db = prisma): Promise<Set<number>> {
+  const rows = await db.$queryRaw<{ gen: string }[]>`SELECT DISTINCT COALESCE(state->>'gen', '1') AS gen FROM "IdleRun" WHERE "ownerId" = ${userId}::uuid AND status = 'BEATEN'`;
+  return new Set(rows.map((r) => Number(r.gen)));
 }
 
-/** Why a generation can't be started (null: it can): Johto until a Kanto run has beaten the Champion (the user's). */
-const generationLocked = (gen: IdleGen, beaten: boolean) => (gen === 2 && !beaten ? 'Johto opens once a Kanto run has beaten the Champion' : null);
 
 /**
  * Starts a run (one under way at a time): its generation open (`debug`: any, debug mode's), its starter one of that
@@ -36,7 +34,8 @@ async function startIdle(userId: string, input: StartIdleInput, debug: boolean) 
   const created = await prisma.$transaction(async (tx) => {
     await lockUser(tx, userId);
     if (await tx.idleRun.findFirst({ where: { ownerId: userId, status: 'ACTIVE' }, select: { id: true } })) throw failed('A run is already under way');
-    const locked = !debug && generationLocked(input.gen, await kantoBeaten(userId, tx));
+    if (!regionReady(input.gen)) throw failed(`No ${inGeneration(input.gen, () => generation().region)} run can start yet`);
+    const locked = !debug && generationLocked(input.gen, await championsBeaten(userId, tx));
     if (locked) throw failed(locked);
     const runs = await tx.idleRun.count({ where: { ownerId: userId } });
     const caught = await caughtSpecies(userId, tx);
@@ -67,10 +66,10 @@ export const idleRouter = router({
       idleSettings(ctx.user.id),
       prisma.idleDex.findMany({ where: { userId: ctx.user.id }, orderBy: { species: 'asc' } }),
       prisma.idleRun.count({ where: { ownerId: ctx.user.id } }),
-      kantoBeaten(ctx.user.id),
+      championsBeaten(ctx.user.id),
     ]);
     const caught = dex.filter((d) => d.caught).map((d) => d.species);
-    const generations = IDLE_GENERATIONS.map((gen) =>
+    const generations = IDLE_GENERATIONS.filter(regionReady).map((gen) =>
       inGeneration(gen, () => {
         const known = (id: number) => id <= generation().species.length;
         return {

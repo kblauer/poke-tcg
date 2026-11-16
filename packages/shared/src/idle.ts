@@ -1,5 +1,5 @@
 // The Idle Adventure's inputs (README: Idle Adventure): the player's actions and settings, as the idle package's types.
-import { DEX_SIZE, IDLE_MODES, MAX_AUTO_BALLS, type IdleAction, type IdleSettings } from '@poke-tcg/idle';
+import { DEX_SIZE, IDLE_GENERATIONS, IDLE_MODES, MAX_AUTO_BALLS, type IdleAction, type IdleGen, type IdleSettings } from '@poke-tcg/idle';
 import { z } from 'zod';
 
 const uid = z.string().min(1).max(32);
@@ -41,8 +41,8 @@ export const idleSettingsSchema = z.object({
 }) satisfies z.ZodType<IdleSettings>;
 
 /** A new run: its starter (one of the three, or a species the account's Pokédex has caught, from the second run on), shiny if one was caught. */
-/** A new run: its starter, shiny or not, and its region (IdleGen: Kanto 1, Johto 2). */
-export const startIdleInput = z.object({ species: z.number().int().min(1).max(DEX_SIZE), shiny: z.boolean().default(false), gen: z.union([z.literal(1), z.literal(2)]).default(1) });
+/** A new run: its starter, shiny or not, and its region (one of IDLE_GENERATIONS: Kanto 1, Johto 2). */
+export const startIdleInput = z.object({ species: z.number().int().min(1).max(DEX_SIZE), shiny: z.boolean().default(false), gen: z.custom<IdleGen>((g) => (IDLE_GENERATIONS as readonly unknown[]).includes(g), 'Unknown region').default(1) });
 export type StartIdleInput = z.infer<typeof startIdleInput>;
 export const idleRunInput = z.object({ runId: z.uuid(), expectedVersion: z.number().int().min(0) });
 /** Debug: the next segment at once, played back `speed` times faster (debug mode's ×3: idle.debugNext). */

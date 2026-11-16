@@ -86,7 +86,7 @@ const dollars = (n: number) => `₱${n}`;
 export function HgssBuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { run: ClientIdleRun; player: string; busy: boolean; onBuy: (item: string, count: number) => Promise<boolean>; onClose: () => void; machines?: string[]; children?: ReactNode }) {
   const { ref, scale } = useGameScale();
   const town = areas()[run.view.area] as TownArea;
-  const mart = town.mart;
+  const mart = town.mart!;
   const map = mapView(mart.map);
   const stock = machines ?? run.view.store;
   const owned = (it: string) => isMachine(it) && (run.view.bag[it] ?? 0) > 0;

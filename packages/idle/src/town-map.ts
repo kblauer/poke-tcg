@@ -50,7 +50,7 @@ export function townMapPlaceOf(index: number, map?: string): TownMapPlace | null
   let a = areas()[index];
   if (!a) return null;
   if (a.kind === 'gym' && a.town) a = areas()[areaIndex(a.town)]!;
-  if (a.kind === 'league') a = areas().find((t) => isTown(t) && t.id === 'indigo-plateau') ?? a;
+  if (a.kind === 'league') a = areas().find((t) => isTown(t) && t.id === generation().league.town) ?? a;
   const id = a.id;
   const section = map && mapView(map).section;
   return (section && townMapPlaces().find((p) => p.areas.includes(id) && p.section === section)) || (townMapPlaces().find((p) => p.areas.includes(id)) ?? null);

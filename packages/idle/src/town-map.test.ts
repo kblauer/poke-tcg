@@ -37,6 +37,25 @@ describe('the Town Map', () => {
     });
   });
 
+  it("has Hoenn's (Emerald's Fly map) with a place for every area, on its grid, one a cell on each layer", () => {
+    inGeneration(3, () => {
+      for (let i = 0; i < areas().length; i++) expect(townMapPlaceOf(i), areas()[i]!.id).not.toBeNull();
+      for (const a of areas()) if (a.kind === 'town' || a.kind === 'route' || a.kind === 'dungeon') expect(townMapPlaces().some((p) => p.areas.includes(a.id)), a.id).toBe(true);
+      const seen = new Set<string>();
+      for (const p of townMapPlaces())
+        for (const [x, y, layer] of p.cells) {
+          expect(x >= 0 && x < townMapGrid().width && y >= 0 && y < townMapGrid().height).toBe(true);
+          expect(seen.has(`${x},${y},${layer}`)).toBe(false);
+          seen.add(`${x},${y},${layer}`);
+        }
+      // Every map an area walks is on a place (its wild tables offered there: the Town Map's spots by section).
+      for (const a of areas()) if ('legs' in a) for (const m of a.legs.flatMap((l) => l.maps)) expect(townMapPlaces().some((p) => p.section === mapView(m).section), m).toBe(true);
+      expect(townMapPlaceAt(0, 8)?.name).toBe('PETALBURG WOODS');
+      expect(townMapPlaceAt(7, 2)?.name).toBe('JAGGED PASS');
+      expect(townMapPlaces().find((p) => p.section === 'littleroot_town')?.areas).toEqual(['route-101']);
+    });
+  });
+
   it("finds a dungeon over its route's cell first, and a town's latest visit reached", () => {
     expect(townMapPlaceAt(9, 3)?.name).toBe('MT. MOON');
     expect(townMapPlaceAt(10, 3)?.name).toBe('ROUTE 4');

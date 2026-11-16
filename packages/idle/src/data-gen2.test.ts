@@ -141,7 +141,7 @@ describe("Johto's data", () => {
     }
     for (const t of towns) {
       expect(JOHTO_MAPS[t.map]).toBeDefined();
-      expect(JOHTO_MAPS[t.mart.map]).toBeDefined();
+      expect(JOHTO_MAPS[t.mart!.map]).toBeDefined();
       for (const m of t.marts) expect(m === 'badges' || m in MARTS, `${t.id}: ${m}`).toBe(true);
       if (t.gym) expect(JOHTO_AREAS.some((a) => a.id === t.gym)).toBe(true);
     }

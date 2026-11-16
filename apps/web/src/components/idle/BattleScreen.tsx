@@ -11,16 +11,41 @@ import { DsText } from './dsFont';
 import { DIALOGUE_TEXT, DS_HEIGHT, DS_WIDTH, GAME_HEIGHT, GAME_WIDTH, gameSize, useGameScale } from './GameScreen';
 import { hgssBattleArt, HgssBattleScene, hgssMonSrc } from './HgssBattleScene';
 import { MonIcon } from './MonIcon';
+import { gbaArt, pokemonPics } from '../../utils/idleLook';
 
 /** One game pixel of the region's screen (FireRed's 240x160, HGSS's 256x192: gameSize), in the battle box's width (container query units). */
 const px = (n: number) => `${(n * 100) / gameSize().w}cqw`;
 const GEN1 = '/idle/gen1';
 const GEN2 = '/idle/gen2';
-/** Whether the battle is Johto's (HeartGold's screen: HgssBattleScene). */
-const isHgss = () => generation().gen === 2;
+/** Whether the battle is drawn as HeartGold's (Johto's: its screen: HgssBattleScene). */
+const isHgss = () => generation().look === 'hgss';
+/** Whether the battle is drawn as Emerald's (Hoenn's, issue #226, step 5: FireRed's screen, Emerald's pictures). */
+const isRse = () => generation().look === 'rse';
+const GEN3 = '/idle/gen3';
+
+/**
+ * Emerald's battle backgrounds by the terrain under the player (public/idle/gen3/terrain/, sBattleEnvironmentTable by
+ * BattleSetup_GetEnvironmentId's environments; no snow or ice in Hoenn).
+ */
+const RSE_TERRAIN: Record<string, string> = { grass: 'tall_grass', longgrass: 'long_grass', sand: 'sand', water: 'water', pond: 'pond_water', mountain: 'rock', cave: 'cave', building: 'building', plain: 'plain' };
+
+/**
+ * Emerald's background for a battle (battle_bg.c's DrawMainBattleBackground): a gym leader's (TRAINER_CLASS_LEADER, on
+ * any map) or the Champion's (Wallace's stadium) by the trainer's class first, then the map's battle scene (a gym's,
+ * each Elite Four room's stadium), else the terrain's.
+ */
+function rseBackground(b: BattleSegment): string {
+  const cls = b.trainer ? generation().trainers[b.trainer]?.class : undefined;
+  if (cls === 'Leader') return `${GEN3}/terrain/building_leader.png`;
+  if (cls === 'Champion') return `${GEN3}/terrain/stadium_wallace.png`;
+  if (b.scene === 'gym') return `${GEN3}/terrain/building_gym.png`;
+  if (['sidney', 'phoebe', 'glacia', 'drake'].includes(b.scene)) return `${GEN3}/terrain/stadium_${b.scene}.png`;
+  return `${GEN3}/terrain/${RSE_TERRAIN[b.terrain] ?? 'plain'}.png`;
+}
 
 /** The battle background for a battle (battle_bg.c): a League room's or a gym's own, else the terrain under the player. */
 function background(b: BattleSegment): string {
+  if (isRse()) return rseBackground(b);
   if (['lorelei', 'bruno', 'agatha', 'lance', 'champion'].includes(b.scene)) return `${GEN1}/terrain/indoor_${b.scene}.png`;
   if (b.scene === 'leader' || (b.trainer?.startsWith('leader-') ?? false)) return `${GEN1}/terrain/indoor_leader.png`;
   if (b.scene === 'gym') return `${GEN1}/terrain/indoor_gym.png`;
@@ -63,19 +88,20 @@ function hgssSources(b: BattleSegment): Set<string> {
   return srcs;
 }
 
-/** Kanto's (BattleScene's). */
+/** Kanto's and Hoenn's (BattleScene's: FireRed's pictures or Emerald's). */
 function gen1Sources(b: BattleSegment): Set<string> {
+  const rse = isRse();
+  const trainers = `${rse ? GEN3 : GEN1}/trainers`;
   const srcs = new Set<string>([
     background(b),
-    `${GEN1}/trainers/red_back_sheet.png`,
-    `${GEN1}/trainers/leaf_back_sheet.png`,
+    ...(rse ? [`${trainers}/brendan_back_sheet.png`, `${trainers}/may_back_sheet.png`, `${gbaArt('battle')}/textbox.png`] : [`${trainers}/red_back_sheet.png`, `${trainers}/leaf_back_sheet.png`]),
     // The healthboxes and the balls (BattleScene, Healthbox).
-    ...['healthbox_player', 'healthbox_opponent', 'hp_text', 'hp_bar', 'exp_bar', 'font_small', 'particles', 'balls/poke-ball'].map((n) => `${GEN1}/battle/${n}.png`),
+    ...['healthbox_player', 'healthbox_opponent', 'hp_text', 'hp_bar', 'exp_bar', 'font_small', 'particles', 'balls/poke-ball'].map((n) => `${gbaArt('battle')}/${n}.png`),
   ]);
   const pic = b.trainer ? generation().trainers[b.trainer]?.pic : null;
-  if (pic) srcs.add(`${GEN1}/trainers/${pic}.png`);
-  if (b.kind === 'trainer') srcs.add(`${GEN1}/battle/party_balls.png`);
-  for (const e of b.events) if (e.t === 'send') srcs.add(`${GEN1}/pokemon/${e.mon.shiny ? 'shiny/' : ''}${e.side ? 'front' : 'back'}/${e.mon.species}.png`);
+  if (pic) srcs.add(`${trainers}/${pic}.png`);
+  if (b.kind === 'trainer') srcs.add(`${gbaArt('battle')}/party_balls.png`);
+  for (const e of b.events) if (e.t === 'send') srcs.add(`${pokemonPics()}/${e.mon.shiny ? 'shiny/' : ''}${e.side ? 'front' : 'back'}/${e.mon.species}.png`);
   return srcs;
 }
 
@@ -107,7 +133,7 @@ function foeBalls(events: BattleEvent[], foes: number): BallLook[] {
  */
 function PartyBalls({ events, foes, hgss }: { events: BattleEvent[]; foes: number; hgss: boolean }) {
   const size = hgss ? 16 : 8;
-  const src = `${hgss ? GEN2 : GEN1}/battle/party_balls.png`;
+  const src = `${hgss ? `${GEN2}/battle` : gbaArt('battle')}/party_balls.png`;
   return (
     <>
       {foeBalls(events, foes).map((look, i) => (
@@ -371,7 +397,8 @@ export function BattleScreen({
   const accountName = useQuery(trpc.community.accountName.queryOptions());
   // HGSS's words where they differ (msg_0197: "A wild X appeared!"), and the player's name: the account's (the user's),
   // else the game's hero's.
-  const playerName = accountName.data || (hgss ? (gender === 'female' ? 'Lyra' : 'Ethan') : gender === 'female' ? 'Leaf' : 'Red');
+  const rse = isRse();
+  const playerName = accountName.data || (hgss ? (gender === 'female' ? 'Lyra' : 'Ethan') : rse ? (gender === 'female' ? 'May' : 'Brendan') : gender === 'female' ? 'Leaf' : 'Red');
   const said =
     shown === 0
       ? trainer && introWait <= 0
@@ -406,16 +433,25 @@ export function BattleScreen({
               )}
             </>
           ) : (
-            <BattleScene battle={battle} background={background(battle)} trainerPic={trainer?.pic ?? null} events={events} current={[sides[0].mon, sides[1].mon]} times={times.current} introAt={introAt.current} gender={gender} exp={exp} hit={hit} attacker={attacker} line={line} />
+            <>
+              <BattleScene battle={battle} background={background(battle)} trainerPic={trainer?.pic ?? null} events={events} current={[sides[0].mon, sides[1].mon]} times={times.current} introAt={introAt.current} gender={gender} exp={exp} hit={hit} attacker={attacker} line={line} />
+              {/* Emerald's text box (gBattleTextboxTilemap: the screen's bottom 48 rows), its line over it below. */}
+              {rse && !rewards.length && <img src={`${gbaArt('battle')}/textbox.png`} alt="" className="absolute left-0" style={{ top: GAME_HEIGHT - 48 }} draggable={false} />}
+            </>
           )}
           {/* The trainer's party, a Poké Ball each (the user's). */}
           {battle.kind === 'trainer' && <PartyBalls events={events} foes={battle.foes.length} hgss={hgss} />}
         </div>
       )}
       {/* The text box: the latest line, or a run of rewards all at once (the user's), growing upward to hold them (in
-          Johto only the rewards, in HGSS's white box with its message text's colours: its lines are in the scene). */}
+          Johto only the rewards, in HGSS's white box with its message text's colours: its lines are in the scene; in
+          Hoenn the line over Emerald's box in the scene, in B_WIN_MSG's place (16,120) and colours (white, shadow 6),
+          and the rewards in a box of its colours). */}
       {(!hgss || rewards.length > 0) && (
-      <div className={`absolute inset-x-0 bottom-0 ${hgss ? 'rounded-[1cqw] border-[0.8cqw] border-[#52525a] bg-white text-[#52525a]' : 'border-t-[0.6cqw] border-[#c87028] bg-[#283848] text-white'}`} style={{ minHeight: px(48), padding: `${px(6)} ${px(10)}`, fontSize: px(10), lineHeight: 1.35 }}>
+      <div
+        className={`absolute inset-x-0 bottom-0 ${hgss ? 'rounded-[1cqw] border-[0.8cqw] border-[#52525a] bg-white text-[#52525a]' : rse ? `text-white ${rewards.length ? 'rounded-[1cqw] border-[0.8cqw] border-[#d54a39] bg-[#6aa4a4]' : ''}` : 'border-t-[0.6cqw] border-[#c87028] bg-[#283848] text-white'}`}
+        style={{ minHeight: px(48), padding: rse && !rewards.length ? `${px(8)} ${px(16)}` : `${px(6)} ${px(10)}`, fontSize: px(10), lineHeight: 1.35, textShadow: rse ? `${px(0.6)} ${px(0.6)} 0 #6a5a73` : undefined }}
+      >
         {rewards.length ? (
           <ul className="grid grid-cols-2 gap-x-[3cqw]">
             {rewards.map((r) => (

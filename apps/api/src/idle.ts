@@ -1,13 +1,21 @@
 // Idle Adventure runs on the server (README: Idle Adventure), as runs.ts and towers.ts do for theirs: loading and saving
 // a run with its version checked (CONFLICT when stale), the time it's played up to (`simulatedAt`), banking its money
 // when it ends, and the account's Pokédex (IdleDex: each species' best IVs and EVs, merged from a segment's notes).
-import { BALLS, bankedMoney, CATCH_UP_CAP_MS, cuts, DEFAULT_IDLE_SETTINGS, idleView, repairState, throwable, throwTick, tickStartMs, TOWN_WAIT_MS, withPending, type DexNote, type IdleAction, type IdleSettings, type IdleState, type SegmentEvent } from '@poke-tcg/idle';
+import { BALLS, bankedMoney, CATCH_UP_CAP_MS, cuts, DEFAULT_IDLE_SETTINGS, generation, idleView, inGeneration, repairState, throwable, throwTick, tickStartMs, TOWN_WAIT_MS, withPending, type DexNote, type IdleAction, type IdleGen, type IdleSettings, type IdleState, type SegmentEvent } from '@poke-tcg/idle';
 import { prisma, type IdleRun, type Prisma } from '@poke-tcg/db';
 import { TRPCError } from '@trpc/server';
 import { asJson } from './games.js';
 import { lockUser } from './runs.js';
 
 export type LoadedIdleRun = Omit<IdleRun, 'state'> & { state: IdleState };
+
+/**
+ * Why a generation can't be started (null: it can): each region after Kanto until a run of the one before it has beaten
+ * the Champion (the user's: Kanto opens Johto, Johto opens Hoenn; issue #226).
+ */
+export const generationLocked = (gen: IdleGen, beaten: Set<number>) =>
+  gen === 1 || beaten.has(gen - 1) ? null : `${inGeneration(gen, () => generation().region)} opens once a ${inGeneration((gen - 1) as IdleGen, () => generation().region)} run has beaten the Champion`;
+
 // (Its indexes put back in bounds should the data have changed under a saved run: repairState.)
 const loaded = (run: IdleRun): LoadedIdleRun => ({ ...run, state: repairState(run.state as unknown as IdleState) });
 

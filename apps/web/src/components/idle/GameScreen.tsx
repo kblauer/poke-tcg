@@ -9,7 +9,7 @@ export const DS_WIDTH = 256;
 export const DS_HEIGHT = 192;
 
 /** The shown run's region's screen in game pixels (issue #170, step 5): FireRed's in Kanto, HeartGold's top screen in Johto. */
-export const gameSize = () => (generation().gen === 2 ? { w: DS_WIDTH, h: DS_HEIGHT } : { w: GAME_WIDTH, h: GAME_HEIGHT });
+export const gameSize = () => (generation().look === 'hgss' ? { w: DS_WIDTH, h: DS_HEIGHT } : { w: GAME_WIDTH, h: GAME_HEIGHT });
 
 /** One game pixel of the region's screen (gameSize), in the game screen's width (container query units: the overlays'). */
 export const screenPx = (n: number) => `${(n * 100) / gameSize().w}cqw`;

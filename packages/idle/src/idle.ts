@@ -6,13 +6,14 @@
 // waits on the player, online or caught up offline (catchUp).
 import { catchTextFrame, FRAME_MS, openingMs } from './battle-timing.js';
 import { int, rngFrom, type Rng } from '@poke-tcg/campaign';
-import { areas, areaById, areaIndex, areaOpen, isOptional, isTown, legendOf, mapView, TERRAIN_LETTERS, type IdleArea, type IdleLeg, type TownArea, type TrackStep, type WalkArea } from './areas.js';
+import { areas, areaById, areaIndex, areaOpen, isOptional, isTown, legendOf, mapView, TERRAIN_LETTERS, type IdleArea, type IdleLeg, type IdleMap, type TownArea, type TrackStep, type WalkArea } from './areas.js';
 import { opponentMon, simulateBattle, type BattleEvent, type BattleResult, MEDICINE, type Terrain } from './battle.js';
 import { BALLS, type ThrowAsk } from './catch.js';
 import { itemData, species } from './data.js';
 import { generation, inGeneration, perGeneration, type IdleGen } from './generation.js';
 import { evolve, leavesShedinja, levelEvolution, SHEDINJA, stoneEvolution, usableStones } from './evolution.js';
 import { fishBite4, pickWild4, ROD_TABLES, timeOfDay, wildCheck4, type TimeOfDay } from './encounters4.js';
+import { fishBiteE, pickWildE, wildCheckE } from './encounters-emerald.js';
 import { abilityOf, autoSlots, basicFor, createMon, familyMovesUpTo, isBaseForm, newUid } from './mon.js';
 import { MAX_LEVEL } from './stats.js';
 import { isMachine, machinePrice, slotMoves } from './tms.js';
@@ -111,6 +112,8 @@ interface EncounterState {
   prev: string;
   /** HGSS's: the way the player last faced at a check (encounters4.ts's EncounterState4). */
   face?: string;
+  /** Emerald's: the map it's on (a new one counts the steps with no wild Pokémon from 0: encounters-emerald.ts). */
+  map?: string;
 }
 
 export interface IdleState {
@@ -165,6 +168,11 @@ export interface IdleState {
   inStore?: boolean;
   /** The legendary Pokémon (dex numbers) beaten or caught in this run (WalkArea.legend): gone from the Town Map. */
   legends?: number[];
+  /**
+   * Emerald's day of its weather cycles (0–3, gWeatherCycleStage; the user's, issue #226: rolled once a run, Hoenn's
+   * only): whether Routes 119 and 123 rain (IdleMap.weatherCycle). None (Kanto's, Johto's, older runs): no rain there.
+   */
+  weatherDay?: number;
   /**
    * A Pokémon caught with the party full while the player watched (the user's): the run waits for their choice, which party
    * Pokémon it takes the place of or Release (CAUGHT_CHOICE); away, after TOWN_WAIT_MS, the settings' (choiceWait).
@@ -383,13 +391,15 @@ function newRun(choice: StarterChoice, seed: number): IdleState {
     totals: { battles: 0, wild: 0, trainers: 0, caught: 0, whiteOuts: 0, steps: 0 },
     log: [`Set off from ${generation().home} with ${species(choice.species).name}.`],
   };
+  // Emerald's weather cycles' day, once for the run (the user's): Hoenn's only, so Kanto's and Johto's runs draw as before.
+  if (generation().game === 'emerald') state.weatherDay = int(rng, WEATHER_CYCLE_DAYS);
   state.rngState = rng.state;
   return state;
 }
 
 // ---- Towns, stores ----
-/** The area whose reaching stocks every store with every item (the user's): the Indigo Plateau, past Victory Road. */
-export const LEAGUE_TOWN = 'indigo-plateau';
+/** The area whose reaching stocks every store with every item (the user's): the region's League town (the Indigo Plateau, past Victory Road). */
+const leagueTown = () => areaIndex(generation().league.town);
 
 /**
  * The items a town's store sells: its marts' lists (martStock); once the run has reached the Indigo Plateau (the user's),
@@ -397,7 +407,7 @@ export const LEAGUE_TOWN = 'indigo-plateau';
  */
 export function storeStock(town: TownArea, state?: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges'>): string[] {
   const badges = state?.badges.length ?? 0;
-  if (!state || reachedArea(state) < areaIndex(LEAGUE_TOWN)) return martStock(town, badges);
+  if (!state || reachedArea(state) < leagueTown()) return martStock(town, badges);
   const all = [...new Set(areas().filter(isTown).flatMap((t) => martStock(t, badges)))];
   const kind = (item: string) => (BALLS.some(([b]) => b === item) ? 0 : MEDICINE[item] ? 1 : 2);
   return all.sort((a, b) => kind(a) - kind(b) || itemData(a).price - itemData(b).price);
@@ -405,11 +415,13 @@ export function storeStock(town: TownArea, state?: Pick<IdleState, 'reached' | '
 
 /**
  * A town's own marts' lists without Escape Ropes and Repels (agreed), only those with a use here (balls, medicine,
- * evolution stones); HGSS's Poké Mart clerk's list by the run's badges (`badges`: ScrCmd_MartBuy's tiers, `badges-<n>`).
+ * evolution stones); HGSS's Poké Mart clerk's list by the run's badges (`badges`: ScrCmd_MartBuy's tiers, `badges-<n>`),
+ * and Emerald's expanded lists from their badge on (`expanded`).
  */
 function martStock(town: TownArea, badges: number): string[] {
   const out: string[] = [];
-  for (const m of town.marts) {
+  // Emerald's Poké Marts that sell more from a badge on (TownArea.expanded: Petalburg's, Rustboro's).
+  for (const m of town.expanded && badges >= town.expanded.badges ? town.expanded.marts : town.marts) {
     for (const item of generation().marts[m === 'badges' ? `badges-${badges}` : m] ?? []) {
       if (out.includes(item) || /repel|escape-rope/.test(item)) continue;
       if (BALLS.some(([b]) => b === item) || MEDICINE[item] || STONES.has(item)) out.push(item);
@@ -565,7 +577,7 @@ export function progressOf(state: ProgressState): Progress {
  * with Lorelei (a Stop part way goes on with the same try: further on than the Plateau, the run is at its furthest).
  */
 function leagueToTown<P extends Place>(p: P): P {
-  return areas()[p.area]!.kind === 'league' ? { ...p, area: areaIndex(LEAGUE_TOWN), leg: 0, step: 0 } : p;
+  return areas()[p.area]!.kind === 'league' ? { ...p, area: leagueTown(), leg: 0, step: 0 } : p;
 }
 
 /** Whether the run stands at its furthest place (Continue run goes on from there rather than to it); never while grinding. */
@@ -657,7 +669,7 @@ export function legendError(state: Pick<IdleState, 'reached' | 'area' | 'loop' |
 function leaveLegend(state: IdleState, events: SegmentEvent[]) {
   delete state.loop;
   delete state.stopped;
-  enterArea(state, areaIndex(LEAGUE_TOWN), events);
+  enterArea(state, leagueTown(), events);
 }
 
 /** Enters an area: a town waits for the player; any other starts at its first leg's first step. */
@@ -709,10 +721,17 @@ function autoBuyBalls(state: IdleState, settings: IdleSettings, events: SegmentE
   state.log.push(`Bought ${count} ${itemData(ball).name}${count === 1 ? '' : 's'} for ₱${count * price}.`);
 }
 
-/** Buys and uses a stone for each party Pokémon that can use one the store sells (auto-evolve), while the money lasts. */
+/**
+ * The species auto-evolve never evolves by a stone (the user's, 2026-11-15): Eevee, whose stones each give another
+ * Pokémon, is left to the player (its stone bought and used from the party menu, USE_STONE).
+ */
+export const NO_AUTO_STONE: readonly number[] = [133];
+
+/** Buys and uses a stone for each party Pokémon that can use one the store sells (auto-evolve), while the money lasts; never Eevee's (NO_AUTO_STONE). */
 function autoStones(state: IdleState, stock: string[], events: SegmentEvent[]) {
   for (let i = 0; i < state.party.length; i++) {
     const mon = state.party[i]!;
+    if (NO_AUTO_STONE.includes(mon.species)) continue;
     const stone = usableStones(mon).find((s) => stock.includes(s));
     if (!stone) continue;
     const price = itemData(stone).price;
@@ -1164,10 +1183,28 @@ function trainerParty(rng: Rng, key: string): Mon[] {
   });
 }
 
-/** HGSS's moment for the special balls (BattleSetup.night, caughtBefore: the Dusk and Repeat Balls), by the run's clock; nothing for Kanto's. */
+/** HGSS's moment for the special balls (BattleSetup.night, caughtBefore: the Dusk and Repeat Balls), by the run's clock; Emerald's Repeat Ball; nothing for Kanto's. */
 function ballMoment(state: IdleState, caught: ReadonlySet<number>, kind: 'wild' | 'trainer', id: number, out: Segment) {
-  if (generation().battleRules !== 4 || kind !== 'wild') return {};
+  if (kind !== 'wild') return {};
+  if (generation().game === 'emerald') return caught.has(id) ? { caughtBefore: true } : {};
+  if (generation().battleRules !== 4) return {};
   return { ...(timeOfDayOf(state, out.durationMs) === 'night' && { night: true }), ...(caught.has(id) && { caughtBefore: true }) };
+}
+
+/** Emerald's weather cycles (field_weather_effect.c's sWeatherCycleRoute119 and sWeatherCycleRoute123): whether each of their days rains. */
+const WEATHER_CYCLES: Record<NonNullable<IdleMap['weatherCycle']>, readonly boolean[]> = { route119: [false, true, true, true], route123: [false, false, true, false] };
+const WEATHER_CYCLE_DAYS = 4;
+
+/**
+ * The weather a battle on a map's tile starts in (the user's, issue #226): the map's (IdleMap.weather), but only inside
+ * its parts that have it where only some do (weatherAreas), and on a map whose weather follows a daily cycle only on the
+ * run's rainy days (weatherCycle, IdleState.weatherDay). None on a map without.
+ */
+export function weatherAt(state: Pick<IdleState, 'weatherDay'>, map: IdleMap, x: number, y: number): IdleMap['weather'] {
+  if (!map.weather) return undefined;
+  if (map.weatherAreas && !map.weatherAreas.some(([x0, y0, x1, y1]) => x >= x0 && x <= x1 && y >= y0 && y <= y1)) return undefined;
+  if (map.weatherCycle && !(state.weatherDay !== undefined && WEATHER_CYCLES[map.weatherCycle][state.weatherDay])) return undefined;
+  return map.weather;
 }
 
 /** The terrain of a track step's tile (its second letter). */
@@ -1219,12 +1256,12 @@ function settleCaught(state: IdleState, mon: Mon, slot: number | null, out: Segm
  * Plays one battle and settles it: experience and levels kept, evolutions after it (the game's), prize money, a
  * badge, a caught Pokémon kept or released, or a white-out (back to the area's start, its trainers to fight again).
  */
-function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, o: { kind: 'wild' | 'trainer'; foes: Mon[]; trainer?: string; tile: string; scene: string }, out: Segment) {
+function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, o: { kind: 'wild' | 'trainer'; foes: Mon[]; trainer?: string; tile: string; scene: string; weather?: IdleMap['weather'] }, out: Segment) {
   const tryCatch = o.kind === 'wild' && shouldCatch(state, settings, caught, o.foes[0]!.species);
   const before = state.party.map((m) => m.level);
   const t = o.trainer ? generation().trainers[o.trainer] : null;
   const result = simulateBattle(
-    { kind: o.kind, party: state.party, foes: o.foes, foeItems: t?.items ?? [], bag: state.bag, settings: { autoHeal: settings.autoHeal, revives: settings.revives, tryCatch, catchMove: settings.catchMove }, boss: !!o.trainer && /^(leader|elite-four|champion)/.test(o.trainer), badges: state.badges.length, terrain: terrainOf(o.tile), ...(o.kind === 'wild' && settings.throwAt?.length && { throwAt: settings.throwAt }), ...(state.debugCatch && { sureCatch: true }), ...ballMoment(state, caught, o.kind, o.foes[0]!.species, out) },
+    { kind: o.kind, party: state.party, foes: o.foes, foeItems: t?.items ?? [], bag: state.bag, settings: { autoHeal: settings.autoHeal, revives: settings.revives, tryCatch, catchMove: settings.catchMove }, boss: !!o.trainer && /^(leader|elite-four|champion)/.test(o.trainer), badges: state.badges.length, terrain: terrainOf(o.tile), ...(o.kind === 'wild' && settings.throwAt?.length && { throwAt: settings.throwAt }), ...(state.debugCatch && { sureCatch: true }), ...ballMoment(state, caught, o.kind, o.foes[0]!.species, out), ...(o.weather && { weather: o.weather }) },
     rng,
   );
   out.events.push({
@@ -1260,9 +1297,11 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
     if (!into) return m;
     out.events.push({ t: 'evolve', uid: m.uid, from: m.species, into });
     state.log.push(`${species(m.species).name} evolved into ${species(into).name}!`);
-    // Nincada's evolution leaves a Shedinja with room in the party and a Poké Ball (HGSS's level_shedinja: one ball used).
-    if (leavesShedinja(m.species) && state.party.length + shedinjas.length < 6 && (state.bag['poke-ball'] ?? 0) > 0) {
-      state.bag['poke-ball']! -= 1;
+    // Nincada's evolution leaves a Shedinja with room in the party, and in HGSS a Poké Ball (level_shedinja: one ball
+    // used; Emerald's CreateShedinja needs only the room).
+    const ball = generation().game !== 'emerald';
+    if (leavesShedinja(m.species) && state.party.length + shedinjas.length < 6 && (!ball || (state.bag['poke-ball'] ?? 0) > 0)) {
+      if (ball) state.bag['poke-ball']! -= 1;
       shedinjas.push({ ...evolve(m, SHEDINJA, state.bag).mon, uid: newUid(rng) });
       state.log.push(`${species(SHEDINJA).name} joined the party!`);
     }
@@ -1292,9 +1331,10 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
   }
   if (result.result === 'won' && t && o.trainer) {
     // The full prize the first time a trainer is beaten in a run, a quarter after that (the user's: grinding them).
-    // The class's × the last Pokémon's level, twice for an HGSS double battle: a quarter of the games' (both FireRed's
-    // Cmd_getmoneyreward and HGSS's BattleSystem_CalcPrizeMoney multiply by 4 too; the user's, 2026-11-08: Gen 2 paid 4x Gen 1).
-    const full = t.money * o.foes.at(-1)!.level * (generation().battleRules === 4 && t.double ? 2 : 1);
+    // The class's × the last Pokémon's level, twice for a double battle: a quarter of the games' (FireRed's
+    // Cmd_getmoneyreward, Emerald's GetTrainerMoneyToGive and HGSS's BattleSystem_CalcPrizeMoney multiply by 4 too; the
+    // user's, 2026-11-08: Gen 2 paid 4x Gen 1). Kanto's data marks no double battles.
+    const full = t.money * o.foes.at(-1)!.level * (t.double ? 2 : 1);
     const rematch = (state.paid ?? []).includes(o.trainer);
     const prize = rematch ? Math.floor(full * REMATCH_PRIZE) : full;
     if (!rematch) (state.paid ??= []).push(o.trainer);
@@ -1603,7 +1643,7 @@ function whiteOut(state: IdleState, out: Segment) {
   }
   const a = areas()[state.area] as WalkArea;
   state.log.push(`Whited out in ${a.name}.`);
-  const back = a.kind === 'gym' ? areaIndex(a.town!) : a.kind === 'league' ? areaIndex('indigo-plateau') : state.area;
+  const back = a.kind === 'gym' ? areaIndex(a.town!) : a.kind === 'league' ? leagueTown() : state.area;
   enterArea(state, back, out.events);
   // Whited out in a trainer grind (the user's): a wild grind near the route's start instead, the trainers it beat still beaten.
   const loop = state.loop;
@@ -1643,6 +1683,8 @@ function fishCast(state: IdleState, rng: Rng, settings: PlaySettings, caught: Se
   const rods = rodsOf(state);
   const rod = rods[int(rng, rods.length)]!;
   const dots = Math.min(10, int(rng, 10) + 4);
+  // Emerald's: a lead with Suction Cups or Sticky Hold bites more often, and its Pokémon by the lead's abilities.
+  if (generation().game === 'emerald') return fishCastE(state, rng, settings, caught, spot, map, table, rod, dots, out, weatherAt(state, map, area.fishing![spot]![3], area.fishing![spot]![4]));
   const bite = int(rng, 2) === 0;
   out.events.push({ t: 'fish', spot, rod, dots, bite });
   out.durationMs += fishMs({ dots });
@@ -1653,6 +1695,52 @@ function fishCast(state: IdleState, rng: Rng, settings: PlaySettings, caught: Se
   const wild = opponentMon(createMon(rng, { species: id, level, ...(int(rng, SHINY_ODDS) === 0 && { shiny: true }) }));
   // On the water's terrain (a fished Pokémon's battle is on the water, as the game's).
   return battle(state, rng, settings, caught, { kind: 'wild', foes: [wild], tile: '.w', scene: map.scene }, out);
+}
+
+/**
+ * Emerald's cast (encounters-emerald.ts): FireRed's dots, the bite by the lead's ability (fishBiteE), the Pokémon from
+ * the rod's slots by the lead's abilities (pickWildE); its battle in the weather where it fishes (weatherAt). A battle sets the steps with no
+ * wild Pokémon going again (Task_BattleStart).
+ */
+function fishCastE(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, spot: number, map: IdleMap, table: EncounterSlots, rod: number, dots: number, out: Segment, weather: IdleMap['weather']): boolean | null {
+  const lead = state.party[0]!;
+  const bite = fishBiteE(rng, lead);
+  out.events.push({ t: 'fish', spot, rod, dots, bite });
+  out.durationMs += fishMs({ dots });
+  if (!bite) return null;
+  const [first, odds] = ROD_SLOTS[rod]!;
+  // Route 119's spot is one of Emerald's Feebas tiles (the user's, 2026-11-15): half the bites a Feebas, before the rod's
+  // slots (CheckFeebas, `Random() % 100 <= 49`), at 20 to 25 (sWildFeebas) by the same level and lead rules.
+  const feebas = map.name === FEEBAS_MAP && int(rng, 100) <= 49;
+  const w = feebas ? pickWildE(rng, FEEBAS_TABLE, [100], 'fishing', lead)! : pickWildE(rng, table, odds, 'fishing', lead, first)!;
+  Object.assign(state.encounter, { steps: 0, buff: 0 });
+  const wild = opponentMon(createMon(rng, { species: w.species, level: w.level, ...(w.nature !== undefined && { nature: w.nature }), ...(w.gender && { gender: w.gender }), ...(int(rng, SHINY_ODDS) === 0 && { shiny: true }) }));
+  return battle(state, rng, settings, caught, { kind: 'wild', foes: [wild], tile: '.w', scene: map.scene, weather }, out);
+}
+
+/** Emerald's Feebas (FeebasSpots: Route 119's fishing tiles), as one slot at 20 to 25 (sWildFeebas). */
+const FEEBAS_MAP = 'Route119';
+const FEEBAS_TABLE: EncounterSlots = { rate: 0, mons: [[20, 25, 349]] };
+
+/**
+ * Emerald's step (encounters-emerald.ts): a new map starts the steps with no wild Pokémon again; every step counted
+ * (wildCheckE), on a wild encounter tile the check by the lead's ability and the weather on the step's tile (weatherAt),
+ * then the Pokémon (pickWildE: Keen Eye's scare means none, the steps going on); its battle in that weather. Whether it was won, or
+ * null for none.
+ */
+function wildStepE(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, tile: string, map: IdleMap, out: Segment, at: TrackStep): boolean | null {
+  const enc = state.encounter;
+  if (enc.map !== map.name) Object.assign(enc, { steps: 0, buff: 0, map: map.name });
+  const kind = tile[0] === 'l' ? 'land' : tile[0] === 'w' ? 'water' : null;
+  const table = kind ? generation().encounters[map.encounters]?.[kind] : undefined;
+  const lead = state.party[0]!;
+  const weather = weatherAt(state, map, at[1], at[2]);
+  if (!wildCheckE(rng, enc, table ? table.rate : null, tile, lead, weather) || !kind || !table) return null;
+  const w = pickWildE(rng, table, kind === 'land' ? LAND_ODDS : WATER_ODDS, kind, lead);
+  if (!w) return null;
+  Object.assign(enc, { steps: 0, buff: 0 });
+  const wild = opponentMon(createMon(rng, { species: w.species, level: w.level, ...(w.nature !== undefined && { nature: w.nature }), ...(w.gender && { gender: w.gender }), ...(int(rng, SHINY_ODDS) === 0 && { shiny: true }) }));
+  return battle(state, rng, settings, caught, { kind: 'wild', foes: [wild], tile, scene: map.scene, weather }, out);
 }
 
 /**
@@ -1708,8 +1796,9 @@ const stepFace = (from: TrackStep | undefined, to: TrackStep) => {
 };
 
 /** A step's wild encounter, if one appears (its tile's table, wildCheck): the battle played; whether it was won, or null for none. */
-function wildStep(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, tile: string, map: ReturnType<typeof mapView>, out: Segment, face?: string): boolean | null {
+function wildStep(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, tile: string, map: ReturnType<typeof mapView>, out: Segment, at: TrackStep, face?: string): boolean | null {
   if (generation().battleRules === 4) return wildStep4(state, rng, settings, caught, tile, map, out, face);
+  if (generation().game === 'emerald') return wildStepE(state, rng, settings, caught, tile, map, out, at);
   const kind = tile[0] === 'l' ? 'land' : tile[0] === 'w' ? 'water' : null;
   const table = kind && generation().encounters[map.encounters]?.[kind];
   if (!table || !wildCheck(rng, state.encounter, table, tile, state.party[0]!)) return null;
@@ -1776,7 +1865,7 @@ function grindSegment(state: IdleState, rng: Rng, settings: PlaySettings, caught
     else out.events.push({ t: 'circle', from, steps: 1 });
     out.durationMs += STEP_MS;
     const [m, , , , tile] = spot.loop[grind.at]!;
-    const won = wildStep(state, rng, settings, caught, tile, mapView(leg.maps[m]!), out, stepFace(spot.loop[from], spot.loop[grind.at]!));
+    const won = wildStep(state, rng, settings, caught, tile, mapView(leg.maps[m]!), out, spot.loop[grind.at]!, stepFace(spot.loop[from], spot.loop[grind.at]!));
     if (won === null) continue;
     if (!won) {
       whiteOut(state, out);
@@ -1999,8 +2088,9 @@ function simulateIn(from: IdleState, idleSettings: IdleSettings, caught: Set<num
       const key = trainerKey(state, trainer.key);
       out.events.push({ t: 'spotted', trainer: trainer.key });
       out.durationMs += 1500;
-      const won = battle(state, rng, settings, caught, { kind: 'trainer', foes: trainerParty(rng, key), trainer: key, tile, scene: a.kind === 'gym' && trainer.key === a.leader && generation().gen === 1 ? 'leader' : map.scene }, out);
-      if (generation().battleRules === 4) Object.assign(state.encounter, { steps: 0, buff: 0 });
+      const won = battle(state, rng, settings, caught, { kind: 'trainer', foes: trainerParty(rng, key), trainer: key, tile, scene: a.kind === 'gym' && trainer.key === a.leader && generation().gen === 1 ? 'leader' : map.scene, weather: weatherAt(state, map, leg.track[state.step]![1], leg.track[state.step]![2]) }, out);
+      // HGSS's and Emerald's steps with no wild Pokémon start again after a battle (Emerald's Task_BattleStart).
+      if (generation().battleRules === 4 || generation().game === 'emerald') Object.assign(state.encounter, { steps: 0, buff: 0 });
       if (!won) {
         whiteOut(state, out);
         whitedOut = true;
@@ -2017,7 +2107,7 @@ function simulateIn(from: IdleState, idleSettings: IdleSettings, caught: Set<num
       }
       break;
     }
-    const won = wildStep(state, rng, settings, caught, tile, map, out, stepFace(walkedFrom === undefined ? undefined : leg.track[walkedFrom], leg.track[state.step]!));
+    const won = wildStep(state, rng, settings, caught, tile, map, out, leg.track[state.step]!, stepFace(walkedFrom === undefined ? undefined : leg.track[walkedFrom], leg.track[state.step]!));
     if (won === null) continue;
     if (!won) {
       whiteOut(state, out);
