@@ -34,6 +34,10 @@ SPRITES = {
     'workman': 'walk', 'clown': 'walk', 'swimmerm': 'walk', 'swimmerw': 'walk', 'beachgirl': 'walk', 'beachboy': 'walk', 'explore': 'walk',
     'fighter': 'walk', 'campboy': 'walk', 'picnicgirl': 'walk', 'fishing': 'walk', 'seaman': 'walk', 'gorggeousm': 'walk',
     'gorggeousw': 'walk', 'mystery': 'walk', 'pikachu': 'walk', 'gingam': 'walk', 'gingaw': 'walk', 'sunglasses': 'walk',
+    # The Battle Tower's Gen 4 floors (tools/battle-tower/): its staff (pcwoman2, the Battle Tower's receptionists and
+    # attendants in its map events), and Diamond's sprites of the Battle Frontier trainers' classes the maps above don't
+    # draw (Parasol Lady, Ninja Boy, Jogger).
+    'pcwoman2': 'walk', 'ambrella': 'walk', 'babyboy1': 'walk', 'sportsman': 'walk',
 }
 # Sprites of a few frames, each a strip of them as they are (no walk): Snowpoint Gym's snowball (r09_o01: whole, cracked,
 # crumbling, a heap; crushed in that order), as public/overworld/dp/<file>.png.

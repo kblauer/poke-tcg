@@ -1,6 +1,6 @@
 // The Battle Tower (README: Battle Tower; agreed with the user): as many battles as can be won with one deck, a new
 // opponent as soon as one is beaten, one loss ending the challenge. Floors 1–10 are Gen 1's (their opponents' decks and
-// rooms), 11–20 Gen 2's, 21+ Gen 3's (staying with the last generation there are cards for); every opponent plays at Gym
+// rooms), 11–20 Gen 2's, 21–30 Gen 3's, 31+ Gen 4's (staying with the last generation there are cards and rooms for); every opponent plays at Gym
 // leader difficulty. Every 5th floor beaten is a checkpoint: later challenges can start on the floor after it. Beating
 // floor 100 wins the challenge (the user's).
 // TowerState is plain JSON, like a run's (RunState); applyTowerAction is its reducer. Between battles the attendant asks
@@ -19,13 +19,13 @@ const CHECKPOINT_EVERY = 5;
 /** The last floor: beating it wins the challenge (the user's). */
 export const TOP_FLOOR = 100;
 
-/** A generation's sprite set and rooms: FireRed's Trainer Tower, HGSS's and Emerald's Battle Tower (battle-tower-maps.ts). */
-export type TowerSprites = 'frlg' | 'hgss' | 'rse';
-const GENERATION_SPRITES: Record<number, TowerSprites> = { 1: 'frlg', 2: 'hgss', 3: 'rse' };
+/** A generation's sprite set and rooms: FireRed's Trainer Tower, HGSS's, Emerald's and Diamond/Pearl's Battle Tower (battle-tower-maps.ts). */
+export type TowerSprites = 'frlg' | 'hgss' | 'rse' | 'dp';
+const GENERATION_SPRITES: Record<number, TowerSprites> = { 1: 'frlg', 2: 'hgss', 3: 'rse', 4: 'dp' };
 
 /**
  * The newest generation with cards and the tower's rooms (GENERATION_SPRITES, TOWER_ROOMS): floors past its band stay with
- * it until there's another (agreed with the user). Sinnoh has runs but no Battle Tower rooms yet, so floors 31+ are Gen 3's.
+ * it until there's another (agreed with the user): Gen 4's (Sinnoh's) from floor 31 until Gen 5 has runs and rooms.
  */
 const LAST_GENERATION = Math.max(...Object.keys(GENERATIONS).map(Number).filter((gen) => gen in GENERATION_SPRITES));
 
@@ -33,7 +33,7 @@ const LAST_GENERATION = Math.max(...Object.keys(GENERATIONS).map(Number).filter(
 export const towerGeneration = (floor: number) => Math.min(Math.max(1, Math.ceil(floor / FLOORS_PER_GENERATION)), LAST_GENERATION);
 
 /** A floor's sprite set (and rooms). */
-export const towerSprites = (floor: number): TowerSprites => GENERATION_SPRITES[towerGeneration(floor)] ?? 'rse';
+export const towerSprites = (floor: number): TowerSprites => GENERATION_SPRITES[towerGeneration(floor)]!;
 
 /** Whether beating a floor reaches a checkpoint. */
 export const isCheckpoint = (floor: number) => floor % CHECKPOINT_EVERY === 0;
@@ -47,7 +47,7 @@ export function startFloors(best: number): number[] {
 
 /**
  * What beating a floor pays: Battle Points only (BP, the user's: an account currency spent in the lobby's BP Shop, given
- * at once), more on later generations' floors: 1 a win on Gen 1's, 2 on Gen 2's, 3 from floor 21. Placeholder amounts, to balance later.
+ * at once), more on later generations' floors: 1 a win on Gen 1's, 2 on Gen 2's, 3 on Gen 3's, 4 from floor 31. Placeholder amounts, to balance later.
  */
 export function towerReward(floor: number): { bp: number } {
   return { bp: towerGeneration(floor) };
@@ -200,7 +200,7 @@ export const TOWER_DECK_NAMES: Record<EnergyType, string[]> = {
   darkness: ['Night Raid', 'Shadow Play', 'Dark Pulse', 'Moonless Sky', 'Ambush', 'Black Market'],
   metal: ['Steel Wall', 'Iron Defense', 'Metal Storm', 'Bulwark', 'Heavy Armor', 'Cold Steel'],
   colorless: ['Wild Card', 'Swift Strike', 'Normal Force', 'Endless Stamina', 'Jack of All Trades', 'Hyper Beam'],
-  // Generation 5's Dragon type (no tower deck has it yet: the tower's opponents play Gen 1–3 cards).
+  // Generation 5's Dragon type (no tower deck has it yet: the tower's opponents play Gen 1–4 cards).
   dragon: ['Dragon Rage', 'Draco Meteor', 'Outrage', 'Dragon Dance', 'Twister', 'Dragon Tail'],
 };
 

@@ -1,6 +1,6 @@
 // The Battle Tower's scenes (README: Battle Tower), as scripts for TowerScene's director (useScene): the lobby's desk,
 // the clerk taking the player to the elevator and up, the corridor, the battle room with its opponents and attendant.
-// Each generation's floors are their own rooms (TOWER_ROOMS): FireRed's Trainer Tower, HGSS's and Emerald's Battle Tower.
+// Each generation's floors are their own rooms (TOWER_ROOMS): FireRed's Trainer Tower, HGSS's, Emerald's and Diamond/Pearl's Battle Tower.
 import { routePath, TOP_FLOOR, TOWER_ROOMS, towerGeneration, type TowerAction, type TowerRoom, type TowerSprites } from '@poke-tcg/campaign';
 import type { PlayerGender } from '@poke-tcg/shared';
 import type { ClientTower } from '../../hooks/useTower';
@@ -13,22 +13,26 @@ import type { SceneSteps } from './TowerScene';
  * Each set's staff: the receptionist at the lobby's desk, the clerk who rides the elevator and leads the way down the
  * corridor, the battle room's attendant, and the BP Shop's vendor (a Poké Mart clerk, the user's). FireRed's are its Union
  * Room receptionist (as the Trainer Tower's lobby has) and the 1F man at his counter; HGSS's the Battle Tower's receptionist (the woman, BFSW1, at the single battles'
- * desk) and its man in uniform (BFSM) for the others (ours: the frontier scenes don't say); Emerald's all Teala, as its maps have.
+ * desk) and its man in uniform (BFSM) for the others (ours: the frontier scenes don't say); Emerald's all Teala, as its maps have;
+ * Diamond's all its Battle Tower staff (pcwoman2, as its map events have), its vendor a Poké Mart clerk.
  */
 const STAFF: Record<TowerSprites, { receptionist: string; clerk: string; attendant: string; vendor: string }> = {
   frlg: { receptionist: 'receptionist', clerk: 'receptionist', attendant: 'trainer_tower_man', vendor: 'clerk' },
   hgss: { receptionist: 'hgss/tower_staff_f', clerk: 'hgss/tower_staff_m', attendant: 'hgss/tower_staff_m', vendor: 'hgss/clerk' },
   rse: { receptionist: 'rse/teala', clerk: 'rse/teala', attendant: 'rse/teala', vendor: 'rse/clerk' },
+  dp: { receptionist: 'dp/pcwoman2', clerk: 'dp/pcwoman2', attendant: 'dp/pcwoman2', vendor: 'dp/shopm1' },
 };
 
 /** The lobbies whose receptionist leads the player to the elevator, through the gap in her counter (their games' scripts); FireRed's sends him up the stairs. */
-const LEADING = new Set<TowerSprites>(['hgss', 'rse']);
+const LEADING = new Set<TowerSprites>(['hgss', 'rse', 'dp']);
 
 /** What the receptionist says to a player with a saved challenge, after a short welcome (SAVED_WELCOME; the user's words). */
 const SAVED_WELCOME = 'Welcome to the Battle Tower!';
 export const SAVED_LINE = 'You already have a Battle Tower challenge in progress. Would you like to continue?';
 
-// The Battle Tower's rooms are FireRed's, HGSS's and Emerald's (never Diamond and Pearl's, 'dp', a route map's only).
+/** A generation with Battle Tower rooms (TOWER_ROOMS). */
+type TowerGen = keyof typeof TOWER_ROOMS;
+
 const setOf = (room: TowerRoom): TowerSprites => (room.sprites as TowerSprites | undefined) ?? 'frlg';
 const wins = (n: number) => `${n} ${n === 1 ? 'battle' : 'battles'}`;
 
@@ -99,7 +103,7 @@ const GOODBYE = ['Thanks for visiting the Battle Tower!', 'We hope to see you ag
  */
 export async function lobbyScript(s: SceneSteps, ctx: TowerContext, saved: ClientTower | null, returning = false, kept: ClientTower | null = null) {
   const gen = saved ? saved.view.generation : 1;
-  const lobby = TOWER_ROOMS[gen as 1 | 2 | 3].lobby;
+  const lobby = TOWER_ROOMS[gen as TowerGen].lobby;
   const set = setOf(lobby);
   const p = lobby.points;
   ctx.music(gen, 'lobby');
@@ -198,7 +202,7 @@ export async function lobbyScript(s: SceneSteps, ctx: TowerContext, saved: Clien
  * walking to his place, the attendant at hers.
  */
 async function toFloor(s: SceneSteps, ctx: TowerContext, challenge: ClientTower, ride: boolean) {
-  const gen = challenge.view.generation as 1 | 2 | 3;
+  const gen = challenge.view.generation as TowerGen;
   const rooms = TOWER_ROOMS[gen];
   const set = setOf(rooms.room);
   ctx.music(gen, 'rooms');
@@ -228,7 +232,7 @@ const FADE_IN_MS = 300;
 
 /** The battle room: the player fades in at its door and walks to his place, facing where the opponent stands; the attendant at hers. */
 async function enterRoom(s: SceneSteps, ctx: TowerContext, challenge: ClientTower) {
-  const room = TOWER_ROOMS[challenge.view.generation as 1 | 2 | 3].room;
+  const room = TOWER_ROOMS[challenge.view.generation as TowerGen].room;
   const r = room.points;
   s.setRoom(room, { player: { ...player(room, ctx, r.entrance!, 'down'), hidden: true }, attendant: { sprite: STAFF[setOf(room)].attendant, tile: r.attendant!, face: facing(r.attendant!, r.player!) } });
   await s.fadeIn();
@@ -250,7 +254,7 @@ async function battle(s: SceneSteps, ctx: TowerContext, challenge: ClientTower) 
   // The battle's page loads while the opponent comes in and the transition plays.
   if (next.gameId) ctx.preloadGame(next.gameId);
   const o = next.view.opponent!;
-  const room = TOWER_ROOMS[next.view.generation as 1 | 2 | 3].room;
+  const room = TOWER_ROOMS[next.view.generation as TowerGen].room;
   const r = room.points;
   const name = `${o.trainerClass} ${o.name}`;
   s.place('opponent', { sprite: o.sprite, tile: r.opponentEntrance!, face: facing(r.opponentEntrance!, r.opponent!), name, hidden: true });
@@ -274,7 +278,7 @@ async function battle(s: SceneSteps, ctx: TowerContext, challenge: ClientTower) 
  */
 export async function afterBattleScript(s: SceneSteps, ctx: TowerContext, challenge: ClientTower) {
   const last = challenge.view.last!;
-  const gen = towerGeneration(last.floor) as 1 | 2 | 3;
+  const gen = towerGeneration(last.floor) as TowerGen;
   const room = TOWER_ROOMS[gen].room;
   const r = room.points;
   ctx.music(gen, 'rooms');
@@ -294,7 +298,7 @@ export async function afterBattleScript(s: SceneSteps, ctx: TowerContext, challe
 /** In the battle room between battles (a page opened mid-challenge): the player in his place, the attendant asking what's next. */
 export async function roomScript(s: SceneSteps, ctx: TowerContext, challenge: ClientTower) {
   ctx.music(challenge.view.generation, 'rooms');
-  const room = TOWER_ROOMS[challenge.view.generation as 1 | 2 | 3].room;
+  const room = TOWER_ROOMS[challenge.view.generation as TowerGen].room;
   const r = room.points;
   s.setRoom(room, {
     player: player(room, ctx, r.player!, facing(r.player!, r.opponent!)),
@@ -355,7 +359,7 @@ async function between(s: SceneSteps, ctx: TowerContext, challenge: ClientTower,
     const choice = await s.ask(`Next is battle #${v.wins + 1}. Would you like to continue the challenge?`, choices, 'Attendant');
     if (choice === 0) {
       if (spot) await s.walk('attendant', r.attendant!);
-      const next = TOWER_ROOMS[v.generation as 1 | 2 | 3];
+      const next = TOWER_ROOMS[v.generation as TowerGen];
       if (next.room !== room) {
         // A new generation's floors: out of this room, back into the elevator, up to its rooms.
         // She leads the way out; Gen 1's man, behind his counter, sends the player on alone.
