@@ -11,9 +11,7 @@ describe('run types and their maps', () => {
   it('every run type has its maps, the same the site loads for it by its region (loadRunMaps)', async () => {
     for (const id of RUN_TYPE_IDS) {
       const maps = await loadRunMaps(id);
-      // Unova's aren't drawn yet (issue #231): its runs show the icon map.
-      if (RUN_TYPE_INFO[id].generation === 5) expect(maps.routes, id).toEqual([]);
-      else expect(maps.routes.length, id).toBeGreaterThan(0);
+      expect(maps.routes.length, id).toBeGreaterThan(0);
       expect(maps.routes, id).toBe(runType(id).routes);
       expect(maps.gym, id).toBe(runType(id).gym);
       expect({ ...runType(id), routes: undefined, gym: undefined }, id).toEqual({ ...RUN_TYPE_INFO[id], routes: undefined, gym: undefined });

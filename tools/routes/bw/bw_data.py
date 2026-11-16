@@ -8,7 +8,7 @@ packed (squiddonaut/pokeblack: `files/a/x/y/z`, NARCs; almost no C, so no consta
   events file, the outdoor zone an interior belongs to, the place name;
 - matrices (`a/0/0/9`): a grid of land chunks (and, for the overworld, matrix 0, the zone of each cell);
 - areas (`a/0/1/3`, one file of 10-byte entries): an area's map texture set (`a/0/1/4`); an outdoor area is four entries
-  in a row, one a season (the zone's is spring's), an interior has 0xFFFF at +4;
+  in a row, one a season (the zone's is spring's), marked by a 1 in byte 6 (caves and interiors: one entry, a 0 there);
 - land chunks (`a/0/0/8`, 32x32 tiles a chunk, its model's origin its centre, 16 units a tile): `WB` model, permissions,
   buildings; `GC` model, two permission layers, buildings; `NG` model and buildings, no tile grid (the rail maps: Castelia
   City's streets, Skyarrow Bridge…); `RD` model, rails, buildings;
@@ -184,15 +184,15 @@ class Game:
         return [c for c in cells if c['land'] is not None and (z['matrix'] != 0 or c['zone'] == zone)]
 
     def area(self, n, season='spring'):
-        """An area (a zone's `area`) in a season: its map texture set (`textures`), whether it's outdoors (seasons apply:
-        an outdoor area's entries are spring's to winter's in a row, `n` spring's), and its first field (`buildings`: a
-        candidate for an interior's indoor building pack, to confirm)."""
+        """An area (a zone's `area`) in a season: its map texture set (`textures`), whether it has seasons (`outdoor`:
+        byte 6 is 1, and its entries are spring's to winter's in a row, `n` spring's, byte 7's low two bits the season; caves
+        and interiors have one entry and a 0 there), and its first field (`buildings`: a candidate for its building pack)."""
         table = self.fetch(self.game['archives']['areas'])
-        first, textures, indoor = struct.unpack_from('<HHH', table, 10 * n)
-        if indoor != 0xFFFF and season != 'spring':
+        seasonal = table[10 * n + 6] == 1
+        if seasonal and season != 'spring':
             n += SEASONS.index(season)
-            first, textures, indoor = struct.unpack_from('<HHH', table, 10 * n)
-        return {'id': n, 'textures': textures, 'outdoor': indoor != 0xFFFF, 'buildings': first, 'season': season if indoor != 0xFFFF else None}
+        first, textures = struct.unpack_from('<HH', table, 10 * n)
+        return {'id': n, 'textures': textures, 'outdoor': seasonal, 'buildings': first, 'season': season if seasonal else None}
 
     def map_textures(self, n):
         """A map texture set (NSBTX), by an area's `textures`."""
@@ -337,6 +337,8 @@ def check(g):
     seasons = [g.area(striaton['area'], s) for s in SEASONS]
     assert [a['textures'] for a in seasons] == [6, 7, 8, 9] and all(a['outdoor'] for a in seasons), seasons
     assert not g.area(gym['area'])['outdoor']
+    # Cold Storage's (an interior with no 0xFFFF at +4): one entry, never another area's summer.
+    assert g.area(220, 'summer') == {'id': 220, 'textures': 220, 'outdoor': False, 'buildings': 6, 'season': None}
     cells = g.zone_cells(6)
     assert sorted(c['land'] for c in cells) == [9, 10, 11], cells
     pack = g.building_pack(striaton['pack'])

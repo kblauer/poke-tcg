@@ -2,7 +2,7 @@ import { inGrass, inLongGrass, ledgeAt, onIce, onPath, onWater, type EncounterKi
 import { useEffect, useRef, useState } from 'react';
 import { DP_GRASS_FRAME_MS, DP_RUSTLE, GRASS_FRAME_MS, LONG_RUSTLE, RUSTLE, useTallGrass } from '../../hooks/useTallGrass';
 import { FADE_MS } from '../../hooks/useWalk';
-import { BOSS_MAP_SPRITES, bobFrame, bobs, isItemBall, mirrored, spriteHeight, spriteRise, spriteWidth, standFrame, stripFrames, surfBobs, walkFrame, waterSprite, type Facing, type SpriteSet } from '../../utils/overworld';
+import { BOSS_MAP_SPRITES, bobFrame, bobs, isDsSet, isItemBall, mirrored, spriteHeight, spriteRise, spriteWidth, standFrame, stripFrames, surfBobs, walkFrame, waterSprite, type Facing, type SpriteSet } from '../../utils/overworld';
 import { facing, type RouteFigure } from '../../utils/routeFigures';
 import { ENCOUNTER_STYLE } from './encounterIcons';
 
@@ -372,7 +372,7 @@ const LONG_EDGE = 8;
  * one in it.
  */
 export function TallGrass({ tile, rustle = false, set = 'frlg', long = false }: { tile: RouteSpot; rustle?: boolean; set?: SpriteSet; long?: boolean | 'edge' }) {
-  const dp = set === 'dp' && !long;
+  const dp = isDsSet(set) && !long;
   const frames = long ? LONG_RUSTLE.map(([f]) => f) : dp ? DP_RUSTLE : RUSTLE;
   const [step, setStep] = useState(rustle ? 0 : frames.length - 1);
   useEffect(() => {

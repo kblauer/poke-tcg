@@ -16,13 +16,22 @@
 // The Sinnoh maps use Diamond and Pearl's (`public/overworld/dp/<name>.png`, named `dp/<name>` here, by their textures'
 // names in the game, made by tools/routes/dp/dp_sprites.py from the pret/pokediamond decompilation): strips laid out as
 // HGSS's (12 frames, 32x32, right with its own frames). Lucas is the player (`hero`; Dawn is `heroine`).
+//
+// The Unova maps use Black's (`public/overworld/bw/<name>.png`, named `bw/<name>` here, by trainer class as Black's own
+// trainers have them, made by tools/routes/bw/bw_sprites.py with bwSprites.ts): strips laid out as HGSS's. Hilbert is the
+// player (`hero`; Hilda is `heroine`).
+
+import { BW_CLASS_SPRITES, BW_TRAINER_SPRITES } from './bwSprites';
 
 export type Facing = 'down' | 'up' | 'left' | 'right';
 
-/** Which game's sprites a map uses: FireRed's (Kanto), HeartGold/SoulSilver's (Johto), Emerald's (Hoenn) or Diamond and Pearl's (Sinnoh). */
-export type SpriteSet = 'frlg' | 'hgss' | 'rse' | 'dp';
+/** Which game's sprites a map uses: FireRed's (Kanto), HeartGold/SoulSilver's (Johto), Emerald's (Hoenn), Diamond and Pearl's (Sinnoh) or Black's (Unova). */
+export type SpriteSet = 'frlg' | 'hgss' | 'rse' | 'dp' | 'bw';
 
-const isHgss = (name: string) => name.startsWith('hgss/') || name.startsWith('dp/');
+/** The DS games' sets, Diamond's and Black's: their tall grass is a billboard drawn in front of the tile (useTallGrass, TallGrass). */
+export const isDsSet = (set: SpriteSet) => set === 'dp' || set === 'bw';
+
+const isHgss = (name: string) => name.startsWith('hgss/') || name.startsWith('dp/') || name.startsWith('bw/');
 
 /** The standing frame for each facing; right is left, mirrored. */
 export const FRAME: Record<Facing, number> = { down: 0, up: 1, left: 2, right: 2 };
@@ -92,6 +101,8 @@ const PLAYERS: Record<SpriteSet, Record<'male' | 'female', [walk: string, bike: 
   rse: { male: ['rse/brendan', 'rse/brendan_bike', 'rse/brendan_surf'], female: ['rse/may', 'rse/may_bike', 'rse/may_surf'] },
   // No Sinnoh map is ridden or surfed, so Lucas and Dawn walk.
   dp: { male: ['dp/hero', 'dp/hero', 'dp/hero'], female: ['dp/heroine', 'dp/heroine', 'dp/heroine'] },
+  // Nor any Unova map: Hilbert and Hilda walk.
+  bw: { male: ['bw/hero', 'bw/hero', 'bw/hero'], female: ['bw/heroine', 'bw/heroine', 'bw/heroine'] },
 };
 
 /** The player's sprite: Red, Ethan or Brendan (or, `gender` 'female', Leaf, Lyra or May), walking, on a bike (`travel`) or surfing (in water). */
@@ -112,7 +123,7 @@ export const swims = (name: string) => !!IN_WATER[name] || ['hgss/swimmer_m', 'h
  */
 export const BOSS_MAP_SPRITES: Partial<Record<string, string>> = { 'tate-liza': 'rse/tate' };
 /** The item ball (a Mystery not yet revealed, a Lucky Find), which stays put and is one tile tall. */
-export const isItemBall = (name: string | undefined) => name === 'item_ball' || name === 'hgss/item_ball' || name === 'rse/item_ball' || name === 'dp/monstarball';
+export const isItemBall = (name: string | undefined) => name === 'item_ball' || name === 'hgss/item_ball' || name === 'rse/item_ball' || name === 'dp/monstarball' || name === 'bw/item_ball';
 
 /**
  * Each trainer class's sprite, by the class in the trainer's name ("Swimmer" in "Swimmer Luis"). Classes FireRed has no
@@ -313,6 +324,41 @@ const DP_GYM_SPRITES: Record<string, string> = {
   'School Kid Tiera': 'girl3',
 };
 
+/**
+ * The classes of the run's trainer lists Black has no trainers of, as the nearest class it has (BW_CLASS_SPRITES'); any
+ * other class not in Black is a Youngster or, for a woman, a Lass.
+ */
+const BW_CLASS_STAND_INS: Record<string, string> = {
+  Cooltrainer: 'Ace Trainer',
+  'Jr. Trainer': 'School Kid',
+  'Bug Catcher': 'Youngster',
+  Camper: 'Backpacker',
+  Picnicker: 'Backpacker',
+  Beauty: 'Socialite',
+  'Super Nerd': 'Scientist',
+  Rocker: 'Roughneck',
+  Guitarist: 'Roughneck',
+  Psychic: 'Doctor',
+  'Rocket Grunt': 'Team Plasma',
+  'Bird Keeper': 'Pilot',
+  Triathlete: 'Cyclist',
+  Sailor: 'Fisherman',
+  Engineer: 'Worker',
+  'Gym Guide': 'Gentleman',
+};
+
+/** Black's sprite for a trainer: their own (a Unova Gym Trainer's), else their class's (a woman's where Black has one). */
+function bwTrainerSprite(trainer: string, trainerClass: string, woman: boolean): string {
+  const own = BW_TRAINER_SPRITES[trainer];
+  if (own) return `bw/${own}`;
+  const cls = BW_CLASS_SPRITES[trainerClass] ?? BW_CLASS_SPRITES[BW_CLASS_STAND_INS[trainerClass] ?? ''];
+  const sprite = cls ? (woman ? (cls.f ?? cls.m) : (cls.m ?? cls.f)) : woman ? 'lass' : 'youngster';
+  return `bw/${sprite}`;
+}
+
+/** Black's sprites for the non-battle encounters' people (encounterSprite's names). */
+const BW_ENCOUNTERS: Record<string, string> = { clerk: 'clerk', nurse: 'nurse', rich_boy: 'rich_boy', woman_1: 'lady', woman_2: 'parasol_lady', old_man_1: 'veteran', rocket_m: 'team_plasma', fat_man: 'backpacker', item_ball: 'item_ball' };
+
 /** Diamond and Pearl's sprites for the non-battle encounters' people (encounterSprite's names). */
 const DP_ENCOUNTERS: Record<string, string> = { clerk: 'shopm1', nurse: 'pcwoman1', rich_boy: 'gorggeousm', woman_1: 'woman1', woman_2: 'woman2', old_man_1: 'oldman1', rocket_m: 'gingam', fat_man: 'bigman', item_ball: 'monstarball' };
 
@@ -327,6 +373,7 @@ export function trainerSprite(trainer: string, set: SpriteSet = 'frlg'): string 
   const words = trainer.split(' ');
   const name = words.at(-1)!;
   const trainerClass = words.slice(0, -1).join(' ');
+  if (set === 'bw') return bwTrainerSprite(trainer, trainerClass, WOMEN.has(name));
   if (set === 'dp') {
     const woman = WOMEN.has(name);
     if (trainerClass === 'Cooltrainer' || trainerClass === 'Ace Trainer') return `dp/${woman ? 'woman3' : 'man3'}`;
@@ -381,6 +428,7 @@ export function encounterSprite(kind: string, event?: string, set: SpriteSet = '
     }
   })();
   if (name && set === 'dp') return `dp/${DP_ENCOUNTERS[name] ?? 'boy1'}`;
+  if (name && set === 'bw') return `bw/${BW_ENCOUNTERS[name] ?? 'youngster'}`;
   // HGSS has a sprite of each of these names; Emerald too, but for the old man and Team Rocket's dealer (Team Magma's).
   if (name && set === 'rse') return `rse/${({ old_man_1: 'old_man', rocket_m: 'magma_grunt_m' } as Record<string, string>)[name] ?? name}`;
   return name && set === 'hgss' ? `hgss/${name}` : name;

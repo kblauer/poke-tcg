@@ -342,9 +342,10 @@ describe('createRun', () => {
     const maps = RUN_TYPE_IDS.flatMap((id) => [...(runType(id).routes ?? []), ...(runType(id).gym ? [runType(id).gym!] : [])]);
     const grassy = maps.filter((m) => m.grass);
     // FireRed's Routes 2, 4, 5, 6 and 8, HGSS's 30, 32, 34, 35 and 45, Emerald's Petalburg Woods, Routes 102, 110 and 119 and
-    // Jagged Pass, and Diamond and Pearl's maps with grass.
+    // Jagged Pass, and Diamond and Pearl's and Black's maps with grass.
     const sinnoh = ['Route 203', 'Eterna Forest', 'Route 205', 'Route 215', 'Valor Lakefront', 'Route 213', 'Route 212', 'Route 217', 'Acuity Lakefront', 'Hotel Grand Lake', 'Route 222'];
-    expect(new Set(grassy.map((m) => m.name))).toEqual(new Set(['Route 2', 'Route 4', 'Route 5', 'Route 6', 'Route 8', 'Route 30', 'Route 32', 'Route 34', 'Route 35', 'Route 45', 'Petalburg Woods', 'Route 102', 'Route 110', 'Route 119', 'Jagged Pass', ...sinnoh]));
+    const unova = ['Route 1', 'Route 3', 'Pinwheel Forest', 'Route 7', 'Route 9'];
+    expect(new Set(grassy.map((m) => m.name))).toEqual(new Set(['Route 2', 'Route 4', 'Route 5', 'Route 6', 'Route 8', 'Route 30', 'Route 32', 'Route 34', 'Route 35', 'Route 45', 'Petalburg Woods', 'Route 102', 'Route 110', 'Route 119', 'Jagged Pass', ...sinnoh, ...unova]));
     for (const m of grassy) expect(m.grass!.map((r) => r.length), m.name).toEqual(m.walkable.map((r) => r.length));
   });
 
@@ -1227,12 +1228,24 @@ describe('Gen 5 runs', () => {
     expect(won.badges).toEqual(['unova-champion-ribbon']);
   });
 
-  it('every Unova gym run is 10 encounters on the icon map (its maps to come), then the Gym Trainer and the leader', () => {
+  it("every Unova gym run crosses its Black maps: 10 encounters, each map walked from its entrance through each spot and out at its exit, then the Gym Trainer and the leader", () => {
     for (const id of ['striaton', 'nacrene', 'castelia', 'nimbasa', 'driftveil', 'mistralton', 'icirrus', 'opelucid'] as const) {
-      expect(runType(id).routes, id).toEqual([]);
+      const type = runType(id);
+      expect(type.routes!.reduce((n, r) => n + r.spots.length, 0), id).toBe(10);
+      for (const route of [...type.routes!, type.gym!]) expect(route.sprites, `${id} ${route.name}`).toBe('bw');
+      for (const route of type.routes!) {
+        const stops = [route.entrance!, ...route.spots, route.exit!];
+        expect(stops.slice(1).map((to, i) => routePath(route, stops[i]!, to) !== null), `${id} ${route.name}`).toEqual(stops.slice(1).map(() => true));
+      }
       const s = createRun(id, deck, 1);
       expect(s.steps.map((st) => st.options[0]!.kind).slice(-2), id).toEqual(['gymTrainer', 'gymLeader']);
       expect(s.steps.length, id).toBe(12);
     }
+  });
+
+  it("the Unova Gym Challenge and Champion runs have each boss's room, Nimbasa's Pokémon Center after the fourth gym", () => {
+    expect(runType('unovaGyms').routes!.map((m) => m.name)).toEqual(['Striaton Gym', 'Nacrene Gym', 'Castelia Gym', 'Nimbasa Gym', 'Pokémon Center', 'Driftveil Gym', 'Mistralton Gym', 'Icirrus Gym', 'Opelucid Gym']);
+    expect(runType('unovaChampion').routes!.slice(-5).map((m) => m.name)).toEqual(["Shauntal's Room", "Grimsley's Room", "Caitlin's Room", "Marshal's Room", "Alder's Room"]);
+    expect(runType('unovaChampion').routes!.every((m) => m.sprites === 'bw')).toBe(true);
   });
 });
