@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { areas, type WalkArea } from './areas.js';
+import { areas, legendOf, mapView, type WalkArea } from './areas.js';
+import { species } from './data.js';
 import { generation, inGeneration } from './generation.js';
-import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, simulateSegment, wildSpots, type IdleState, type SegmentEvent } from './idle.js';
+import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, legendError, runLegendOf, simulateSegment, starters, wildSpots, type IdleState, type SegmentEvent } from './idle.js';
 
 // A Hoenn run (issue #226, step 4): whole runs to Wallace on Emerald's main road, as Johto's to Lance (johto.test.ts).
 describe("Hoenn's run", () => {
@@ -96,5 +97,97 @@ describe("Hoenn's run", () => {
     const offline = catchUp(createIdleRun({ species: 258 }, 8, 3), DEFAULT_IDLE_SETTINGS, new Set(), 60 * 60 * 1000);
     expect(offline.summary.battles).toBeGreaterThan(10);
     expect(offline.state.gen).toBe(3);
+  });
+});
+
+// The 'Later' list (the user's, 2026-11-15): the places off the main road, every Pokémon, the legendaries.
+describe("Hoenn's Pokémon", () => {
+  const index = (id: string) => inGeneration(3, () => areas().findIndex((a) => a.id === id));
+  const BADGES = ['Stone', 'Knuckle', 'Dynamo', 'Heat', 'Balance', 'Feather', 'Mind', 'Rain'];
+
+  // Emerald's Hoenn Pokédex (include/constants/pokedex.h's HOENN_DEX_ order: its 202), by national number: Treecko to
+  // Deoxys (252–386) and these.
+  const HOENN_DEX = [
+    ...[25, 26, 27, 28, 37, 38, 39, 40, 41, 42, 43, 44, 45, 54, 55, 63, 64, 65, 66, 67, 68, 72, 73, 74, 75, 76, 81, 82, 84, 85, 88, 89, 100, 101, 109, 110, 111, 112],
+    ...[116, 117, 118, 119, 120, 121, 127, 129, 130, 169, 170, 171, 172, 174, 177, 178, 182, 183, 184, 202, 203, 214, 218, 219, 222, 227, 230, 231, 232],
+    ...Array.from({ length: 386 - 251 }, (_, i) => 252 + i),
+  ];
+
+  it("offer every Hoenn Pokédex Pokémon but the event-only Jirachi and Deoxys: wild, extra slots, fished (Feebas too), the starters and legendaries, or evolving from one", () => {
+    inGeneration(3, () => {
+      expect(HOENN_DEX.length).toBe(202);
+      const got = new Set<number>(starters());
+      areas().forEach((_, i) => {
+        const legend = legendOf(i);
+        if (legend) got.add(legend.species);
+        for (const spot of wildSpots(i)) {
+          const [map, kind] = spot.id.split(':');
+          const table = generation().encounters[mapView(map!).encounters]![kind === 'f' ? 'fishing' : kind === 'w' ? 'water' : 'land']!;
+          [...table.mons, ...(table.extra ?? [])].forEach(([, , id]) => got.add(id));
+          // Route 119's fishing spot is one of Emerald's Feebas tiles (idle.ts's FEEBAS_MAP).
+          if (spot.id === 'Route119:f') got.add(349);
+        }
+      });
+      // A species is had when it or what it evolves from is (Lilycove's stones are sold, and trades evolve by level).
+      const from = new Map(generation().species.flatMap((s) => s.evolutions.map((e) => [e.into, s.id] as const)));
+      const had = (id: number): boolean => got.has(id) || (from.has(id) && had(from.get(id)!));
+      // Jirachi and Deoxys, the event-only ones (the user's).
+      expect(HOENN_DEX.filter((id) => !had(id)).map((id) => species(id).name)).toEqual(['Jirachi', 'Deoxys']);
+    });
+  });
+
+  it('roll Latias or Latios once a run for Southern Island (the other not there), Hoenn only', () => {
+    const eons = new Set<number>();
+    for (let seed = 1; seed <= 20; seed++) eons.add(createIdleRun({ species: 252 }, seed, 3).eon!);
+    expect([...eons].sort()).toEqual([380, 381]);
+    expect(createIdleRun({ species: 1 }, 1, 1).eon).toBeUndefined();
+    expect(createIdleRun({ species: 152 }, 1, 2).eon).toBeUndefined();
+    inGeneration(3, () => {
+      expect(runLegendOf({ eon: 380 }, index('latias'))!.species).toBe(380);
+      expect(runLegendOf({ eon: 380 }, index('latios'))).toBeNull();
+      expect(runLegendOf({ eon: 381 }, index('latios'))!.species).toBe(381);
+      expect(runLegendOf({ eon: 381 }, index('groudon'))!.species).toBe(383);
+    });
+  });
+
+  it('open the legendaries from Ever Grande City; walked up to and battled at their level, then back to Ever Grande City', () => {
+    inGeneration(3, () => {
+      const base = createIdleRun({ species: 258 }, 4, 3);
+      const mossdeep: IdleState = { ...base, area: index('mossdeep-city'), phase: 'town', reached: index('mossdeep-city'), badges: BADGES.slice(0, 6) };
+      expect(legendError(mossdeep, index('groudon'))).toBe('Reach Ever Grande City first');
+      const town: IdleState = { ...base, area: index('ever-grande-city'), phase: 'town', reached: index('ever-grande-city'), badges: BADGES, party: [{ ...base.party[0]!, level: 100 }] };
+      const other = base.eon === 380 ? 'latios' : 'latias';
+      expect(legendError(town, index(other))).toBe('No legendary Pokémon there');
+      const r = applyIdleAction(town, { type: 'LEGEND', area: index('regirock') });
+      if (!r.ok) throw new Error(r.error);
+      let s = r.state;
+      const events: SegmentEvent[] = [];
+      for (let i = 0; i < 10 && s.phase !== 'town'; i++) {
+        const next = simulateSegment(s, DEFAULT_IDLE_SETTINGS, new Set())!;
+        events.push(...next.segment.events);
+        s = next.state;
+      }
+      const fights = events.filter((e): e is Extract<SegmentEvent, { t: 'battle' }> => e.t === 'battle');
+      expect(fights.map((f) => f.foes[0])).toEqual([{ species: 377, level: 40 }]);
+      expect(s).toMatchObject({ area: index('ever-grande-city'), phase: 'town' });
+      if (['won', 'caught'].includes(fights[0]!.result)) expect(legendError(s, index('regirock'))).toBe('Regirock is gone');
+    });
+  });
+
+  it("meet the extra slots' Pokémon while grinding (Granite Cave B2F's Nosepass, the Rock Smash one)", () => {
+    inGeneration(3, () => {
+      const base = createIdleRun({ species: 255 }, 5, 3);
+      const dewford: IdleState = { ...base, area: index('dewford-town'), phase: 'town', reached: index('dewford-town'), badges: BADGES.slice(0, 1), party: [{ ...base.party[0]!, level: 100 }] };
+      const r = applyIdleAction(dewford, { type: 'GRIND_AT', area: index('granite-cave'), kind: 'wild', spot: 'GraniteCave_B2F:l' });
+      if (!r.ok) throw new Error(r.error);
+      let s = r.state;
+      const seen = new Set<number>();
+      for (let i = 0; i < 150 && !seen.has(299); i++) {
+        const next = simulateSegment(s, { ...DEFAULT_IDLE_SETTINGS, autoCatch: 'off', autoGrind: false }, new Set())!;
+        for (const e of next.segment.events) if (e.t === 'battle') e.foes.forEach((f) => seen.add(f.species));
+        s = next.state;
+      }
+      expect(seen.has(299)).toBe(true);
+    });
   });
 });

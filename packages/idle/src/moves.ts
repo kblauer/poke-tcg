@@ -186,15 +186,17 @@ const TERRAIN4: Record<Terrain, { secret: 'acc' | 'sleep' | 'flinch' | 'atk' | '
   mountain: { secret: 'flinch', nature: 'rock-slide', type: 'rock' },
   cave: { secret: 'flinch', nature: 'rock-slide', type: 'rock' },
   water: { secret: 'atk', nature: 'hydro-pump', type: 'water' },
+  // (No Gen 4 map is under the sea: the water's.)
+  underwater: { secret: 'atk', nature: 'hydro-pump', type: 'water' },
   building: { secret: 'paralysis', nature: 'tri-attack', type: 'normal' },
   snow: { secret: 'freeze', nature: 'blizzard', type: 'ice' },
   ice: { secret: 'freeze', nature: 'ice-beam', type: 'ice' },
 };
 
 /** The move Nature Power becomes on each terrain (sNaturePowerMoves). */
-const NATURE_POWER: Record<Terrain, string> = { grass: 'stun-spore', longgrass: 'razor-leaf', sand: 'earthquake', water: 'surf', pond: 'bubble-beam', mountain: 'rock-slide', cave: 'shadow-ball', building: 'swift', plain: 'swift', snow: 'swift', ice: 'swift' };
+const NATURE_POWER: Record<Terrain, string> = { grass: 'stun-spore', longgrass: 'razor-leaf', sand: 'earthquake', water: 'surf', underwater: 'hydro-pump', pond: 'bubble-beam', mountain: 'rock-slide', cave: 'shadow-ball', building: 'swift', plain: 'swift', snow: 'swift', ice: 'swift' };
 /** Camouflage's type on each terrain (sTerrainToType). */
-const CAMOUFLAGE: Record<Terrain, TypeName> = { grass: 'grass', longgrass: 'grass', sand: 'ground', water: 'water', pond: 'water', mountain: 'rock', cave: 'rock', building: 'normal', plain: 'normal', snow: 'normal', ice: 'normal' };
+const CAMOUFLAGE: Record<Terrain, TypeName> = { grass: 'grass', longgrass: 'grass', sand: 'ground', water: 'water', underwater: 'water', pond: 'water', mountain: 'rock', cave: 'rock', building: 'normal', plain: 'normal', snow: 'normal', ice: 'normal' };
 
 /** Magnitude's powers by its roll (4 to 10). */
 function magnitude(b: Battle): { n: number; power: number } {
@@ -767,6 +769,9 @@ export const EFFECTS: Record<string, Effect> = {
           break;
         case 'water':
           b.changeStat(target, 'atk', -1, false);
+          break;
+        case 'underwater':
+          b.changeStat(target, 'def', -1, false);
           break;
         case 'pond':
           b.changeStat(target, 'spe', -1, false);

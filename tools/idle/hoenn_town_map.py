@@ -22,6 +22,11 @@ same map the PokéNav shows, here on the GBA's whole 240x160 screen as the game'
   a map there (Littleroot Town, with no town area, Route 101's: its first leg walks it); an area first on none of its
   sections (Route 104 walked back north to Rustboro) is its first section's too, so the run there has its place. Gyms
   and the League's rooms are in their towns: no place.
+- The places off the main road (issue #226's 'Later' list): an optional or legendary area is on its sections' places
+  too (WalkArea.opens: Route 21's tall grass's rule; Terra Cave and Marine Cave on their routes' places, as
+  hoenn_areas.py's SHELTERS gives their maps those sections). Under the sea (UNDERWATER_124, its entry the route's whole
+  rectangle) takes only its rectangle's first cell, so the route keeps the others; a cave whose entry's cells an
+  earlier one has (Magma Hideout on Fiery Path's) takes the nearest free cell on the dungeons' layer.
 
 Usage: python tools/idle/hoenn_town_map.py <pokeemerald checkout>. Needs Pillow; run after hoenn_areas.py."""
 import json, os, re, subprocess, sys
@@ -167,10 +172,20 @@ def main():
         # its upper end), so each has a cell of its own to be picked by.
         for e in (entries[sec], entries.get(sec + '2')):
             rect = e and 'x' in e and [(x, y, 'dungeon') for y in range(e['y'], e['y'] + e['height']) for x in range(e['x'], e['x'] + e['width'])]
+            # Under the sea: its first cell, the route keeping the rest.
+            if rect and sec.startswith('underwater_'):
+                rect = rect[:1]
             if rect and not taken.issuperset(rect):
                 cells[sec] = rect
                 taken.update(rect)
                 break
+        else:
+            # Every cell of its entries taken (Magma Hideout on Fiery Path's): the nearest free one, on the dungeons' layer.
+            e = entries[sec]
+            free = [(x, y, 'dungeon') for y in range(GRID_H) for x in range(GRID_W) if (x, y, 'dungeon') not in taken]
+            cell = min(free, key=lambda c: (abs(c[0] - e['x']) + abs(c[1] - e['y']), c[1], c[0]))
+            cells[sec] = [cell]
+            taken.add(cell)
     missing = [s for s in places if s not in cells]
     if missing:
         sys.exit(f'Sections not on the map: {missing}')

@@ -102,7 +102,7 @@ export function mapLift(heights: MapHeights | undefined, x: number, y: number, f
  * A step of a track: the map (its index in the leg's maps), the tile, flags (1: reached through a fade, a warp or a
  * gatehouse; 2: jumped onto over a ledge; 4: slid onto across ice, HGSS's maps; 8: under the map's overhead, Goldenrod
  * Gym's bridges) and the tile's wild encounters ('l' land, 'w' water, '.' none) and battle
- * terrain (Terrain's first letter: g grass, s sand, w water, p pond, m mountain, c cave, b building, '.' plain; HGSS's n snow, i ice; Emerald's L long grass).
+ * terrain (Terrain's first letter: g grass, s sand, w water, p pond, m mountain, c cave, b building, '.' plain; HGSS's n snow, i ice; Emerald's L long grass and u underwater, the Dive's maps).
  */
 export type TrackStep = [map: number, x: number, y: number, flags: number, tile: string];
 
@@ -152,8 +152,9 @@ export interface WalkArea {
    * A legendary Pokémon at the track's end (the user's, 2026-10-27: picked on the Town Map once the run reaches the
    * Indigo Plateau, `opens`): its species and level, where it stands (map index in the leg, tile, facing) and its
    * overworld sprite. The run walks up to it and battles it; beaten or caught, it's gone for the run (IdleState.legends).
+   * `eon`: Southern Island's Latias or Latios, only the run's one there (IdleState.eon; the user's, 2026-11-15).
    */
-  legend?: { species: number; level: number; map: number; x: number; y: number; face: Facing; sprite: string };
+  legend?: { species: number; level: number; map: number; x: number; y: number; face: Facing; sprite: string; eon?: true };
   /**
    * Where it fishes (the user's, 2026-10-27: a wild grind with a rod), one a map with fishing: the leg, the step of its
    * track nearest the spot (the run's place while it fishes, faded from), the way the player faces the water and the
@@ -226,7 +227,7 @@ export function areaOpen(index: number, reached: number): boolean {
 }
 
 /** The terrain letters of a track step's tile. */
-export const TERRAIN_LETTERS = { g: 'grass', L: 'longgrass', s: 'sand', w: 'water', p: 'pond', m: 'mountain', c: 'cave', b: 'building', n: 'snow', i: 'ice', '.': 'plain' } as const;
+export const TERRAIN_LETTERS = { g: 'grass', L: 'longgrass', s: 'sand', w: 'water', u: 'underwater', p: 'pond', m: 'mountain', c: 'cave', b: 'building', n: 'snow', i: 'ice', '.': 'plain' } as const;
 
 /** The badges in order (each gym's), for the run's badge count and FireRed's badge boosts. */
 export const badgeList = perGeneration((g) => g.areas.filter((a): a is WalkArea => a.kind === 'gym').map((a) => a.badge!));

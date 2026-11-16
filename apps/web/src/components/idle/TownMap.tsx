@@ -1,4 +1,4 @@
-import { generation, areas, areaIndex, areaOpen, atProgress, isTown, legendError, legendOf, mapGrindPlan, mapView, modeOf, reachedArea, species, townMapGrid, townMapPlaces, townMapArea, townMapAreas, townMapPlaceOf, travelError, wildSpots, type IdleAction, type IdleMode, type TownMapPlace } from '@poke-tcg/idle';
+import { generation, areas, areaIndex, areaOpen, atProgress, isTown, legendError, mapGrindPlan, mapView, modeOf, reachedArea, runLegendOf, species, townMapGrid, townMapPlaces, townMapArea, townMapAreas, townMapPlaceOf, travelError, wildSpots, type IdleAction, type IdleMode, type TownMapPlace } from '@poke-tcg/idle';
 import { useState } from 'react';
 import { useEscape } from '../../hooks/useEscape';
 import type { ClientIdleRun } from '../../hooks/useIdle';
@@ -118,8 +118,14 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
   // Each kind's word, and its map's name when the place has more than one of that kind (a dungeon's floors).
   const kindOf = (s: { water: boolean; fish?: true }) => (s.fish ? 'Fishing' : s.water ? 'Surf grind' : 'Wild grind');
   const spotLabel = (s: { label: string; water: boolean; fish?: true }) => (spots.filter((t) => kindOf(t) === kindOf(s)).length > 1 ? `${kindOf(s)}: ${s.label}` : kindOf(s));
-  // Its legendary Pokémon, once the run has reached the Indigo Plateau (the user's): walked up to and battled (LEGEND).
-  const legends = picked ? townMapAreas(picked.place, reached).flatMap((area) => (legendOf(area) ? [{ area, name: species(legendOf(area)!.species).name }] : [])) : [];
+  // Its legendary Pokémon, once the run has reached the region's League town (the user's): walked up to and battled
+  // (LEGEND); Southern Island's only the run's one of Latias and Latios (runLegendOf).
+  const legends = picked
+    ? townMapAreas(picked.place, reached).flatMap((area) => {
+        const legend = runLegendOf(view, area);
+        return legend ? [{ area, name: species(legend.species).name }] : [];
+      })
+    : [];
   const choices = picked ? [picked.place.name, 'Trainer grind', ...(spots.length ? spots.map(spotLabel) : ['Wild grind']), ...legends.map((l) => l.name), ...(picked.town !== null ? [`Go to ${areas()[picked.town]!.name}`] : [])] : [];
   const choiceW = Math.max(CHOICE_W, ...choices.map((c) => c.length * CHAR_W + 10));
   const choiceH = 4 + 10 + (choices.length + 1) * CHOICE_ROW;

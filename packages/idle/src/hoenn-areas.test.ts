@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { areas, badgeList, isTown, mapView, type TownArea, type WalkArea } from './areas.js';
 import { HOENN_COLLISION } from './data/gen3/collision.js';
 import { generation, inGeneration } from './generation.js';
-import { createIdleRun, storeStock, weatherAt, type IdleState } from './idle.js';
+import { createIdleRun, storeStock, weatherAt, wildSpots, type IdleState } from './idle.js';
 
 // Hoenn's areas (data/gen3/, tools/idle/hoenn_areas.py over Emerald's maps; issue #226, step 4): every step walkable on
 // the game's collision (collision.ts) and every trainer's sight line crossed, as Johto's (areas.test.ts); each gym's
@@ -20,7 +20,7 @@ describe('the Hoenn areas', () => {
     const gyms = hoenn.walks.filter((a) => a.kind === 'gym');
     expect(gyms.map((a) => a.leader)).toEqual(['roxanne-1', 'brawly-1', 'wattson-1', 'flannery-1', 'norman-1', 'winona-1', 'tate-and-liza-1', 'juan-1']);
     for (const a of hoenn.walks.filter((x) => x.kind === 'gym' || x.kind === 'league')) expect(a.trainers.at(-1)!.key, a.id).toBe(a.leader);
-    const league = hoenn.areas.slice(hoenn.areas.findIndex((a) => a.id === 'ever-grande-city'));
+    const league = hoenn.areas.slice(hoenn.areas.findIndex((a) => a.id === 'ever-grande-city'), hoenn.areas.findIndex((a) => a.id === 'wallace') + 1);
     expect(league.map((a) => a.id)).toEqual(['ever-grande-city', 'sidney', 'phoebe', 'glacia', 'drake', 'wallace']);
     expect(league.slice(1).map((a) => (a as WalkArea).leader)).toEqual(['sidney', 'phoebe', 'glacia', 'drake', 'wallace']);
     // The places generation.ts names: the League's town, the TM shop's, the rods'.
@@ -28,6 +28,67 @@ describe('the Hoenn areas', () => {
       const g = generation();
       for (const id of [g.league.town, g.tmShop, g.champion, ...g.rods.map((r) => r.town)]) expect(hoenn.areas.some((a) => a.id === id), id).toBe(true);
     });
+  });
+
+  it("then the places off the main road and the legendary Pokémon, each opened by a road area (the user's, 2026-11-15)", () => {
+    const road = hoenn.areas.filter((a) => !('opens' in a && a.opens));
+    expect(road.at(-1)!.id).toBe('wallace');
+    const index = (id: string) => hoenn.areas.findIndex((a) => a.id === id);
+    const off = hoenn.walks.filter((a) => a.opens);
+    expect(off.length).toBe(hoenn.areas.length - road.length);
+    for (const a of off) expect(index(a.opens!), a.id).toBeGreaterThanOrEqual(0), expect(index(a.opens!), a.id).toBeLessThan(road.length);
+    // Every Town Map place with wild Pokémon the road doesn't walk (the user's list, and Mt. Pyre, Altering Cave, the
+    // Mirage Tower, the Desert Underpass, the Magma Hideout and under the sea, by the same rule).
+    expect(off.filter((a) => !a.legend).map((a) => a.id)).toEqual(['route-103', 'altering-cave', 'route-111-desert', 'mirage-tower', 'route-113', 'route-114', 'meteor-falls', 'desert-underpass', 'route-115', 'granite-cave', 'abandoned-ship', 'new-mauville', 'magma-hideout', 'safari-zone', 'route-122', 'mt-pyre', 'route-125', 'shoal-cave', 'underwater', 'cave-of-origin', 'seafloor-cavern', 'route-129', 'sky-pillar', 'route-134']);
+    // The legendaries from Ever Grande City on, at the game's levels (setwildbattle; Southern Island's seteventmon).
+    const legends = off.filter((a) => a.legend);
+    expect(legends.map((a) => [a.id, a.legend!.species, a.legend!.level, a.opens])).toEqual([
+      ['groudon', 383, 70, 'ever-grande-city'],
+      ['kyogre', 382, 70, 'ever-grande-city'],
+      ['rayquaza', 384, 70, 'ever-grande-city'],
+      ['regirock', 377, 40, 'ever-grande-city'],
+      ['regice', 378, 40, 'ever-grande-city'],
+      ['registeel', 379, 40, 'ever-grande-city'],
+      ['latias', 380, 50, 'ever-grande-city'],
+      ['latios', 381, 50, 'ever-grande-city'],
+    ]);
+    expect(legends.filter((a) => a.legend!.eon).map((a) => a.id)).toEqual(['latias', 'latios']);
+  });
+
+  it("walk the places off the main road into every wild table of their maps (land, and water where they surf), but Shoal Cave's water (its low tide's: none)", () => {
+    const missed: string[] = [];
+    for (const a of hoenn.walks.filter((x) => x.opens && !x.legend)) {
+      const maps = new Set(a.legs.flatMap((l) => l.maps));
+      for (const map of maps) {
+        const table = hoenn.encounters[hoenn.maps[map]!.encounters];
+        for (const [kind, letter] of [['land', 'l'], ['water', 'w']] as const) {
+          if (!table?.[kind]) continue;
+          const walked = a.legs.some((l) => l.track.some(([m, , , , tile]) => l.maps[m] === map && tile[0] === letter));
+          if (!walked) missed.push(`${map} ${kind}`);
+        }
+      }
+    }
+    expect(missed).toEqual(['ShoalCave_LowTideEntranceRoom water', 'ShoalCave_LowTideInnerRoom water']);
+  });
+
+  it('walk up to each legendary Pokémon, meeting nothing on the way, the player beside it (or where its scene has them), its sprite drawn', () => {
+    for (const a of hoenn.walks.filter((x) => x.legend)) {
+      const leg = a.legs[0]!;
+      expect(leg.track.every(([, , , , tile]) => tile[0] === '.'), a.id).toBe(true);
+      expect(leg.track.length, a.id).toBeGreaterThan(1);
+      const [, x, y] = leg.track.at(-1)!;
+      const l = a.legend!;
+      // Beside it, or (Terra and Marine Cave's) on the coord event's tile 2 below where it comes to.
+      expect(Math.abs(x - l.x) + Math.abs(y - l.y), a.id).toBeLessThanOrEqual(2);
+      expect(existsSync(new URL(`overworld/${l.sprite}.png`, PUBLIC)), l.sprite).toBe(true);
+    }
+  });
+
+  it('put every extra slot (the gifts, the babies, the Rock Smash and Ruby and Sapphire Pokémon) on a table some wild grind paces on', () => {
+    const tables = inGeneration(3, () => new Set(areas().flatMap((_, i) => wildSpots(i).filter((s) => !s.fish).map((s) => `${mapView(s.map).encounters}:${s.water ? 'water' : 'land'}`))));
+    const extras = Object.entries(hoenn.encounters).flatMap(([key, t]) => (['land', 'water'] as const).filter((k) => t[k]?.extra).map((k) => `${key}:${k}`));
+    expect(extras.length).toBe(25);
+    for (const e of extras) expect(tables.has(e), e).toBe(true);
   });
 
   it('give every town a store (but Dewford Town, which has none) and each gym town a grind loop', () => {

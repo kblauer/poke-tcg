@@ -16,6 +16,9 @@ export interface EncounterStateE {
   map?: string;
 }
 
+/** Each of a table's extra slots' share of its encounters (EncounterSlots.extra: a placeholder, to balance later; Kanto's and Hoenn's). */
+export const EXTRA_PERCENT = 5;
+
 /** WildEncounterCheck's cap (MAX_ENCOUNTER_RATE): the rate × 16 out of 2880, FireRed's 1600. */
 const MAX_RATE = 2880;
 
@@ -69,7 +72,9 @@ function bySlotOdds(rng: Rng, odds: readonly number[], first: number): number {
 
 /**
  * A wild Pokémon from a table's slots (TryGenerateWildMon, GenerateFishingWildMon, CreateWildMon), or null when the
- * lead's Keen Eye or Intimidate scares it off: on land Magnet Pull (Steel), then Static (Electric), on the water Static,
+ * lead's Keen Eye or Intimidate scares it off: first, where the table has extra slots (the user's, 2026-11-15: the
+ * Pokémon Emerald never has wild, as Kanto's), one of them EXTRA_PERCENT of the time each, the rest of the rules on it
+ * but the slot's; else on land Magnet Pull (Steel), then Static (Electric), on the water Static,
  * each half the time picking one of the slots of that type alike, whatever their odds (when some but not all are: the
  * table's own slots, not the 12 land ones the game reads past a water table's end, a bug); else a slot by `odds` (from
  * `first`, a rod's); the level rolled in the slot's range (ChooseWildMonLevel), Hustle, Vital Spirit or Pressure half the
@@ -85,11 +90,13 @@ export function pickWildE(rng: Rng, table: EncounterSlots, odds: readonly number
     const found = slots.flatMap((s, i) => (species(s[2]).types.includes(type) ? [i] : []));
     return found.length > 0 && found.length < slots.length ? first + found[int(rng, found.length)]! : null;
   };
+  const extra = table.extra ?? [];
+  const extraSlot = extra.length && int(rng, 100) < EXTRA_PERCENT * extra.length ? extra[int(rng, extra.length)]! : null;
   let slot: number | null = null;
-  if (kind === 'land' && ability === 'magnet-pull') slot = byType('steel');
-  if (slot === null && kind !== 'fishing' && ability === 'static') slot = byType('electric');
-  if (slot === null) slot = bySlotOdds(rng, odds, first);
-  let [lo, hi, id] = table.mons[slot]!;
+  if (!extraSlot && kind === 'land' && ability === 'magnet-pull') slot = byType('steel');
+  if (!extraSlot && slot === null && kind !== 'fishing' && ability === 'static') slot = byType('electric');
+  if (!extraSlot && slot === null) slot = bySlotOdds(rng, odds, first);
+  let [lo, hi, id] = extraSlot ?? table.mons[slot!]!;
   if (lo > hi) [lo, hi] = [hi, lo];
   let r = int(rng, 65536) % (hi - lo + 1);
   if (ability === 'hustle' || ability === 'vital-spirit' || ability === 'pressure') {

@@ -2,7 +2,7 @@ import { inGrass, inLongGrass, ledgeAt, onIce, onPath, onWater, type EncounterKi
 import { useEffect, useRef, useState } from 'react';
 import { DP_GRASS_FRAME_MS, DP_RUSTLE, GRASS_FRAME_MS, LONG_RUSTLE, RUSTLE, useTallGrass } from '../../hooks/useTallGrass';
 import { FADE_MS } from '../../hooks/useWalk';
-import { BOSS_MAP_SPRITES, bobFrame, bobs, isItemBall, mirrored, spriteHeight, spriteWidth, standFrame, stripFrames, surfBobs, walkFrame, waterSprite, type Facing, type SpriteSet } from '../../utils/overworld';
+import { BOSS_MAP_SPRITES, bobFrame, bobs, isItemBall, mirrored, spriteHeight, spriteRise, spriteWidth, standFrame, stripFrames, surfBobs, walkFrame, waterSprite, type Facing, type SpriteSet } from '../../utils/overworld';
 import { facing, type RouteFigure } from '../../utils/routeFigures';
 import { ENCOUNTER_STYLE } from './encounterIcons';
 
@@ -283,7 +283,7 @@ export function OverworldSprite({
         transition: `left ${moveMs}ms linear, top ${moveMs}ms linear, background-position-y ${moveMs}ms linear, opacity ${fadeMs}ms`,
         opacity: hidden ? 0 : undefined,
         left: tile.x * 16 + 8 - w / 2,
-        top: tile.y * 16 - 16 + drop,
+        top: tile.y * 16 - 16 - spriteRise(name) + drop,
         width: w,
         height: spriteHeight(name),
         // The strip with see-through gutters between its frames once it's made (useGutteredStrip), the file till then.

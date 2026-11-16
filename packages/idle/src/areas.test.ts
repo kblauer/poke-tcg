@@ -195,8 +195,9 @@ describe("the Idle Adventure's music", () => {
         if ('legs' in area) for (const leg of area.legs) for (const map of leg.maps) maps.add(map);
         if ('map' in area) maps.add(area.map), area.mart && maps.add(area.mart.map);
       }
-      // Route 118's own theme isn't in either album (it plays Route 110's): to add to tracks.json.
-      const missing = new Set(['MUS_ROUTE118']);
+      // Route 118's own theme isn't in either album (it plays Route 110's): to add to tracks.json; nor are Routes 122 and
+      // 123's, the Safari Zone's and Altering Cave's (FireRed's Sevii Islands cave song), off the main road.
+      const missing = new Set(['MUS_ROUTE118', 'MUS_ROUTE122', 'MUS_SAFARI_ZONE', 'MUS_RG_SEVII_CAVE']);
       for (const map of maps) for (const soundtrack of SOUNDTRACKS) if (!missing.has(mapView(map).music)) expect(IDLE_HOENN_MUSIC[soundtrack][mapView(map).music], `${map} (${mapView(map).music}), ${soundtrack}`).toBeDefined();
     });
   });
