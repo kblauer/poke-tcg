@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { areas, type WalkArea } from './areas.js';
 import { generation, inGeneration } from './generation.js';
-import { applyIdleAction, createIdleRun, DEFAULT_IDLE_SETTINGS, simulateSegment, wildSpots, type IdleState, type SegmentEvent } from './idle.js';
+import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, simulateSegment, wildSpots, type IdleState, type SegmentEvent } from './idle.js';
 
 // A Hoenn run (issue #226, step 4): whole runs to Wallace on Emerald's main road, as Johto's to Lance (johto.test.ts).
 describe("Hoenn's run", () => {
@@ -22,10 +22,14 @@ describe("Hoenn's run", () => {
       let s: IdleState = createIdleRun({ species }, seed, 3);
       const caught = new Set<number>();
       let ms = 0;
+      const prizes: { amount: number; why: string }[] = [];
+      const weathers = new Set<string>();
       for (let i = 0; i < 30000 && s.phase !== 'won'; i++) {
         const n = simulateSegment(s, DEFAULT_IDLE_SETTINGS, caught);
         expect(n).not.toBeNull();
         ms += n!.segment.durationMs;
+        for (const e of n!.segment.events) if (e.t === 'money' && e.why !== 'Pay Day') prizes.push(e);
+        for (const e of n!.segment.events) if (e.t === 'battle') for (const b of e.events) if (b.t === 'weather' && b.weather) weathers.add(b.weather);
         for (const d of n!.segment.dex) if (d.caught) caught.add(d.species);
         s = n!.state;
         if (s.phase === 'walking' && s.loop?.kind === 'pace' && Math.max(...s.party.map((m) => m.level)) >= topLevel(s.area)) {
@@ -37,6 +41,13 @@ describe("Hoenn's run", () => {
       expect(s.phase, how).toBe('won');
       expect(s.badges, how).toEqual(['Stone', 'Knuckle', 'Dynamo', 'Heat', 'Balance', 'Feather', 'Mind', 'Rain']);
       expect(ms / 3600000, how).toBeLessThan(90);
+      // Only Kanto's 8th badge gives a Master Ball.
+      expect(s.bag['master-ball'], how).toBeUndefined();
+      // The first prize: the class's ₱ a level × its last Pokémon's level (a quarter of Emerald's, as Kanto's are of FireRed's).
+      const first = inGeneration(3, () => Object.values(generation().trainers).find((t) => prizes[0]!.why === `${t.class} ${t.name}`))!;
+      expect(prizes[0]!.amount, how).toBe(first.money * first.party.at(-1)!.level);
+      // Route 111's desert edge and Route 120's rain spots: some battle in the map's weather.
+      expect(weathers.size, how).toBeGreaterThan(0);
     }
   }, 180000);
 
@@ -79,5 +90,11 @@ describe("Hoenn's run", () => {
         for (const leg of a.legs) for (const step of leg.track) expect(step[4][0], id).toBe('.');
       }
     });
+  });
+
+  it('catches up offline: an hour away plays an hour of the run', () => {
+    const offline = catchUp(createIdleRun({ species: 258 }, 8, 3), DEFAULT_IDLE_SETTINGS, new Set(), 60 * 60 * 1000);
+    expect(offline.summary.battles).toBeGreaterThan(10);
+    expect(offline.state.gen).toBe(3);
   });
 });
