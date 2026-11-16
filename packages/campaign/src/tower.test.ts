@@ -3,7 +3,7 @@ import { TOWER_ROOMS } from './battle-tower-maps.js';
 import { TOWER_TRAINERS } from './battle-tower-trainers.js';
 import { expandDeck, STARTER_DECK } from './decks.js';
 import { routePath } from './routes.js';
-import { GEN2_TEST_POOL, GEN3_TEST_POOL, TEST_POOL } from './test-pool.js';
+import { GEN2_TEST_POOL, GEN3_TEST_POOL, GEN4_TEST_POOL, TEST_POOL } from './test-pool.js';
 import {
   applyTowerAction,
   createTower,
@@ -44,8 +44,8 @@ function fight(state: TowerState, won: boolean, extra: { conceded?: boolean; ski
 
 describe('Battle Tower floors', () => {
   it('gives each band of 10 floors a generation, staying with the last one with cards and rooms', () => {
-    expect([1, 10, 11, 20, 21, 30, 31, 99, 100].map(towerGeneration)).toEqual([1, 1, 2, 2, 3, 3, 3, 3, 3]);
-    expect([1, 11, 21, 50].map(towerSprites)).toEqual(['frlg', 'hgss', 'rse', 'rse']);
+    expect([1, 10, 11, 20, 21, 30, 31, 40, 41, 99, 100].map(towerGeneration)).toEqual([1, 1, 2, 2, 3, 3, 4, 4, 4, 4, 4]);
+    expect([1, 11, 21, 31, 50].map(towerSprites)).toEqual(['frlg', 'hgss', 'rse', 'dp', 'dp']);
   });
 
   it('makes every 5th floor a checkpoint, starting later challenges on the floor after one', () => {
@@ -57,11 +57,11 @@ describe('Battle Tower floors', () => {
   });
 
   it("pays Battle Points, more on later generations' floors", () => {
-    expect([1, 10, 11, 21, 60].map((f) => towerReward(f).bp)).toEqual([1, 1, 2, 3, 3]);
+    expect([1, 10, 11, 21, 31, 60].map((f) => towerReward(f).bp)).toEqual([1, 1, 2, 3, 4, 4]);
   });
 
   it('meets only trainers with a sprite in the floor\'s set', () => {
-    for (const floor of [1, 11, 21]) {
+    for (const floor of [1, 11, 21, 31]) {
       const set = towerSprites(floor);
       expect(floorTrainers(floor).length).toBeGreaterThan(50);
       expect(floorTrainers(floor).every((t) => t.sprites[set])).toBe(true);
@@ -162,7 +162,7 @@ describe('a Battle Tower challenge', () => {
   });
 
   it('builds each floor\'s opponent a deck of its generation at Gym leader difficulty, hidden from the view', () => {
-    for (const [floor, pool] of [[1, TEST_POOL], [11, GEN2_TEST_POOL], [21, GEN3_TEST_POOL]] as const) {
+    for (const [floor, pool] of [[1, TEST_POOL], [11, GEN2_TEST_POOL], [21, GEN3_TEST_POOL], [31, GEN4_TEST_POOL]] as const) {
       const s = act(createTower(DECK, 4, floor), { type: 'CONTINUE' });
       const setup = towerBattleSetup(s, pool);
       expect(setup.deck).toHaveLength(60);
@@ -207,7 +207,7 @@ describe('Battle Tower rooms', () => {
       if (room.points.attendantSpot) expect(routePath(room, room.points.attendant!, room.points.entrance!), room.name).not.toBeNull();
       expect(routePath(room, room.points.player!, room.points.entrance!), room.name).not.toBeNull();
     }
-    // HGSS's and Emerald's receptionists lead the player from the desk to the elevator (the web's towerScripts.ts).
-    for (const lobby of [TOWER_ROOMS[2].lobby, TOWER_ROOMS[3].lobby]) expect(routePath(lobby, lobby.points.receptionist!, lobby.points.elevator!), lobby.name).not.toBeNull();
+    // HGSS's, Emerald's and Diamond's receptionists lead the player from the desk to the elevator (the web's towerScripts.ts).
+    for (const lobby of [TOWER_ROOMS[2].lobby, TOWER_ROOMS[3].lobby, TOWER_ROOMS[4].lobby]) expect(routePath(lobby, lobby.points.receptionist!, lobby.points.elevator!), lobby.name).not.toBeNull();
   });
 });

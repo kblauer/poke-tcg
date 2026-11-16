@@ -6,14 +6,18 @@ packages/campaign/src/battle-tower-maps.ts, copying the images to apps/web/publi
   its 1F as the battle room, drawn by fetch_map.py and render_route.py;
 - Gen 2 (11-20), HeartGold/SoulSilver's Battle Tower: its lobby and elevator by hgss_map.py (field maps), its corridor and
   battle room by hgss_rooms.py (2D frontier scenes, not field maps: their floors are this file's, `FLOORS`);
-- Gen 3 (21+), Emerald's Battle Tower: its lobby, elevator, corridor and battle room by emerald_map.py.
+- Gen 3 (21-30), Emerald's Battle Tower: its lobby, elevator, corridor and battle room by emerald_map.py;
+- Gen 4 (31+), Diamond/Pearl's Battle Tower: its lobby, elevator, corridor and battle room by dp_map.py (field maps, as
+  HGSS's lobby). Its single battles' corridor and room aren't field maps: the multi battles' are drawn (their corridor
+  and arena: the same rooms, its corridor's four doors, the arena's court).
 
 Each room's places (`points`, in its own tiles) are the games' where their map events or scripts give them (the
 receptionist, the door, the elevator, the battle room's opponent and attendant and where the player stops), and the
 user's or this file's otherwise (noted in `POINTS`).
 
-Usage: python tower_maps.py --emerald <pokeemerald checkout> [--apicula <apicula.exe>] [--work <dir>]
-Needs Python with numpy and Pillow (and pypng for render_route.py), and apicula for HGSS's field maps."""
+Usage: python tower_maps.py --emerald <pokeemerald checkout> [--apicula <apicula.exe>] [--work <dir>] [--only <prefix>,...]
+(--only: draws only the rooms whose keys start with these, 'dp' for Gen 4's, keeping the others as battle-tower-maps.ts has them.)
+Needs Python with numpy and Pillow (and pypng for render_route.py), and apicula for HGSS's and Diamond's field maps."""
 import json, os, subprocess, sys, tempfile
 from PIL import Image
 
@@ -40,6 +44,10 @@ ROOMS = {
     'rse-elevator': ('rse', 'rse', 'BattleFrontier_BattleTowerElevator', 'Battle Tower Elevator', 'down'),
     'rse-corridor': ('rse', 'rse', 'BattleFrontier_BattleTowerCorridor', 'Battle Tower Corridor', 'right'),
     'rse-room': ('rse', 'rse', 'BattleFrontier_BattleTowerBattleRoom', 'Battle Room', 'right'),
+    'dp-lobby': ('dp', 'dp', 'MAP_BATTLE_TOWER_LOBBY', 'Battle Tower', 'up'),
+    'dp-elevator': ('dp', 'dp', 'MAP_BATTLE_TOWER_ELEVATOR', 'Battle Tower Elevator', 'down'),
+    'dp-corridor': ('dp', 'dp', 'MAP_BATTLE_TOWER_CORRIDOR_MULTI', 'Battle Tower Corridor', 'up'),
+    'dp-room': ('dp', 'dp', 'MAP_BATTLE_TOWER_ARENA_MULTI', 'Battle Room', 'up'),
 }
 # HGSS's frontier scenes' floors (they have no tile data), rectangles (left, top, right, bottom) in their 16px tiles, read
 # off the images: the corridor's walkway in front of its doors, round its four pillars' feet (5, 9, 13 and 17 on row 5);
@@ -93,6 +101,17 @@ POINTS = {
     # The battle room (its script): the player in at 4,8, up 3 to 4,5 facing right; the opponent down 4 from the door
     # (5,1) to 5,5 facing left; the attendant from 1,7 to 4,6, below the player.
     'rse-room': {'entrance': (4, 8), 'player': (4, 5), 'opponentEntrance': (5, 1), 'opponent': (5, 5), 'attendant': (1, 7), 'attendantSpot': (4, 6)},
+    # Diamond's lobby (its events): the door (11,17), the receptionist at the middle desk (11,5; the first of its
+    # receptionists, as HGSS's single battles' stands there), below its elevator door (10-12,3).
+    'dp-lobby': {'entrance': (11, 16), 'receptionist': (11, 5), 'desk': (11, 6), 'elevator': (11, 3)},
+    # The elevator: the player at its door (3,6, as HGSS's), the attendant at 4,4 (its event).
+    'dp-elevator': {'entrance': (3, 6), 'attendant': (4, 4)},
+    # The multi battles' corridor (ours): in from the elevator's door at its left end (2,3), the clerk leading the player to
+    # its last door (18,2), as HGSS's walks the corridor's length.
+    'dp-corridor': {'entrance': (2, 3), 'attendant': (3, 3), 'door': (18, 2)},
+    # The multi battles' arena (its events: the attendant at 2,6, the opponents' door 7,2, the player's 7,10): the player
+    # in at the bottom door and up onto the court (7,8), the opponent down from the top door to face him (7,4; ours).
+    'dp-room': {'entrance': (7, 10), 'player': (7, 8), 'opponentEntrance': (7, 2), 'opponent': (7, 4), 'attendant': (2, 6)},
 }
 # Gen 1's battle room is HGSS's (ROOMS), with its places.
 POINTS['frlg-room'] = POINTS['hgss-room']
@@ -128,6 +147,14 @@ def hgss(work, const, apicula):
     prefix = os.path.join(work, const)
     run(os.path.join(ROUTES, 'hgss', 'hgss_map.py'), prefix, const, '--room', '--apicula', apicula)
     return Image.open(prefix + '.png'), json.load(open(prefix + '.json'))['rows']
+
+
+def dp(work, const, apicula):
+    prefix = os.path.join(work, const)
+    run(os.path.join(ROUTES, 'dp', 'dp_map.py'), prefix, const, '--apicula', apicula)
+    # Only plain floor is walked: Diamond's arena marks its pillars' feet and walls with other behaviours.
+    rows = [''.join(c if c == '.' else '#' for c in r) for r in json.load(open(prefix + '.json'))['rows']]
+    return Image.open(prefix + '.png'), rows
 
 
 def scene(work, name, key):
@@ -169,9 +196,22 @@ def main():
     emerald = opt('--emerald')
     apicula = opt('--apicula', 'apicula')
     work = opt('--work') or tempfile.mkdtemp(prefix='battle_tower_')
+    only = [k for k in (opt('--only') or '').split(',') if k]
+    # The rooms not drawn this time, as the file has them.
+    kept = {}
+    if only:
+        old = open(OUT, encoding='utf-8').read()
+        for key in ROOMS:
+            const = key.upper().replace('-', '_')
+            i = old.find(f'\nexport const {const}: TowerRoom = {{')
+            if i >= 0:
+                kept[key] = old[i:old.index('\n};\n', i) + 4]
     os.makedirs(work, exist_ok=True); os.makedirs(PUBLIC, exist_ok=True)
     out = [HEAD]
     for key, (sprites, tool, source, title, flow) in ROOMS.items():
+        if only and not any(key.startswith(k) for k in only):
+            out.append(kept[key])
+            continue
         points = dict(POINTS[key])
         # What's drawn over the people (a counter's near edge, over the receptionist behind it): FireRed's and Emerald's top
         # layer; the HGSS rooms (3D renders and 2D scenes) have none.
@@ -182,6 +222,8 @@ def main():
             im, rows, overhead = rse(work, emerald, source)
         elif tool == 'hgss':
             im, rows, points = crop(*hgss(work, source, apicula), points)
+        elif tool == 'dp':
+            im, rows, points = crop(*dp(work, source, apicula), points)
         else:
             im, rows = scene(work, source, key)
         # The places stood on are walked to: each made walkable (a door, the warp the player comes in at); and a lobby's
@@ -226,8 +268,8 @@ export const {const}: TowerRoom = {{
 
 
 HEAD = """// The Battle Tower's rooms (the user's): for each generation's floors a lobby with the desk, an elevator and the battle
-// room, with Emerald's and HGSS's corridor between: FireRed's Trainer Tower for Gen 1 (FireRed has no Battle Tower), HGSS's
-// Battle Tower for Gen 2 and Emerald's for Gen 3, each room's places from the game's events and scripts where they give
+// room, with a corridor between (but Gen 1's): FireRed's Trainer Tower for Gen 1 (FireRed has no Battle Tower), HGSS's
+// Battle Tower for Gen 2, Emerald's for Gen 3 and Diamond/Pearl's for Gen 4, each room's places from the game's events and scripts where they give
 // them (tools/battle-tower/tower_maps.py has which are). Written by tools/battle-tower/tower_maps.py.
 import type { Route, RouteSpot } from './routes.js';
 
@@ -247,6 +289,7 @@ export const TOWER_ROOMS = {
   1: { lobby: FRLG_LOBBY, elevator: FRLG_ELEVATOR, corridor: undefined, room: FRLG_ROOM },
   2: { lobby: HGSS_LOBBY, elevator: HGSS_ELEVATOR, corridor: HGSS_CORRIDOR, room: HGSS_ROOM },
   3: { lobby: RSE_LOBBY, elevator: RSE_ELEVATOR, corridor: RSE_CORRIDOR, room: RSE_ROOM },
+  4: { lobby: DP_LOBBY, elevator: DP_ELEVATOR, corridor: DP_CORRIDOR, room: DP_ROOM },
 } as const;
 """
 

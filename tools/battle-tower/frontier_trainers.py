@@ -6,8 +6,9 @@ generation meets only those with a sprite in its set:
 
 - Emerald's ('rse', the Gen 3 floors): the sprite Emerald draws the class as (battle_tower.c's gTowerMale/FemaleTrainerGfxIds),
   where public/overworld/rse/ has it;
-- FireRed's ('frlg', the Gen 1 floors) and HeartGold/SoulSilver's ('hgss', the Gen 2 floors): their own sprite of the
-  same class (public/overworld/ and public/overworld/hgss/), none for a class they don't have.
+- FireRed's ('frlg', the Gen 1 floors), HeartGold/SoulSilver's ('hgss', the Gen 2 floors) and Diamond's ('dp', the Gen 4
+  floors): their own sprite of the same class (public/overworld/, public/overworld/hgss/ and public/overworld/dp/), none
+  for a class they don't have.
 
 Their lines are Easy Chat phrases of 6 words, written out as Emerald writes them (ConvertEasyChatWordsToString with 3
 columns and 2 rows: each row's words joined by spaces, a line break between the rows), its moves and Pokémon by name.
@@ -50,6 +51,19 @@ HGSS = {
     'COOLTRAINER_M': 'cooltrainer_m', 'COOLTRAINER_F': 'cooltrainer_f', 'BLACK_BELT': 'black_belt', 'BEAUTY': 'beauty', 'RICH_BOY': 'rich_boy',
     'PICNICKER': 'picnicker', 'CAMPER': 'camper', 'BUG_CATCHER': 'bug_catcher', 'BIRD_KEEPER': 'bird_keeper', 'PSYCHIC_M': 'psychic',
     'SWIMMER_M': 'swimmer_m', 'SWIMMER_F': 'swimmer_f',
+}
+# Diamond's own sprite of each class it has (public/overworld/dp/: the Gen 4 floors), as its map events draw the class's
+# trainers (Cooltrainers its Ace Trainers, Running Triathletes its Joggers); none for the swimmers (Diamond's are in the
+# water), Kindlers, Bug and Hex Maniacs, PokéManiacs, Experts or Emerald's male Bird Keepers (Diamond's are women).
+DP = {
+    'YOUNGSTER': 'boy2', 'LASS': 'girl1', 'HIKER': 'mount', 'GENTLEMAN': 'gentleman', 'FISHERMAN': 'fishing', 'SAILOR': 'seaman',
+    'COOLTRAINER_M': 'man3', 'COOLTRAINER_F': 'woman3', 'BLACK_BELT': 'fighter', 'BEAUTY': 'woman2', 'RICH_BOY': 'gorggeousm',
+    'LADY': 'gorggeousw', 'PICNICKER': 'picnicgirl', 'CAMPER': 'campboy', 'BUG_CATCHER': 'boy3', 'PSYCHIC_M': 'mystery', 'PSYCHIC_F': 'mystery',
+    'TUBER_M': 'beachboy', 'TUBER_F': 'beachgirl', 'RUIN_MANIAC': 'explore', 'AROMA_LADY': 'woman1', 'BATTLE_GIRL': 'girl2',
+    'PARASOL_LADY': 'ambrella', 'POKEFAN_M': 'middleman1', 'POKEFAN_F': 'middlewoman1', 'PKMN_BREEDER_M': 'man1', 'PKMN_BREEDER_F': 'woman1',
+    'PKMN_RANGER_M': 'man3', 'PKMN_RANGER_F': 'woman3', 'SCHOOL_KID_M': 'boy1', 'SCHOOL_KID_F': 'girl3', 'COLLECTOR': 'bigman',
+    'DRAGON_TAMER': 'man3', 'GUITARIST': 'man2', 'NINJA_BOY': 'babyboy1', 'CYCLING_TRIATHLETE_M': 'cyclem', 'CYCLING_TRIATHLETE_F': 'cyclew',
+    'RUNNING_TRIATHLETE_M': 'sportsman',
 }
 FEMALE = {'TUBER_F', 'COOLTRAINER_F', 'SWIMMER_F', 'PSYCHIC_F', 'SCHOOL_KID_F', 'POKEFAN_F', 'EXPERT_F', 'CYCLING_TRIATHLETE_F', 'RUNNING_TRIATHLETE_F',
           'SWIMMING_TRIATHLETE_F', 'PKMN_BREEDER_F', 'PKMN_RANGER_F', 'AROMA_LADY', 'HEX_MANIAC', 'LADY', 'BEAUTY', 'BATTLE_GIRL', 'PARASOL_LADY',
@@ -110,7 +124,7 @@ def main():
         name = re.search(r'\.trainerName = _\("([^"]*)"\)', block).group(1)
         speech = {k: re.search(r'\.' + k + r' = \{([^}]*)\}', block).group(1).split(',') for k in ('speechBefore', 'speechWin', 'speechLose')}
         sprites = {}
-        for kind, table, folder in (('frlg', FRLG, ''), ('hgss', HGSS, 'hgss/'), ('rse', rse, 'rse/')):
+        for kind, table, folder in (('frlg', FRLG, ''), ('hgss', HGSS, 'hgss/'), ('rse', rse, 'rse/'), ('dp', DP, 'dp/')):
             file = table.get(cls)
             if file and os.path.exists(os.path.join(SPRITES, folder + file + '.png')):
                 sprites[kind] = folder + file
@@ -128,7 +142,7 @@ def main():
         lines.append(f"  {{ name: {q(t['name'])}, trainerClass: {q(t['class'])}, female: {str(t['female']).lower()}, before: {q(t['before'])}, win: {q(t['win'])}, lose: {q(t['lose'])}, sprites: {{ {sp} }} }},")
     lines.append('];\n')
     open(OUT, 'w', encoding='utf-8', newline='\n').write('\n'.join(lines))
-    counts = {k: sum(1 for t in out if k in t['sprites']) for k in ('frlg', 'hgss', 'rse')}
+    counts = {k: sum(1 for t in out if k in t['sprites']) for k in ('frlg', 'hgss', 'rse', 'dp')}
     print('wrote', len(out), 'trainers to', OUT, counts)
     for m in sorted(missing):
         print('no sprite file:', m)
@@ -148,8 +162,8 @@ export interface TowerTrainer {
   before: string;
   win: string;
   lose: string;
-  /** Their overworld sprite (public/overworld/) in FireRed's set (the Gen 1 floors), HGSS's (Gen 2) and Emerald's (Gen 3). */
-  sprites: Partial<Record<'frlg' | 'hgss' | 'rse', string>>;
+  /** Their overworld sprite (public/overworld/) in FireRed's set (the Gen 1 floors), HGSS's (Gen 2), Emerald's (Gen 3) and Diamond's (Gen 4). */
+  sprites: Partial<Record<'frlg' | 'hgss' | 'rse' | 'dp', string>>;
 }
 
 export const TOWER_TRAINERS: TowerTrainer[] = ["""

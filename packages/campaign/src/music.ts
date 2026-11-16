@@ -375,7 +375,8 @@ export function voltorbFlipMusic(): MusicCue {
 /**
  * Each generation's Battle Tower music (`towerMusic`), by soundtrack: its lobby's and its rooms' (the elevator, corridor and
  * battle room). Gen 2 is Gold, Silver & Crystal's Battle Tower, or HeartGold & SoulSilver's reception desk and Battle Tower
- * (Johto); Gen 3 Emerald's Battle Tower in both (Omega Ruby & Alpha Sapphire has none). Gen 1's would be FireRed's Trainer
+ * (Johto); Gen 3 Emerald's Battle Tower in both (Omega Ruby & Alpha Sapphire has none); Gen 4 Diamond, Pearl & Platinum's
+ * Battle Tower in both, its lobby's and rooms' (pokediamond's map headers: SEQ_BF_TOWWER). Gen 1's would be FireRed's Trainer
  * Tower (MUS_TRAINER_TOWER, its three rooms' music), but it isn't in the music player's list: until it is, Gen 1's floors play
  * Gen 2's, so autoplay always moves off a battle's music when the player is back in the tower (the user's).
  */
@@ -389,6 +390,10 @@ const TOWER_MUSIC: Record<number, Record<Soundtrack, { lobby: Song; rooms: Song 
   3: {
     original: { lobby: { game: 'Emerald', title: 'Battle Tower' }, rooms: { game: 'Emerald', title: 'Battle Tower' } },
     remastered: { lobby: { game: 'Emerald', title: 'Battle Tower' }, rooms: { game: 'Emerald', title: 'Battle Tower' } },
+  },
+  4: {
+    original: { lobby: { game: 'Diamond, Pearl & Platinum', title: 'Battle Tower' }, rooms: { game: 'Diamond, Pearl & Platinum', title: 'Battle Tower' } },
+    remastered: { lobby: { game: 'Diamond, Pearl & Platinum', title: 'Battle Tower' }, rooms: { game: 'Diamond, Pearl & Platinum', title: 'Battle Tower' } },
   },
 };
 

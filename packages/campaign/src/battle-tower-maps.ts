@@ -1,6 +1,6 @@
 // The Battle Tower's rooms (the user's): for each generation's floors a lobby with the desk, an elevator and the battle
-// room, with Emerald's and HGSS's corridor between: FireRed's Trainer Tower for Gen 1 (FireRed has no Battle Tower), HGSS's
-// Battle Tower for Gen 2 and Emerald's for Gen 3, each room's places from the game's events and scripts where they give
+// room, with a corridor between (but Gen 1's): FireRed's Trainer Tower for Gen 1 (FireRed has no Battle Tower), HGSS's
+// Battle Tower for Gen 2, Emerald's for Gen 3 and Diamond/Pearl's for Gen 4, each room's places from the game's events and scripts where they give
 // them (tools/battle-tower/tower_maps.py has which are). Written by tools/battle-tower/tower_maps.py.
 import type { Route, RouteSpot } from './routes.js';
 
@@ -290,9 +290,113 @@ export const RSE_ROOM: TowerRoom = {
   ],
 };
 
+export const DP_LOBBY: TowerRoom = {
+  flow: 'up',
+  sprites: 'dp',
+  name: 'Battle Tower',
+  image: '/routes/battle-tower/dp-lobby.png',
+  width: 368,
+  height: 304,
+  entrance: { x: 11, y: 16 },
+  spots: [],
+  points: { entrance: { x: 11, y: 16 }, receptionist: { x: 11, y: 5 }, desk: { x: 11, y: 6 }, elevator: { x: 11, y: 3 } },
+  walkable: [
+    '#######################',
+    '#######################',
+    '#######################',
+    '######...#...#...######',
+    '######...#...#...######',
+    '#######.###.###.#######',
+    '#####.............#####',
+    '#####.............#####',
+    '#####.............#####',
+    '#.....................#',
+    '#.....................#',
+    '#.....................#',
+    '#...#.............#...#',
+    '#.....................#',
+    '#####.............#####',
+    '#####.............#####',
+    '#####.............#####',
+    '#####......#......#####',
+    '#######################',
+  ],
+};
+
+export const DP_ELEVATOR: TowerRoom = {
+  flow: 'down',
+  sprites: 'dp',
+  name: 'Battle Tower Elevator',
+  image: '/routes/battle-tower/dp-elevator.png',
+  width: 112,
+  height: 128,
+  entrance: { x: 3, y: 6 },
+  spots: [],
+  points: { entrance: { x: 3, y: 6 }, attendant: { x: 4, y: 4 } },
+  walkable: [
+    '#######',
+    '#######',
+    '#######',
+    '#.....#',
+    '#.....#',
+    '#.....#',
+    '#.....#',
+    '#######',
+  ],
+};
+
+export const DP_CORRIDOR: TowerRoom = {
+  flow: 'up',
+  sprites: 'dp',
+  name: 'Battle Tower Corridor',
+  image: '/routes/battle-tower/dp-corridor.png',
+  width: 352,
+  height: 128,
+  entrance: { x: 2, y: 3 },
+  spots: [],
+  points: { entrance: { x: 2, y: 3 }, attendant: { x: 3, y: 3 }, door: { x: 18, y: 2 } },
+  walkable: [
+    '######################',
+    '######################',
+    '##################.###',
+    '#....................#',
+    '#....................#',
+    '#...#...#...#...#....#',
+    '#...#...#...#...#....#',
+    '######################',
+  ],
+};
+
+export const DP_ROOM: TowerRoom = {
+  flow: 'up',
+  sprites: 'dp',
+  name: 'Battle Room',
+  image: '/routes/battle-tower/dp-room.png',
+  width: 240,
+  height: 192,
+  entrance: { x: 7, y: 10 },
+  spots: [],
+  points: { entrance: { x: 7, y: 10 }, player: { x: 7, y: 8 }, opponentEntrance: { x: 7, y: 2 }, opponent: { x: 7, y: 4 }, attendant: { x: 2, y: 6 } },
+  walkable: [
+    '###############',
+    '###############',
+    '#######.#######',
+    '###.........###',
+    '###.........###',
+    '#.............#',
+    '#.............#',
+    '#.............#',
+    '#.#.........#.#',
+    '#.#.........#.#',
+    '#.............#',
+    '###############',
+  ],
+};
+
 /** Each generation's rooms, in the order the player goes through them: the lobby, the elevator, the corridor (if any), the battle room. */
 export const TOWER_ROOMS = {
   1: { lobby: FRLG_LOBBY, elevator: FRLG_ELEVATOR, corridor: undefined, room: FRLG_ROOM },
   2: { lobby: HGSS_LOBBY, elevator: HGSS_ELEVATOR, corridor: HGSS_CORRIDOR, room: HGSS_ROOM },
   3: { lobby: RSE_LOBBY, elevator: RSE_ELEVATOR, corridor: RSE_CORRIDOR, room: RSE_ROOM },
+  4: { lobby: DP_LOBBY, elevator: DP_ELEVATOR, corridor: DP_CORRIDOR, room: DP_ROOM },
 } as const;
