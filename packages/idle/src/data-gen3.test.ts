@@ -111,10 +111,10 @@ describe("Hoenn's data", () => {
     expect(ITEMS['moon-stone']!.price).toBe(ITEMS['fire-stone']!.price);
   });
 
-  it('is registered, but no Hoenn run starts before its areas exist (steps 4 to 6)', () => {
+  it("is registered, and Hoenn runs start now its areas exist (step 4; its lock behind a Johto Champion win is the API's, generationLocked)", () => {
     expect(inGeneration(3, () => SPECIES.length)).toBe(386);
     expect(regionReady(1)).toBe(true);
     expect(regionReady(2)).toBe(true);
-    expect(regionReady(3)).toBe(false);
+    expect(regionReady(3)).toBe(true);
   });
 });

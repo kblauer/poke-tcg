@@ -33,8 +33,10 @@ import { TM_LEARNERS as JOHTO_TM_LEARNERS, TM_MOVES as JOHTO_TM_MOVES } from './
 import { TRAINERS as JOHTO_TRAINERS } from './data/gen2/trainers.js';
 import { TYPE_CHART as JOHTO_TYPE_CHART } from './data/gen2/types.js';
 import { ABILITY_NAMES as HOENN_ABILITY_NAMES } from './data/gen3/abilities.js';
+import { HOENN_AREAS } from './data/gen3/areas.js';
 import { ENCOUNTERS as HOENN_ENCOUNTERS } from './data/gen3/encounters.js';
 import { ITEMS as HOENN_ITEMS } from './data/gen3/items.js';
+import { HOENN_MAPS } from './data/gen3/maps.js';
 import { MARTS as HOENN_MARTS } from './data/gen3/marts.js';
 import { MOVES as HOENN_MOVES } from './data/gen3/moves.js';
 import { SPECIES as HOENN_SPECIES } from './data/gen3/species.js';
@@ -44,8 +46,7 @@ import { TYPE_CHART as HOENN_TYPE_CHART } from './data/gen3/types.js';
 
 /**
  * The generations a run can be: Kanto's 1, Johto's 2 (issue #170: HGSS's tables and areas, Gen 4's battles; open once a
- * Kanto run has beaten the Champion) and Hoenn's 3 (issue #226: Emerald's, Gen 3's battles; open once a Johto run has;
- * its areas to come, so no run starts there yet: `regionReady`).
+ * Kanto run has beaten the Champion) and Hoenn's 3 (issue #226: Emerald's, Gen 3's battles; open once a Johto run has).
  */
 export const IDLE_GENERATIONS = [1, 2, 3] as const;
 export type IdleGen = (typeof IDLE_GENERATIONS)[number];
@@ -195,9 +196,9 @@ const JOHTO: Generation = {
 };
 
 /**
- * Hoenn (Emerald, issue #226): its tables (data/gen3/, tools/idle/emerald_data.py). Its areas, maps and Town Map are to
- * come (steps 4 and 5): until then no Hoenn run starts (`regionReady`), and the Town Map's grid is Kanto's, a placeholder.
- * Its places (the areas' ids to be) are the user's and mine, in the issue: Ever Grande City before the League, Lilycove's
+ * Hoenn (Emerald, issue #226): its tables (data/gen3/, tools/idle/emerald_data.py), its areas and maps (step 4,
+ * tools/idle/hoenn_areas.py). Its Town Map is to come (step 5): until then it has no places, and its grid is Kanto's, a
+ * placeholder. Its places are the user's and mine, in the issue: Ever Grande City before the League, Lilycove's
  * Department Store for the TMs, the rods where Emerald gives them. Emerald has no time of day, so no `day`.
  */
 const HOENN: Generation = {
@@ -213,8 +214,8 @@ const HOENN: Generation = {
   trainers: HOENN_TRAINERS,
   tmMoves: HOENN_TM_MOVES,
   tmLearners: HOENN_TM_LEARNERS,
-  areas: [],
-  maps: {},
+  areas: HOENN_AREAS,
+  maps: HOENN_MAPS,
   townMapPlaces: [],
   townMapGrid: KANTO.townMapGrid,
   starters: [252, 255, 258],
@@ -236,7 +237,7 @@ const HOENN: Generation = {
 
 const GENERATIONS: Record<IdleGen, Generation> = { 1: KANTO, 2: JOHTO, 3: HOENN };
 
-/** Whether a run can start in a region: its areas exist (Hoenn's are to come, issue #226). */
+/** Whether a run can start in a region: its areas exist. */
 export const regionReady = (gen: IdleGen) => GENERATIONS[gen].areas.length > 0;
 
 let active: Generation = KANTO;

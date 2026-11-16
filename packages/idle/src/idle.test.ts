@@ -1226,7 +1226,7 @@ describe('an idle run', () => {
 
   it("knows each town's Poké Mart: the player across the counter from the clerk, facing them", () => {
     for (const a of areas().filter(isTown)) {
-      const m = a.mart;
+      const m = a.mart!;
       const clerk = m.people.find((p) => p.sprite === 'clerk' && Math.abs(p.x - m.x) + Math.abs(p.y - m.y) === 2 && (p.x === m.x || p.y === m.y));
       expect(clerk, a.id).toBeDefined();
     }

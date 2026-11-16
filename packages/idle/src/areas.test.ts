@@ -182,7 +182,7 @@ describe("the Idle Adventure's music", () => {
       const maps = new Set(['NewBarkElmsLab1f']);
       for (const area of areas()) {
         if ('legs' in area) for (const leg of area.legs) for (const map of leg.maps) maps.add(map);
-        if ('map' in area) maps.add(area.map), maps.add(area.mart.map);
+        if ('map' in area) maps.add(area.map), maps.add(area.mart!.map);
       }
       for (const map of maps) for (const soundtrack of SOUNDTRACKS) expect(IDLE_JOHTO_MUSIC[soundtrack][mapView(map).music], `${map} (${mapView(map).music}), ${soundtrack}`).toBeDefined();
     });

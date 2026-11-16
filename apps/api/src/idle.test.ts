@@ -133,5 +133,8 @@ describe("the regions' locks", () => {
     expect(generationLocked(2, new Set([1]))).toBeNull();
     // Johto's win alone opens nothing before it: Kanto needs none.
     expect(generationLocked(2, new Set([2]))).toBe('Johto opens once a Kanto run has beaten the Champion');
+    // Hoenn, startable now its areas exist (step 4), once a Johto run has beaten the Champion.
+    expect(generationLocked(3, new Set([1]))).toBe('Hoenn opens once a Johto run has beaten the Champion');
+    expect(generationLocked(3, new Set([1, 2]))).toBeNull();
   });
 });

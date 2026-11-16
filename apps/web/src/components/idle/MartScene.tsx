@@ -64,7 +64,7 @@ export function MartScene({
   buyChildren?: ReactNode;
 }) {
   const town = areas()[run.view.area] as TownArea;
-  const mart = town.mart;
+  const mart = town.mart!;
   const map = mapView(mart.map);
   const player = playerSprites(gender).walk;
   const [stage, setStage] = useState<'hello' | 'again' | 'buy' | 'tms' | 'bye'>('hello');
@@ -163,7 +163,7 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
   const { ref, scale } = useGameScale();
   const pressDialogue = useRef<(() => void) | null>(null);
   const town = areas()[run.view.area] as TownArea;
-  const mart = town.mart;
+  const mart = town.mart!;
   const map = mapView(mart.map);
   const stock = machines ?? run.view.store;
   const owned = (it: string) => isMachine(it) && (run.view.bag[it] ?? 0) > 0;

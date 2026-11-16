@@ -4,7 +4,7 @@
 // player's choice (gym, store, continue).
 import { generation, perGeneration } from './generation.js';
 
-/** A FireRed or HeartGold map an area walks: its picture (in apps/web/public) and size in 16px tiles, its wild table, battle scene and music. */
+/** A FireRed, HeartGold or Emerald map an area walks: its picture (in apps/web/public) and size in 16px tiles, its wild table, battle scene and music. */
 export interface IdleMap {
   name: string;
   image: string;
@@ -39,6 +39,17 @@ export interface IdleMap {
    * Routes 119, 120 and 123), for good; and Sand Veil's lead halving the wild Pokémon in a sandstorm. None elsewhere.
    */
   weather?: 'rain' | 'sandstorm' | 'sun';
+  /**
+   * Where only parts of the map have its weather (tools/idle/hoenn_areas.py, from Emerald's scripts: Route 111's desert,
+   * Route 120's rain, Route 119's stretch between its weather triggers): those parts, [x0, y0, x1, y1] (both ends in).
+   * None: the whole map.
+   */
+  weatherAreas?: [number, number, number, number][];
+  /**
+   * The daily cycle its weather follows (Emerald's WEATHER_ROUTE119_CYCLE and WEATHER_ROUTE123_CYCLE), rolled once a run
+   * (the user's, issue #226: IdleState.weatherDay): the weather only on the cycle's rainy days. None: always.
+   */
+  weatherCycle?: 'route119' | 'route123';
 }
 
 /**
@@ -91,7 +102,7 @@ export function mapLift(heights: MapHeights | undefined, x: number, y: number, f
  * A step of a track: the map (its index in the leg's maps), the tile, flags (1: reached through a fade, a warp or a
  * gatehouse; 2: jumped onto over a ledge; 4: slid onto across ice, HGSS's maps; 8: under the map's overhead, Goldenrod
  * Gym's bridges) and the tile's wild encounters ('l' land, 'w' water, '.' none) and battle
- * terrain (Terrain's first letter: g grass, s sand, w water, p pond, m mountain, c cave, b building, '.' plain; HGSS's n snow, i ice).
+ * terrain (Terrain's first letter: g grass, s sand, w water, p pond, m mountain, c cave, b building, '.' plain; HGSS's n snow, i ice; Emerald's L long grass).
  */
 export type TrackStep = [map: number, x: number, y: number, flags: number, tile: string];
 
@@ -160,13 +171,19 @@ export interface TownArea {
   stand: [number, number];
   /** Its marts' lists (MARTS' keys). */
   marts: string[];
+  /**
+   * Emerald's Poké Marts that sell more once a story flag is set (Petalburg's after the 4th badge, Rustboro's after
+   * the 1st: tools/idle/hoenn_areas.py), by the run's badges: from `badges` on, these lists instead of `marts`.
+   */
+  expanded?: { badges: number; marts: string[] };
   /** Its gym's area, or the League's first room (none in Viridian City the first time, Lavender Town). */
   gym?: string;
   /**
    * Its Poké Mart (the store, the user's): the map its first list is sold on, the player's tile across the counter from
    * the clerk who sells it and the way they face, and everyone there as the map places them (the clerk facing the player).
+   * None in a town with no store (Dewford Town; `marts` empty).
    */
-  mart: { map: string; x: number; y: number; face: 'up' | 'down' | 'left' | 'right'; people: { sprite: string; x: number; y: number; face: 'up' | 'down' | 'left' | 'right' }[] };
+  mart?: { map: string; x: number; y: number; face: 'up' | 'down' | 'left' | 'right'; people: { sprite: string; x: number; y: number; face: 'up' | 'down' | 'left' | 'right' }[] };
   /**
    * Where a run grinds before its gym (the user's): a loop round a ring of wild encounter tiles near the exit of the area
    * before the town (its last leg with wild Pokémon), each step a track's, walked round and round from the first.
@@ -209,7 +226,7 @@ export function areaOpen(index: number, reached: number): boolean {
 }
 
 /** The terrain letters of a track step's tile. */
-export const TERRAIN_LETTERS = { g: 'grass', s: 'sand', w: 'water', p: 'pond', m: 'mountain', c: 'cave', b: 'building', n: 'snow', i: 'ice', '.': 'plain' } as const;
+export const TERRAIN_LETTERS = { g: 'grass', L: 'longgrass', s: 'sand', w: 'water', p: 'pond', m: 'mountain', c: 'cave', b: 'building', n: 'snow', i: 'ice', '.': 'plain' } as const;
 
 /** The badges in order (each gym's), for the run's badge count and FireRed's badge boosts. */
 export const badgeList = perGeneration((g) => g.areas.filter((a): a is WalkArea => a.kind === 'gym').map((a) => a.badge!));
