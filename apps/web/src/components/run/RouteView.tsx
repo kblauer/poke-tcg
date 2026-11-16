@@ -3,7 +3,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
-import { dropAt, flowAt, inGrass, inLongGrass, isBattleKind, LIFT_MS, LIFT_PAUSE_MS, liftEnd, onLongGrassEdge, onPath, onWater, routePath, snowSink, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
+import { dropAt, flowAt, inGrass, inLongGrass, isBattleKind, LIFT_MS, LIFT_PAUSE_MS, liftEnd, onLongGrassEdge, onPath, onWater, routePath, rustleAt, snowSink, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import type { PlayerGender } from '@poke-tcg/shared';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useCrackedIce } from '../../hooks/useCrackedIce';
@@ -230,6 +230,10 @@ export function RouteView({
     const timer = window.setInterval(() => setBobbing((b) => !b), BOB_MS);
     return () => window.clearInterval(timer);
   }, [stillBob]);
+  // A map's own grass rustles (Black's: the route's `rustle`) fetched ahead, so the first rustle never draws in late.
+  useEffect(() => {
+    for (const src of Object.values(shown.rustle ?? {})) if (src) new Image().src = src;
+  }, [shown.rustle]);
   // Wading through tall grass, the player's legs slow with his steps (GRASS_PACE; not in Diamond and Pearl's short grass).
   const wading = walker.walking && slowGrass(shown, walker.tile);
   // The step he's taking: how long it takes (useWalk's, slower out of deep snow), 0 standing still.
@@ -569,12 +573,12 @@ export function RouteView({
             {/* The Gen 3 maps' and Diamond and Pearl's grass, after the sprites so it's over the feet of those on its row. */}
             {!legsHidden && (
               <>
-                {shown.npcs?.map((n, i) => inGrass(shown, n.tile) && <TallGrass key={`npc${i}`} tile={n.tile} set={sprites} long={tuftOf(n.tile)} />)}
+                {shown.npcs?.map((n, i) => inGrass(shown, n.tile) && <TallGrass key={`npc${i}`} tile={n.tile} set={sprites} long={tuftOf(n.tile)} image={rustleAt(shown, n.tile)} />)}
                 {placed.map((p) =>
                   isApproaching(p) ? (
-                    <GrassTufts key="approach" tile={approaching!.tile} grass={inGrass(shown, approaching!.tile)} long={tuftOf(approaching!.tile)} map={shown.image} moveMs={approaching!.walking ? ms.step : 0} set={sprites} />
+                    <GrassTufts key="approach" tile={approaching!.tile} grass={inGrass(shown, approaching!.tile)} long={tuftOf(approaching!.tile)} map={shown.image} moveMs={approaching!.walking ? ms.step : 0} set={sprites} imageAt={(t) => rustleAt(shown, t)} />
                   ) : (
-                    inGrass(shown, p.tile) && <TallGrass key={`${key(p.spot)}|${p.figure.option ?? ''}|${p.figure.title}`} tile={p.tile} set={sprites} long={tuftOf(p.tile)} />
+                    inGrass(shown, p.tile) && <TallGrass key={`${key(p.spot)}|${p.figure.option ?? ''}|${p.figure.title}`} tile={p.tile} set={sprites} long={tuftOf(p.tile)} image={rustleAt(shown, p.tile)} />
                   ),
                 )}
                 <GrassTufts
@@ -586,6 +590,7 @@ export function RouteView({
                   jump={walker.jump}
                   hidden={walker.hidden}
                   set={sprites}
+                  imageAt={(t) => rustleAt(shown, t)}
                 />
               </>
             )}

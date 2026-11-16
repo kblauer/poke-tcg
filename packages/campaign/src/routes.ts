@@ -107,8 +107,16 @@ export interface Route {
    * The tall grass ('g'), one string per tile row as `walkable`, from the game's tile behaviours (tools/routes/kanto_grass.py,
    * tools/routes/hgss/johto_routes.py): people standing in it are drawn half hidden, as in the games; Emerald's long grass
    * ('L', Route 119's very tall grass: tools/routes/emerald/hoenn_maps.py) hides more of them. None on a map without.
+   * Black's maps tell their kinds apart for their rustles: 'g' ordinary, 'h' the darker very tall grass, 'k' Route 7's long
+   * grass (tools/routes/bw/bw_map.py), all tall grass as 'g' is.
    */
   grass?: string[];
+  /**
+   * Each grass letter's rustle (the Unova maps': Black's own field effect, its version by the grass's colour there,
+   * tools/routes/bw/bw_grass.py): 4 frames of 32x32 stacked, drawn as Diamond's (`public/overworld/dp/grass.png`) is, which
+   * the DS maps without one use.
+   */
+  rustle?: Partial<Record<string, string>>;
   /**
    * The snow, one string per tile row as `walkable` (Diamond's tile behaviours, tools/routes/dp/dp_map.py: Route 217's,
    * Acuity Lakefront's): '1' deep, '2' deeper, '3' deepest, 's' shallow, 'w' snow with shadows. People sink into deep
@@ -188,8 +196,11 @@ export interface Route {
   exit?: RouteSpot;
   /** Where each spot's figure stands (a gym's trainers, as the game has them), instead of near the spot. */
   stands?: RouteSpot[];
-  /** The overworld sprites it's drawn with: HeartGold/SoulSilver's on the Johto maps ('hgss', 32x32), Emerald's on the Hoenn ones ('rse'); FireRed's otherwise. */
-  sprites?: 'hgss' | 'rse' | 'dp';
+  /**
+   * The overworld sprites it's drawn with: HeartGold/SoulSilver's on the Johto maps ('hgss', 32x32), Emerald's on the Hoenn
+   * ones ('rse'), Diamond and Pearl's on the Sinnoh ones ('dp'), Black's on the Unova ones ('bw'); FireRed's otherwise.
+   */
+  sprites?: 'hgss' | 'rse' | 'dp' | 'bw';
   /** How the player gets along (Route 17: on a bike, walking twice as fast; Route 20: surfing its water, '~'); on foot otherwise. */
   travel?: 'bike' | 'surf';
   /**
@@ -239,7 +250,13 @@ const downLedge = (route: Route, spot: RouteSpot) => ledgeAt(route, spot) === 'd
 /** Whether a tile is tall grass (the route's `grass`, long grass too), where people are drawn half hidden. */
 export const inGrass = (route: Route, spot: RouteSpot) => {
   const g = route.grass?.[spot.y]?.[spot.x];
-  return g === 'g' || g === 'L';
+  return g === 'g' || g === 'L' || g === 'h' || g === 'k';
+};
+
+/** The rustle drawn for the grass at a tile: its kind's (the route's `rustle`), or none (the sprite set's own). */
+export const rustleAt = (route: Route, spot: RouteSpot): string | undefined => {
+  const g = route.grass?.[spot.y]?.[spot.x];
+  return g ? route.rustle?.[g] : undefined;
 };
 
 /** The kinds of Diamond's snow (the route's `snow`). */

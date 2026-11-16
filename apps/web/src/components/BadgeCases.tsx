@@ -1,6 +1,6 @@
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CloseIcon from '@mui/icons-material/Close';
-import { boss, generationBadges, GENERATIONS, ITEMS } from '@poke-tcg/campaign';
+import { generationBadges, GENERATIONS, ITEMS, slotBoss, slotName } from '@poke-tcg/campaign';
 import { useState } from 'react';
 import { useEscape } from '../hooks/useEscape';
 import { DIALOG, DIALOG_BACKDROP } from '../utils/styles';
@@ -63,16 +63,17 @@ function BadgeCaseDialog({ gen, owned, onClose }: { gen: number; owned: Readonly
           </button>
         </div>
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {g.gyms.map((id) => {
-            const leader = boss(id);
+          {g.gyms.map((slot) => {
+            // A gym of several leaders (Striaton's three) shares one badge: all their names.
+            const leader = slotBoss(slot);
             const badge = leader.gym!.badge;
             const have = owned.has(badge);
             return (
-              <li key={id} className={`flex flex-col items-center gap-1 rounded-lg p-3 text-center ring-1 ${have ? 'bg-slate-700 ring-yellow-400/60' : 'bg-slate-900 ring-slate-700'}`}>
+              <li key={badge} className={`flex flex-col items-center gap-1 rounded-lg p-3 text-center ring-1 ${have ? 'bg-slate-700 ring-yellow-400/60' : 'bg-slate-900 ring-slate-700'}`}>
                 <ItemIcon id={badge} size={64} className={have ? undefined : 'opacity-40 grayscale'} />
                 <span className={`text-sm font-semibold ${have ? '' : 'text-slate-500'}`}>{ITEMS[badge]?.name ?? badge}</span>
                 <span className="text-xs text-slate-400">
-                  {leader.name} · {leader.gym!.city}
+                  {slotName(slot)} · {leader.gym!.city}
                 </span>
                 {have ? (
                   <span className="flex items-center gap-0.5 text-xs font-semibold text-emerald-300">

@@ -2,7 +2,7 @@ import { inGrass, inLongGrass, ledgeAt, onIce, onPath, onWater, type EncounterKi
 import { useEffect, useRef, useState } from 'react';
 import { DP_GRASS_FRAME_MS, DP_RUSTLE, GRASS_FRAME_MS, LONG_RUSTLE, RUSTLE, useTallGrass } from '../../hooks/useTallGrass';
 import { FADE_MS } from '../../hooks/useWalk';
-import { BOSS_MAP_SPRITES, bobFrame, bobs, isItemBall, mirrored, spriteHeight, spriteRise, spriteWidth, standFrame, stripFrames, surfBobs, walkFrame, waterSprite, type Facing, type SpriteSet } from '../../utils/overworld';
+import { BOSS_MAP_SPRITES, bobFrame, bobs, isDsSet, isItemBall, mirrored, spriteHeight, spriteRise, spriteWidth, standFrame, stripFrames, surfBobs, walkFrame, waterSprite, type Facing, type SpriteSet } from '../../utils/overworld';
 import { facing, type RouteFigure } from '../../utils/routeFigures';
 import { ENCOUNTER_STYLE } from './encounterIcons';
 
@@ -371,8 +371,8 @@ const LONG_EDGE = 8;
  * centred on the tile, its foot DP_GRASS_BELOW below the tile's (the game's: 18 of a tile's 16 units down), in front of the
  * one in it.
  */
-export function TallGrass({ tile, rustle = false, set = 'frlg', long = false }: { tile: RouteSpot; rustle?: boolean; set?: SpriteSet; long?: boolean | 'edge' }) {
-  const dp = set === 'dp' && !long;
+export function TallGrass({ tile, rustle = false, set = 'frlg', long = false, image }: { tile: RouteSpot; rustle?: boolean; set?: SpriteSet; long?: boolean | 'edge'; /** A DS map's own rustle for this tile's grass (Black's: the route's `rustle`, rustleAt), in place of Diamond's. */ image?: string }) {
+  const dp = isDsSet(set) && !long;
   const frames = long ? LONG_RUSTLE.map(([f]) => f) : dp ? DP_RUSTLE : RUSTLE;
   const [step, setStep] = useState(rustle ? 0 : frames.length - 1);
   useEffect(() => {
@@ -388,7 +388,7 @@ export function TallGrass({ tile, rustle = false, set = 'frlg', long = false }: 
     return (
       <div
         className="pointer-events-none absolute [image-rendering:pixelated]"
-        style={{ left: tile.x * 16 - 8, top: tile.y * 16 + 16 + DP_GRASS_BELOW - 32, width: 32, height: 32, backgroundImage: 'url(/overworld/dp/grass.png)', backgroundPosition: `0 ${-frame * 32}px`, zIndex: tile.y }}
+        style={{ left: tile.x * 16 - 8, top: tile.y * 16 + 16 + DP_GRASS_BELOW - 32, width: 32, height: 32, backgroundImage: `url(${image ?? '/overworld/dp/grass.png'})`, backgroundPosition: `0 ${-frame * 32}px`, zIndex: tile.y }}
       />
     );
   return (
@@ -402,15 +402,15 @@ export function TallGrass({ tile, rustle = false, set = 'frlg', long = false }: 
 /**
  * The tall grass over someone walking (useTallGrass: rustling as they step in, at rest where they're put, thrown up where a
  * ledge jump lands in it), on `map` (its picture: a new one starts over); none while they're `hidden` (faded out). `long`:
- * the tile they're on is Emerald's long grass, or its foot ('edge').
+ * the tile they're on is Emerald's long grass, or its foot ('edge'). `imageAt`: a DS map's own rustle at a tuft's tile (Black's).
  */
-export function GrassTufts({ tile, grass, long = false, map, moveMs, jump, hidden = false, set = 'frlg' }: { tile: RouteSpot; grass: boolean; long?: boolean | 'edge'; map: string; moveMs: number; jump?: { ms: number } | null; hidden?: boolean; set?: SpriteSet }) {
+export function GrassTufts({ tile, grass, long = false, map, moveMs, jump, hidden = false, set = 'frlg', imageAt }: { tile: RouteSpot; grass: boolean; long?: boolean | 'edge'; map: string; moveMs: number; jump?: { ms: number } | null; hidden?: boolean; set?: SpriteSet; imageAt?: (tile: RouteSpot) => string | undefined }) {
   const { tufts, splash } = useTallGrass({ tile, grass, long, map, moveMs, jump, set });
   if (hidden) return null;
   return (
     <>
       {tufts.map((t) => (
-        <TallGrass key={t.key} tile={t} rustle={t.rustle} set={set} long={t.long} />
+        <TallGrass key={t.key} tile={t} rustle={t.rustle} set={set} long={t.long} image={imageAt?.(t)} />
       ))}
       {splash && <JumpDust key={splash.stamp} tile={splash.tile} grass set={set} />}
     </>

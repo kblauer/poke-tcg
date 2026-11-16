@@ -11,10 +11,10 @@ import type { PoolCard } from './pool.js';
 import { int, rngFrom, type Rng } from './random.js';
 import { applyRunAction, createRun, needsBattle, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { RUN_TYPE_IDS, runGeneration, runType, type RunTypeId } from './run-types.js';
-import { catalogDef, GEN2_TEST_POOL, GEN3_TEST_POOL, GEN4_TEST_POOL, TEST_POOL } from './test-pool.js';
+import { catalogDef, GEN2_TEST_POOL, GEN3_TEST_POOL, GEN4_TEST_POOL, GEN5_TEST_POOL, TEST_POOL } from './test-pool.js';
 import { applyTowerAction, createTower, TOP_FLOOR, type TowerAction, type TowerState, type TowerSystemAction } from './tower.js';
 
-const POOLS: Record<number, PoolCard[]> = { 1: TEST_POOL, 2: GEN2_TEST_POOL, 3: GEN3_TEST_POOL, 4: GEN4_TEST_POOL };
+const POOLS: Record<number, PoolCard[]> = { 1: TEST_POOL, 2: GEN2_TEST_POOL, 3: GEN3_TEST_POOL, 4: GEN4_TEST_POOL, 5: GEN5_TEST_POOL };
 const poolOf = (type: RunTypeId) => POOLS[runType(type).generation]!;
 
 function deepFreeze<T>(value: T): T {
@@ -93,7 +93,7 @@ describe('every run type, played through with its own generation’s pool', () =
   const seen = new Set<string>();
 
   it('covers every generation with runs', () => {
-    expect([...new Set(RUN_TYPE_IDS.map((id) => runType(id).generation))].sort()).toEqual([1, 2, 3, 4]);
+    expect([...new Set(RUN_TYPE_IDS.map((id) => runType(id).generation))].sort()).toEqual([1, 2, 3, 4, 5]);
   });
 
   it.each(RUN_TYPE_IDS)('%s: reaches its end, the deck legal after every action, and the reducer total on the way', (type) => {

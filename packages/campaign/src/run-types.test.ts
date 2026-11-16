@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { boss } from './bosses.js';
 import { PACK_SETS } from './packs.js';
-import { bossTypes, generation, generationBadges, generationLock, loadRunMaps, nextPack, PACK_GENERATIONS, RUN_TYPE_IDS, RUN_TYPE_INFO, RUN_TYPES, runType, runTypeLock } from './run-types.js';
-import { DP_SETS, EX_SETS, GEN4_SETS } from './pool.js';
+import { bossSummary, bossTypes, generation, generationBadges, generationLock, loadRunMaps, nextPack, PACK_GENERATIONS, RUN_TYPE_IDS, RUN_TYPE_INFO, RUN_TYPES, runFinalBoss, runType, runTypeLock } from './run-types.js';
+import { DP_SETS, EX_SETS, GEN4_SETS, GEN5_SETS } from './pool.js';
 
 const kanto = generation(1);
 const none = { badges: new Set<string>(), beaten: new Set<string>() };
@@ -68,6 +68,32 @@ describe('unlocking run types', () => {
     expect(runTypeLock(RUN_TYPES.sinnohChampion, { ...none, beaten: new Set(['hoennGyms', 'sinnohGyms']) })).toBeNull();
   });
 
+  it("Unova's runs open once the Sinnoh Gym Challenge is beaten; its Gym Challenge needs its 8 badges (Striaton's whichever leader gave it), its Champion run the Unova Gym Challenge", () => {
+    const unova = generationBadges(generation(5));
+    expect(unova).toEqual(['trio-badge', 'basic-badge', 'insect-badge', 'bolt-badge', 'quake-badge', 'jet-badge', 'freeze-badge', 'legend-badge']);
+    expect(['cilan', 'chili', 'cress'].map((id) => boss(id).gym!.badge)).toEqual(['trio-badge', 'trio-badge', 'trio-badge']);
+    expect(runTypeLock(RUN_TYPES.striaton, { ...none, beaten: new Set(['hoennGyms']) })).toBe('Beat the Sinnoh Gym Challenge first');
+    const sinnohBeaten = new Set(['sinnohGyms']);
+    const gyms = RUN_TYPE_IDS.filter((id) => RUN_TYPES[id].generation === 5 && !runType(id).requires);
+    expect(gyms).toEqual(['striaton', 'nacrene', 'castelia', 'nimbasa', 'driftveil', 'mistralton', 'icirrus', 'opelucid']);
+    expect(gyms.map((id) => runTypeLock(RUN_TYPES[id], { ...none, beaten: sinnohBeaten }))).toEqual(gyms.map(() => null));
+    expect(runTypeLock(RUN_TYPES.unovaGyms, { ...none, beaten: sinnohBeaten })).toBe('Earn all 8 Unova badges first (8 to go)');
+    expect(runTypeLock(RUN_TYPES.unovaGyms, { beaten: sinnohBeaten, badges: new Set(unova) })).toBeNull();
+    expect(runTypeLock(RUN_TYPES.unovaChampion, { beaten: sinnohBeaten, badges: new Set(unova) })).toBe('Beat the Unova Gym Challenge first');
+    expect(runTypeLock(RUN_TYPES.unovaChampion, { ...none, beaten: new Set(['sinnohGyms', 'unovaGyms']) })).toBeNull();
+  });
+
+  it("names Striaton's three leaders where a run shows its boss, and the run's own once it's rolled", () => {
+    expect(bossSummary(RUN_TYPES.striaton)).toBe('Striaton Gym Leader Cilan, Chili or Cress');
+    expect(RUN_TYPES.striaton.description).toBe('Route 1, Route 2, Striaton Gym. Cilan, Chili or Cress at random, each with his own deck.');
+    expect(bossSummary(RUN_TYPES.unovaGyms)).toBe('8 gym leaders');
+    expect(bossSummary(RUN_TYPES.unovaChampion)).toBe('Gym leaders, Elite Four & Champion');
+    expect(runFinalBoss({ type: 'striaton', steps: [{ options: [{ boss: 'chili' }] }] }).name).toBe('Chili');
+    expect(runFinalBoss({ type: 'unovaChampion', steps: [{ options: [{ boss: 'alder' }] }] }).name).toBe('Alder');
+    // A run saved with no boss on its last step: its type's.
+    expect(runFinalBoss({ type: 'pewter', steps: [{ options: [{}] }] }).name).toBe('Brock');
+  });
+
   it("each generation's runs need the Gym Challenge of the one before beaten, its Champion run or not", () => {
     expect(generationLock(1, none.beaten)).toBeNull();
     expect(generationLock(2, none.beaten)).toBe('Beat the Kanto Gym Challenge first');
@@ -95,7 +121,11 @@ describe('unlocking run types', () => {
 describe('generation packs', () => {
   it("the generations' packs are every pack set, each in one generation, one at a time in release order", () => {
     expect(Object.values(PACK_GENERATIONS).flatMap((g) => g.packs).sort()).toEqual([...PACK_SETS].sort());
-    expect([...kanto.packs, ...generation(2).packs, ...generation(3).packs, ...generation(4).packs, ...PACK_GENERATIONS[5]!.packs].sort()).toEqual([...PACK_SETS].sort());
+    expect([...kanto.packs, ...generation(2).packs, ...generation(3).packs, ...generation(4).packs, ...generation(5).packs].sort()).toEqual([...PACK_SETS].sort());
+    // Gen 5's runs unlock the Black & White series' packs, from Black & White.
+    expect(generation(5).packs).toEqual(GEN5_SETS);
+    expect(PACK_GENERATIONS[5]).toEqual({ region: 'Unova', packs: GEN5_SETS });
+    expect(nextPack(generation(5), new Set(GEN4_SETS))).toBe('bw1');
     expect(nextPack(generation(2), new Set(kanto.packs))).toBe('neo1');
     // Gen 3's runs unlock the EX sets' packs, from EX Ruby & Sapphire.
     expect(generation(3).packs).toEqual(EX_SETS);
@@ -118,5 +148,9 @@ describe('bossTypes', () => {
     expect(bossTypes(boss('winona'))).toEqual(['colorless']);
     // And Gen 4's (Diamond & Pearl's), basic Metal Energy too.
     expect(bossTypes(boss('byron'))).toEqual(['metal']);
+    // And Gen 5's (Black & White's); Drayden's Dragon deck names its type.
+    expect(bossTypes(boss('chili'))).toEqual(['fire']);
+    expect(bossTypes(boss('grimsley'))).toEqual(['darkness']);
+    expect(bossTypes(boss('drayden'))).toEqual(['dragon']);
   });
 });

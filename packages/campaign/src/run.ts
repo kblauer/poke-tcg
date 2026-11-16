@@ -6,7 +6,7 @@
 // action, so equipment takes effect from the next encounter; the consumables in effect are in the state.
 import { typeName, type BattleRule, type CardDef, type CpuDifficulty, type EnergyType, type PlayerId } from '@poke-tcg/game-engine';
 import { isBattleKind, isBossKind, type BattleKind, type EncounterKind } from './battle-kinds.js';
-import { boss, bossLabel, type BossId, type BossKind } from './bosses.js';
+import { boss, bossLabel, slotBoss, slotIds, type BossId, type BossKind } from './bosses.js';
 import { expandDeck, generateDeck, takesCopy, trainerFavorites } from './decks.js';
 import { activeEffects, battleRules, effectTotal, item, ITEMS, MAX_CONSUMABLES_PER_RUN, type ActiveEffect } from './items.js';
 import { byId, DECK_TYPES, offerable, PRICES, rarityWeight, type PoolCard, type Rarity } from './pool.js';
@@ -378,7 +378,7 @@ export function isFixedCenter(typeId: RunTypeId, position: number): boolean {
       if (at === position) return true;
       at += 1;
     }
-    for (const id of segment.bosses) at += boss(id).gym && segment.gymTrainers !== false ? 2 : 1;
+    for (const slot of segment.bosses) at += slotBoss(slot).gym && segment.gymTrainers !== false ? 2 : 1;
   }
   return false;
 }
@@ -406,7 +406,10 @@ export function createRun(typeId: RunTypeId, deck: string[], runSeed: number, de
       steps.push({ options: pairUp(rng, battle ? [mapEncounter(rng, 'battle', pool)] : rollOptions(rng, steps.length, centersOffered(steps), pool, ashore), pool) });
     }
     if (segment.center) steps.push({ options: [{ kind: 'center', label: LABELS.center }] });
-    for (const id of segment.bosses) {
+    for (const slot of segment.bosses) {
+      // A slot of several (Striaton's three leaders) meets one of them, picked here and kept on its steps.
+      const ids = slotIds(slot);
+      const id = ids.length === 1 ? ids[0]! : pick(rng, ids);
       const b = boss(id);
       // A gym leader has one of the gym's trainers to beat first, the only option on its step (not in a Gym Challenge or Champion run).
       // One of the gym's own trainers (FireRed's, in Kanto), or anyone from the general list.

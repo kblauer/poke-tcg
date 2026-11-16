@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { SpriteSet } from '../utils/overworld';
+import { isDsSet, type SpriteSet } from '../utils/overworld';
 
 /** How long each frame of tall grass's rustle shows (FireRed's and Emerald's sAnim_TallGrass: 10 of their 60 frames a second). */
 export const GRASS_FRAME_MS = 167;
@@ -64,9 +64,9 @@ export function useTallGrass({ tile, grass, long = false, map, moveMs, jump, set
       return setTufts(grass ? [tuft(false)] : []);
     }
     const now = Date.now();
-    const rustleMs = (t: GrassTuft) => (t.long ? LONG_RUSTLE_MS : set === 'dp' ? DP_RUSTLE_MS : RUSTLE_MS);
+    const rustleMs = (t: GrassTuft) => (t.long ? LONG_RUSTLE_MS : isDsSet(set) ? DP_RUSTLE_MS : RUSTLE_MS);
     const keep = (t: GrassTuft) => !(t.x === tile.x && t.y === tile.y) && ((t.x === was.x && t.y === was.y) || now - t.at < rustleMs(t));
-    if (!jump && set === 'dp') {
+    if (!jump && isDsSet(set)) {
       setTufts((old) => old.filter(keep));
       // Once he's off the tile he left, its tuft goes too (when its rustle is over: the arrival's own timer otherwise).
       const left = window.setTimeout(() => {
@@ -95,7 +95,7 @@ export function useTallGrass({ tile, grass, long = false, map, moveMs, jump, set
     if (!grass) return;
     const landed = { x: tile.x, y: tile.y };
     // Diamond and Pearl's grass has no splash: it rustles as he lands, as when he steps in.
-    const dp = set === 'dp';
+    const dp = isDsSet(set);
     const timer = window.setTimeout(() => {
       if (!dp) setSplash({ stamp: Date.now(), tile: landed });
       setTufts((old) => (old.some((t) => t.x === landed.x && t.y === landed.y) ? old : [...old, { key: ++keys.current, ...landed, rustle: dp, at: Date.now(), long }]));
@@ -106,7 +106,7 @@ export function useTallGrass({ tile, grass, long = false, map, moveMs, jump, set
   }, [tile.x, tile.y, map]);
   // The grass's picture fetched ahead, so the first rustle never draws in late.
   useEffect(() => {
-    if (set === 'dp') {
+    if (isDsSet(set)) {
       new Image().src = '/overworld/dp/grass.png';
       return;
     }

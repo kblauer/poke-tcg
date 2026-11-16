@@ -36,6 +36,7 @@ const REGION_MAPS = {
   'Johto\'s run maps': '/routes/violet_gym.png',
   'Hoenn\'s run maps': '/routes/rse_lavaridge_pokemoncenter_1f.png',
   'Sinnoh\'s run maps': '/routes/oreburgh_gym.png',
+  'Unova\'s run maps': '/routes/bw_striaton_gym.png',
 };
 /** A string only that data holds: an attack's text, a boss's deck name, a species' field, a run map's picture. */
 const MARKERS = {

@@ -12,9 +12,9 @@ import { GENERATIONS, generateDeck, rngFrom, type PoolCard } from '@poke-tcg/cam
 import { applyAction, captureCheckup, cpuFor, createGame, getPlayerView, inPlayDef, type CardInstance, type CardLibrary, type CpuDifficulty, type GameAction, type GameState, type PendingChoice } from '@poke-tcg/game-engine';
 import { gameActionSchema } from '@poke-tcg/shared';
 import { describe, expect, it } from 'vitest';
-import { GEN2_TEST_POOL, GEN3_TEST_POOL, GEN4_TEST_POOL, TEST_POOL, catalogDef } from '../../../packages/campaign/src/test-pool.js';
+import { GEN2_TEST_POOL, GEN3_TEST_POOL, GEN4_TEST_POOL, GEN5_TEST_POOL, TEST_POOL, catalogDef } from '../../../packages/campaign/src/test-pool.js';
 
-const POOLS: Record<number, PoolCard[]> = { 1: TEST_POOL, 2: GEN2_TEST_POOL, 3: GEN3_TEST_POOL, 4: GEN4_TEST_POOL };
+const POOLS: Record<number, PoolCard[]> = { 1: TEST_POOL, 2: GEN2_TEST_POOL, 3: GEN3_TEST_POOL, 4: GEN4_TEST_POOL, 5: GEN5_TEST_POOL };
 const DIFFICULTIES: CpuDifficulty[] = ['trainer', 'gymLeader'];
 /** Seeds a generation, by difficulty: kept few, as a game is some hundreds of CPU decisions and a gym leader's take longest (the whole file runs in about 25 s). */
 const SEEDS: Record<string, number[]> = { trainer: [1, 2, 3], gymLeader: [2, 3] };

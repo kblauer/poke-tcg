@@ -2,7 +2,7 @@ import { GEAR_TURN_MS, inGrass, routePath, snowPace, travelAt, type Route, type 
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import type { Jump } from '../components/run/RouteSprites';
 import { facing, key, type PlacedFigure } from '../utils/routeFigures';
-import { STEP_MS, type Facing } from '../utils/overworld';
+import { isDsSet, STEP_MS, type Facing } from '../utils/overworld';
 
 /**
  * How much faster than walking the player gets along a map's tile: twice as fast on a bike (Route 17, agreed with the
@@ -10,7 +10,7 @@ import { STEP_MS, type Facing } from '../utils/overworld';
  */
 export const pace = (route: Route, tile: RouteSpot) => (travelAt(route, tile) === 'bike' ? 2 : 1);
 /** Whether `tile` is tall grass that slows the player (GRASS_PACE): not Diamond and Pearl's short grass (the user's). */
-export const slowGrass = (route: Route, tile: RouteSpot) => route.sprites !== 'dp' && inGrass(route, tile);
+export const slowGrass = (route: Route, tile: RouteSpot) => !isDsSet(route.sprites ?? 'frlg') && inGrass(route, tile);
 /**
  * A step's pace onto `tile`: a little slower into tall grass (GRASS_PACE, agreed with the user), and from `from`, slower
  * out of Diamond's deeper and deepest snow (snowPace).

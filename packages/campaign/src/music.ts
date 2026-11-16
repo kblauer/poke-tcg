@@ -227,12 +227,62 @@ const SINNOH_DIAMOND: RegionMusic = {
   victory: 'Victory! (Gym Leader)',
 };
 
+// Unova (Black and White, issue #231): each map's song its zone header's for the run's season, named by Black's sound
+// archive (tools/routes/bw/bw_data.py, sdat.py's symbols): SEQ_BGM_R_A Route 1's theme, R_B Route 2's (Routes 2 and 3, in
+// spring), R_C Route 4's (Routes 4 and 5: their summer version isn't in the list, so its spring one), R_D Route 6's (Route
+// 6 in summer, Routes 7 to 9 in autumn), D_01 Dreamyard's (Pinwheel Forest's too), D_02 Chargestone Cave's (Wellspring Cave's
+// too), D_03 Cold Storage's (Twist Mountain's too). The album's titles are the Japanese places' (Sanyou City is Striaton's
+// theme, Hiun City Castelia's, Souryuu City (Black) Opelucid's in Black). The only Unova album in the list (Black 2 and
+// White 2's is later), so both soundtracks play it; its healing jingle isn't in it: HeartGold and SoulSilver's.
+const UNOVA_BLACK: RegionMusic = {
+  game: 'Black & White',
+  routes: {
+    'Route 1': 'Route 1',
+    'Route 2': 'Route 2 (Spring~Summer)',
+    'Route 3': 'Route 2 (Spring~Summer)',
+    'Wellspring Cave': 'Electric Rock Cave',
+    'Pinwheel Forest': 'Abandoned Lot of Dreams',
+    'Route 4': 'Route 4 (Spring)',
+    'Route 5': 'Route 4 (Spring)',
+    'Cold Storage': 'Freezer Containers',
+    'Route 6': 'Route 6 (Spring~Summer)',
+    'Chargestone Cave': 'Electric Rock Cave',
+    'Route 7': 'Route 6 (Autumn~Winter)',
+    'Twist Mountain': 'Freezer Containers',
+    'Route 8': 'Route 6 (Autumn~Winter)',
+    'Route 9': 'Route 6 (Autumn~Winter)',
+  },
+  towns: {
+    striaton: 'Sanyou City',
+    nacrene: 'Shippou City',
+    castelia: 'Hiun City',
+    nimbasa: 'Raimon City',
+    driftveil: 'Hodomoe City',
+    mistralton: 'Fukiyose City',
+    icirrus: 'Sekka City',
+    opelucid: 'Souryuu City (Black)',
+  },
+  bike: 'Bicycle',
+  surf: 'Surf',
+  gym: 'Gym',
+  league: 'Pokemon League',
+  center: 'Pokemon Center',
+  healed: 'Pokémon Healed',
+  healedGame: 'HeartGold & SoulSilver',
+  trainer: ['Battle! Trainer', 'Battle! Wild Pokemon', 'Battle! Cheren · Belle'],
+  gymLeader: 'Battle! Gym Leader',
+  eliteFour: 'Battle! Elite Four',
+  champion: 'Battle! Champion',
+  victory: 'Victory Against Gym Leader!',
+};
+
 /** Each generation's region's music, by soundtrack. */
 export const REGION_MUSIC: Record<number, Record<Soundtrack, RegionMusic>> = {
   1: { original: KANTO_RED, remastered: KANTO_FIRERED },
   2: { original: JOHTO_GOLD, remastered: JOHTO_HEARTGOLD },
   3: { original: HOENN_RUBY, remastered: HOENN_OMEGA_RUBY },
   4: { original: SINNOH_DIAMOND, remastered: SINNOH_DIAMOND },
+  5: { original: UNOVA_BLACK, remastered: UNOVA_BLACK },
 };
 
 function floors(name: string): Record<string, string> {
