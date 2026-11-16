@@ -6,7 +6,7 @@ Usage: python bw_map.py <out prefix> <zone>[,<zone>...] [--season spring|summer|
        [--apicula <apicula.exe>] [--cache <dir>] [--indoor-pack <n>] [--no-buildings]
 Writes <out prefix>.png, <out prefix>_height.npy (each pixel's model height) and <out prefix>.json: the size in tiles,
 `rows` (one string per tile row: '.' walkable, '#' not (blocked, warps' tiles), '~' water, ledges by the way they're
-jumped: '>' '<' '^' 'v'), `grass` ('g' tall grass), `ice` ('i'), `behaviours` (each tile's behaviour, two hex digits, for
+jumped: '>' '<' '^' 'v'), `grass` ('g' tall grass, 'h' the darker very tall grass, 'k' long grass), `ice` ('i'), `behaviours` (each tile's behaviour, two hex digits, for
 working out the ones not named yet), `warps` and `people` (the zones' events in the picture's tiles: warps' target zones,
 people's sprites, scripts, facing and trainers), `origin` (the first cell, in chunks) and `chunks`.
 
@@ -31,6 +31,9 @@ CHUNK = 32
 # puddles, 0x41 and 0x44 shores (blocked), 0x51-0x54 door mats, 0xBE and 0xBF Route 7's raised walkways and their ends.
 # No ledges found as behaviours (Gen 5 may keep them in the permissions' height table: to read with the review).
 GRASS = {0x04, 0x05, 0x06, 0x07, 0x08, 0x09}
+# The grass grid's letter for each kind, for its rustle (bw_grass.py): 'g' ordinary tall grass, 'h' the darker very tall
+# grass, 'k' Route 7's long grass.
+GRASS_KIND = {0x04: 'g', 0x05: 'g', 0x06: 'h', 0x07: 'h', 0x08: 'k', 0x09: 'k'}
 WATER = {0x3D, 0x3E, 0x3F}
 LEDGES = {}
 ICE = {0x18}
@@ -126,7 +129,7 @@ def main():
                     rows[oz + ty][ox + tx] = ch_
                     behaviours[oz + ty][ox + tx] = '%02x' % b
                 if b in GRASS:
-                    grass[oz + ty][ox + tx] = 'g'
+                    grass[oz + ty][ox + tx] = GRASS_KIND[b]
                 if b in ICE:
                     ice[oz + ty][ox + tx] = 'i'
         model = os.path.join(work, f"land{c['land']}.nsbmd"); open(model, 'wb').write(chunk['model'])

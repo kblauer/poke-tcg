@@ -1,10 +1,11 @@
+import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { deckErrors, expandDeck, STARTER_DECK } from './decks.js';
 import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, onlyOne, shopStock } from './items.js';
 import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from './run-types.js';
 import { PEWTER_GYM, ROUTE_2, ROUTE_4 } from './kanto-routes.js';
 import { JOHTO_BOSS_ROOMS, MAHOGANY_GYM } from './johto-gyms.js';
-import { dropAt, inGrass, inLongGrass, liftEnd, onLongGrassEdge, onPath, onThinIce, routePath, gearStateAt, snowAt, snowballsLeft, snowPace, snowSink, snowTrack, travelAt, type Route, type RouteSpot } from './routes.js';
+import { dropAt, inGrass, rustleAt, inLongGrass, liftEnd, onLongGrassEdge, onPath, onThinIce, routePath, gearStateAt, snowAt, snowballsLeft, snowPace, snowSink, snowTrack, travelAt, type Route, type RouteSpot } from './routes.js';
 import { IRON_ISLAND_B1F, IRON_ISLAND_B2F, IRON_ISLAND_B3F, ROUTE_217 } from './sinnoh-routes.js';
 import { CANALAVE_GYM, SNOWPOINT_GYM, SUNYSHORE_GYM } from './sinnoh-gyms.js';
 import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, landNear, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, carriedConsumables, parsePendingConsumable, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
@@ -1240,6 +1241,18 @@ describe('Gen 5 runs', () => {
       const s = createRun(id, deck, 1);
       expect(s.steps.map((st) => st.options[0]!.kind).slice(-2), id).toEqual(['gymTrainer', 'gymLeader']);
       expect(s.steps.length, id).toBe(12);
+    }
+  });
+
+  it("every kind of grass on a Unova map has Black's own rustle (its picture there), and its tiles are tall grass", () => {
+    const maps = RUN_TYPE_IDS.filter((id) => runType(id).generation === 5).flatMap((id) => runType(id).routes ?? []);
+    for (const m of maps.filter((r) => r.grass)) {
+      const letters = new Set(m.grass!.join('').replace(/\./g, ''));
+      expect(Object.keys(m.rustle ?? {}).sort(), m.name).toEqual([...letters].sort());
+      for (const src of Object.values(m.rustle!)) expect(existsSync(new URL(`../../../apps/web/public${src}`, import.meta.url)), `${m.name} ${src}`).toBe(true);
+      const spot = m.grass!.flatMap((r, y) => [...r].flatMap((c, x) => (c !== '.' ? [{ x, y }] : [])))[0]!;
+      expect(inGrass(m, spot), m.name).toBe(true);
+      expect(rustleAt(m, spot), m.name).toBe(m.rustle![m.grass![spot.y]![spot.x]!]);
     }
   });
 

@@ -7,7 +7,9 @@ packages/campaign/src/unova-routes.ts, copying the images to apps/web/public/rou
   tile, made walkable; a tile), and the map's spots are picked along the shortest walk between the two, evenly spaced, each
   nudged onto the most open tile near it;
 - each map is cropped to the tiles walked to from its entrance, with a margin (Black's zones are whole 32x32 chunks, most
-  of them trees or rock past the road).
+  of them trees or rock past the road);
+- each kind of grass on a map ('g', 'h', 'k': bw_map.py) gets Black's own rustle, the version nearest its colour there
+  (bw_grass.py): the route's `rustle`, its strips in public/overworld/bw/grass_<n>.png.
 
 The maps are first drafts, as Sinnoh's were before their review: the user's fixes (spots, entrances and exits, walkable and
 unwalkable tiles) go in the USER_ tables, map by map (issue #231's review).
@@ -20,9 +22,12 @@ from collections import deque
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from PIL import Image, ImageDraw
+import bw_data
+import bw_grass
 
 REPO = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
 PUBLIC = os.path.join(REPO, 'apps', 'web', 'public', 'routes')
+OVERWORLD = os.path.join(REPO, 'apps', 'web', 'public', 'overworld', 'bw')
 OUT = os.path.join(REPO, 'packages', 'campaign', 'src', 'unova-routes.ts')
 TILE = 16
 STEP = {'up': (0, -1), 'down': (0, 1), 'left': (-1, 0), 'right': (1, 0)}
@@ -188,6 +193,8 @@ def main():
     cache = opt('--cache', None)
     work = opt('--work', None) or tempfile.mkdtemp(prefix='unova_routes_')
     os.makedirs(work, exist_ok=True)
+    os.makedirs(OVERWORLD, exist_ok=True)
+    rustle_frames = bw_grass.versions(bw_data.Game(cache))
     out = []
     for name, (zones, season, count, entrance, exit_, flow, const, title, what) in MAPS.items():
         prefix, j = render(name, zones, season, work, apicula, cache)
@@ -230,8 +237,14 @@ def main():
                 print('NO WALK:', name, 'entrance', ent, 'to', t)
         img.save(os.path.join(PUBLIC, name + '.png'))
         preview(img, ent, spots, end, prefix + '-preview.png')
+        # Black's own grass rustle for each kind of grass on the map (bw_grass.py), its version by the grass's colour here.
+        rustle = bw_grass.choose(img, grass, rustle_frames)
+        for n in set(rustle.values()):
+            bw_grass.strip(rustle_frames[n]).save(os.path.join(OVERWORLD, f'grass_{n}.png'))
         spots_ = '\n'.join(f'    {{ x: {x}, y: {y} }},' for x, y in spots)
-        grass_ = grid_ts('grass', grass) if any('g' in r for r in grass) else ''
+        grass_ = grid_ts('grass', grass) if rustle else ''
+        if rustle:
+            grass_ += '\n  rustle: { ' + ', '.join(f"{k}: '/overworld/bw/grass_{n}.png'" for k, n in sorted(rustle.items())) + ' },'
         # Ice makes the player slide (routePath): left out until it's known which of Black's icy floors slide (Cold
         # Storage's patches may not; issue #231's review). bw_map.py's `ice` keeps them.
         ice_ = ''
