@@ -6,9 +6,9 @@ generation meets only those with a sprite in its set:
 
 - Emerald's ('rse', the Gen 3 floors): the sprite Emerald draws the class as (battle_tower.c's gTowerMale/FemaleTrainerGfxIds),
   where public/overworld/rse/ has it;
-- FireRed's ('frlg', the Gen 1 floors), HeartGold/SoulSilver's ('hgss', the Gen 2 floors) and Diamond's ('dp', the Gen 4
-  floors): their own sprite of the same class (public/overworld/, public/overworld/hgss/ and public/overworld/dp/), none
-  for a class they don't have.
+- FireRed's ('frlg', the Gen 1 floors), HeartGold/SoulSilver's ('hgss', the Gen 2 floors), Diamond's ('dp', the Gen 4
+  floors) and Black's ('bw', the Gen 5 floors): their own sprite of the same class (public/overworld/,
+  public/overworld/hgss/, public/overworld/dp/ and public/overworld/bw/), none for a class they don't have.
 
 Their lines are Easy Chat phrases of 6 words, written out as Emerald writes them (ConvertEasyChatWordsToString with 3
 columns and 2 rows: each row's words joined by spaces, a line break between the rows), its moves and Pokémon by name.
@@ -64,6 +64,17 @@ DP = {
     'PKMN_RANGER_M': 'man3', 'PKMN_RANGER_F': 'woman3', 'SCHOOL_KID_M': 'boy1', 'SCHOOL_KID_F': 'girl3', 'COLLECTOR': 'bigman',
     'DRAGON_TAMER': 'man3', 'GUITARIST': 'man2', 'NINJA_BOY': 'babyboy1', 'CYCLING_TRIATHLETE_M': 'cyclem', 'CYCLING_TRIATHLETE_F': 'cyclew',
     'RUNNING_TRIATHLETE_M': 'sportsman',
+}
+# Black's own sprite of each class it has (public/overworld/bw/: the Gen 5 floors), as its trainers of the class are drawn
+# (tools/routes/bw/bw_sprites.py: Cooltrainers its Ace Trainers, Cycling Triathletes its Cyclists); none for the swimmers
+# (Black's are in the water) or the classes Black hasn't.
+BW = {
+    'YOUNGSTER': 'youngster', 'LASS': 'lass', 'HIKER': 'hiker', 'GENTLEMAN': 'gentleman', 'FISHERMAN': 'fisherman',
+    'COOLTRAINER_M': 'ace_trainer', 'COOLTRAINER_F': 'ace_trainer_f', 'BLACK_BELT': 'black_belt', 'BATTLE_GIRL': 'battle_girl',
+    'RICH_BOY': 'rich_boy', 'LADY': 'lady', 'PARASOL_LADY': 'parasol_lady', 'POKEFAN_M': 'pokefan', 'POKEFAN_F': 'pokefan_f',
+    'PKMN_BREEDER_M': 'pokemon_breeder', 'PKMN_BREEDER_F': 'pokemon_breeder_f', 'PKMN_RANGER_M': 'pokemon_ranger',
+    'PKMN_RANGER_F': 'pokemon_ranger_f', 'SCHOOL_KID_M': 'school_kid', 'SCHOOL_KID_F': 'school_kid_f',
+    'CYCLING_TRIATHLETE_M': 'cyclist', 'CYCLING_TRIATHLETE_F': 'cyclist_f',
 }
 FEMALE = {'TUBER_F', 'COOLTRAINER_F', 'SWIMMER_F', 'PSYCHIC_F', 'SCHOOL_KID_F', 'POKEFAN_F', 'EXPERT_F', 'CYCLING_TRIATHLETE_F', 'RUNNING_TRIATHLETE_F',
           'SWIMMING_TRIATHLETE_F', 'PKMN_BREEDER_F', 'PKMN_RANGER_F', 'AROMA_LADY', 'HEX_MANIAC', 'LADY', 'BEAUTY', 'BATTLE_GIRL', 'PARASOL_LADY',
@@ -124,7 +135,7 @@ def main():
         name = re.search(r'\.trainerName = _\("([^"]*)"\)', block).group(1)
         speech = {k: re.search(r'\.' + k + r' = \{([^}]*)\}', block).group(1).split(',') for k in ('speechBefore', 'speechWin', 'speechLose')}
         sprites = {}
-        for kind, table, folder in (('frlg', FRLG, ''), ('hgss', HGSS, 'hgss/'), ('rse', rse, 'rse/'), ('dp', DP, 'dp/')):
+        for kind, table, folder in (('frlg', FRLG, ''), ('hgss', HGSS, 'hgss/'), ('rse', rse, 'rse/'), ('dp', DP, 'dp/'), ('bw', BW, 'bw/')):
             file = table.get(cls)
             if file and os.path.exists(os.path.join(SPRITES, folder + file + '.png')):
                 sprites[kind] = folder + file
@@ -142,7 +153,7 @@ def main():
         lines.append(f"  {{ name: {q(t['name'])}, trainerClass: {q(t['class'])}, female: {str(t['female']).lower()}, before: {q(t['before'])}, win: {q(t['win'])}, lose: {q(t['lose'])}, sprites: {{ {sp} }} }},")
     lines.append('];\n')
     open(OUT, 'w', encoding='utf-8', newline='\n').write('\n'.join(lines))
-    counts = {k: sum(1 for t in out if k in t['sprites']) for k in ('frlg', 'hgss', 'rse', 'dp')}
+    counts = {k: sum(1 for t in out if k in t['sprites']) for k in ('frlg', 'hgss', 'rse', 'dp', 'bw')}
     print('wrote', len(out), 'trainers to', OUT, counts)
     for m in sorted(missing):
         print('no sprite file:', m)
@@ -162,8 +173,8 @@ export interface TowerTrainer {
   before: string;
   win: string;
   lose: string;
-  /** Their overworld sprite (public/overworld/) in FireRed's set (the Gen 1 floors), HGSS's (Gen 2), Emerald's (Gen 3) and Diamond's (Gen 4). */
-  sprites: Partial<Record<'frlg' | 'hgss' | 'rse' | 'dp', string>>;
+  /** Their overworld sprite (public/overworld/) in FireRed's set (the Gen 1 floors), HGSS's (Gen 2), Emerald's (Gen 3), Diamond's (Gen 4) and Black's (Gen 5). */
+  sprites: Partial<Record<'frlg' | 'hgss' | 'rse' | 'dp' | 'bw', string>>;
 }
 
 export const TOWER_TRAINERS: TowerTrainer[] = ["""

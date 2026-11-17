@@ -357,6 +357,15 @@ export const GENERATIONS: Record<number, Generation> = {
 /** Every generation's booster packs, by generation (GENERATIONS'), for the Packs tab. */
 export const PACK_GENERATIONS: Record<number, { region: string; packs: string[] }> = Object.fromEntries(Object.entries(GENERATIONS).map(([id, g]) => [id, { region: g.region, packs: g.packs }]));
 
+/** Battle Points a pack costs in the Battle Tower's BP Shop per generation of its set (the user's, 2026-11-17). */
+export const BP_PER_GENERATION = 1;
+
+/** A pack's price in the Battle Tower's BP Shop: BP_PER_GENERATION for each generation of its set (Gen 1's 1 BP, Gen 2's 2…; the user's). */
+export function bpPackPrice(setId: string): number {
+  const gen = Object.entries(PACK_GENERATIONS).find(([, g]) => g.packs.includes(setId))?.[0];
+  return BP_PER_GENERATION * (gen ? Number(gen) : 1);
+}
+
 /** The generation a run type belongs to. */
 export const runGeneration = (typeId: string): Generation => generation(runTypeInfo(typeId).generation);
 

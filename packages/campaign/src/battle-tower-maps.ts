@@ -1,6 +1,6 @@
 // The Battle Tower's rooms (the user's): for each generation's floors a lobby with the desk, an elevator and the battle
-// room, with a corridor between (but Gen 1's): FireRed's Trainer Tower for Gen 1 (FireRed has no Battle Tower), HGSS's
-// Battle Tower for Gen 2, Emerald's for Gen 3 and Diamond/Pearl's for Gen 4, each room's places from the game's events and scripts where they give
+// room, with a corridor between (but Gen 1's and Gen 5's): FireRed's Trainer Tower for Gen 1 (FireRed has no Battle Tower),
+// HGSS's Battle Tower for Gen 2, Emerald's for Gen 3, Diamond/Pearl's for Gen 4 and Black's Battle Subway for Gen 5, each room's places from the game's events and scripts where they give
 // them (tools/battle-tower/tower_maps.py has which are). Written by tools/battle-tower/tower_maps.py.
 import type { Route, RouteSpot } from './routes.js';
 
@@ -393,10 +393,88 @@ export const DP_ROOM: TowerRoom = {
   ],
 };
 
+export const BW_LOBBY: TowerRoom = {
+  flow: 'up',
+  sprites: 'bw',
+  name: 'Gear Station',
+  image: '/routes/battle-tower/bw-lobby.png',
+  width: 496,
+  height: 240,
+  entrance: { x: 1, y: 8 },
+  spots: [],
+  points: { entrance: { x: 1, y: 8 }, receptionist: { x: 7, y: 4 }, desk: { x: 7, y: 6 }, elevator: { x: 19, y: 9 } },
+  walkable: [
+    '###############################',
+    '###############################',
+    '###############################',
+    '######..##..###################',
+    '###.######..###################',
+    '###.######..###################',
+    '###.#.......###################',
+    '##..........###################',
+    '#...........###################',
+    '##..........#######.###########',
+    '###............................',
+    '###.###........................',
+    '###............................',
+    '###............................',
+    '###############################',
+  ],
+};
+
+export const BW_ELEVATOR: TowerRoom = {
+  flow: 'right',
+  sprites: 'bw',
+  name: 'Battle Subway',
+  image: '/routes/battle-tower/bw-elevator.png',
+  width: 272,
+  height: 160,
+  entrance: { x: 5, y: 4 },
+  spots: [],
+  points: { entrance: { x: 5, y: 4 }, attendant: { x: 6, y: 3 } },
+  walkable: [
+    '#################',
+    '#..............##',
+    '#..............##',
+    '................#',
+    '................#',
+    '................#',
+    '#..............##',
+    '#..............##',
+    '##...######...###',
+    '#################',
+  ],
+};
+
+export const BW_ROOM: TowerRoom = {
+  flow: 'right',
+  sprites: 'bw',
+  name: 'Battle Subway',
+  image: '/routes/battle-tower/bw-room.png',
+  width: 272,
+  height: 160,
+  entrance: { x: 0, y: 4 },
+  spots: [],
+  points: { entrance: { x: 0, y: 4 }, player: { x: 5, y: 4 }, opponentEntrance: { x: 15, y: 4 }, opponent: { x: 10, y: 4 }, attendant: { x: 2, y: 2 } },
+  walkable: [
+    '#################',
+    '#..............##',
+    '#..............##',
+    '................#',
+    '................#',
+    '................#',
+    '#..............##',
+    '#..............##',
+    '##...######...###',
+    '#################',
+  ],
+};
+
 /** Each generation's rooms, in the order the player goes through them: the lobby, the elevator, the corridor (if any), the battle room. */
 export const TOWER_ROOMS = {
   1: { lobby: FRLG_LOBBY, elevator: FRLG_ELEVATOR, corridor: undefined, room: FRLG_ROOM },
   2: { lobby: HGSS_LOBBY, elevator: HGSS_ELEVATOR, corridor: HGSS_CORRIDOR, room: HGSS_ROOM },
   3: { lobby: RSE_LOBBY, elevator: RSE_ELEVATOR, corridor: RSE_CORRIDOR, room: RSE_ROOM },
   4: { lobby: DP_LOBBY, elevator: DP_ELEVATOR, corridor: DP_CORRIDOR, room: DP_ROOM },
+  5: { lobby: BW_LOBBY, elevator: BW_ELEVATOR, corridor: undefined, room: BW_ROOM },
 } as const;

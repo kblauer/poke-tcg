@@ -32,8 +32,10 @@ FRAME = 32
 # The archive's number for an event's sprite id under OFFSET_BELOW.
 OFFSET, OFFSET_BELOW = 5, 150
 # Archive sheets named by hand: the players, Nurse Joy and the Poké Mart clerk (Nimbasa's Pokémon Center's people), the
-# item ball, and the classes whose sprites are over 150 (Workers: the hard hat, Black's 64).
-BY_HAND = {'hero': 6, 'heroine': 9, 'nurse': 83, 'clerk': 82, 'item_ball': 114, 'worker': 64}
+# item ball, and the classes whose sprites are over 150 (Workers: the hard hat, Black's 64); the Battle Tower's Gen 5 floors'
+# staff (tools/battle-tower/): Gear Station's receptionist at the Battle Subway's desk (its event's 76) and the Depot
+# Agent in green on its platforms (68).
+BY_HAND = {'hero': 6, 'heroine': 9, 'nurse': 83, 'clerk': 82, 'item_ball': 114, 'worker': 64, 'subway_receptionist': 81, 'depot_agent': 73}
 # Each boss's sheet (event id + 5, but Drayden's: his event sprite is 162, the archive's white-bearded leader 160; Chili
 # and Cress, Striaton's 179 and 178, the archive's 159 and 158).
 BOSSES = {'cilan': 90, 'chili': 159, 'cress': 158, 'lenora': 91, 'burgh': 92, 'elesa': 93, 'clay': 94, 'skyla': 95, 'brycen': 96,
@@ -41,6 +43,9 @@ BOSSES = {'cilan': 90, 'chili': 159, 'cress': 158, 'lenora': 91, 'burgh': 92, 'e
 # Black's sheets' frames (up, down, left, right; stand, step, other step) for HGSS's strip: standing down, up, left, right,
 # then steps down, up, left, right.
 STRIP = [3, 0, 6, 9, 4, 5, 1, 2, 7, 8, 10, 11]
+# Classes Black lists twice with the women's first (its trainers' names: Ace Trainers Tom and Jose, Scientists Randall and
+# Steve on the earlier's sheet): their genders swapped from the usual reading.
+WOMEN_FIRST = {'Ace Trainer', 'Scientist'}
 # The gyms' zones (bw_data.py's `gyms`): their trainers' own sprites go in BW_TRAINER_SPRITES.
 GYM_ZONES = [7, 18, 29, 63, 97, 108, 114, 121]
 
@@ -82,6 +87,10 @@ def one(frames):
     return out
 
 
+def t_class(g, trainer):
+    return g.trainer(trainer)['class']
+
+
 def trainer_sprites(g):
     """Black's trainers' sprites (archive numbers): by class and gender ({class: {'m': n, 'f': n}}) and by label."""
     by_class = collections.defaultdict(collections.Counter)
@@ -94,8 +103,10 @@ def trainer_sprites(g):
             cls_id = g.member('trainers', o['trainer'])[1]
             raw = classes[cls_id]
             # Women's classes: marked ♀ (the font's ⑮), or a class name listed twice, the later the women's (School Kid,
-            # Ace Trainer, Pokémon Breeder…, men's first).
+            # Pokémon Breeder…, men's first), but WOMEN_FIRST's, the earlier.
             gender = 'f' if '⑮' in raw or raw in classes[:cls_id] else 'm'
+            if t_class(g, o['trainer']) in WOMEN_FIRST and raw in classes[:cls_id] + classes[cls_id + 1:]:
+                gender = 'm' if gender == 'f' else 'f'
             t = g.trainer(o['trainer'])
             by_class[(t['class'], gender)][o['sprite'] + OFFSET] += 1
             by_label.setdefault(t['label'], o['sprite'] + OFFSET)

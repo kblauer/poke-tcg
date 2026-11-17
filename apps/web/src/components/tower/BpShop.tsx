@@ -1,3 +1,4 @@
+import { bpPackPrice } from '@poke-tcg/campaign';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { lazy, Suspense, useState, type ReactNode } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
@@ -25,7 +26,7 @@ function FittedPack({ className, children }: { className: string; children: Reac
 /**
  * The Battle Tower lobby's BP Shop (the user's): Battle Points, won in the tower, exchanged for booster packs (a placeholder
  * stock), the sets whose packs the account has unlocked, each opened in the Packs tab's window (PackOpening) at
- * BP_PACK_PRICE, paid in BP. Its tiles are the Packs tab's, each pack whole but smaller (FittedPack). It closes with the vendor's Return to reception, beside the dialogue box (towerScripts.ts).
+ * bpPackPrice (1 BP for each generation of its set: Gen 1's 1 BP, Gen 2's 2…), paid in BP. Its tiles are the Packs tab's, each pack whole but smaller (FittedPack). It closes with the vendor's Return to reception, beside the dialogue box (towerScripts.ts).
  */
 export function BpShop() {
   const trpc = useTRPC();
@@ -50,7 +51,7 @@ export function BpShop() {
         <h3 className="text-lg font-semibold">BP Shop</h3>
         {tower && (
           <span className="text-sm text-slate-400">
-            Exchange your Battle Points for booster packs: {tower.packPrice} BP a pack. You have <span className="font-semibold text-emerald-300">{tower.bp} BP</span>.
+            Exchange your Battle Points for booster packs: 1 BP a pack for each generation (Gen 1's 1 BP, Gen 2's 2…). You have <span className="font-semibold text-emerald-300">{tower.bp} BP</span>.
           </span>
         )}
       </div>
@@ -62,7 +63,7 @@ export function BpShop() {
         <div className={phone ? 'grid grid-cols-4 gap-2' : 'grid grid-cols-[repeat(auto-fill,minmax(9.75rem,1fr))] gap-3'}>
           {sets.map((s) => {
             const open = () => setOpening({ id: s.id, name: s.name, logoUrl: s.logoUrl, art: art[s.id] });
-            const price = tower && <span className="text-xs font-semibold text-emerald-300">{tower.packPrice} BP</span>;
+            const price = tower && <span className="text-xs font-semibold text-emerald-300">{bpPackPrice(s.id)} BP</span>;
             return phone ? (
               <button key={s.id} onClick={open} className="flex min-w-0 flex-col items-center gap-1 rounded-lg bg-slate-900 p-1.5 ring-1 ring-slate-700 transition active:bg-slate-800">
                 <FittedPack className="w-full">
@@ -97,7 +98,7 @@ export function BpShop() {
       )}
       {opening && tower && (
         <Suspense fallback={null}>
-          <PackOpening key={opening.id} set={opening} price={tower.packPrice} bank={tower.bp} currency="bp" onClose={() => setOpening(null)} onOpened={refresh} />
+          <PackOpening key={opening.id} set={opening} price={bpPackPrice(opening.id)} bank={tower.bp} currency="bp" onClose={() => setOpening(null)} onOpened={refresh} />
         </Suspense>
       )}
     </section>

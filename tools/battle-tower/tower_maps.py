@@ -7,17 +7,21 @@ packages/campaign/src/battle-tower-maps.ts, copying the images to apps/web/publi
 - Gen 2 (11-20), HeartGold/SoulSilver's Battle Tower: its lobby and elevator by hgss_map.py (field maps), its corridor and
   battle room by hgss_rooms.py (2D frontier scenes, not field maps: their floors are this file's, `FLOORS`);
 - Gen 3 (21-30), Emerald's Battle Tower: its lobby, elevator, corridor and battle room by emerald_map.py;
-- Gen 4 (31+), Diamond/Pearl's Battle Tower: its lobby, elevator, corridor and battle room by dp_map.py (field maps, as
+- Gen 4 (31-40), Diamond/Pearl's Battle Tower: its lobby, elevator, corridor and battle room by dp_map.py (field maps, as
   HGSS's lobby). Its single battles' corridor and room aren't field maps: the multi battles' are drawn (their corridor
   and arena: the same rooms, its corridor's four doors, the arena's court).
+- Gen 5 (41+), Black's Battle Subway (the user's; Black and White have no Battle Tower): Gear Station's hall with the
+  Battle Subway's desk as the lobby, and its train car as both the elevator (the train setting off) and the battle room,
+  by tools/routes/bw/bw_map.py (zones 67 and 75; issue #235). Its platform (zone 76) isn't drawn: 72 tiles of benches
+  between the hall and the car.
 
 Each room's places (`points`, in its own tiles) are the games' where their map events or scripts give them (the
 receptionist, the door, the elevator, the battle room's opponent and attendant and where the player stops), and the
 user's or this file's otherwise (noted in `POINTS`).
 
 Usage: python tower_maps.py --emerald <pokeemerald checkout> [--apicula <apicula.exe>] [--work <dir>] [--only <prefix>,...]
-(--only: draws only the rooms whose keys start with these, 'dp' for Gen 4's, keeping the others as battle-tower-maps.ts has them.)
-Needs Python with numpy and Pillow (and pypng for render_route.py), and apicula for HGSS's and Diamond's field maps."""
+(--only: draws only the rooms whose keys start with these, 'dp' for Gen 4's or 'bw' for Gen 5's, keeping the others as battle-tower-maps.ts has them.)
+Needs Python with numpy and Pillow (and pypng for render_route.py), and apicula for HGSS's, Diamond's and Black's maps."""
 import json, os, subprocess, sys, tempfile
 from PIL import Image
 
@@ -48,6 +52,9 @@ ROOMS = {
     'dp-elevator': ('dp', 'dp', 'MAP_BATTLE_TOWER_ELEVATOR', 'Battle Tower Elevator', 'down'),
     'dp-corridor': ('dp', 'dp', 'MAP_BATTLE_TOWER_CORRIDOR_MULTI', 'Battle Tower Corridor', 'up'),
     'dp-room': ('dp', 'dp', 'MAP_BATTLE_TOWER_ARENA_MULTI', 'Battle Room', 'up'),
+    'bw-lobby': ('bw', 'bw', '67', 'Gear Station', 'up'),
+    'bw-elevator': ('bw', 'bw', '75', 'Battle Subway', 'right'),
+    'bw-room': ('bw', 'bw', '75', 'Battle Subway', 'right'),
 }
 # HGSS's frontier scenes' floors (they have no tile data), rectangles (left, top, right, bottom) in their 16px tiles, read
 # off the images: the corridor's walkway in front of its doors, round its four pillars' feet (5, 9, 13 and 17 on row 5);
@@ -112,6 +119,15 @@ POINTS = {
     # The multi battles' arena (its events: the attendant at 2,6, the opponents' door 7,2, the player's 7,10): the player
     # in at the bottom door and up onto the court (7,8), the opponent down from the top door to face him (7,4; ours).
     'dp-room': {'entrance': (7, 10), 'player': (7, 8), 'opponentEntrance': (7, 2), 'opponent': (7, 4), 'attendant': (2, 6)},
+    # Gear Station's hall (zone 67; its events): in by the door from the concourse (its warp, 2,11-13), the Battle Subway's
+    # receptionist behind the desk (8,8, its events' second), the player before it (8,10); he walks to the train standing
+    # at the platform alone, onto it at 20,13 (ours).
+    'bw-lobby': {'entrance': (2, 12), 'receptionist': (8, 8), 'desk': (8, 10), 'elevator': (20, 13)},
+    # The train car (zone 75; no events: ours): setting off with the Depot Agent beside the player in its aisle.
+    'bw-elevator': {'entrance': (5, 4), 'attendant': (6, 3)},
+    # The train car as the battle room (ours): the player in by its left end door (0,4) to 5,4, the opponent in by its right
+    # end (15,4) to 10,4, facing him down the aisle; the Depot Agent at 2,2.
+    'bw-room': {'entrance': (0, 4), 'player': (5, 4), 'opponentEntrance': (15, 4), 'opponent': (10, 4), 'attendant': (2, 2)},
 }
 # Gen 1's battle room is HGSS's (ROOMS), with its places.
 POINTS['frlg-room'] = POINTS['hgss-room']
@@ -119,8 +135,9 @@ POINTS['frlg-room'] = POINTS['hgss-room']
 # battle room's 5,1, the opponent's door, walked back out of after a battle.
 USER_OPEN = {'frlg-lobby': [(9, 2)], 'rse-room': [(5, 1)]}
 
-# The lobbies whose receptionist walks the player to the elevator, up through her counter (their scripts).
-LEADING_RECEPTIONISTS = {'hgss-lobby', 'rse-lobby'}
+# The lobbies whose receptionist walks the player to the elevator, up through her counter (their scripts; Gear Station's
+# stands boxed in by hers, so the player walks to the train alone).
+LEADING_RECEPTIONISTS = {'hgss-lobby', 'rse-lobby', 'dp-lobby'}
 # How far past the walkable tiles an HGSS field map is cropped: its walls above (drawn tilted), a tile elsewhere.
 MARGIN = {'top': 3, 'side': 1, 'bottom': 1}
 
@@ -153,6 +170,14 @@ def dp(work, const, apicula):
     prefix = os.path.join(work, const)
     run(os.path.join(ROUTES, 'dp', 'dp_map.py'), prefix, const, '--apicula', apicula)
     # Only plain floor is walked: Diamond's arena marks its pillars' feet and walls with other behaviours.
+    rows = [''.join(c if c == '.' else '#' for c in r) for r in json.load(open(prefix + '.json'))['rows']]
+    return Image.open(prefix + '.png'), rows
+
+
+def bw(work, zone, apicula):
+    prefix = os.path.join(work, 'bw' + zone)
+    if not os.path.exists(prefix + '.json'):
+        run(os.path.join(ROUTES, 'bw', 'bw_map.py'), prefix, zone, '--apicula', apicula)
     rows = [''.join(c if c == '.' else '#' for c in r) for r in json.load(open(prefix + '.json'))['rows']]
     return Image.open(prefix + '.png'), rows
 
@@ -224,6 +249,8 @@ def main():
             im, rows, points = crop(*hgss(work, source, apicula), points)
         elif tool == 'dp':
             im, rows, points = crop(*dp(work, source, apicula), points)
+        elif tool == 'bw':
+            im, rows, points = crop(*bw(work, source, apicula), points)
         else:
             im, rows = scene(work, source, key)
         # The places stood on are walked to: each made walkable (a door, the warp the player comes in at); and a lobby's
@@ -268,8 +295,8 @@ export const {const}: TowerRoom = {{
 
 
 HEAD = """// The Battle Tower's rooms (the user's): for each generation's floors a lobby with the desk, an elevator and the battle
-// room, with a corridor between (but Gen 1's): FireRed's Trainer Tower for Gen 1 (FireRed has no Battle Tower), HGSS's
-// Battle Tower for Gen 2, Emerald's for Gen 3 and Diamond/Pearl's for Gen 4, each room's places from the game's events and scripts where they give
+// room, with a corridor between (but Gen 1's and Gen 5's): FireRed's Trainer Tower for Gen 1 (FireRed has no Battle Tower),
+// HGSS's Battle Tower for Gen 2, Emerald's for Gen 3, Diamond/Pearl's for Gen 4 and Black's Battle Subway for Gen 5, each room's places from the game's events and scripts where they give
 // them (tools/battle-tower/tower_maps.py has which are). Written by tools/battle-tower/tower_maps.py.
 import type { Route, RouteSpot } from './routes.js';
 
@@ -290,6 +317,7 @@ export const TOWER_ROOMS = {
   2: { lobby: HGSS_LOBBY, elevator: HGSS_ELEVATOR, corridor: HGSS_CORRIDOR, room: HGSS_ROOM },
   3: { lobby: RSE_LOBBY, elevator: RSE_ELEVATOR, corridor: RSE_CORRIDOR, room: RSE_ROOM },
   4: { lobby: DP_LOBBY, elevator: DP_ELEVATOR, corridor: DP_CORRIDOR, room: DP_ROOM },
+  5: { lobby: BW_LOBBY, elevator: BW_ELEVATOR, corridor: undefined, room: BW_ROOM },
 } as const;
 """
 

@@ -52,12 +52,12 @@ export const BW_CLASS_SPRITES: Record<string, { m?: string; f?: string }> = {
 
 /** Black's trainers' own sprites, by their label ("Waitress Tia"): the Unova Gym Trainers' among them. */
 export const BW_TRAINER_SPRITES: Record<string, string> = {
-  'Ace Trainer Clara': 'ace_trainer',
-  'Ace Trainer Dara': 'ace_trainer',
-  'Ace Trainer Jose': 'ace_trainer_f',
-  'Ace Trainer Olwen': 'ace_trainer',
-  'Ace Trainer Tom': 'ace_trainer_f',
-  'Ace Trainer Webster': 'ace_trainer_f',
+  'Ace Trainer Clara': 'ace_trainer_f',
+  'Ace Trainer Dara': 'ace_trainer_f',
+  'Ace Trainer Jose': 'ace_trainer',
+  'Ace Trainer Olwen': 'ace_trainer_f',
+  'Ace Trainer Tom': 'ace_trainer',
+  'Ace Trainer Webster': 'ace_trainer',
   'Battle Girl Chandra': 'battle_girl',
   'Battle Girl Mikiko': 'battle_girl',
   'Battle Girl Miriam': 'battle_girl',
