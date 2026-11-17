@@ -9,6 +9,9 @@ const subscribe = (change: () => void) => {
   return () => query.removeEventListener('change', change);
 };
 
+/** Whether the screen is a phone in portrait right now (outside React: useCardPlay's drop rules). */
+export const isPhoneNow = () => matchMedia(PHONE).matches;
+
 /** Whether the screen is a phone in portrait, kept up to date as it turns or resizes. */
 export function useIsPhone(): boolean {
   return useSyncExternalStore(subscribe, () => matchMedia(PHONE).matches);

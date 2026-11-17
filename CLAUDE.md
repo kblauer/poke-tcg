@@ -83,7 +83,7 @@ Issue #99 (https://github.com/kblauer/poke-tcg/issues/99) was a whole-codebase r
   - At rest it stays inside the play area width; it only spills into the margins while a card is hovered.
 - Playing cards:
   - Drag cards onto slots. Trainers can be dropped anywhere on the play area.
-  - The board glows green for a valid drop and red when the drop would cancel. Dropping on the hand cancels.
+  - The board glows green for a valid drop and red when the drop would cancel. Dropping on the hand, or in the band just above it anywhere but on a slot (`RETURN_BAND`, not on a phone; the user's, 2026-11-16), cancels.
 - Any effect that asks for a Pokémon is answered by clicking a highlighted slot on the board, not by picking from a list. Effects that pick cards from the hand do it in the hand itself.
 - Benched Pokémon Powers, discarding Clefairy Doll and using the Stadium (Lucky Stadium, `StadiumCard`, which pulses with the playable cards' blue outline when it can be used) are done by clicking the card. A card whose only option is its effect uses it at once, with no menu or confirm button; when it can't be used, a warning toast says why. Except (agreed 2026-10-23), on every screen: clicking your Active Pokémon opens a panel on the card with its attacks, Pokémon Power, Retreat and other moves (replacing the column beside it), and clicking a benched Pokémon with a power opens a panel on it with the power's name and a Use button (or why it can't be used; not its text, agreed 2026-10-23); `cardMenu` in Board.tsx. Pokémon whose power can be used pulse like playable cards, and so does your Active Pokémon when it can attack (agreed 2026-10-24).
 - Clicking outside cancels an in-progress move:
