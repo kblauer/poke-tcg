@@ -1,6 +1,6 @@
 // The Battle Tower's scenes (README: Battle Tower), as scripts for TowerScene's director (useScene): the lobby's desk,
 // the clerk taking the player to the elevator and up, the corridor, the battle room with its opponents and attendant.
-// Each generation's floors are their own rooms (TOWER_ROOMS): FireRed's Trainer Tower, HGSS's, Emerald's and Diamond/Pearl's Battle Tower.
+// Each generation's floors are their own rooms (TOWER_ROOMS): FireRed's Trainer Tower, HGSS's, Emerald's and Diamond/Pearl's Battle Tower, Black's Battle Subway.
 import { routePath, TOP_FLOOR, TOWER_ROOMS, towerGeneration, type TowerAction, type TowerRoom, type TowerSprites } from '@poke-tcg/campaign';
 import type { PlayerGender } from '@poke-tcg/shared';
 import type { ClientTower } from '../../hooks/useTower';
@@ -14,13 +14,15 @@ import type { SceneSteps } from './TowerScene';
  * corridor, the battle room's attendant, and the BP Shop's vendor (a Poké Mart clerk, the user's). FireRed's are its Union
  * Room receptionist (as the Trainer Tower's lobby has) and the 1F man at his counter; HGSS's the Battle Tower's receptionist (the woman, BFSW1, at the single battles'
  * desk) and its man in uniform (BFSM) for the others (ours: the frontier scenes don't say); Emerald's all Teala, as its maps have;
- * Diamond's all its Battle Tower staff (pcwoman2, as its map events have), its vendor a Poké Mart clerk.
+ * Diamond's all its Battle Tower staff (pcwoman2, as its map events have), its vendor a Poké Mart clerk; Black's Battle Subway
+ * Gear Station's receptionist at the desk and its Depot Agent on the train (as their map events have them).
  */
 const STAFF: Record<TowerSprites, { receptionist: string; clerk: string; attendant: string; vendor: string }> = {
   frlg: { receptionist: 'receptionist', clerk: 'receptionist', attendant: 'trainer_tower_man', vendor: 'clerk' },
   hgss: { receptionist: 'hgss/tower_staff_f', clerk: 'hgss/tower_staff_m', attendant: 'hgss/tower_staff_m', vendor: 'hgss/clerk' },
   rse: { receptionist: 'rse/teala', clerk: 'rse/teala', attendant: 'rse/teala', vendor: 'rse/clerk' },
   dp: { receptionist: 'dp/pcwoman2', clerk: 'dp/pcwoman2', attendant: 'dp/pcwoman2', vendor: 'dp/shopm1' },
+  bw: { receptionist: 'bw/subway_receptionist', clerk: 'bw/depot_agent', attendant: 'bw/depot_agent', vendor: 'bw/clerk' },
 };
 
 /** The lobbies whose receptionist leads the player to the elevator, through the gap in her counter (their games' scripts); FireRed's sends him up the stairs. */
@@ -186,13 +188,15 @@ export async function lobbyScript(s: SceneSteps, ctx: TowerContext, saved: Clien
     }
   }
   const there = challenge.view.generation;
-  // FireRed's sends the player up its stairs alone (the user's line); HGSS's and Emerald's lead him to the elevator.
-  await s.say(LEADING.has(set) ? 'I will now show you to the Battle Room.' : 'Please head up the stairs to your Battle Room.');
+  // FireRed's sends the player up its stairs alone (the user's line), Gear Station's onto the train (ours); HGSS's,
+  // Emerald's and Diamond's lead him to the elevator.
+  await s.say(LEADING.has(set) ? 'I will now show you to the Battle Room.' : set === 'bw' ? 'Please board the train to your Battle Room.' : 'Please head up the stairs to your Battle Room.');
   if (LEADING.has(set)) await s.lead('receptionist', 'player', p.elevator!);
   else await s.walk('player', p.elevator!);
   await s.fadeOut();
-  // FireRed's stairs go straight up to its 1F; anywhere else (another generation's floors too) is the elevator.
-  await toFloor(s, ctx, challenge, LEADING.has(set) || there !== gen);
+  // FireRed's stairs go straight up to its 1F; anywhere else (another generation's floors too) is the elevator (Gen 5's
+  // the train setting off).
+  await toFloor(s, ctx, challenge, set !== 'frlg' || there !== gen);
   await battle(s, ctx, challenge);
 }
 
