@@ -1,4 +1,4 @@
-import { BP_PACK_PRICE, towerGameId } from '@poke-tcg/campaign';
+import { towerGameId } from '@poke-tcg/campaign';
 import { prisma } from '@poke-tcg/db';
 import { startTowerInput, towerActInput, towerIdInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
@@ -12,14 +12,14 @@ import { debugProcedure, protectedProcedure, router } from '../trpc.js';
 export const towerRouter = router({
   /**
    * The Battle Tower's desk: the account's latest challenge (under way, saved or over, with its battle settled if it just
-   * ended), the highest floor beaten, the floors a new challenge can start on, the account's Battle Points and the BP
-   * Shop's price for a pack (BP_PACK_PRICE; it opens them with `packs.open`). The decks come from `run.overview`.
+   * ended), the highest floor beaten, the floors a new challenge can start on and the account's Battle Points (the BP
+   * Shop's packs cost `bpPackPrice` by their generation; it opens them with `packs.open`). The decks come from `run.overview`.
    */
   overview: protectedProcedure.query(async ({ ctx }) => {
     const tower = await latestTower(ctx.user.id);
     // Read after settling: a battle just won may have raised it.
     const { towerBest: best, bp } = await userRow(ctx.user, { towerBest: true, bp: true });
-    return { challenge: tower && (await clientTower(tower)), best, startFloors: towerStarts(best, await unlocksAll(ctx.user.id)), bp, packPrice: BP_PACK_PRICE };
+    return { challenge: tower && (await clientTower(tower)), best, startFloors: towerStarts(best, await unlocksAll(ctx.user.id)), bp };
   }),
 
   /** Starts a new challenge (startTower: a saved one is given up). */

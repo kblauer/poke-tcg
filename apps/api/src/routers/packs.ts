@@ -1,4 +1,4 @@
-import { BP_PACK_PRICE, CRAFT_COST, GENERATIONS, openPack, PACK_GENERATIONS, PACK_PRICE, PACK_SETS, rngFrom, STARDUST_PER_CARD, type PackSet } from '@poke-tcg/campaign';
+import { bpPackPrice, CRAFT_COST, GENERATIONS, openPack, PACK_GENERATIONS, PACK_PRICE, PACK_SETS, rngFrom, STARDUST_PER_CARD, type PackSet } from '@poke-tcg/campaign';
 import { prisma, type Card } from '@poke-tcg/db';
 import { craftCardInput, craftDeckInput, debugOpenPackInput, openPackInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
@@ -113,7 +113,7 @@ async function openPacks(userId: string, input: { setId: string; count: number; 
   const opened = Array.from({ length: input.count }, (_, pack) => openPack(set, rng, force).map((c) => ({ ...c, pack })));
   const pack = opened.flat();
   const bp = input.currency === 'bp';
-  const price = (bp ? BP_PACK_PRICE : PACK_PRICE) * input.count;
+  const price = (bp ? bpPackPrice(input.setId) : PACK_PRICE) * input.count;
   return prisma.$transaction(async (tx) => {
     // Taken only if there's enough (one atomic update, so two buys at once can't both spend the last of it).
     const { count } = bp

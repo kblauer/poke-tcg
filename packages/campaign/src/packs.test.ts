@@ -5,7 +5,14 @@ import { BASIC_ENERGY, EX_SETS, GEN4_SETS, GEN5_SETS } from './pool.js';
 /** The sets whose packs have a reverse holo: the EX sets, Gen 4's but its promos, and Gen 5's but Dragon Vault (all holo). */
 const REVERSE_SETS = [...EX_SETS, ...GEN4_SETS.filter((id) => id !== 'dpp' && id !== 'hgssp'), ...GEN5_SETS.filter((id) => id !== 'dv1')];
 import { rngFrom } from './random.js';
+import { bpPackPrice } from './run-type-info.js';
 import { testPackSet } from './test-pool.js';
+
+describe("the BP Shop's prices", () => {
+  it("charges 1 BP a pack for each generation of its set (the user's)", () => {
+    expect(['base1', 'lc', 'neo1', 'ex1', 'dp1', 'bw1'].map(bpPackPrice)).toEqual([1, 1, 2, 3, 4, 5]);
+  });
+});
 
 describe('openPack', () => {
   /** Rares and holos (the rare slot, and the extras). */
