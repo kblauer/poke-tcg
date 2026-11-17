@@ -6,12 +6,22 @@ import { PLAY_AREA } from '../components/PlayArea';
 import type { SlotId } from '../utils/slots';
 import { playAction, targetLabel, targetsFor, whyNoTargets } from '../utils/targets';
 import { useEscape } from './useEscape';
+import { isPhoneNow } from './useIsPhone';
 
 /**
- * What the dragged card is over: whatever is under the pointer, else a slot the card overlaps. The
- * play area (Trainers) counts only under the pointer: the card hangs over the table while the pointer
- * is still on the hand, where letting go cancels. With the pointer over the hand, nothing counts: the
- * card is put back, even though the dragged image overlaps the bench above.
+ * The band above the hand's top edge where a dragged card is still being put back unless the pointer is on a slot (the
+ * user's, 2026-11-16: cards were played by accident while being put back): a share of the window's height, at least
+ * RETURN_MIN px. Not on a phone, whose drops stay as they were.
+ */
+const RETURN_BAND = 0.15;
+const RETURN_MIN = 96;
+
+/**
+ * What the dragged card is over: a slot under the pointer, else whatever else is under it, else a slot the card
+ * overlaps. The play area (Trainers) counts only under the pointer: the card hangs over the table while the pointer
+ * is still on the hand, where letting go cancels. With the pointer over the hand nothing counts: the card is put back,
+ * even though the dragged image overlaps the bench above. In the band just above it (RETURN_BAND) only a slot under the
+ * pointer counts: the Bench right above the hand takes a card dropped on it, but not the table round it or an overlap.
  */
 const collisionDetection: CollisionDetection = (args) => {
   const underPointer = pointerWithin(args);
@@ -19,7 +29,12 @@ const collisionDetection: CollisionDetection = (args) => {
   if (underPointer.some((c) => c.id === HAND_ZONE)) return [];
   // A slot under the pointer before the play area round it (a Trainer dropped onto a Pokémon).
   const slots = underPointer.filter((c) => c.id !== PLAY_AREA);
-  return slots.length ? slots : underPointer.length ? underPointer : rectIntersection(args).filter((c) => c.id !== PLAY_AREA && c.id !== HAND_ZONE);
+  if (slots.length) return slots;
+  // Not on a slot and not far enough above the hand yet: still being put back.
+  const hand = args.droppableRects.get(HAND_ZONE);
+  const pointer = args.pointerCoordinates;
+  if (hand && pointer && !isPhoneNow() && pointer.y > hand.top - Math.max(RETURN_MIN, window.innerHeight * RETURN_BAND)) return [];
+  return underPointer.length ? underPointer : rectIntersection(args).filter((c) => c.id !== PLAY_AREA && c.id !== HAND_ZONE);
 };
 
 /**
