@@ -40,7 +40,7 @@ describe('unit conversion', () => {
     expect(units.length).toBe(432);
     const count = (key: (u: (typeof units)[number]) => string | number) => units.reduce<Record<string, number>>((n, u) => ({ ...n, [key(u)]: (n[key(u)] ?? 0) + 1 }), {});
     expect(count((u) => u.stage)).toEqual({ basic: 246, stage1: 146, stage2: 40 });
-    expect(count((u) => u.tier)).toEqual({ 1: 105, 2: 99, 3: 83, 4: 84, 5: 61 });
+    expect(count((u) => u.tier)).toEqual({ 1: 106, 2: 96, 3: 85, 4: 80, 5: 65 });
     expect(units.filter((u) => u.raisedFrom !== undefined).length).toBe(13);
     expect(units.filter((u) => !u.keyword).length).toBe(166);
     expect(units.filter((u) => u.power).length).toBe(66);

@@ -545,7 +545,7 @@ export class Battle {
       if (!this.sideHas(f.side, 'Clairvoyance') && !this.flip()) return void miss('Blind');
     }
     for (const h of this.hooks(f)) if (h.mayAttack && !h.mayAttack(this, f)) return void miss(f.power ?? 'power');
-    if (f.condition === 'confused' && !this.flip()) {
+    if (f.condition === 'confused' && !(TUNING.frenzyUnhurt && this.powerOn(f, 'Frenzy')) && !this.flip()) {
       miss('Confused');
       f.condition = null;
       this.damage(f, TUNING.confusion, undefined, 'Confused');
@@ -561,7 +561,7 @@ export class Battle {
     const line = this.sides[target.side].line;
     const at = line.indexOf(target);
     const neighbours = [line[at - 1], line[at + 1]];
-    const landed = this.strike(f, target, struckBack && (TUNING.gustStruckBack || !this.gusted));
+    const landed = this.strike(f, target, struckBack && (TUNING.gustStruckBack || !this.gusted) && !hooks.some((h) => h.unanswered?.(this, f, target)));
     if (landed) {
       const splash = hooks.reduce((sum, h) => sum + (h.splash?.(this, f) ?? 0), 0) + (f.type === 'fire' ? (TUNING.fire[this.sides[f.side].levels.fire - 1] ?? 0) : 0);
       if (splash) for (const g of neighbours) if (g) this.damage(g, splash, f, 'Splash', true);
@@ -606,7 +606,7 @@ export class Battle {
     const flurry = hooks.some((h) => h.flurry);
     this.fled = undefined;
     for (let i = 0; i < (flurry ? 2 : 1); i++) {
-      if (flurry && !this.flip()) {
+      if (flurry && !(TUNING.flurrySure && i === 0) && !this.flip()) {
         this.events?.push({ e: 'miss', uid: f.uid, why: 'Flurry' });
         continue;
       }
@@ -644,7 +644,7 @@ export class Battle {
       const rhydon = [side.line[at - 1], side.line[at + 1]].find((g) => g && g.hp > 0 && this.powerOn(g, 'Bench Guard'));
       if (rhydon) {
         damage -= 10;
-        this.damage(rhydon, 10, by, 'Bench Guard');
+        if (!TUNING.benchGuardShields) this.damage(rhydon, 10, by, 'Bench Guard');
       }
     }
     if (damage >= 10) {

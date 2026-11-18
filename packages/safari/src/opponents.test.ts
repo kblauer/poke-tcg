@@ -5,7 +5,7 @@ import { BOARD_SIZE } from './battle.js';
 import { DRAFT, applySafariAction, createSafari, isLegendary, type SafariAction, type SafariState } from './draft.js';
 import { gen1Units } from './gen1.js';
 import { unitScore } from './units.js';
-import { BLUE_STARTERS, BLUE_TEAM, DIFFICULTY_TIER, GYM_LEADERS, MEDIUM_TIERS, OPPONENT_PAY, leaderOpponent, opponentChoice, rollChampion, rollOpponents, trainerOpponent, type Opponent } from './opponents.js';
+import { BLUE_STARTERS, BLUE_TEAM, DIFFICULTY_TIER, GYM_LEADERS, MEDIUM_TIERS, OPENING_SIZES, OPPONENT_PAY, leaderOpponent, opponentChoice, rollChampion, rollOpponents, trainerOpponent, type Opponent } from './opponents.js';
 
 const units = gen1Units();
 const byId = new Map(units.map((u) => [u.id, u]));
@@ -36,10 +36,13 @@ describe('a step\'s opponents', () => {
     }
   });
 
-  it('gives each 6 different units, no legendary, around the curve\'s tier for its difficulty', () => {
+  it('gives each different units (3, 4 and 5 in the first battles, then 6), no legendary, around the curve\'s tier for its difficulty', () => {
+    expect(OPENING_SIZES).toEqual([3, 4, 5]);
+    steps.forEach((step, i) => {
+      for (const o of step) expect(o.board, `battle ${(i % 15) + 1}`).toHaveLength(OPENING_SIZES[i % 15] ?? BOARD_SIZE);
+    });
     for (const step of steps) for (const o of step) {
-      expect(o.board).toHaveLength(BOARD_SIZE);
-      expect(new Set(o.board).size).toBe(BOARD_SIZE);
+      expect(new Set(o.board).size).toBe(o.board.length);
       for (const id of o.board) expect(isLegendary(byId.get(id)!), id).toBe(false);
     }
     // Battle 6 (index 5): medium tier 3, easy 2, hard 4, a leader 5 (where its type has the units).

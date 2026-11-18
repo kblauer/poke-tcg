@@ -74,6 +74,32 @@ export const SPEC = {
   gustStruckBack: true,
   /** Whether the Pokémon Scoop Up takes out comes back at the end of its line, fully healed. */
   scoopUpReturns: false,
+  // Step 7's balance pass (2026-11-18): proposals for the effects worth about nothing, each off as the issue has it, measured
+  // on and off by tools/safari/balance.ts before the user decides.
+  /** Flurry: its first hit always lands, only the second flips (false: each flips). */
+  flurrySure: false,
+  /** Whirlwind: its attacks aren't struck back (the target is blown away first). */
+  whirlwindUnanswered: false,
+  /** Charge: its doubled attack isn't struck back. */
+  chargeUnanswered: false,
+  /** Blind: its target is Blinded as it's hit, so its strike back flips a coin (tails, none). */
+  blindAtOnce: false,
+  /** Step In: its side's first attack isn't struck back. */
+  stepInUnanswered: false,
+  /** Peek: its first attack isn't struck back. */
+  peekUnanswered: false,
+  /** Fragrance Trap: the attack its heads aims isn't struck back. */
+  fragranceUnanswered: false,
+  /** Psylink: +10 attack for each other Psychic ally (false: attacks with the highest Psychic ally's attack). */
+  psylinkPerAlly: false,
+  /** Frenzy: it starts the battle Confused. */
+  frenzyStartsConfused: false,
+  /** Frenzy: its own Confusion never hurts it (tails, it attacks anyway, still Confused). */
+  frenzyUnhurt: false,
+  /** Long Distance Hypnosis and Pollen Stench: tails does nothing (false: tails, its own side's first). */
+  scentHeadsOnly: false,
+  /** Bench Guard: its neighbours take 10 less from every hit, none of it moved to it (false: it takes 10 in their place). */
+  benchGuardShields: false,
 };
 export type Tuning = typeof SPEC;
 
@@ -105,6 +131,20 @@ export const TUNING: Tuning = {
   gustStruckBack: false,
   gust: 2,
   scoopUpReturns: true,
+  // Step 7's balance pass (the user's, 2026-11-18): the keywords and powers worth about nothing, changed so each is worth
+  // something (tools/safari/out/balance-report.md), and Gambler with no downside. Whirlwind and Charge are kept as they
+  // are for now, their switches (whirlwindUnanswered, chargeUnanswered) off, for the user's testing by hand.
+  flurrySure: true,
+  blindAtOnce: true,
+  stepInUnanswered: true,
+  peekUnanswered: true,
+  fragranceUnanswered: true,
+  benchGuardShields: true,
+  psylinkPerAlly: true,
+  frenzyStartsConfused: true,
+  frenzyUnhurt: true,
+  scentHeadsOnly: true,
+  gamblerTails: 0,
 };
 
 /** The types with a synergy: Gen 1's seven. */
@@ -144,7 +184,7 @@ export const TRAINERS = {
   'Energy Removal': 'The opposing Pokémon with the most attack has −20 attack',
   'Super Energy Removal': 'The 2 opposing Pokémon with the most attack have −20 attack',
   'Scoop Up': 'The first of your Pokémon that would faint goes to the end of your line fully healed instead, and your next Pokémon attacks at once',
-  Gambler: 'Flip a coin: heads, your Pokémon get +20 attack; tails, −10',
+  Gambler: 'Flip a coin: heads, your Pokémon get +20 attack',
   'Imposter Professor Oak': "The opponent's type synergies count 2 Pokémon fewer",
   /** After the battle: the draft's (step 2), nothing in the battle itself. */
   Bill: '+₱ after the battle, won or lost',
@@ -163,6 +203,8 @@ export interface Hooks {
   rule?: true;
   /** Attacks twice, each hit flipping a coin to land. */
   flurry?: true;
+  /** Its attack on `target` isn't struck back. */
+  unanswered?(b: Battle, f: Fighter, target: Fighter): boolean;
   /** Before the battle: its lasting changes to attack and HP. */
   ready?(b: Battle, f: Fighter): void;
   /** At the start of the battle, once both sides stand: damage and Special Conditions. */
@@ -235,7 +277,11 @@ export const KEYWORDS: Record<Keyword, Hooks> = {
     },
   },
   Harden: { text: 'Takes 10 less from every hit', reduces: (_b, _f, _by, damage) => damage - TUNING.harden },
-  Blind: { text: "Its target's next hit flips a coin: tails, it does nothing", hit: (b, _f, target, _dealt, attacking) => attacking && b.blind(target) },
+  Blind: {
+    text: "Its target's next hit, its strike back too, flips a coin: tails, it does nothing",
+    hit: (b, _f, target, _dealt, attacking) => attacking && b.blind(target),
+    unanswered: (b, f) => TUNING.blindAtOnce && !b.sideHas(b.otherSide(f.side), 'Clairvoyance') && !b.flip(),
+  },
   Weaken: { text: 'Its target has −10 attack for the battle', hit: (b, _f, target, _dealt, attacking) => attacking && b.buff(target, -TUNING.weaken, 'Weaken') },
   Splash: { text: "Its attacks also do 10 to the target's neighbours", splash: () => TUNING.splash },
   Unburden: {
@@ -246,7 +292,7 @@ export const KEYWORDS: Record<Keyword, Hooks> = {
       b.buff(target, -TUNING.unburden, 'Unburden');
     },
   },
-  Whirlwind: { text: "Its target moves to the end of its side's line", attacked: (b, _f, target) => b.moveToEnd(target, 'Whirlwind') },
+  Whirlwind: { text: "Its target moves to the end of its side's line", attacked: (b, _f, target) => b.moveToEnd(target, 'Whirlwind'), unanswered: () => TUNING.whirlwindUnanswered },
   Family: {
     text: 'When it faints, a 10-attack, 30-HP copy of it takes its place',
     fainted: (b, f, _killer, at) => b.join(f.side, { name: f.name, type: f.type, stage: f.stage, attack: TUNING.familyAttack, hp: TUNING.familyHp }, at, 'Family'),
@@ -254,8 +300,8 @@ export const KEYWORDS: Record<Keyword, Hooks> = {
   Copycat: { text: "Attacks with its target's attack when that's higher", attackWith: (b, _f, target, damage) => Math.max(damage, b.attackOf(target)) },
   Enrage: { text: "+10 attack each time it's hit", struck: (b, f) => b.buff(f, TUNING.enrage, 'Enrage') },
   Finisher: { text: "+20 damage to a Pokémon that's already damaged", hitFor: (_b, _f, target, damage) => (target.hp < target.maxHp ? damage + TUNING.finisher : damage) },
-  Charge: { text: 'Every second attack does double', attackWith: (_b, f, _target, damage) => (f.attacks % 2 === 0 ? damage * 2 : damage) },
-  Flurry: { text: 'Attacks twice, each hit flipping a coin to land', flurry: true },
+  Charge: { text: 'Every second attack does double', attackWith: (_b, f, _target, damage) => (f.attacks % 2 === 0 ? damage * 2 : damage), unanswered: (_b, f) => TUNING.chargeUnanswered && f.attacks % 2 === 0 },
+  Flurry: { text: 'Attacks twice: the first hit always lands, the second flips a coin', flurry: true },
   Recoil: {
     text: '+10 attack, and takes 10 each time it attacks',
     ready: (b, f) => b.buff(f, TUNING.recoilAttack, 'Recoil'),
@@ -276,7 +322,9 @@ const stats = (text: string, attack: number, hp: number): Hooks => ({
 const scent = (text: string, condition: 'asleep' | 'confused'): Hooks => ({
   text,
   start: (b, f) => {
-    const first = b.first(b.flip() ? b.otherSide(f.side) : f.side);
+    const heads = b.flip();
+    if (!heads && TUNING.scentHeadsOnly) return;
+    const first = b.first(heads ? b.otherSide(f.side) : f.side);
     if (first) b.afflict(first, condition, f);
   },
 });
@@ -284,7 +332,7 @@ const scent = (text: string, condition: 'asleep' | 'confused'): Hooks => ({
 /** Gen 1's 66 Pokémon Powers by name (issue #239, 2.5), one card each. No power may show an opponent's board. */
 export const POWERS: Record<string, Hooks> = {
   'Aurora Veil': { text: 'Its allies take no Splash, Explode or start-of-battle damage', rule: true },
-  'Bench Guard': { text: 'Takes 10 of every hit on a neighbour in its place', rule: true },
+  'Bench Guard': { text: 'Its neighbours take 10 less from every hit', rule: true },
   Buzzap: {
     text: 'When it faints, the ally with the most attack gets +20 attack',
     fainted: (b, f) => {
@@ -336,8 +384,17 @@ export const POWERS: Record<string, Hooks> = {
       return true;
     },
   },
-  'Fragrance Trap': { text: 'Before it attacks, flips a coin: heads, it hits the opposing Pokémon with the least HP', target: (b, _f, foes) => (b.flip() ? leastHp(foes) : undefined) },
-  Frenzy: { text: '+30 attack while Confused', attack: (_b, f) => (f.condition === 'confused' ? 30 : 0) },
+  'Fragrance Trap': {
+    text: 'Before it attacks, flips a coin: heads, it hits the opposing Pokémon with the least HP, with no strike back',
+    target: (b, f, foes) => {
+      delete f.once.trapped;
+      if (!b.flip()) return undefined;
+      f.once.trapped = true;
+      return leastHp(foes);
+    },
+    unanswered: (_b, f) => TUNING.fragranceUnanswered && !!f.once.trapped,
+  },
+  Frenzy: { text: 'Starts the battle Confused, and its Confusion never hurts it; +30 attack while Confused', attack: (_b, f) => (f.condition === 'confused' ? 30 : 0), start: (b, f) => TUNING.frenzyStartsConfused && b.afflict(f, 'confused', f) },
   'Gaseous Form': { text: '+10 HP for each other Psychic ally', ready: (b, f) => b.grow(f, 10 * others(b, f, 'psychic'), 'Gaseous Form') },
   'Gather Fire': { text: '+10 attack while it has another Fire ally', attack: (b, f) => (others(b, f, 'fire') ? 10 : 0) },
   Guard: stats('+20 HP', 0, 20),
@@ -352,18 +409,19 @@ export const POWERS: Record<string, Hooks> = {
   'Healing Fire': { text: 'Heals 10 after each of its attacks', attacked: (b, f) => b.heal(f, 10, 'Healing Fire') },
   'Invisible Wall': { text: 'Hits of 30 or more do nothing to it', prevents: (_b, _f, _by, damage) => damage >= 30 },
   'Kabuto Armor': { text: 'Takes half damage, rounded down to 10', reduces: (_b, _f, _by, damage) => down10(damage / 2) },
-  'Long Distance Hypnosis': scent("At the start of battle, flips a coin: heads, the first opposing Pokémon is Asleep; tails, its own side's first", 'asleep'),
+  'Long Distance Hypnosis': scent('At the start of battle, flips a coin: heads, the first opposing Pokémon is Asleep', 'asleep'),
   'Matter Exchange': { text: 'One free reroll in each shop', draft: true },
   'Natural Healing': { text: 'Heals 10 after each of its attacks', attacked: (b, f) => b.heal(f, 10, 'Natural Healing') },
   'Neutral Shield': { text: 'Takes no damage from evolved Pokémon', prevents: (_b, _f, by) => by.stage !== 'basic' },
-  Peek: { text: 'Its first attack hits the opposing Pokémon with the least HP', target: (_b, f, foes) => (f.attacks === 0 ? leastHp(foes) : undefined) },
+  Peek: { text: 'Its first attack hits the opposing Pokémon with the least HP, with no strike back', target: (_b, f, foes) => (f.attacks === 0 ? leastHp(foes) : undefined), unanswered: (_b, f) => TUNING.peekUnanswered && f.attacks === 1 },
   Photosynthesis: stats('+10 attack', 10, 0),
   'Pollen Defense': { text: 'When hit, flips a coin: heads, the attacker is Confused', struck: (b, f, by) => b.flip() && b.afflict(by, 'confused', f) },
-  'Pollen Stench': scent("At the start of battle, flips a coin: heads, the first opposing Pokémon is Confused; tails, its own side's first", 'confused'),
+  'Pollen Stench': scent('At the start of battle, flips a coin: heads, the first opposing Pokémon is Confused', 'confused'),
   'Prehistoric Power': { text: 'Opposing Stage 1 and Stage 2 Pokémon have −10 attack', rule: true },
   Psylink: {
-    text: "Attacks with the highest attack among its side's Psychic Pokémon",
-    attack: (b, f) => Math.max(0, Math.max(0, ...b.allies(f).filter((g) => g.type === 'psychic' && g.power !== 'Psylink').map((g) => b.attackOf(g))) - (f.base + f.buff)),
+    text: '+10 attack for each other Psychic ally',
+    attack: (b, f) =>
+      TUNING.psylinkPerAlly ? 10 * others(b, f, 'psychic') : Math.max(0, Math.max(0, ...b.allies(f).filter((g) => g.type === 'psychic' && g.power !== 'Psylink').map((g) => b.attackOf(g))) - (f.base + f.buff)),
   },
   'Rain Dance': {
     text: 'At the start of battle, each Water Pokémon of its side (itself too) gets +10 attack',
@@ -398,7 +456,7 @@ export const POWERS: Record<string, Hooks> = {
   'Soak Up': { text: '+10 attack for each other Grass ally, up to +20', attack: (b, f) => Math.min(20, 10 * others(b, f, 'grass')) },
   'Solar Power': { text: 'Once, when an ally gets a Special Condition, every Pokémon of its side is cured', rule: true },
   'Special Delivery': { text: 'One free reroll in each shop', draft: true },
-  'Step In': { text: "Makes its side's first attack, wherever it stands", rule: true },
+  'Step In': { text: "Makes its side's first attack, wherever it stands, with no strike back", rule: true, unanswered: (_b, f) => TUNING.stepInUnanswered && f.attacks === 1 },
   'Sticky Goo': {
     text: 'A Pokémon it hits has −10 attack',
     hit: (b, f, target) => {

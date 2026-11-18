@@ -140,7 +140,7 @@ export function ReadyPanel({ view, units, cardWidth, busy, act }: { view: Safari
   return (
     <Panel
       title={`Battle: ${o.name}`}
-      info={`${DIFFICULTY_LABEL[o.difficulty]}${o.pay ? ` · ₱${o.pay} for a win` : ''}`}
+      info={`${DIFFICULTY_LABEL[o.difficulty]}${o.pay ? ` · ₱${o.pay} for a win` : ''}${o.difficulty === 'legendary' ? ` · win and ${units.get(o.board[0]!)?.name ?? 'it'} joins your team` : ''}`}
       actions={
         <button type="button" className={`${BUTTON} !bg-yellow-300 !px-5 !py-1.5 font-bold !text-gray-900 hover:!bg-yellow-200`} disabled={busy || empty} onClick={() => act({ type: 'BATTLE' })}>
           Start battle

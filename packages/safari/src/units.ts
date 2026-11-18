@@ -164,22 +164,23 @@ const KEYWORD_WORDINGS: [keyword: Keyword, wording: RegExp][] = [
 
 /**
  * What each keyword is worth to a unit that has it, in points of win rate: the balance report's measurements of
- * 2026-11-18 (tools/safari/out/balance-report.md, "Keywords"). A unit's rank for its tier counts them (unitScore).
+ * 2026-11-18, step 7's (tools/safari/out/balance-report.md, "Keywords": after the changes of step 7's balance pass). A unit's rank for its tier counts them (unitScore).
  * Measure again with tools/safari/balance.ts after changing what an effect does, and put its new worth here.
  */
 export const KEYWORD_WORTH: Record<Keyword, number> = {
-  Explode: 14, 'Destiny Bond': 10, Toxic: 15, Poison: 7, Paralyze: 5, Sleep: 13, Confuse: 6, Drain: 12, Mend: 0, Guard: 8, Harden: 9, Blind: 1,
-  Weaken: 4, Splash: 7, Unburden: 0, Whirlwind: 0, Family: 11, Copycat: 5, Enrage: 6, Finisher: 7, Charge: 1, Flurry: -1, Recoil: 3, 'Pay Day': 0,
+  Explode: 15, 'Destiny Bond': 11, Toxic: 16, Poison: 8, Paralyze: 5, Sleep: 15, Confuse: 7, Drain: 7, Mend: 0, Guard: 7, Harden: 9, Blind: 7,
+  Weaken: 4, Splash: 7, Unburden: 0, Whirlwind: 0, Family: 11, Copycat: 6, Enrage: 6, Finisher: 8, Charge: 1, Flurry: 4, Recoil: 2, 'Pay Day': 0,
 };
 
 /** The same for the Pokémon Powers (the report's "Pokémon Powers"); one not listed, a draft-only power among them, counts 0. */
 export const POWER_WORTH: Record<string, number> = {
-  'Prehistoric Power': 17, Transparency: 16, Rebirth: 16, Sinkhole: 13, Fortitude: 11, 'Energy Burn': 10, 'Kabuto Armor': 10, Scram: 9, 'Call the Boss': 9,
-  'Shell Armor': 9, 'Thick Skinned': 9, 'Rain Dance': 8, Emerge: 8, Shift: 6, Flee: 6, 'Sticky Goo': 6, 'Aurora Veil': 6, Guard: 6, Shapeshift: 5,
-  'Strikes Back': 5, 'Strange Barrier': 5, Transform: 5, 'Retreat Aid': 5, 'Natural Healing': 5, Photosynthesis: 4, 'Energy Trans': 4, 'Solar Power': 4,
-  'Sneak Attack': 4, 'Final Beam': 4, 'Chain Reaction': 3, Buzzap: 3, 'Soak Up': 3, 'Healing Fire': 3, Curse: 2, 'Shock Blast': 2, 'Pollen Defense': 2,
-  'Energy Charge': 2, 'Gaseous Form': 2, 'Gather Fire': 1, Clairvoyance: 1, 'Invisible Wall': 1, 'Energy Drain': 1, 'Strange Behavior': 1, 'Restless Sleep': 1,
-  'Fragrance Trap': -1, 'Pollen Stench': -1, 'Bench Guard': -1,
+  'Step In': 17, 'Prehistoric Power': 16, Transparency: 16, 'Strange Barrier': 13, 'Kabuto Armor': 12, 'Energy Burn': 11, Frenzy: 11, Rebirth: 11,
+  Fortitude: 10, 'Invisible Wall': 10, Sinkhole: 10, 'Bench Guard': 9, Emerge: 9, 'Shell Armor': 9, 'Call the Boss': 8, 'Fragrance Trap': 8,
+  'Rain Dance': 8, Scram: 8, Shift: 8, Shapeshift: 7, Flee: 6, 'Retreat Aid': 6, 'Solar Power': 6, 'Aurora Veil': 5, Peek: 5, Photosynthesis: 5,
+  'Sneak Attack': 5, 'Strikes Back': 5, 'Thick Skinned': 5, Transform: 5, 'Chain Reaction': 4, 'Energy Trans': 4, 'Final Beam': 4, 'Gaseous Form': 4,
+  Guard: 4, 'Pollen Stench': 4, 'Sticky Goo': 4, 'Strange Behavior': 4, Buzzap: 3, 'Healing Fire': 3, 'Long Distance Hypnosis': 3, 'Soak Up': 3,
+  Curse: 2, 'Energy Charge': 2, 'Energy Drain': 2, 'Natural Healing': 2, 'Pollen Defense': 2, Psylink: 2, 'Restless Sleep': 2, Clairvoyance: 1,
+  'Gather Fire': 1, Rebellion: 1, 'Shock Blast': 1, 'Toxic Gas': 1,
 };
 
 /**

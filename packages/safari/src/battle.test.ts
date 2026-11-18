@@ -218,7 +218,7 @@ describe('keywords', () => {
     expect(damage(r, 'b0').every((d) => d.amount === 30 - TUNING.harden)).toBe(true);
   });
 
-  it('Flurry: two hits, each on a coin, and one strike back', () => {
+  it('Flurry: two hits, the first sure and the second on a coin, and one strike back', () => {
     const hits = new Set<number>();
     for (const r of seeds(40, [unit({ keyword: 'Flurry', attack: 20, hp: 900 })], [unit({ hp: 900, attack: 10 })])) {
       const first = r.events.findIndex((e) => e.e === 'attack' && e.uid === 'a0');
@@ -227,7 +227,7 @@ describe('keywords', () => {
       hits.add(exchange.filter((e) => e.e === 'damage' && e.uid === 'b0').length);
       expect(exchange.filter((e) => e.e === 'damage' && e.uid === 'a0')).toHaveLength(1);
     }
-    expect([...hits].sort()).toEqual([0, 1, 2]);
+    expect([...hits].sort()).toEqual([1, 2]);
   });
 
   it('Charge: every second attack does double', () => {
@@ -345,7 +345,8 @@ describe('Trainers', () => {
 
   it('PlusPower, Gambler and the Energy Removals change attack before the battle', () => {
     expect(events(play(withTrainer('PlusPower', line()), line()), 'buff').filter((x) => x.why === 'PlusPower').map((x) => x.attack)).toEqual(Array(4).fill(TUNING.plusPower));
-    const gambles = seeds(20, withTrainer('Gambler', line()), line()).map((r) => events(r, 'buff').find((x) => x.why === 'Gambler')!.attack);
+    // Tails gives nothing (the balance pass): no buff at all.
+    const gambles = seeds(20, withTrainer('Gambler', line()), line()).map((r) => events(r, 'buff').find((x) => x.why === 'Gambler')?.attack ?? 0);
     expect([...new Set(gambles)].sort((a, b) => a - b)).toEqual([TUNING.gamblerTails, TUNING.gamblerHeads]);
     const strong = [unit({ attack: 50 }), unit({ attack: 40 }), unit({ attack: 10 })];
     expect(events(play(withTrainer('Energy Removal', line()), strong), 'buff').map((x) => x.uid)).toEqual(['b0']);
@@ -434,7 +435,7 @@ describe('Pokémon Powers', () => {
     for (const [name, h] of Object.entries(POWERS)) {
       const hooks = Object.keys(h).filter((k) => k !== 'text');
       expect(hooks.length, name).toBeGreaterThan(0);
-      if (h.draft || h.rule) expect(hooks, name).toHaveLength(1);
+      if (h.draft || h.rule) expect(hooks.filter((k) => k !== 'unanswered'), name).toHaveLength(1);
     }
     // The powers that work in the draft only (step 2): they must do nothing in a battle.
     expect(Object.entries(POWERS).filter(([, h]) => h.draft).map(([name]) => name).sort()).toEqual(['Cowardice', 'Evolutionary Light', 'Matter Exchange', 'Reel In', 'Special Delivery', 'Summon Minions', 'Trickery']);
@@ -482,11 +483,11 @@ describe('Pokémon Powers', () => {
     expect(hits(power('Relaxing Scent', { hp: 900 }), { attack: 30 })).toBe(20);
   });
 
-  it('Bench Guard and Strange Behavior take 10 of a hit on another', () => {
+  it('Bench Guard shields its neighbours from 10 of every hit; Strange Behavior takes 10 of a hit on another', () => {
     const rhydon = play([unit({ hp: 900 }), power('Bench Guard', { hp: 900, attack: 0 })], [unit({ attack: 30, hp: 900 })]);
     expect(damage(rhydon, 'a0', 'attack').slice(0, 3).map((d) => d.amount)).toEqual([20, 20, 20]);
     expect(damage(rhydon, 'a0', 'strike back').slice(0, 3).map((d) => d.amount)).toEqual([20, 20, 20]);
-    expect(damage(rhydon, 'a1', 'Bench Guard').slice(0, 3).map((d) => d.amount)).toEqual([10, 10, 10]);
+    expect(damage(rhydon, 'a1', 'Bench Guard')).toEqual([]);
     const slowbro = play([unit({ hp: 900 }), power('Strange Behavior', { hp: 40, attack: 0 })], [unit({ attack: 30, hp: 900 })]);
     expect(damage(slowbro, 'a1', 'Strange Behavior').length).toBeLessThanOrEqual(3); // never fainting from it
   });
@@ -518,7 +519,13 @@ describe('Pokémon Powers', () => {
 
   it('attack by the board: Psylink, Prehistoric Power, Energy Charge, Rain Dance', () => {
     const psylink = play([power('Psylink', { type: 'psychic', attack: 10, hp: 900 }), unit({ type: 'psychic', attack: 50, hp: 900 })], [unit({ hp: 900, attack: 0 })], 1);
-    expect(damage(psylink, 'b0').every((d) => d.amount === 50 || d.why !== 'attack')).toBe(true);
+    // +10 attack for each other Psychic ally (the balance pass).
+    expect(damage(psylink, 'b0').filter((d) => d.why === 'attack' && events(psylink, 'attack').some((x) => x.uid === 'a0')).length).toBeGreaterThan(0);
+    const psyHits = (r: BattleResult) => {
+      const at = r.events.findIndex((e) => e.e === 'attack' && e.uid === 'a0');
+      return r.events.slice(at + 1).find((e): e is Extract<BattleEvent, { e: 'damage' }> => e.e === 'damage' && e.uid === 'b0')?.amount;
+    };
+    expect(psyHits(psylink)).toBe(20);
     const aerodactyl = play([power('Prehistoric Power', { hp: 900, attack: 0 })], [unit({ stage: 'stage1', attack: 30, hp: 900 }), unit({ attack: 30, hp: 900 })]);
     expect(damage(aerodactyl, 'a0').filter((d) => d.why === 'attack').map((d) => d.amount).sort().slice(0, 2)).toEqual([20, 20]);
     expect(damage(aerodactyl, 'a0').some((d) => d.amount === 30)).toBe(true);
@@ -531,6 +538,48 @@ describe('Pokémon Powers', () => {
   it("the numbers battles play by are the issue's but for the balance pass's changes", () => {
     expect(Object.keys(TUNING)).toEqual(Object.keys(SPEC));
     const changed = (Object.keys(SPEC) as (keyof typeof SPEC)[]).filter((k) => JSON.stringify(SPEC[k]) !== JSON.stringify(TUNING[k]));
-    expect(changed.sort()).toEqual(['blindAttackOnly', 'explode', 'gust', 'gustStruckBack', 'lightning', 'quickStruckBack', 'restingStrikesBack', 'scoopUpReturns', 'sinkhole', 'versatileAttack', 'versatileOwn']);
+    expect(changed.sort()).toEqual(
+      [
+        'blindAttackOnly', 'explode', 'gust', 'gustStruckBack', 'lightning', 'quickStruckBack', 'restingStrikesBack', 'scoopUpReturns', 'sinkhole', 'versatileAttack', 'versatileOwn',
+        // Step 7's balance pass (the user's, 2026-11-18); Whirlwind's and Charge's switches stay off.
+        'benchGuardShields', 'blindAtOnce', 'flurrySure', 'fragranceUnanswered', 'frenzyStartsConfused', 'frenzyUnhurt', 'gamblerTails', 'peekUnanswered', 'psylinkPerAlly', 'scentHeadsOnly', 'stepInUnanswered',
+      ].sort(),
+    );
+    expect([TUNING.whirlwindUnanswered, TUNING.chargeUnanswered]).toEqual([false, false]);
+  });
+
+  /** What a's first attack drew back: the strike back's damage events in its exchange. */
+  const firstExchange = (r: BattleResult, uid: string) => {
+    const at = r.events.findIndex((e) => e.e === 'attack' && e.uid === uid);
+    const next = r.events.findIndex((e, i) => i > at && (e.e === 'attack' || e.e === 'end'));
+    return r.events.slice(at + 1, next);
+  };
+
+  it("no strike back: Step In's and Peek's first attacks, Fragrance Trap's aimed one", () => {
+    const stepIn = play([unit({ hp: 900 }), power('Step In', { hp: 900 })], [unit({ hp: 900, attack: 30 })]);
+    expect(firstExchange(stepIn, 'a1').filter((e) => e.e === 'damage' && e.uid === 'a1')).toEqual([]);
+    for (const r of seeds(10, [power('Peek', { hp: 900 })], [unit({ hp: 900, attack: 30 }), unit({ hp: 50, attack: 30 })])) {
+      const ex = firstExchange(r, 'a0');
+      expect(ex.filter((e) => e.e === 'damage' && e.uid === 'a0')).toEqual([]);
+    }
+    const trapped = seeds(30, [power('Fragrance Trap', { hp: 900 })], [unit({ hp: 900, attack: 30 }), unit({ hp: 50, attack: 30 })]).map((r) => firstExchange(r, 'a0').filter((e) => e.e === 'damage' && e.uid === 'a0').length);
+    expect(Math.min(...trapped)).toBe(0);
+    expect(Math.max(...trapped)).toBe(1);
+  });
+
+  it('Frenzy starts Confused and its Confusion never hurts it; the scents work on heads only', () => {
+    for (const r of seeds(10, [power('Frenzy', { hp: 900, attack: 10 })], [unit({ hp: 900, attack: 0 })])) {
+      expect(events(r, 'status')[0]).toMatchObject({ uid: 'a0', status: 'confused' });
+      expect(damage(r, 'a0', 'Confused')).toEqual([]);
+      expect(damage(r, 'b0', 'attack')[0]?.amount).toBe(40);
+    }
+    for (const r of seeds(20, [power('Long Distance Hypnosis', { hp: 900 })], [unit({ hp: 900 })])) expect(events(r, 'status').filter((x) => x.uid === 'a0')).toEqual([]);
+    expect(seeds(20, [power('Pollen Stench', { hp: 900 })], [unit({ hp: 900 })]).some((r) => events(r, 'status').some((x) => x.uid === 'b0' && x.status === 'confused'))).toBe(true);
+  });
+
+  it("Blind: its target's strike back to the hit flips a coin too", () => {
+    const backs = seeds(30, [unit({ keyword: 'Blind', hp: 900 })], [unit({ hp: 900, attack: 30 })]).map((r) => firstExchange(r, 'a0').filter((e) => e.e === 'damage' && e.uid === 'a0').length);
+    expect(Math.min(...backs)).toBe(0);
+    expect(Math.max(...backs)).toBe(1);
   });
 });

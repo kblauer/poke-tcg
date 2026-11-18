@@ -2,19 +2,19 @@
 
 432 Gen 1 units, 10000 battles a measurement (50000 a tier for the units' win rates). Boards are 6 different units of one tier in a random order against 6 of the same tier: a stand-in until the draft exists, so read the numbers against each other, not as a run's odds. "Worth" is a win rate's change in percentage points: the same boards and seed played with the effect and without it. With 10000 battles a worth is good to about ±0.7 points.
 
-Two columns where the numbers differ: **issue** plays the issue's placeholder numbers (SPEC), **now** the numbers battles play by (TUNING). Changed: `explode` 20 → 10, `lightning` [1,2,3] → [1,3,6], `versatileOwn` true → false, `gust` 3 → 2, `restingStrikesBack` true → false, `blindAttackOnly` true → false, `quickStruckBack` true → false, `versatileAttack` true → false, `sinkhole` 20 → 10, `gustStruckBack` true → false, `scoopUpReturns` false → true. Under the issue's numbers Versatile decided most battles (random boards often hold 2 Colorless), which pulls every other worth in the issue column towards 0.
+Two columns where the numbers differ: **issue** plays the issue's placeholder numbers (SPEC), **now** the numbers battles play by (TUNING). Changed: `explode` 20 → 10, `lightning` [1,2,3] → [1,3,6], `versatileOwn` true → false, `gust` 3 → 2, `gamblerTails` -10 → 0, `restingStrikesBack` true → false, `blindAttackOnly` true → false, `quickStruckBack` true → false, `versatileAttack` true → false, `sinkhole` 20 → 10, `gustStruckBack` true → false, `scoopUpReturns` false → true, `flurrySure` false → true, `blindAtOnce` false → true, `stepInUnanswered` false → true, `peekUnanswered` false → true, `fragranceUnanswered` false → true, `psylinkPerAlly` false → true, `frenzyStartsConfused` false → true, `frenzyUnhurt` false → true, `scentHeadsOnly` false → true, `benchGuardShields` false → true. Under the issue's numbers Versatile decided most battles (random boards often hold 2 Colorless), which pulls every other worth in the issue column towards 0.
 
 ## How battles go (now)
 
 | Tier | Draws | First attacker wins (of decided) | Rounds | Reach rising damage | Hit the round cap |
 |---|---|---|---|---|---|
-| 1 | 5.8% | 49.7% | 2.50 | 1.1% | 0 |
-| 2 | 10.1% | 49.7% | 1.92 | 0.1% | 0 |
-| 3 | 14.3% | 49.8% | 1.79 | 0.0% | 0 |
-| 4 | 11.7% | 49.9% | 1.84 | 0.0% | 0 |
-| 5 | 15.7% | 49.6% | 1.43 | 0.0% | 0 |
+| 1 | 6.9% | 50.2% | 2.36 | 0.9% | 0 |
+| 2 | 9.9% | 50.3% | 2.00 | 0.2% | 0 |
+| 3 | 13.8% | 49.8% | 1.77 | 0.1% | 0 |
+| 4 | 12.4% | 51.1% | 1.82 | 0.0% | 0 |
+| 5 | 15.1% | 50.2% | 1.49 | 0.0% | 0 |
 
-A random board of a tier against one of the tier below wins: tier 2 over 1 94.8%, tier 3 over 2 93.8%, tier 4 over 3 93.0%, tier 5 over 4 94.2%.
+A random board of a tier against one of the tier below wins: tier 2 over 1 96.2%, tier 3 over 2 95.9%, tier 4 over 3 88.2%, tier 5 over 4 94.1%.
 
 ## Keywords
 
@@ -22,29 +22,29 @@ What its keyword is worth to a unit that has it (one such unit on the board).
 
 | Keyword | Units | Issue | Now | What it does |
 |---|---|---|---|---|
-| Explode | 8 | +24.3 | +14.8 | When it faints, 10 damage to every opposing Pokémon |
-| Destiny Bond | 1 | +8.5 | +11.5 | When it faints, the Pokémon that Knocked it Out faints too |
-| Toxic | 2 | +9.5 | +16.0 | Its hits Poison for 20 instead of 10 |
-| Poison | 39 | +4.1 | +8.1 | Its hits Poison: 10 damage after each of the target's side's attacks |
-| Paralyze | 40 | +0.0 | +5.4 | Its hits flip a coin: heads, the target misses its next attack and doesn't strike back until then |
-| Sleep | 22 | -0.1 | +15.9 | Its hits put the target to sleep: it misses attacks and doesn't strike back until it flips heads |
-| Confuse | 21 | +3.2 | +6.4 | Its hits Confuse: the target's attacks flip a coin, tails doing 30 to itself instead |
-| Drain | 9 | +5.5 | +6.8 | Heals itself for half the damage it deals |
+| Explode | 8 | +23.1 | +13.2 | When it faints, 10 damage to every opposing Pokémon |
+| Destiny Bond | 1 | +8.3 | +12.4 | When it faints, the Pokémon that Knocked it Out faints too |
+| Toxic | 2 | +8.6 | +14.4 | Its hits Poison for 20 instead of 10 |
+| Poison | 39 | +4.2 | +7.5 | Its hits Poison: 10 damage after each of the target's side's attacks |
+| Paralyze | 40 | -0.1 | +5.1 | Its hits flip a coin: heads, the target misses its next attack and doesn't strike back until then |
+| Sleep | 22 | +0.2 | +15.1 | Its hits put the target to sleep: it misses attacks and doesn't strike back until it flips heads |
+| Confuse | 21 | +2.8 | +6.5 | Its hits Confuse: the target's attacks flip a coin, tails doing 30 to itself instead |
+| Drain | 9 | +6.0 | +7.7 | Heals itself for half the damage it deals |
 | Mend | 0 |  |  | After it attacks, the most damaged ally heals 20 |
-| Guard | 4 | +6.4 | +7.5 | Flips a coin when first hit: heads, no damage |
-| Harden | 3 | +6.7 | +9.2 | Takes 10 less from every hit |
-| Blind | 8 | -0.1 | +0.9 | Its target's next hit flips a coin: tails, it does nothing |
-| Weaken | 6 | +2.1 | +3.8 | Its target has −10 attack for the battle |
-| Splash | 11 | +4.3 | +6.8 | Its attacks also do 10 to the target's neighbours |
+| Guard | 4 | +5.3 | +7.3 | Flips a coin when first hit: heads, no damage |
+| Harden | 3 | +6.6 | +9.2 | Takes 10 less from every hit |
+| Blind | 8 | +0.1 | +7.7 | Its target's next hit, its strike back too, flips a coin: tails, it does nothing |
+| Weaken | 6 | +1.7 | +3.7 | Its target has −10 attack for the battle |
+| Splash | 11 | +4.7 | +7.7 | Its attacks also do 10 to the target's neighbours |
 | Unburden | 0 |  |  | Its first hit on a Pokémon takes 10 off that Pokémon's attack |
-| Whirlwind | 9 | +0.4 | +0.4 | Its target moves to the end of its side's line |
-| Family | 7 | +7.5 | +10.6 | When it faints, a 10-attack, 30-HP copy of it takes its place |
-| Copycat | 3 | +2.7 | +6.1 | Attacks with its target's attack when that's higher |
-| Enrage | 6 | +2.7 | +6.2 | +10 attack each time it's hit |
-| Finisher | 11 | +4.6 | +8.3 | +20 damage to a Pokémon that's already damaged |
-| Charge | 1 | +0.5 | +1.2 | Every second attack does double |
-| Flurry | 35 | -1.3 | -1.8 | Attacks twice, each hit flipping a coin to land |
-| Recoil | 16 | +1.7 | +2.9 | +10 attack, and takes 10 each time it attacks |
+| Whirlwind | 9 | +0.2 | +0.1 | Its target moves to the end of its side's line |
+| Family | 7 | +7.0 | +10.1 | When it faints, a 10-attack, 30-HP copy of it takes its place |
+| Copycat | 3 | +2.8 | +7.0 | Attacks with its target's attack when that's higher |
+| Enrage | 6 | +2.7 | +6.3 | +10 attack each time it's hit |
+| Finisher | 11 | +4.4 | +7.8 | +20 damage to a Pokémon that's already damaged |
+| Charge | 1 | +0.5 | +1.0 | Every second attack does double |
+| Flurry | 35 | -0.9 | +4.1 | Attacks twice: the first hit always lands, the second flips a coin |
+| Recoil | 16 | +2.2 | +3.4 | +10 attack, and takes 10 each time it attacks |
 | Pay Day | 4 | +0.0 | +0.0 | +₱ each time it Knocks Out a Pokémon |
 
 ## Pokémon Powers
@@ -53,65 +53,65 @@ What its power is worth to its unit. The 7 powers that work in the draft only ar
 
 | Power | Unit | Tier | Issue | Now | What it does |
 |---|---|---|---|---|---|
-| Prehistoric Power | Aerodactyl (base3-1) | 5 | +12.7 | +16.3 | Opposing Stage 1 and Stage 2 Pokémon have −10 attack |
-| Transparency | Haunter (base3-6) | 4 | +9.1 | +15.9 | Each hit on it flips a coin: heads, it does nothing |
-| Strange Barrier | Erika's Dratini (gym1-42) | 2 | +7.2 | +13.3 | Basic Pokémon's hits of 20 or more do 10 to it |
-| Kabuto Armor | Kabuto (base3-50) | 1 | +5.4 | +12.6 | Takes half damage, rounded down to 10 |
-| Rebirth | Rocket's Moltres (gym1-12) | 5 | +10.9 | +11.3 | The first time it faints, it comes back at the end of its line with half its HP |
-| Fortitude | Giovanni's Machamp (gym2-6) | 5 | +10.8 | +10.7 | When it would faint, flips a coin: heads, it stays with 10 HP |
-| Energy Burn | Charizard (base1-4) | 5 | +8.3 | +10.5 | +20 attack |
-| Invisible Wall | Mr. Mime (base2-6) | 2 | +14.6 | +10.2 | Hits of 30 or more do nothing to it |
-| Sinkhole | Dark Dugtrio (base5-6) | 4 | +16.2 | +9.4 | At the start of battle, each opposing Pokémon flips a coin: tails, it takes 10 |
-| Emerge | Koga's Kakuna (gym2-47) | 3 | +5.0 | +9.0 | +20 HP |
-| Scram | Brock's Primeape (gym2-35) | 5 | +7.3 | +8.6 | Once, at exactly 10 HP, it goes to the end of its line fully healed |
-| Rain Dance | Blastoise (base1-2) | 5 | +7.0 | +8.4 | At the start of battle, each Water Pokémon of its side (itself too) gets +10 attack |
-| Shell Armor | Misty's Cloyster (gym1-29) | 4 | +6.2 | +8.3 | Takes 10 less from every hit |
-| Call the Boss | Giovanni's Persian (gym2-8) | 4 | +4.4 | +8.0 | +10 attack, +10 HP |
-| Shift | Venomoth (base2-13) | 2 | +6.4 | +7.5 | Counts as the type of the ally on its left too, for synergies |
-| Shapeshift | Brock's Ninetales (gym2-3) | 4 | +3.7 | +6.8 | At the start of battle, becomes a copy of the ally on its right |
-| Flee | Misty's Tentacruel (gym1-10) | 3 | +3.5 | +6.8 | The first hit on it does nothing and moves it to the end of its line |
-| Solar Power | Venusaur (basep-13) | 5 | +2.3 | +5.9 | Once, when an ally gets a Special Condition, every Pokémon of its side is cured |
-| Retreat Aid | Dodrio (base2-34) | 2 | +2.7 | +5.7 | +10 HP |
-| Aurora Veil | Articuno (basep-48) | 4 | +5.4 | +5.7 | Its allies take no Splash, Explode or start-of-battle damage |
-| Photosynthesis | Erika's Oddish (gym1-47) | 1 | +3.0 | +5.6 | +10 attack |
-| Sneak Attack | Dark Golbat (base5-7) | 2 | +4.0 | +5.3 | At the start of battle, 10 damage to a random opposing Pokémon |
-| Thick Skinned | Snorlax (base2-11) | 4 | +1.6 | +5.1 | Can't be Poisoned, Paralyzed, Asleep or Confused |
-| Strikes Back | Machamp (base1-8) | 5 | +3.6 | +4.6 | A Pokémon that hits it takes 10 |
-| Guard | Snorlax (basep-49) | 5 | +3.0 | +4.6 | +20 HP |
-| Energy Trans | Venusaur (base1-15) | 5 | +3.8 | +4.6 | At the start of battle, each other Grass ally gets +10 attack |
-| Transform | Ditto (base3-3) | 1 | -9.6 | +4.3 | At the start of battle, becomes a copy of the opposing Pokémon across from it |
-| Chain Reaction | Eevee (basep-11) | 1 | +2.5 | +4.1 | +10 HP |
-| Gaseous Form | Sabrina's Gastly (gym2-97) | 2 | +2.9 | +4.0 | +10 HP for each other Psychic ally |
-| Strange Behavior | Slowbro (base3-43) | 3 | +3.9 | +4.0 | After each hit on an ally, moves 10 of that damage to itself, never fainting from it |
-| Sticky Goo | Dark Muk (base5-41) | 4 | +2.8 | +3.7 | A Pokémon it hits has −10 attack |
-| Final Beam | Dark Gyarados (base5-8) | 4 | +2.7 | +3.4 | When Knocked Out, flips a coin: heads, 40 damage to the Pokémon that did it |
-| Soak Up | Erika's Bellsprout (gym2-38) | 1 | +2.0 | +3.3 | +10 attack for each other Grass ally, up to +20 |
-| Healing Fire | Blaine's Ninetales (gym2-21) | 3 | +1.6 | +3.2 | Heals 10 after each of its attacks |
-| Buzzap | Electrode (base1-21) | 5 | +2.5 | +3.0 | When it faints, the ally with the most attack gets +20 attack |
-| Natural Healing | Blaine's Vulpix (gym1-65) | 2 | +1.5 | +2.5 | Heals 10 after each of its attacks |
-| Energy Charge | Lt. Surge's Magneton (gym1-8) | 4 | +1.4 | +2.4 | +10 attack for each other Lightning ally, up to +30 |
-| Pollen Defense | Erika's Vileplume (gym1-5) | 5 | +1.4 | +2.3 | When hit, flips a coin: heads, the attacker is Confused |
-| Curse | Gengar (base3-5) | 5 | +2.2 | +2.3 | After it attacks, 10 damage to another random opposing Pokémon |
-| Energy Drain | Koga's Muk (gym2-26) | 4 | +0.7 | +2.0 | When hit, flips a coin: heads, the attacker has −10 attack |
-| Restless Sleep | Rocket's Snorlax (gym1-33) | 4 | +0.8 | +1.7 | While it's Asleep, a Pokémon that hits it takes 20 |
-| Gather Fire | Charmander (base5-50) | 1 | +0.7 | +1.5 | +10 attack while it has another Fire ally |
-| Shock Blast | Lt. Surge's Electrode (gym2-52) | 4 | +0.2 | +1.2 | When hit, flips a coin: tails, 20 damage to the attacker and to itself |
-| Toxic Gas | Muk (base3-13) | 4 | +1.2 | +0.7 | No other Pokémon's power works, either side's |
-| Heal | Vileplume (base2-15) | 5 | +0.7 | +0.6 | After it attacks, flips a coin: heads, the most damaged ally heals 10 |
-| Clairvoyance | Omanyte (base3-52) | 2 | +0.2 | +0.5 | Its side's attacks are never stopped by a coin flip (Guard, Blind, Transparency) |
-| Neutral Shield | Mew (basep-47) | 1 | +0.1 | +0.3 | Takes no damage from evolved Pokémon |
-| Rebellion | Misty's Gyarados (gym2-13) | 5 | +0.5 | +0.2 | Each attack flips 2 coins: both tails, it does nothing |
-| Frenzy | Dark Primeape (base5-43) | 4 | +0.1 | +0.2 | +30 attack while Confused |
-| Damage Swap | Alakazam (base1-1) | 5 | +0.0 | +0.2 | After it attacks, moves 10 damage from the most damaged ally to itself, never fainting from it |
+| Invisible Wall | Mr. Mime (base2-6) | 3 | +30.5 | +31.9 | Hits of 30 or more do nothing to it |
+| Step In | Dragonite (base3-4) | 5 | -0.9 | +15.9 | Makes its side's first attack, wherever it stands, with no strike back |
+| Prehistoric Power | Aerodactyl (base3-1) | 5 | +12.7 | +15.2 | Opposing Stage 1 and Stage 2 Pokémon have −10 attack |
+| Transparency | Haunter (base3-6) | 4 | +8.9 | +15.0 | Each hit on it flips a coin: heads, it does nothing |
+| Rebirth | Rocket's Moltres (gym1-12) | 4 | +9.6 | +12.8 | The first time it faints, it comes back at the end of its line with half its HP |
+| Kabuto Armor | Kabuto (base3-50) | 1 | +5.0 | +12.2 | Takes half damage, rounded down to 10 |
+| Energy Burn | Charizard (base1-4) | 5 | +7.8 | +10.7 | +20 attack |
+| Fortitude | Giovanni's Machamp (gym2-6) | 5 | +10.6 | +10.0 | When it would faint, flips a coin: heads, it stays with 10 HP |
+| Sinkhole | Dark Dugtrio (base5-6) | 4 | +15.4 | +9.7 | At the start of battle, each opposing Pokémon flips a coin: tails, it takes 10 |
+| Bench Guard | Brock's Rhydon (gym1-2) | 4 | -1.0 | +9.6 | Its neighbours take 10 less from every hit |
+| Call the Boss | Giovanni's Persian (gym2-8) | 4 | +4.9 | +9.1 | +10 attack, +10 HP |
+| Emerge | Koga's Kakuna (gym2-47) | 3 | +5.1 | +8.4 | +20 HP |
+| Scram | Brock's Primeape (gym2-35) | 5 | +7.0 | +8.2 | Once, at exactly 10 HP, it goes to the end of its line fully healed |
+| Frenzy | Dark Primeape (base5-43) | 5 | +0.1 | +7.9 | Starts the battle Confused, and its Confusion never hurts it; +30 attack while Confused |
+| Rain Dance | Blastoise (base1-2) | 5 | +6.6 | +7.7 | At the start of battle, each Water Pokémon of its side (itself too) gets +10 attack |
+| Fragrance Trap | Erika's Victreebel (gym1-26) | 5 | -0.8 | +7.4 | Before it attacks, flips a coin: heads, it hits the opposing Pokémon with the least HP, with no strike back |
+| Shapeshift | Brock's Ninetales (gym2-3) | 4 | +3.3 | +6.5 | At the start of battle, becomes a copy of the ally on its right |
+| Aurora Veil | Articuno (basep-48) | 4 | +5.3 | +6.5 | Its allies take no Splash, Explode or start-of-battle damage |
+| Flee | Misty's Tentacruel (gym1-10) | 3 | +4.3 | +6.4 | The first hit on it does nothing and moves it to the end of its line |
+| Photosynthesis | Erika's Oddish (gym1-47) | 1 | +3.0 | +6.1 | +10 attack |
+| Strange Barrier | Erika's Dratini (gym1-42) | 3 | +3.7 | +5.9 | Basic Pokémon's hits of 20 or more do 10 to it |
+| Peek | Mankey (base2-55) | 1 | +0.2 | +5.9 | Its first attack hits the opposing Pokémon with the least HP, with no strike back |
+| Shift | Venomoth (base2-13) | 3 | +4.7 | +5.8 | Counts as the type of the ally on its left too, for synergies |
+| Sticky Goo | Dark Muk (base5-41) | 3 | +2.9 | +5.5 | A Pokémon it hits has −10 attack |
+| Sneak Attack | Dark Golbat (base5-7) | 2 | +3.3 | +5.3 | At the start of battle, 10 damage to a random opposing Pokémon |
+| Retreat Aid | Dodrio (base2-34) | 2 | +2.8 | +5.3 | +10 HP |
+| Transform | Ditto (base3-3) | 1 | -9.0 | +5.3 | At the start of battle, becomes a copy of the opposing Pokémon across from it |
+| Solar Power | Venusaur (basep-13) | 5 | +2.4 | +5.0 | Once, when an ally gets a Special Condition, every Pokémon of its side is cured |
+| Strikes Back | Machamp (base1-8) | 5 | +3.4 | +4.8 | A Pokémon that hits it takes 10 |
+| Long Distance Hypnosis | Drowzee (base5-54) | 2 | -0.2 | +4.8 | At the start of battle, flips a coin: heads, the first opposing Pokémon is Asleep |
+| Energy Trans | Venusaur (base1-15) | 5 | +4.2 | +4.3 | At the start of battle, each other Grass ally gets +10 attack |
+| Thick Skinned | Snorlax (base2-11) | 4 | +0.9 | +4.2 | Can't be Poisoned, Paralyzed, Asleep or Confused |
+| Chain Reaction | Eevee (basep-11) | 1 | +2.6 | +4.2 | +10 HP |
+| Shell Armor | Misty's Cloyster (gym1-29) | 5 | +3.0 | +4.0 | Takes 10 less from every hit |
+| Guard | Snorlax (basep-49) | 5 | +3.0 | +4.0 | +20 HP |
+| Strange Behavior | Slowbro (base3-43) | 3 | +3.1 | +3.7 | After each hit on an ally, moves 10 of that damage to itself, never fainting from it |
+| Gaseous Form | Sabrina's Gastly (gym2-97) | 2 | +2.5 | +3.5 | +10 HP for each other Psychic ally |
+| Final Beam | Dark Gyarados (base5-8) | 4 | +2.4 | +3.3 | When Knocked Out, flips a coin: heads, 40 damage to the Pokémon that did it |
+| Healing Fire | Blaine's Ninetales (gym2-21) | 3 | +1.6 | +3.3 | Heals 10 after each of its attacks |
+| Energy Charge | Lt. Surge's Magneton (gym1-8) | 3 | +1.5 | +3.2 | +10 attack for each other Lightning ally, up to +30 |
+| Buzzap | Electrode (base1-21) | 5 | +2.7 | +3.0 | When it faints, the ally with the most attack gets +20 attack |
+| Soak Up | Erika's Bellsprout (gym2-38) | 1 | +1.9 | +3.0 | +10 attack for each other Grass ally, up to +20 |
+| Pollen Stench | Dark Gloom (base5-36) | 3 | -0.3 | +2.7 | At the start of battle, flips a coin: heads, the first opposing Pokémon is Confused |
+| Pollen Defense | Erika's Vileplume (gym1-5) | 5 | +1.0 | +2.6 | When hit, flips a coin: heads, the attacker is Confused |
+| Curse | Gengar (base3-5) | 5 | +1.6 | +2.5 | After it attacks, 10 damage to another random opposing Pokémon |
+| Natural Healing | Blaine's Vulpix (gym1-65) | 2 | +1.5 | +2.2 | Heals 10 after each of its attacks |
+| Energy Drain | Koga's Muk (gym2-26) | 4 | +1.0 | +2.1 | When hit, flips a coin: heads, the attacker has −10 attack |
+| Gather Fire | Charmander (base5-50) | 1 | +1.0 | +1.8 | +10 attack while it has another Fire ally |
+| Clairvoyance | Omanyte (base3-52) | 2 | +0.2 | +1.6 | Its side's attacks are never stopped by a coin flip (Guard, Blind, Transparency) |
+| Psylink | Sabrina's Alakazam (gym2-16) | 5 | +0.0 | +1.6 | +10 attack for each other Psychic ally |
+| Shock Blast | Lt. Surge's Electrode (gym2-52) | 4 | +1.5 | +1.3 | When hit, flips a coin: tails, 20 damage to the attacker and to itself |
+| Toxic Gas | Muk (base3-13) | 4 | +0.4 | +1.2 | No other Pokémon's power works, either side's |
+| Restless Sleep | Rocket's Snorlax (gym1-33) | 5 | +0.5 | +0.7 | While it's Asleep, a Pokémon that hits it takes 20 |
+| Heal | Vileplume (base2-15) | 5 | +0.6 | +0.6 | After it attacks, flips a coin: heads, the most damaged ally heals 10 |
+| Rebellion | Misty's Gyarados (gym2-13) | 5 | +0.3 | +0.5 | Each attack flips 2 coins: both tails, it does nothing |
+| Neutral Shield | Mew (basep-47) | 1 | +0.1 | +0.2 | Takes no damage from evolved Pokémon |
+| Relaxing Scent | Erika's Ivysaur (gym2-41) | 4 | +0.2 | +0.2 | While it's its side's first Pokémon, every hit by either side does half, rounded up to 10 |
+| Damage Swap | Alakazam (base1-1) | 5 | +0.3 | +0.0 | After it attacks, moves 10 damage from the most damaged ally to itself, never fainting from it |
 | Hay Fever | Dark Vileplume (base5-13) | 5 | +0.0 | +0.0 | Neither side's Trainer buff works |
-| Psylink | Sabrina's Alakazam (gym2-16) | 5 | +0.0 | +0.0 | Attacks with the highest attack among its side's Psychic Pokémon |
-| Pollen Stench | Dark Gloom (base5-36) | 2 | -0.4 | -0.2 | At the start of battle, flips a coin: heads, the first opposing Pokémon is Confused; tails, its own side's first |
-| Relaxing Scent | Erika's Ivysaur (gym2-41) | 3 | -0.2 | -0.2 | While it's its side's first Pokémon, every hit by either side does half, rounded up to 10 |
-| Peek | Mankey (base2-55) | 1 | +0.2 | -0.2 | Its first attack hits the opposing Pokémon with the least HP |
-| Step In | Dragonite (base3-4) | 5 | -0.3 | -0.3 | Makes its side's first attack, wherever it stands |
-| Bench Guard | Brock's Rhydon (gym1-2) | 4 | -0.8 | -0.4 | Takes 10 of every hit on a neighbour in its place |
-| Fragrance Trap | Erika's Victreebel (gym1-26) | 5 | -1.1 | -0.7 | Before it attacks, flips a coin: heads, it hits the opposing Pokémon with the least HP |
-| Long Distance Hypnosis | Drowzee (base5-54) | 2 | -0.2 | -1.4 | At the start of battle, flips a coin: heads, the first opposing Pokémon is Asleep; tails, its own side's first |
 
 ## Type synergies
 
@@ -119,13 +119,13 @@ What a type's synergy is worth to a board with 2, 4 or 6 of the type (the rest o
 
 | Type | Synergy | 2 (issue) | 4 (issue) | 6 (issue) | 2 | 4 | 6 | What it does |
 |---|---|---|---|---|---|---|---|---|
-| grass | Poison | +11.6 | +42.0 | +62.0 | +17.2 | +53.5 | +64.2 | A Pokémon hit by a Grass Pokémon is Poisoned, taking 10/20/30 after each of its side's attacks |
-| fire | Blaze | +9.7 | +38.9 | +67.3 | +15.1 | +53.8 | +78.4 | Fire Pokémon's attacks also do 10/20/40 to the target's neighbours |
-| water | Shell | +12.6 | +47.9 | +69.0 | +20.8 | +67.5 | +78.5 | Water Pokémon take 10/20/30 less from every hit |
-| lightning | Quick | +0.3 | +0.2 | -0.2 | +11.8 | +39.4 | +68.3 | The leftmost 1/3/6 Lightning Pokémon attack once before the normal order starts, with no strike back |
-| psychic | Mind | +18.3 | +39.3 | +54.9 | +25.6 | +49.5 | +66.0 | At the start of battle, 10/20/30 damage to every opposing Pokémon |
-| fighting | Brawn | +10.1 | +38.6 | +69.4 | +14.5 | +51.7 | +79.8 | Fighting Pokémon get +10/20/40 attack |
-| colorless | Versatile | +55.8 | +85.4 | +87.0 | +21.2 | +45.7 | +0.0 | Colorless Pokémon get +10 HP for each other type on the board, ×1/2/3 |
+| grass | Poison | +11.7 | +42.6 | +62.7 | +17.4 | +53.5 | +65.8 | A Pokémon hit by a Grass Pokémon is Poisoned, taking 10/20/30 after each of its side's attacks |
+| fire | Blaze | +9.5 | +38.5 | +66.5 | +15.4 | +55.1 | +79.2 | Fire Pokémon's attacks also do 10/20/40 to the target's neighbours |
+| water | Shell | +11.9 | +47.4 | +68.2 | +20.9 | +67.6 | +79.3 | Water Pokémon take 10/20/30 less from every hit |
+| lightning | Quick | +0.4 | +0.5 | +0.3 | +13.0 | +40.5 | +70.3 | The leftmost 1/3/6 Lightning Pokémon attack once before the normal order starts, with no strike back |
+| psychic | Mind | +18.3 | +39.1 | +52.1 | +25.9 | +49.5 | +59.5 | At the start of battle, 10/20/30 damage to every opposing Pokémon |
+| fighting | Brawn | +10.2 | +37.3 | +67.4 | +15.6 | +52.9 | +76.4 | Fighting Pokémon get +10/20/40 attack |
+| colorless | Versatile | +55.9 | +85.6 | +88.4 | +21.5 | +46.9 | +0.0 | Colorless Pokémon get +10 HP for each other type on the board, ×1/2/3 |
 
 ## Trainers
 
@@ -133,19 +133,19 @@ What a Trainer is worth against a side that plays none, on boards of tier 1, 3 a
 
 | Trainer | Tier 1 (issue) | Tier 3 (issue) | Tier 5 (issue) | Tier 1 | Tier 3 | Tier 5 |
 |---|---|---|---|---|---|---|
-| PlusPower | +21.6 | +21.2 | +16.1 | +42.2 | +35.1 | +19.7 |
-| Defender | +22.4 | +23.9 | +17.7 | +43.5 | +42.3 | +21.5 |
-| Potion | +4.9 | +6.9 | +4.5 | +10.0 | +12.8 | +5.5 |
-| Super Potion | +12.3 | +20.5 | +15.8 | +26.0 | +36.3 | +18.1 |
-| Full Heal | +9.1 | +14.5 | +6.4 | +21.5 | +27.5 | +8.6 |
-| Revive | +6.6 | +12.3 | +13.1 | +12.9 | +20.6 | +14.8 |
-| Pokémon Center | +9.8 | +19.0 | +20.5 | +21.1 | +34.0 | +20.9 |
-| Gust of Wind | -1.9 | -3.6 | -3.6 | +15.3 | +27.7 | +24.9 |
-| Energy Removal | +8.1 | +8.5 | +6.1 | +19.7 | +16.7 | +7.8 |
-| Super Energy Removal | +16.8 | +17.0 | +12.3 | +35.4 | +31.8 | +14.7 |
-| Scoop Up | -1.1 | -2.2 | -4.9 | +18.5 | +29.9 | +20.0 |
-| Gambler | +4.8 | +3.7 | +4.0 | +0.3 | +0.9 | +4.0 |
-| Imposter Professor Oak | +39.3 | +30.3 | +14.9 | +36.3 | +29.8 | +16.0 |
+| PlusPower | +21.2 | +17.2 | +16.0 | +43.0 | +31.1 | +18.1 |
+| Defender | +22.4 | +23.8 | +17.5 | +44.6 | +39.9 | +20.3 |
+| Potion | +5.0 | +6.3 | +4.6 | +10.7 | +11.7 | +5.2 |
+| Super Potion | +13.9 | +19.7 | +16.2 | +29.1 | +34.7 | +17.7 |
+| Full Heal | +8.5 | +15.8 | +7.2 | +20.9 | +28.6 | +9.7 |
+| Revive | +7.3 | +11.7 | +12.7 | +13.5 | +20.5 | +14.9 |
+| Pokémon Center | +10.9 | +17.9 | +20.8 | +24.2 | +30.4 | +20.9 |
+| Gust of Wind | -1.6 | -2.5 | -2.9 | +16.4 | +27.4 | +23.3 |
+| Energy Removal | +9.1 | +8.1 | +5.6 | +22.5 | +15.5 | +7.7 |
+| Super Energy Removal | +16.8 | +16.6 | +11.8 | +37.8 | +29.5 | +14.4 |
+| Scoop Up | -0.8 | -2.5 | -5.0 | +19.7 | +27.8 | +18.8 |
+| Gambler | +4.4 | +2.1 | +4.8 | +24.9 | +19.8 | +15.4 |
+| Imposter Professor Oak | +39.2 | +29.1 | +15.6 | +36.9 | +27.7 | +15.8 |
 | Bill | +0.0 | +0.0 | +0.0 | +0.0 | +0.0 | +0.0 |
 | Professor Oak | +0.0 | +0.0 | +0.0 | +0.0 | +0.0 | +0.0 |
 
@@ -155,85 +155,88 @@ Mean win rate of a board holding one, by type, stage and keyword (50% is the tie
 
 | Type | Units | Win rate |
 |---|---|---|
-| grass | 97 | 53.6% |
-| psychic | 50 | 51.2% |
-| water | 70 | 51.0% |
-| colorless | 72 | 49.6% |
-| fighting | 56 | 47.6% |
-| fire | 43 | 47.3% |
-| lightning | 44 | 45.4% |
+| grass | 97 | 53.0% |
+| psychic | 50 | 51.8% |
+| water | 70 | 51.1% |
+| colorless | 72 | 49.8% |
+| fighting | 56 | 48.3% |
+| fire | 43 | 47.0% |
+| lightning | 44 | 45.1% |
 
 | Stage | Units | Win rate |
 |---|---|---|
-| stage2 | 40 | 50.7% |
-| stage1 | 146 | 50.2% |
+| stage2 | 40 | 51.7% |
+| stage1 | 146 | 49.9% |
 | basic | 246 | 49.8% |
 
 | Keyword | Units | Win rate |
 |---|---|---|
-| Toxic | 2 | 57.1% |
-| Charge | 1 | 55.2% |
-| Sleep | 22 | 54.7% |
-| Poison | 39 | 53.9% |
-| Explode | 8 | 53.7% |
-| Weaken | 6 | 52.9% |
-| Guard | 4 | 51.6% |
-| Finisher | 11 | 51.1% |
-| Drain | 9 | 51.1% |
-| Harden | 3 | 50.8% |
-| Flurry | 35 | 50.6% |
-| Family | 7 | 49.6% |
-| Copycat | 3 | 49.4% |
-| Confuse | 21 | 49.3% |
-| Paralyze | 40 | 48.9% |
-| Pay Day | 4 | 48.9% |
-| (none) | 166 | 48.9% |
-| Blind | 8 | 48.5% |
-| Destiny Bond | 1 | 48.4% |
-| Recoil | 16 | 48.3% |
+| Toxic | 2 | 56.1% |
+| Charge | 1 | 53.8% |
+| Weaken | 6 | 53.7% |
+| Poison | 39 | 52.8% |
+| Sleep | 22 | 52.4% |
+| Explode | 8 | 52.3% |
+| Drain | 9 | 52.2% |
+| Guard | 4 | 51.3% |
+| Finisher | 11 | 51.3% |
+| Blind | 8 | 51.0% |
+| Harden | 3 | 50.6% |
+| Flurry | 35 | 49.8% |
+| Destiny Bond | 1 | 49.8% |
+| (none) | 166 | 49.5% |
+| Pay Day | 4 | 49.4% |
+| Family | 7 | 49.2% |
+| Recoil | 16 | 49.1% |
+| Confuse | 21 | 48.9% |
+| Paralyze | 40 | 48.6% |
 | Splash | 11 | 47.9% |
-| Enrage | 6 | 47.4% |
-| Whirlwind | 9 | 45.4% |
+| Whirlwind | 9 | 47.4% |
+| Copycat | 3 | 46.8% |
+| Enrage | 6 | 46.1% |
 
-Units 3 standard errors or more from their tier's mean: 158 above, 169 below, of 432. A unit's tier counts what its keyword and power are worth (units.ts's KEYWORD_WORTH and POWER_WORTH, from this report's measurements before they counted); what is left is mostly how a unit's attack and HP are split, and effects worth more or less on that unit than on the others that have them. balance-units.csv has every unit.
+Units 3 standard errors or more from their tier's mean: 159 above, 161 below, of 432. A unit's tier counts what its keyword and power are worth (units.ts's KEYWORD_WORTH and POWER_WORTH, from this report's measurements before they counted); what is left is mostly how a unit's attack and HP are split, and effects worth more or less on that unit than on the others that have them. balance-units.csv has every unit.
 
 ### Units still out of line
 
 A board holding the unit wins 60.0% or more of its tier's battles or 40.0% or fewer. An evolved card must stay above every print it evolves from, which holds some of them where they are.
 
-Strong for their tier (18):
+Strong for their tier (19):
 
 | Id | Name | Tier | Stage | Attack | HP | Keyword | Power | Win rate | SEs |
 |---|---|---|---|---|---|---|---|---|---|
-| base2-6 | Mr. Mime | 2 | basic | 20 | 40 | Finisher | Invisible Wall | 64.8% | +22.9 |
-| basep-9 | Mew | 2 | basic | 20 | 50 | Poison |  | 64.1% | +22.0 |
-| gym2-23 | Giovanni's Nidoqueen | 4 | stage2 | 40 | 100 |  |  | 63.0% | +22.0 |
-| base2-13 | Venomoth | 2 | stage1 | 10 | 70 | Poison | Shift | 64.0% | +21.9 |
-| gym2-42 | Giovanni's Machoke | 4 | stage1 | 60 | 80 | Paralyze |  | 62.8% | +21.6 |
-| base1-32 | Kadabra | 4 | stage1 | 50 | 60 | Drain |  | 62.5% | +21.0 |
-| base5-68 | Squirtle | 1 | basic | 20 | 50 |  |  | 64.0% | +21.0 |
-| base3-53 | Psyduck | 1 | basic | 20 | 50 | Flurry |  | 63.6% | +20.6 |
-| base2-49 | Bellsprout | 1 | basic | 10 | 40 | Family |  | 63.7% | +20.6 |
-| basep-20 | Psyduck | 1 | basic | 20 | 50 | Flurry |  | 62.9% | +19.4 |
-| base3-6 | Haunter | 4 | stage1 | 20 | 50 | Sleep | Transparency | 61.4% | +19.2 |
-| gym2-77 | Koga's Ekans | 1 | basic | 10 | 50 | Poison |  | 62.7% | +19.0 |
-| gym2-47 | Koga's Kakuna | 3 | stage1 | 10 | 60 | Toxic | Emerge | 61.0% | +18.8 |
-| base1-51 | Koffing | 1 | basic | 10 | 50 | Poison |  | 62.2% | +18.5 |
-| gym2-71 | Erika's Paras | 1 | basic | 10 | 50 | Poison |  | 62.3% | +18.5 |
-| base5-63 | Oddish | 1 | basic | 10 | 50 | Poison |  | 62.0% | +18.1 |
-| gym1-47 | Erika's Oddish | 1 | basic | 10 | 40 | Poison | Photosynthesis | 61.4% | +17.2 |
-| gym2-83 | Koga's Zubat | 2 | basic | 20 | 40 | Family |  | 60.9% | +17.0 |
+| base2-6 | Mr. Mime | 3 | basic | 20 | 40 | Finisher | Invisible Wall | 69.2% | +32.5 |
+| base5-68 | Squirtle | 1 | basic | 20 | 50 |  |  | 64.3% | +21.4 |
+| gym2-42 | Giovanni's Machoke | 4 | stage1 | 60 | 80 | Paralyze |  | 62.3% | +21.3 |
+| base1-32 | Kadabra | 4 | stage1 | 50 | 60 | Drain |  | 62.2% | +21.0 |
+| gym1-57 | Misty's Tentacool | 1 | basic | 20 | 50 |  |  | 63.7% | +20.9 |
+| base3-6 | Haunter | 4 | stage1 | 20 | 50 | Sleep | Transparency | 61.9% | +20.6 |
+| gym1-90 | Misty's Staryu | 1 | basic | 20 | 50 |  |  | 63.5% | +20.2 |
+| base2-49 | Bellsprout | 1 | basic | 10 | 40 | Family |  | 62.1% | +18.3 |
+| basep-9 | Mew | 2 | basic | 20 | 50 | Poison |  | 61.5% | +18.2 |
+| base5-5 | Dark Dragonite | 3 | stage2 | 40 | 70 |  | Summon Minions | 60.7% | +18.0 |
+| base2-36 | Fearow | 3 | stage1 | 40 | 70 |  |  | 60.4% | +17.5 |
+| base1-51 | Koffing | 1 | basic | 10 | 50 | Poison |  | 61.4% | +17.0 |
+| gym1-13 | Rocket's Scyther | 2 | basic | 30 | 60 |  |  | 60.7% | +16.9 |
+| gym2-77 | Koga's Ekans | 1 | basic | 10 | 50 | Poison |  | 61.1% | +16.6 |
+| gym1-47 | Erika's Oddish | 1 | basic | 10 | 40 | Poison | Photosynthesis | 61.1% | +16.6 |
+| gym2-71 | Erika's Paras | 1 | basic | 10 | 50 | Poison |  | 60.9% | +16.5 |
+| basep-12 | Mewtwo | 2 | basic | 30 | 60 |  |  | 60.5% | +16.5 |
+| base5-63 | Oddish | 1 | basic | 10 | 50 | Poison |  | 60.7% | +16.0 |
+| gym1-78 | Erika's Oddish | 1 | basic | 20 | 50 |  |  | 60.3% | +15.5 |
 
-Weak for their tier (9):
+Weak for their tier (11):
 
 | Id | Name | Tier | Stage | Attack | HP | Keyword | Power | Win rate | SEs |
 |---|---|---|---|---|---|---|---|---|---|
-| base5-10 | Dark Machamp | 5 | stage2 | 30 | 70 |  |  | 35.6% | -28.5 |
-| basep-5 | Dragonite | 5 | stage2 | 30 | 90 |  | Special Delivery | 37.4% | -24.8 |
-| base3-9 | Kabutops | 5 | stage2 | 40 | 60 | Drain |  | 38.5% | -22.8 |
-| gym1-31 | Misty's Poliwrath | 5 | stage2 | 30 | 90 |  |  | 39.1% | -21.6 |
-| gym1-51 | Lt. Surge's Raticate | 2 | stage1 | 10 | 70 |  |  | 37.1% | -20.1 |
-| base5-35 | Dark Flareon | 4 | stage1 | 40 | 50 | Enrage |  | 38.3% | -19.9 |
-| gym2-12 | Misty's Golduck | 3 | stage1 | 20 | 70 |  |  | 38.9% | -18.8 |
-| base3-51 | Krabby | 3 | basic | 20 | 50 | Family |  | 39.5% | -17.8 |
-| gym1-80 | Lt. Surge's Magnemite | 2 | basic | 20 | 40 | Paralyze |  | 38.9% | -17.1 |
+| base5-10 | Dark Machamp | 5 | stage2 | 30 | 70 |  |  | 34.7% | -29.4 |
+| basep-5 | Dragonite | 5 | stage2 | 30 | 90 |  | Special Delivery | 37.2% | -24.5 |
+| gym1-51 | Lt. Surge's Raticate | 2 | stage1 | 10 | 70 |  |  | 35.1% | -23.7 |
+| gym1-31 | Misty's Poliwrath | 5 | stage2 | 30 | 90 |  |  | 38.3% | -22.4 |
+| base5-35 | Dark Flareon | 4 | stage1 | 40 | 50 | Enrage |  | 38.5% | -20.0 |
+| gym2-2 | Blaine's Charizard | 5 | stage2 | 30 | 100 |  |  | 39.9% | -19.4 |
+| base2-1 | Clefable | 3 | stage1 | 10 | 70 | Copycat |  | 39.2% | -18.3 |
+| gym1-84 | Lt. Surge's Voltorb | 2 | basic | 20 | 40 | Flurry |  | 38.7% | -18.0 |
+| gym2-12 | Misty's Golduck | 3 | stage1 | 20 | 70 |  |  | 39.2% | -17.9 |
+| gym1-42 | Erika's Dratini | 3 | basic | 20 | 40 |  | Strange Barrier | 39.8% | -17.3 |
+| gym1-80 | Lt. Surge's Magnemite | 2 | basic | 20 | 40 | Paralyze |  | 39.3% | -16.9 |
