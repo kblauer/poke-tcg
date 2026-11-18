@@ -89,7 +89,7 @@ describe('a Safari Draft run on the server', () => {
     const picked = applySafariAction(start, { type: 'PICK_STARTER', unit: start.starters[0]! }, units);
     if (!picked.ok) throw new Error(picked.error);
     const run = { id: 'r', ownerId: 'o', status: 'ACTIVE', version: 1, seed: 7, banked: false, createdAt: new Date(), updatedAt: new Date(), state: picked.state } as LoadedSafari;
-    const sent = clientSafari(run);
+    const sent = clientSafari(run, units);
     expect(Object.keys(sent).sort()).toEqual(['banked', 'id', 'status', 'version', 'view']);
     const json = JSON.stringify(sent);
     for (const secret of ['rngState', 'encounterSteps', '"champion"', '"seed":7']) expect(json.includes(secret), secret).toBe(false);

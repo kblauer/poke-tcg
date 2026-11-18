@@ -266,6 +266,9 @@ importers:
       '@poke-tcg/idle':
         specifier: workspace:*
         version: link:../../packages/idle
+      '@poke-tcg/safari':
+        specifier: workspace:*
+        version: link:../../packages/safari
       '@poke-tcg/shared':
         specifier: workspace:*
         version: link:../../packages/shared

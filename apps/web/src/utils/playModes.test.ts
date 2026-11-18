@@ -4,9 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { isPlayPath, PLAY_MODES } from './playModes';
 
 describe("the Play tab's modes", () => {
-  it('are the Badge Challenge, the Battle Tower, the Idle Adventure and Training, in that order', () => {
-    expect(PLAY_MODES.map((m) => m.to)).toEqual(['/badge', '/tower', '/idle', '/battle']);
-    expect(PLAY_MODES.map((m) => m.label)).toEqual(['Badge Challenge', 'Battle Tower', 'Idle Adventure', 'Training']);
+  it('are the Badge Challenge, the Battle Tower, the Idle Adventure, Safari Draft and Training, in that order', () => {
+    expect(PLAY_MODES.map((m) => m.to)).toEqual(['/badge', '/tower', '/idle', '/safari', '/battle']);
+    expect(PLAY_MODES.map((m) => m.label)).toEqual(['Badge Challenge', 'Battle Tower', 'Idle Adventure', 'Safari Draft', 'Training']);
   });
 
   it("light Play on its menu and on each mode's page, and on no other page", () => {

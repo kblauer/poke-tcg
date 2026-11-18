@@ -9,7 +9,7 @@ import { PLAY_MODES } from '../utils/playModes';
 
 /**
  * The Play tab (`/`): a menu of its modes (the user's), the Badge Challenge (the runs), the Battle Tower, the Idle
- * Adventure and Training, each a tile filled with a scene from the games, saying how it stands. Always the menu, a run
+ * Adventure, Safari Draft and Training, each a tile filled with a scene from the games, saying how it stands. Always the menu, a run
  * or a challenge under way or not (the user's: a new account isn't put in a run either); a mode's tile opens what's under
  * way in it, and each has a Return to Play back here.
  */
@@ -19,6 +19,8 @@ export function PlayPage() {
   // The Idle Adventure's run, for its tile (its query only: the mode's data loads with its page).
   const trpc = useTRPC();
   const idle = useQuery(trpc.idle.overview.queryOptions()).data?.run;
+  // Safari Draft's run, for its tile.
+  const safari = useQuery(trpc.safari.overview.queryOptions()).data?.run;
   const challenge = tower?.challenge;
   const status: Record<(typeof PLAY_MODES)[number]['to'], string | null> = {
     '/badge': run && run.view.phase !== 'won' && run.view.phase !== 'lost' ? `Under way: step ${Math.min(run.view.position + 1, run.view.steps.length)} of ${run.view.steps.length}.` : null,
@@ -31,6 +33,7 @@ export function PlayPage() {
         : tower && tower.best > 0
           ? `Highest floor beaten: ${tower.best}.`
           : null,
+    '/safari': safari?.status === 'ACTIVE' ? (safari.view.battles >= 15 ? 'Under way: the Champion.' : `Under way: battle ${safari.view.battles + 1} of 15.`) : null,
     '/battle': null,
   };
   return (

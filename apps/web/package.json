@@ -22,6 +22,7 @@
     "@poke-tcg/campaign": "workspace:*",
     "@poke-tcg/game-engine": "workspace:*",
     "@poke-tcg/idle": "workspace:*",
+    "@poke-tcg/safari": "workspace:*",
     "@poke-tcg/shared": "workspace:*",
     "@supabase/supabase-js": "^2.117.3",
     "@tanstack/react-query": "^5.104.2",

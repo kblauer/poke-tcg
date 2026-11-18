@@ -193,6 +193,18 @@ html[data-font="emerald"] {
   75% { transform: translateX(6px); }
 }
 
+/* Safari Draft's battle playback (components/safari/BattlePlayback.tsx): a hit Pokémon shaking, a number popping up off it. */
+@keyframes safari-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+@keyframes safari-pop {
+  from { opacity: 0; transform: translate(-50%, 6px) scale(0.8); }
+  30% { opacity: 1; transform: translate(-50%, -4px) scale(1.15); }
+  to { opacity: 1; transform: translate(-50%, -10px) scale(1); }
+}
+
 /* The battle transitions (components/BattleTransition.tsx; first the Battle Tower's): the double white flash, then the screen closing. */
 @keyframes tower-flash {
   0%, 22%, 50% { opacity: 0; }

@@ -9,7 +9,8 @@
 // 2. The site's first load (the entry and everything it imports statically: the layout, the sign-in screen) holds no
 //    rules engine, no run maps or boss decks and no Idle Adventure data, and stays under ENTRY_BUDGET_KB.
 // 3. The rules engine's card effects load only with the battle page (Game).
-// 4. The Idle Adventure's species data loads only with the Idle Adventure and the Extras (the contest lobby).
+// 4. The Idle Adventure's species data loads only with the Idle Adventure and the Extras (the contest lobby), Safari Draft's
+//    effects (its keywords', powers' and Trainers' words) only with its page.
 // 5. Each region's run maps (campaign's kanto-run-maps.ts…) are a chunk of their own, holding no other region's, that no
 //    page loads with it: only loadRunMaps' dynamic import brings one, for the run screen of a run of that region.
 //
@@ -43,11 +44,12 @@ const MARKERS = {
   'the rules engine\'s card effects': 'is now Paralyzed',
   'the boss decks': 'Zapping Selfdestruct',
   'the Idle Adventure\'s species data': 'catchRate',
+  'Safari Draft\'s effects': 'Sells for its full price',
   ...REGION_MAPS,
 };
-const [ENGINE, , IDLE] = Object.keys(MARKERS);
+const [ENGINE, , IDLE, SAFARI] = Object.keys(MARKERS);
 /** The pages (their chunks' names) that may load each kind of data; the site's first load may load none, and no page a region's maps. */
-const ALLOWED = { [ENGINE]: ['Game'], [IDLE]: ['Idle', 'Extras'], ...Object.fromEntries(Object.keys(REGION_MAPS).map((what) => [what, []])) };
+const ALLOWED = { [ENGINE]: ['Game'], [IDLE]: ['Idle', 'Extras'], [SAFARI]: ['Safari'], ...Object.fromEntries(Object.keys(REGION_MAPS).map((what) => [what, []])) };
 /** The first load's size limit, in kB before compression (300 kB of it is React, the router, tRPC and Supabase's client). */
 const ENTRY_BUDGET_KB = 800;
 

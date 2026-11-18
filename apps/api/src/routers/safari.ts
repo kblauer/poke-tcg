@@ -7,7 +7,7 @@ export const safariRouter = router({
   /** The account's latest run (under way or over), as its view. */
   overview: protectedProcedure.query(async ({ ctx }) => {
     const run = await latestSafari(ctx.user.id);
-    return { run: run && clientSafari(run) };
+    return { run: run && clientSafari(run, await safariUnits()) };
   }),
 
   /** Every draft unit (Gen 1's): what the screen shows of a card id. The same for every account. */
@@ -16,8 +16,8 @@ export const safariRouter = router({
   ),
 
   /** Starts a run (startSafari: not while one is under way). */
-  start: protectedProcedure.mutation(async ({ ctx }) => clientSafari(await startSafari(ctx.user.id))),
+  start: protectedProcedure.mutation(async ({ ctx }) => clientSafari(await startSafari(ctx.user.id), await safariUnits())),
 
   /** A player's action on their run (actSafari: the version checked, a won run's ₱ banked once). */
-  act: protectedProcedure.input(safariActInput).mutation(async ({ ctx, input }) => clientSafari(await actSafari(ctx.user.id, input.runId, input.expectedVersion, input.action))),
+  act: protectedProcedure.input(safariActInput).mutation(async ({ ctx, input }) => clientSafari(await actSafari(ctx.user.id, input.runId, input.expectedVersion, input.action), await safariUnits())),
 });

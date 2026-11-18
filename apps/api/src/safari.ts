@@ -89,5 +89,5 @@ export async function actSafari(userId: string, runId: string, expectedVersion: 
 /** What saving a run moves to the bank: a won run's ₱, once (`banked`: already moved). */
 export const toBank = (banked: boolean, state: SafariState) => (banked ? 0 : bankablePokedollars(state));
 
-/** What the browser gets of a run: its view (safariView: no RNG state, no board before it's picked), never its state. */
-export const clientSafari = (run: LoadedSafari) => ({ id: run.id, status: run.status, version: run.version, banked: run.banked, view: safariView(run.state) });
+/** What the browser gets of a run: its view (safariView: no RNG state, no board before it's picked, the prices it shows), never its state. */
+export const clientSafari = (run: LoadedSafari, units: readonly Unit[]) => ({ id: run.id, status: run.status, version: run.version, banked: run.banked, view: safariView(run.state, units) });

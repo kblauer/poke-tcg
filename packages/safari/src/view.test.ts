@@ -3,6 +3,7 @@ import { int, rngFrom } from '@poke-tcg/campaign';
 import { applySafariAction, createSafari, type SafariAction, type SafariState } from './draft.js';
 import { gen1Units } from './gen1.js';
 import { simulateBattle } from './battle.js';
+import { DRAFT } from './draft.js';
 import { safariView } from './view.js';
 
 const units = gen1Units();
@@ -33,7 +34,7 @@ describe('what the browser gets of a run', () => {
   it('never holds the RNG state, an offered opponent\'s board, Blue\'s board, the steps to come or the gifts waiting', () => {
     for (let seed = 0; seed < 6; seed++) {
       for (const state of played(seed, 200)) {
-        const view = safariView(state) as unknown as Record<string, unknown>;
+        const view = safariView(state, units) as unknown as Record<string, unknown>;
         for (const key of ['rngState', 'champion', 'encounterSteps', 'gifts']) expect(view, key).not.toHaveProperty(key);
         for (const o of view.opponents as Record<string, unknown>[]) {
           expect(o).not.toHaveProperty('board');
@@ -49,10 +50,19 @@ describe('what the browser gets of a run', () => {
   it('shows the chosen opponent\'s board, and the last battle with its events to play back', () => {
     const states = played(3, 300);
     const ready = states.find((s) => s.phase === 'ready')!;
-    expect(safariView(ready).opponent!.board).toEqual(ready.opponent!.board);
+    expect(safariView(ready, units).opponent!.board).toEqual(ready.opponent!.board);
     const fought = states.find((s) => s.last)!;
-    const view = safariView(fought);
+    const view = safariView(fought, units);
     expect(view.last!.events).toEqual(simulateBattle(fought.last!.mine, fought.last!.opponent, fought.last!.seed).events);
     expect(view.last!.events.at(-1)).toEqual({ e: 'end', winner: fought.last!.winner });
+  });
+
+  it("prices what the screen shows by the draft's rules", () => {
+    const shopping = played(5, 300).find((s) => s.phase === 'shop' && s.shop && !s.shop.oak && s.board.some((c) => c?.kind === 'pokemon'))!;
+    const { prices } = safariView(shopping, units);
+    const tierOf = (id: string) => units.find((u) => u.id === id)!.tier;
+    expect(prices.shop).toEqual(shopping.shop!.offers.map((id) => id && DRAFT.cardPrice[tierOf(id) - 1]));
+    for (const c of shopping.board) if (c?.kind === 'pokemon') expect([Math.floor(DRAFT.cardPrice[tierOf(c.unit) - 1]! * DRAFT.sellShare), DRAFT.cardPrice[tierOf(c.unit) - 1]]).toContain(prices.sell[c.key]);
+    expect([0, DRAFT.reroll]).toContain(prices.reroll);
   });
 });
