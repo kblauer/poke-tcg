@@ -17,6 +17,9 @@ const mean = (rs: BotRun[], f: (r: BotRun) => number) => (rs.length ? rs.reduce(
 const pd = (n: number) => `₱${Math.round(n).toLocaleString('en-US')}`;
 const quantile = (xs: number[], q: number) => [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.floor(q * xs.length))] ?? 0;
 const banked = won.map((r) => r.banked);
+const alive10 = runs.filter((r) => r.fought >= 9);
+const tops = runs.map((r) => r.firstTop).filter((x): x is number => x !== null).sort((a, b) => a - b);
+const pct = (n: number, of: number) => `${of ? Math.round((100 * n) / of) : 0}%`;
 
 const rows: [string, (r: BotRun) => number, boolean][] = [
   ['₱ held at the end', (r) => r.pokedollars, true],
@@ -47,6 +50,7 @@ ${RUNS} runs by the buying bot (packages/safari/src/economy.ts), ${((Date.now() 
 - **Won: ${won.length} of ${RUNS} (${((100 * won.length) / RUNS).toFixed(1)}%).**
 - **Banked by a won run: ${pd(mean(won, (r) => r.banked))} on average** (the target: about ₱3,000–5,000); a quarter bank under ${pd(quantile(banked, 0.25))}, a quarter over ${pd(quantile(banked, 0.75))}.
 - A lost run banks nothing; it ended holding ${pd(mean(lost, (r) => r.pokedollars))} on average.
+- **Merges** (the shop favours cards held, \`DRAFT.favour\` ${DRAFT.favour * 100}% of its cards): of the runs alive at battle 10, ${pct(alive10.filter((r) => r.firstTop !== null && r.firstTop <= 10).length, alive10.length)} held a Stage 2 or golden copy by then; the first came by battle ${tops[tops.length >> 1] ?? '–'} (median, of the ${tops.length} runs that made one).
 
 | Opponent | Fought (a run) | Won |
 |---|---|---|

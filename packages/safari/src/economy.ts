@@ -7,9 +7,10 @@
 // hardest whose tier by the curve (MEDIUM_TIERS, DIFFICULTY_TIER) is below its board's average (a tier beats the one
 // below 93–95% of the time), or the easiest offered.
 //
-// The bot: picks the best starter and merge result (unitScore), raises the shop tier once its board is full and it can still buy a card after,
-// buys what completes a merge first and then the strongest card, sells its weakest card for a clearly stronger one, rerolls
-// once when nothing was worth buying, and keeps its 6 strongest on the board.
+// The bot: picks the best starter and merge result (unitScore); raises the shop tier once its board is full and it can
+// still buy a card after; buys what completes a merge, then what pairs with a card it holds (a merge or golden copy on the
+// way), then the strongest card; sells its weakest card that pairs with nothing for a clearly stronger one or one that
+// pairs; rerolls once when nothing was worth buying; and keeps its 6 strongest on the board.
 import { BOARD_SIZE } from './battle.js';
 import { applySafariAction, cardPrice, cardUnit, createSafari, draftPool, tierPrice, type Card, type DraftPool, type Place, type PokemonCard, type SafariAction, type SafariState, type SafariSystemAction } from './draft.js';
 import { DIFFICULTY_TIER, MEDIUM_TIERS, type Difficulty } from './opponents.js';
@@ -38,6 +39,10 @@ export interface BotRun {
   onTiers: number;
   onRerolls: number;
   fromSales: number;
+  /** The battle (1–16) by which the run first held a Stage 2 or a golden copy, if it did. */
+  firstTop: number | null;
+  /** Battles fought (the Champion's tries too). */
+  fought: number;
   /** Battles fought and won by the opponent's difficulty. */
   byDifficulty: Partial<Record<Difficulty, { fought: number; won: number }>>;
 }
@@ -54,7 +59,7 @@ const scoreOf = (card: PokemonCard, pool: DraftPool) => unitScore(cardUnit(card,
 export function botRun(units: readonly Unit[], seed: number): BotRun {
   const pool = draftPool(units);
   let state = createSafari(seed, units);
-  const out: BotRun = { won: false, banked: 0, pokedollars: 0, hp: 0, battlesLost: 0, draws: 0, championTries: 0, shopTier: 1, bought: 0, sold: 0, merges: 0, goldens: 0, rerolls: 0, earned: 0, onCards: 0, onTiers: 0, onRerolls: 0, fromSales: 0, byDifficulty: {} };
+  const out: BotRun = { won: false, banked: 0, pokedollars: 0, hp: 0, battlesLost: 0, draws: 0, championTries: 0, shopTier: 1, bought: 0, sold: 0, merges: 0, goldens: 0, rerolls: 0, earned: 0, onCards: 0, onTiers: 0, onRerolls: 0, fromSales: 0, firstTop: null, fought: 0, byDifficulty: {} };
   const apply = (action: SafariAction | SafariSystemAction) => {
     const result = applySafariAction(state, action, units);
     if (!result.ok) throw new Error(`The bot's ${action.type} was refused: ${result.error}`);
@@ -63,6 +68,7 @@ export function botRun(units: readonly Unit[], seed: number): BotRun {
     const log = state.log.slice(before.log.length);
     out.merges += log.filter((l) => l.includes('merged into')).length;
     out.goldens += log.filter((l) => l.includes('made a golden')).length;
+    if (out.firstTop === null && pokemon([...state.board, ...state.inventory]).some((c) => c.golden || pool.units.get(c.unit)!.stage === 'stage2')) out.firstTop = state.battles + 1;
     return before;
   };
   const tryApply = (action: SafariAction) => applySafariAction(state, action, units);
@@ -86,15 +92,17 @@ export function botRun(units: readonly Unit[], seed: number): BotRun {
         continue;
       }
       const cards = pokemon([...state.board, ...state.inventory]);
+      /** Whether a unit would pair with a card held (a merge or golden copy on the way). */
+      const pairs = (id: string, but?: number) => cards.some((c) => c.key !== but && !c.golden && pool.mates(c.unit).some((u) => u.id === id));
       const offers = shop.offers
         .map((id, index) => ({ id, index }))
         .filter((o): o is { id: string; index: number } => !!o.id && cardPrice(pool.units.get(o.id)!.tier) <= state.pokedollars)
         .map((o) => {
           const tried = tryApply({ type: 'BUY', index: o.index });
           const merges = tried.ok && pokemon([...tried.state.board, ...tried.state.inventory]).length + (tried.state.pick ? 1 : 0) <= cards.length;
-          return { ...o, ok: tried.ok, merges, score: unitScore(pool.units.get(o.id)!) };
+          return { ...o, ok: tried.ok, merges, pairs: pairs(o.id), score: unitScore(pool.units.get(o.id)!) };
         })
-        .sort((a, b) => Number(b.merges) - Number(a.merges) || b.score - a.score);
+        .sort((a, b) => Number(b.merges) - Number(a.merges) || Number(b.pairs) - Number(a.pairs) || b.score - a.score);
       const best = offers[0];
       if (best?.ok) {
         const price = cardPrice(pool.units.get(best.id)!.tier);
@@ -103,9 +111,10 @@ export function botRun(units: readonly Unit[], seed: number): BotRun {
         out.onCards += price;
         continue;
       }
-      // No room: sell the weakest card for a clearly stronger one.
-      const weakest = placed(state).sort((a, b) => scoreOf(a.c, pool) - scoreOf(b.c, pool))[0];
-      if (best && weakest && best.score > scoreOf(weakest.c, pool) * 1.15) {
+      // No room: sell the weakest card that pairs with nothing held, for a clearly stronger one or one that pairs.
+      const all = placed(state).sort((a, b) => scoreOf(a.c, pool) - scoreOf(b.c, pool));
+      const weakest = all.find((x) => !pairs(x.c.unit, x.c.key)) ?? all[0];
+      if (best && weakest && (best.score > scoreOf(weakest.c, pool) * 1.15 || (best.pairs && !pairs(weakest.c.unit, weakest.c.key)))) {
         const before = apply({ type: 'SELL', place: weakest.place });
         out.sold++;
         out.fromSales += state.pokedollars - before.pokedollars;
@@ -141,6 +150,7 @@ export function botRun(units: readonly Unit[], seed: number): BotRun {
     apply({ type: 'CHOOSE', index });
     const before = apply({ type: 'BATTLE' });
     out.earned += state.pokedollars - before.pokedollars;
+    out.fought++;
     const tally = (out.byDifficulty[difficulty] ??= { fought: 0, won: 0 });
     tally.fought++;
     if (state.last!.winner === 0) tally.won++;

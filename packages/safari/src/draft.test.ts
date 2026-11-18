@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { int, rngFrom } from '@poke-tcg/campaign';
 import { BOARD_SIZE, type Board } from './battle.js';
-import { DRAFT, LEGENDARIES, applySafariAction, bankablePokedollars, battleBoard, cardUnit, createSafari, draftPool, isLegendary, rerollPrice, sellPrice, shopSize, tierPrice, type Card, type PokemonCard, type SafariAction, type SafariState, type SafariSystemAction } from './draft.js';
+import { DRAFT, LEGENDARIES, applySafariAction, bankablePokedollars, battleBoard, cardUnit, createSafari, draftPool, isLegendary, rerollPrice, sellPrice, shopSize, tierPrice, wantedCards, type Card, type PokemonCard, type SafariAction, type SafariState, type SafariSystemAction } from './draft.js';
 import { gen1Units } from './gen1.js';
 import type { Opponent } from './opponents.js';
 
@@ -93,7 +93,7 @@ describe('the start', () => {
 describe('the shop', () => {
   it('shows tier N and lower, more often the lower tiers, never the same unit twice', () => {
     const seen = [0, 0, 0, 0, 0];
-    let s = shop(['base1-26']);
+    let s = shop(['base1-4']); // Charizard: no partners, so the shop's favour shows nothing for it
     s.shopTier = 5;
     s.pokedollars = 1e6;
     for (let i = 0; i < 400; i++) {
@@ -288,6 +288,43 @@ describe('golden copies', () => {
     expect([...s.pick!.options].sort()).toEqual([twoPrints.id, other.id].sort());
     s = must(s, { type: 'PICK', unit: other.id });
     expect(s.board[0]).toMatchObject({ unit: other.id, golden: true });
+  });
+});
+
+describe('the shop\'s favour for cards held', () => {
+  it('knows each unit\'s partners: the same stage evolving into the same card, or a golden copy\'s name', () => {
+    const mates = (id: string) => pool.mates(id).map((u) => u.id).sort();
+    expect(mates('base5-50')).toEqual(['base1-46', 'base5-50']); // Charmander, either print (Blaine's isn't his line)
+    expect(mates('base1-24')).toEqual(['base1-24']); // Charmeleon: Dark Charmeleon evolves into another card
+    expect(mates('base2-47')).toEqual(['base2-47']); // Tauros
+    expect(mates('base1-4')).toEqual([]); // Charizard: nothing above it
+  });
+
+  it('shows a held card\'s partners about DRAFT.favour more often', () => {
+    const share = (held: string[]) => {
+      let s = shop(held);
+      s.pokedollars = 1e6;
+      let seen = 0;
+      for (let i = 0; i < 1500; i++) {
+        s = must(s, { type: 'REROLL' });
+        seen += s.shop!.offers.filter((id) => id === 'base5-50').length;
+      }
+      return seen / 1500;
+    };
+    const lift = share(['base5-50']) - share([FILL[0]!]);
+    expect(lift).toBeGreaterThan(DRAFT.favour * 0.6);
+    expect(lift).toBeLessThan(DRAFT.favour * 3 * 1.5);
+  });
+
+  it('weighs a card by the battles it has been held, and a merge keeps its oldest part\'s', () => {
+    const s = shop([], []);
+    s.battles = 6;
+    s.shopTier = 5;
+    s.board[0] = card('base5-50', 1, { since: 0 });
+    s.board[1] = card('base2-47', 2, { since: 5 });
+    expect(wantedCards(s, pool).map((w) => w.weight)).toEqual([7, 2]);
+    const merged = must({ ...s, board: [card('base5-32', 1, { since: 2 }), null, null, null, null, null] }, { type: 'GIFT', unit: 'base5-32' });
+    expect(merged.board[0]).toMatchObject({ unit: 'base5-4', since: 2 });
   });
 });
 

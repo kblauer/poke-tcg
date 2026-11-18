@@ -20,6 +20,9 @@
 //   - a shop of tier N shows units of tier N or lower, Battlegrounds' way: a tier by DRAFT.tierWeights, then any of its
 //     units;
 //   - golden is +20 attack and +20 HP (DRAFT.golden);
+//   - the shop favours the cards the player has (wantedCards, DRAFT.favour): a shop card is a partner of one of them
+//     (a unit it would merge with, or of a golden copy's name) that often, the card picked by how many battles it has been
+//     held, so a Pokémon held for many battles can be fully evolved or golden by about the 10th (2026-11-18);
 //   - the legendaries kept out of shops are Articuno, Zapdos, Moltres, Mewtwo and Mew, every print (LEGENDARIES);
 //   - with no room, a card is bought only if it completes a merge or a golden copy (which frees room); a gift with no room
 //     is lost (and said so in the log).
@@ -39,7 +42,7 @@
 // plays it. After the 15 battles the only opponent is the Champion, rolled when the run starts. The encounters (step 4)
 // aren't built: GIFT, the server's, gives a card.
 import { namesMatch } from '@poke-tcg/game-engine';
-import { int, rngFrom, sample, seed as newSeed, weighted, type Rng } from '@poke-tcg/campaign';
+import { chance, int, rngFrom, sample, seed as newSeed, weighted, type Rng } from '@poke-tcg/campaign';
 import { BOARD_SIZE, simulateBattle, type Board, type SideId } from './battle.js';
 import type { TrainerName } from './effects.js';
 import { rollChampion, rollOpponents, type Opponent } from './opponents.js';
@@ -64,6 +67,14 @@ export const DRAFT = {
   shopSize: [3, 4, 4, 5, 5],
   /** How likely a shop card is of each tier, 1 to 5, among those the shop's tier shows (the user's: Battlegrounds' copy counts). */
   tierWeights: [16, 15, 13, 11, 9],
+  /**
+   * How often a shop card is a partner of a card the player has (one it would merge with, or a golden copy's name), the
+   * card picked by how many battles the player has held it (the user's, 2026-11-18: the shop favours cards you have, so a
+   * Pokémon held for many battles can be fully evolved or golden by about the 10th; the share measured with the economy
+   * check's bot: at 0.08 three runs in four alive at battle 10 hold a Stage 2 or golden copy by then, the first by battle
+   * 8 (median); none 29%, 0.1 80%, 0.2 99% by battle 6).
+   */
+  favour: 0.08,
   /** A golden copy's bonus (the user's, 2026-11-18). */
   golden: { attack: 20, hp: 20 },
   /** Mine, placeholders: what Bill pays after the battle, Pay Day for each Knock Out, a Trainer card's price. */
@@ -88,7 +99,8 @@ export interface Bonus {
 }
 
 /** One of the player's cards. `key` is the card's own for the whole run. */
-export type Card = { key: number; kind: 'pokemon'; unit: string; golden?: true; bonuses: Bonus[] } | { key: number; kind: 'trainer'; trainer: TrainerName };
+/** A Pokémon card's `since`: the battles fought when it was gained (a merge's the oldest part's), for the shop's favour. */
+export type Card = { key: number; kind: 'pokemon'; unit: string; golden?: true; bonuses: Bonus[]; since?: number } | { key: number; kind: 'trainer'; trainer: TrainerName };
 export type PokemonCard = Extract<Card, { kind: 'pokemon' }>;
 
 export type Zone = 'board' | 'inventory';
@@ -116,6 +128,8 @@ export interface DraftPick {
   from: string[];
   bonuses: Bonus[];
   place: Place;
+  /** The oldest part's `since`. */
+  since: number;
 }
 
 /** The last battle: enough to play it again (simulateBattle is a pure function of the boards and the seed). */
@@ -215,6 +229,8 @@ export interface DraftPool {
   into(name: string): readonly Unit[];
   /** A Pokémon with no evolution line: it evolves from nothing and nothing evolves from it (golden copies). */
   lone(unit: Unit): boolean;
+  /** The units a shop can show that would merge with this one, or make a golden copy with it (the same name): its partners. */
+  mates(id: string): readonly Unit[];
 }
 
 const pools = new WeakMap<readonly Unit[], DraftPool>();
@@ -230,12 +246,24 @@ export function draftPool(units: readonly Unit[]): DraftPool {
     if (!into.has(name)) into.set(name, units.filter((u) => u.stage !== 'basic' && unitEvolvesFrom(u, name)));
     return into.get(name)!;
   };
+  const mates = new Map<string, Unit[]>();
+  const lone = (u: Unit) => u.stage === 'basic' && !u.evolvesFrom && intoOf(u.name).length === 0;
+  const targets = (u: Unit) => intoOf(u.name).filter((t) => t.stage === NEXT_STAGE[u.stage]);
+  const matesOf = (id: string) => {
+    if (!mates.has(id)) {
+      const u = byId.get(id)!;
+      const mine = new Set(targets(u).map((t) => t.id));
+      mates.set(id, lone(u) ? shown.filter((v) => v.name === u.name) : mine.size ? shown.filter((v) => v.stage === u.stage && targets(v).some((t) => mine.has(t.id))) : []);
+    }
+    return mates.get(id)!;
+  };
   const pool: DraftPool = {
     units: byId,
     shop: Array.from({ length: TOP_TIER }, (_, t) => shown.filter((u) => u.tier === t + 1)),
     firstTier: shown.filter((u) => u.tier === 1 && u.stage === 'basic'),
     into: intoOf,
-    lone: (u) => u.stage === 'basic' && !u.evolvesFrom && intoOf(u.name).length === 0,
+    lone,
+    mates: matesOf,
   };
   pools.set(units, pool);
   return pool;
@@ -300,11 +328,30 @@ export const championNext = (state: Pick<SafariState, 'battles'>) => state.battl
 /** The ₱ a run banks when it ends: all of them once the Champion is beaten, nothing lost or conceded. */
 export const bankablePokedollars = (state: SafariState) => (state.phase === 'won' ? state.pokedollars : 0);
 
-/** Shop cards, `count` of them, none the same unit as another or as `keep`. */
-function rollOffers(rng: Rng, pool: DraftPool, tier: number, count: number, keep: readonly string[] = []): string[] {
+/** The player's cards the shop favours: each with its partners a shop of `tier` can show, weighted by battles held. */
+export function wantedCards(state: SafariState, pool: DraftPool): { weight: number; mates: readonly Unit[] }[] {
+  return [...state.board, ...state.inventory]
+    .filter((c): c is PokemonCard => c?.kind === 'pokemon' && !c.golden)
+    .map((c) => ({ weight: 1 + state.battles - (c.since ?? 0), mates: pool.mates(c.unit).filter((u) => u.tier <= state.shopTier) }))
+    .filter((w) => w.mates.length);
+}
+
+/**
+ * Shop cards, `count` of them, none the same unit as another or as `keep`: each a partner of a card in `wanted`
+ * DRAFT.favour of the time, else any by the tiers' weights.
+ */
+function rollOffers(rng: Rng, pool: DraftPool, tier: number, count: number, keep: readonly string[] = [], wanted: readonly { weight: number; mates: readonly Unit[] }[] = []): string[] {
   const out: string[] = [];
   const taken = new Set(keep);
   for (let tries = 0; out.length < count && tries < count * 20; tries++) {
+    const open = wanted.map((w) => [w.mates.filter((u) => !taken.has(u.id)), w.weight] as const).filter(([mates]) => mates.length);
+    if (open.length && chance(rng, DRAFT.favour)) {
+      const mates = weighted(rng, open);
+      const u = mates[int(rng, mates.length)]!;
+      taken.add(u.id);
+      out.push(u.id);
+      continue;
+    }
     const tiers = pool.shop.slice(0, tier).map((units, t) => [units, DRAFT.tierWeights[t]!] as const).filter(([units]) => units.some((u) => !taken.has(u.id)));
     if (!tiers.length) break;
     const units = weighted(rng, tiers).filter((u) => !taken.has(u.id));
@@ -431,8 +478,8 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
   };
 
   /** Makes a merge's or golden copy's card at `p`. */
-  const make = (kind: DraftPick['kind'], unit: string, bonuses: Bonus[], p: Place, from: string[]) => {
-    const card: PokemonCard = { key: state.nextKey++, kind: 'pokemon', unit, bonuses, ...(kind === 'golden' && { golden: true as const }) };
+  const make = (kind: DraftPick['kind'], unit: string, bonuses: Bonus[], p: Place, from: string[], since: number) => {
+    const card: PokemonCard = { key: state.nextKey++, kind: 'pokemon', unit, bonuses, since, ...(kind === 'golden' && { golden: true as const }) };
     place(card, p);
     state.log.push(kind === 'golden' ? `3 ${from[0]} made a golden ${name(unit)}.` : `${from.join(' and ')} merged into ${name(unit)}.`);
   };
@@ -446,8 +493,9 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
     const from = combo.parts.map((x) => name(x.card.unit));
     // A merge offers 2 of the cards it can give (never the same one twice); a golden copy any of its prints.
     const options = combo.kind === 'merge' ? sample(rng, combo.targets, 2) : combo.targets;
-    if (options.length === 1) make(combo.kind, options[0]!, bonuses, p, from);
-    else state.pick = { kind: combo.kind, options, from, bonuses, place: p };
+    const since = Math.min(...combo.parts.map((x) => x.card.since ?? 0));
+    if (options.length === 1) make(combo.kind, options[0]!, bonuses, p, from, since);
+    else state.pick = { kind: combo.kind, options, from, bonuses, place: p, since };
   };
 
   /** Adds a card: in a free place, or as part of a merge it completes. False: no room. */
@@ -474,7 +522,7 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
       }
       const gift = state.gifts.shift();
       if (!gift) return;
-      const card: Card = { key: state.nextKey++, kind: 'pokemon', unit: gift, bonuses: [] };
+      const card: Card = { key: state.nextKey++, kind: 'pokemon', unit: gift, bonuses: [], since: state.battles };
       state.log.push(add(card) ? `Got ${name(gift)}.` : `No room for ${name(gift)}: it was lost.`);
     }
   };
@@ -482,7 +530,7 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
   const openShop = () => {
     const kept = state.shop?.frozen ? state.shop.offers.filter((o): o is string => !!o) : [];
     const size = shopSize(state, pool);
-    state.shop = { offers: [...kept, ...rollOffers(rng, pool, state.shopTier, Math.max(0, size - kept.length), kept)], frozen: false, freeUsed: 0, oak: state.oakNext };
+    state.shop = { offers: [...kept, ...rollOffers(rng, pool, state.shopTier, Math.max(0, size - kept.length), kept, wantedCards(state, pool))], frozen: false, freeUsed: 0, oak: state.oakNext };
     state.oakNext = false;
     state.opponents = championNext(state) ? [state.champion] : rollOpponents(rng, units, state.battles, state.leadersMet);
     state.opponent = null;
@@ -496,7 +544,7 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
     case 'PICK_STARTER': {
       if (state.phase !== 'starter') return fail('The starter is picked');
       if (!state.starters.includes(action.unit)) return fail('Not one of the starters');
-      add({ key: state.nextKey++, kind: 'pokemon', unit: action.unit, bonuses: [] });
+      add({ key: state.nextKey++, kind: 'pokemon', unit: action.unit, bonuses: [], since: 0 });
       state.log.push(`Picked ${name(action.unit)}.`);
       state.phase = 'shop';
       settle();
@@ -509,7 +557,7 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
       if (!pick) return fail('Nothing to pick');
       if (!pick.options.includes(action.unit)) return fail('Not one of the choices');
       state.pick = null;
-      make(pick.kind, action.unit, pick.bonuses, pick.place, pick.from);
+      make(pick.kind, action.unit, pick.bonuses, pick.place, pick.from, pick.since);
       settle();
       return ok();
     }
@@ -535,7 +583,7 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
       if (state.pokedollars < price) return fail('Not enough ₱');
       shop.offers[action.index] = null;
       state.pokedollars -= price;
-      if (!add({ key: state.nextKey++, kind: 'pokemon', unit: id, bonuses: [] })) return fail('No room: sell a card first');
+      if (!add({ key: state.nextKey++, kind: 'pokemon', unit: id, bonuses: [], since: state.battles })) return fail('No room: sell a card first');
       state.log.push(`Bought ${name(id)} for ₱${price}.`);
       settle();
       return ok();
@@ -570,7 +618,7 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
       if (!price && !shop.oak) shop.freeUsed++;
       state.pokedollars -= price;
       shop.frozen = false;
-      shop.offers = rollOffers(rng, pool, state.shopTier, shopSize(state, pool));
+      shop.offers = rollOffers(rng, pool, state.shopTier, shopSize(state, pool), [], wantedCards(state, pool));
       return ok();
     }
 
@@ -598,7 +646,7 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
 
     case 'GIFT': {
       if ('unit' in action) unitOf(pool, action.unit);
-      const card: Card = 'unit' in action ? { key: state.nextKey++, kind: 'pokemon', unit: action.unit, bonuses: [] } : { key: state.nextKey++, kind: 'trainer', trainer: action.trainer };
+      const card: Card = 'unit' in action ? { key: state.nextKey++, kind: 'pokemon', unit: action.unit, bonuses: [], since: state.battles } : { key: state.nextKey++, kind: 'trainer', trainer: action.trainer };
       const what = card.kind === 'pokemon' ? name(card.unit) : card.trainer;
       state.log.push(add(card) ? `Got ${what}.` : `No room for ${what}: it was lost.`);
       settle();
