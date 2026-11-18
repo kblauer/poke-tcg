@@ -1,22 +1,8 @@
 import { energyProvided, lookupCard, type CardDef, type CardLibrary, type InPlayPokemon } from '@poke-tcg/game-engine';
 import { useContext, type Ref } from 'react';
 import { typeColor } from '../utils/cardColors';
+import { conditionTags } from '../utils/conditionTags';
 import { LARGE_CARD, SMALL_CARD } from '../utils/layout';
-
-/**
- * The Special Conditions on a Pokémon in play, as the user's round icons (public/status/: game8's, made one size by
- * tools/status-tags/standardize.py; agreed 2026-10-26): `amount` is Poison's damage when it's more than 10. With the Settings
- * page's text status tags on (useTextStatus), the original text tags instead: `label` on `className`.
- */
-function conditionTags(p: InPlayPokemon): { image: string; title: string; amount?: number; label: string; className: string }[] {
-  const tags = [];
-  if (p.condition === 'asleep') tags.push({ image: '/status/asleep.png', title: "Asleep: flips to wake up between turns; can't attack or retreat", label: 'SLP', className: 'bg-indigo-500' });
-  if (p.condition === 'confused') tags.push({ image: '/status/confused.png', title: 'Confused: flips to attack (tails: 30 damage to itself); retreats with no flip', label: 'CNF', className: 'bg-pink-500' });
-  if (p.condition === 'paralyzed') tags.push({ image: '/status/paralyzed.png', title: "Paralyzed: can't attack or retreat until after its owner's next turn", label: 'PAR', className: 'bg-yellow-500 text-gray-900' });
-  if (p.burned) tags.push({ image: '/status/burned.png', title: 'Burned: 20 damage between turns, then a flip; heads cures it', label: 'BRN', className: 'bg-orange-600' });
-  if (p.poison) tags.push({ image: '/status/poisoned.png', title: `Poisoned: ${p.poison} damage between turns`, ...(p.poison > 10 && { amount: p.poison }), label: `PSN${p.poison > 10 ? ` ${p.poison}` : ''}`, className: 'bg-green-600' });
-  return tags;
-}
 
 /** Badges for protective and other effects on a Pokémon in play (its Special Conditions are conditionTags). */
 function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; title: string; className: string }[] {

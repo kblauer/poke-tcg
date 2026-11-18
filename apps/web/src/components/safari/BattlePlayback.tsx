@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SafariUnit, SafariViewData } from '../../hooks/useSafari';
 import { glow, HEAL_RGB, hitShake, lunge, MOTION_MS, reducedMotion } from '../../utils/cardMotion';
 import { playbackFrames, type Frame, type ShownFighter } from '../../utils/safariPlayback';
+import { conditionTags } from '../../utils/conditionTags';
+import { useTextStatus } from '../../hooks/useTextStatus';
 import { BUTTON } from '../../utils/styles';
 import { PopNumber } from '../ToolPops';
 import { CardRow, EmptyPlace, SynergyChips } from './SafariBoard';
@@ -86,15 +88,7 @@ function BattleFighter({ f, playback, units }: { f: ShownFighter; playback: Play
           <span className="absolute bottom-[9%] left-[36%] right-[36%] h-[3%] overflow-hidden rounded-full bg-slate-950/80">
             <span className={`block h-full transition-[width] duration-300 ${pct > 50 ? 'bg-emerald-400' : pct > 20 ? 'bg-amber-400' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
           </span>
-          {!!f.status.length && (
-            <span className="absolute inset-x-0 top-[20%] flex flex-col items-center gap-0.5">
-              {f.status.map((s) => (
-                <span key={s} className="rounded bg-purple-500 px-1 text-[9cqw] font-bold uppercase text-gray-900">
-                  {s}
-                </span>
-              ))}
-            </span>
-          )}
+          <FighterConditions status={f.status} />
         </UnitCard>
       </div>
       {pop && (
@@ -170,4 +164,33 @@ function noteOf(frame: Frame, frames: Frame[], index: number): string {
     case 'faint':
       return `${name(m.uid)} fainted!`;
   }
+}
+
+/**
+ * A fighter's Special Conditions as the battle page's cards show them (`conditionTags`): the round icons, or the text tags
+ * with the Settings page's text status tags on (useTextStatus), in the card's top left corner below its name. Blind isn't a
+ * Special Condition: always a text tag.
+ */
+function FighterConditions({ status }: { status: readonly string[] }) {
+  const [textStatus] = useTextStatus();
+  if (!status.length) return null;
+  const condition = status.includes('Asleep') ? 'asleep' : status.includes('Confused') ? 'confused' : status.includes('Paralyzed') ? 'paralyzed' : null;
+  const tags = conditionTags({ condition, poison: status.includes('Poisoned') ? 10 : 0 });
+  const blind = status.includes('Blinded') ? [{ label: 'BLD', title: "Blinded: its next hit flips a coin (tails, it does nothing)", className: 'bg-gray-600' }] : [];
+  const text = [...(textStatus ? tags : []), ...blind];
+  return (
+    <span className="pointer-events-auto absolute left-[4%] top-[14%] flex flex-wrap items-start gap-0.5">
+      {!textStatus &&
+        tags.map((t) => (
+          <span key={t.image} title={t.title} className="relative inline-block shrink-0">
+            <img src={t.image} alt={t.title.split(':')[0]} draggable={false} className="h-[22px] w-[22px] drop-shadow" />
+          </span>
+        ))}
+      {text.map((t) => (
+        <span key={t.label} title={t.title} className={`${t.className} rounded px-[3px] text-[11px] font-bold leading-4 text-white shadow`}>
+          {t.label}
+        </span>
+      ))}
+    </span>
+  );
 }
