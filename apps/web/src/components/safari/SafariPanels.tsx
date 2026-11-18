@@ -1,86 +1,115 @@
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
+import CloseIcon from '@mui/icons-material/Close';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import UpgradeIcon from '@mui/icons-material/Upgrade';
 import { UPGRADES, type SafariAction } from '@poke-tcg/safari';
-import { KEYWORDS, TRAINERS, type TrainerName } from '@poke-tcg/safari/effects';
+import { KEYWORDS, type TrainerName } from '@poke-tcg/safari/effects';
 import type { ReactNode } from 'react';
-import type { SafariUnit, SafariViewData } from '../../hooks/useSafari';
-import { BUTTON, DIALOG, DIALOG_BACKDROP } from '../../utils/styles';
+import type { ClientSafari, SafariUnit, SafariViewData } from '../../hooks/useSafari';
+import { commas } from '../../utils/math';
+import { BUTTON, DIALOG, DIALOG_BACKDROP, ICON_BUTTON } from '../../utils/styles';
 import { EnergyIcon } from '../EnergyIcon';
+import { CARD } from './SafariBoard';
 import { TrainerCard, UnitCard } from './UnitCard';
 import { DIFFICULTY_COLOR, DIFFICULTY_LABEL, opponentSprite } from './safariArt';
-import { SynergyChips } from './SafariBoard';
 
 type Act = (action: SafariAction) => void;
 type Units = Map<string, SafariUnit>;
+const START_BUTTON = `${BUTTON} !bg-yellow-300 !px-5 !py-1.5 font-bold !text-gray-900 hover:!bg-yellow-200`;
 
-/** A panel on the Safari Zone's map: dark enough to read over it in every theme. */
-export function Panel({ title, info, children, actions }: { title: ReactNode; info?: ReactNode; children: ReactNode; actions?: ReactNode }) {
+/**
+ * A panel over the top of the table (the opponent's row, where nothing is under way between battles): the shop, the next
+ * step's choices, an encounter. The player's board stays in sight and usable under it. `onClose` hides it (a button in the
+ * table's bar brings it back).
+ */
+export function Overlay({ title, info, actions, children, onClose }: { title: ReactNode; info?: ReactNode; actions?: ReactNode; children: ReactNode; onClose?: () => void }) {
   return (
-    <section className="space-y-2 rounded-lg bg-slate-900/90 p-3 ring-1 ring-slate-600 backdrop-blur-sm">
+    <section className={`${DIALOG} absolute inset-x-2 top-2 z-30 mx-auto max-h-[calc(100%-1rem)] max-w-5xl space-y-2 overflow-y-auto p-3 shadow-2xl shadow-black/60`} data-keep-action>
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h3 className="font-heading text-sm text-slate-50">{title}</h3>
         {info && <span className="text-xs text-slate-400">{info}</span>}
-        {actions && <div className="ml-auto flex flex-wrap items-center gap-1.5">{actions}</div>}
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          {actions}
+          {onClose && (
+            <button type="button" className={ICON_BUTTON} onClick={onClose} title="Hide">
+              <CloseIcon fontSize="small" />
+            </button>
+          )}
+        </div>
       </header>
       {children}
     </section>
   );
 }
 
-/** The run's starter: 1 of 3 tier-1 Basics (issue #239, 6.1). */
-export function StarterPanel({ view, units, cardWidth, busy, act }: { view: SafariViewData; units: Units; cardWidth: string; busy: boolean; act: Act }) {
+/** A dialog in the middle of the window, nothing else usable while it's open: the starter, a pick, the run's start and end. */
+function CenterDialog({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <Panel title="Pick your first Pokémon" info="It goes on your board. Shops open after every battle.">
-      <div className="flex flex-wrap gap-3">
+    <div className={`${DIALOG_BACKDROP} z-[1050]`}>
+      <div className={`${DIALOG} max-h-full max-w-full space-y-3 overflow-y-auto p-4 ${className}`}>{children}</div>
+    </div>
+  );
+}
+
+/** The run's starter: 1 of 3 tier-1 Basics (issue #239, 6.1). */
+export function StarterDialog({ view, units, busy, act }: { view: SafariViewData; units: Units; busy: boolean; act: Act }) {
+  return (
+    <CenterDialog>
+      <h3 className="font-heading text-lg text-slate-50">Pick your first Pokémon</h3>
+      <p className="text-sm text-slate-300">It goes on your board. Shops open after every battle.</p>
+      <div className="flex flex-wrap justify-center gap-3">
         {view.starters.map((id) => (
-          <UnitCard key={id} id={id} unit={units.get(id)} width={cardWidth} onClick={busy ? undefined : () => act({ type: 'PICK_STARTER', unit: id })} />
+          <UnitCard key={id} id={id} unit={units.get(id)} width="clamp(6rem, 22vw, 9rem)" onClick={busy ? undefined : () => act({ type: 'PICK_STARTER', unit: id })} />
         ))}
       </div>
-    </Panel>
+    </CenterDialog>
   );
 }
 
 /** The shop between battles: its cards, reroll, freeze and the shop tier (issue #239, section 7). */
-export function ShopPanel({ view, units, cardWidth, busy, act, open }: { view: SafariViewData; units: Units; cardWidth: string; busy: boolean; act: Act; open: boolean }) {
+export function ShopOverlay({ view, units, busy, act, onClose, onNext }: { view: SafariViewData; units: Units; busy: boolean; act: Act; onClose: () => void; onNext: () => void }) {
   const shop = view.shop;
   if (!shop) return null;
   const { prices } = view;
   return (
-    <Panel
+    <Overlay
       title={`Shop · tier ${view.shopTier}`}
-      info={shop.frozen ? 'Frozen: these cards stay for the next shop.' : open ? 'Buy cards with the run’s ₱.' : 'Closed until the battle is over.'}
+      info={shop.frozen ? 'Frozen: these cards stay for the next shop.' : 'Buy cards with the run’s ₱.'}
+      onClose={onClose}
       actions={
         <>
-          <button type="button" className={BUTTON} disabled={!open || busy || view.pokedollars < prices.reroll} onClick={() => act({ type: 'REROLL' })}>
+          <button type="button" className={BUTTON} disabled={busy || view.pokedollars < prices.reroll} onClick={() => act({ type: 'REROLL' })}>
             Reroll {prices.reroll ? `₱${prices.reroll}` : '(free)'}
           </button>
-          <button type="button" className={`${BUTTON} ${shop.frozen ? '!bg-sky-400 !text-gray-900' : ''}`} disabled={!open || busy} onClick={() => act({ type: 'FREEZE' })}>
+          <button type="button" className={`${BUTTON} ${shop.frozen ? '!bg-sky-400 !text-gray-900' : ''}`} disabled={busy} onClick={() => act({ type: 'FREEZE' })}>
             {shop.frozen ? 'Unfreeze' : 'Freeze'}
           </button>
-          <button type="button" className={BUTTON} disabled={!open || busy || prices.tier === null || view.pokedollars < prices.tier} onClick={() => act({ type: 'TIER_UP' })} title="Higher tiers show stronger cards">
+          <button type="button" className={BUTTON} disabled={busy || prices.tier === null || view.pokedollars < prices.tier} onClick={() => act({ type: 'TIER_UP' })} title="Higher tiers show stronger cards">
             {prices.tier === null ? 'Top tier' : `Tier ${view.shopTier + 1}: ₱${prices.tier}`}
+          </button>
+          <button type="button" className={START_BUTTON} onClick={onNext}>
+            Next battle →
           </button>
         </>
       }
     >
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap justify-center gap-3">
         {shop.offers.map((id, i) =>
           id ? (
             <div key={i} className="flex flex-col items-center gap-1">
-              <UnitCard id={id} unit={units.get(id)} width={cardWidth} />
-              <button type="button" className={BUTTON} disabled={!open || busy || view.pokedollars < (prices.shop[i] ?? 0)} onClick={() => act({ type: 'BUY', index: i })}>
+              <UnitCard id={id} unit={units.get(id)} width={CARD} />
+              <button type="button" className={BUTTON} disabled={busy || view.pokedollars < (prices.shop[i] ?? 0)} onClick={() => act({ type: 'BUY', index: i })}>
                 Buy ₱{prices.shop[i]}
               </button>
             </div>
           ) : (
-            <div key={i} className="flex items-center justify-center rounded-lg text-xs text-slate-500 ring-1 ring-dashed ring-slate-600" style={{ width: cardWidth, aspectRatio: '63 / 88' }}>
+            <div key={i} className="flex items-center justify-center rounded-lg border-2 border-dashed border-slate-600 text-xs text-slate-500" style={{ width: CARD, aspectRatio: '63 / 88' }}>
               Sold
             </div>
           ),
         )}
       </div>
-    </Panel>
+    </Overlay>
   );
 }
 
@@ -96,15 +125,25 @@ const ENCOUNTER_LABEL: Record<string, { name: string; text: string }> = {
  * The step's choices: its opponents (their trainer, type, difficulty and pay, never their boards: issue #239, 6.2) and
  * its encounters. Picking an opponent shows their board; it can't be undone.
  */
-export function NextStepPanel({ view, units, busy, act }: { view: SafariViewData; units: Units; busy: boolean; act: Act }) {
+export function NextStepOverlay({ view, units, busy, act, onBack }: { view: SafariViewData; units: Units; busy: boolean; act: Act; onBack: () => void }) {
   const champion = view.opponents.some((o) => o.difficulty === 'champion');
   return (
-    <Panel title={champion ? 'The Champion' : 'Next'} info={champion ? 'Beat Blue to win the run and bank its ₱.' : view.opponents.length ? 'Choose who to battle. Their board shows once chosen.' : 'An encounter step: no battle.'}>
+    <Overlay
+      title={champion ? 'The Champion' : 'Next'}
+      info={champion ? 'Beat Blue to win the run and bank its ₱.' : view.opponents.length ? 'Choose who to battle. Their board shows once chosen.' : 'An encounter step: no battle.'}
+      actions={
+        view.shop && (
+          <button type="button" className={BUTTON} onClick={onBack}>
+            ← Back to the shop
+          </button>
+        )
+      }
+    >
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {view.opponents.map((o, i) => {
           const sprite = opponentSprite(o);
           return (
-            <button key={i} type="button" disabled={busy} onClick={() => act({ type: 'CHOOSE', index: i })} className="flex items-center gap-3 rounded-lg bg-slate-800 p-2 text-left ring-1 ring-slate-600 transition hover:bg-slate-700 active:scale-[0.98] disabled:opacity-40">
+            <button key={i} type="button" disabled={busy} onClick={() => act({ type: 'CHOOSE', index: i })} className="flex items-center gap-3 rounded-lg bg-slate-900 p-2 text-left ring-1 ring-slate-600 transition hover:bg-slate-700 active:scale-[0.98] disabled:opacity-40">
               {sprite && <img src={sprite} alt="" className="h-16 w-16 shrink-0 [image-rendering:pixelated]" />}
               <div className="min-w-0 space-y-1">
                 <div className="truncate font-semibold text-slate-50">{o.name}</div>
@@ -119,7 +158,7 @@ export function NextStepPanel({ view, units, busy, act }: { view: SafariViewData
         })}
         {view.encounters.map((e, i) => (
           <button key={`e${i}`} type="button" disabled={busy} onClick={() => act({ type: 'ENCOUNTER', index: i })} className="flex items-center gap-3 rounded-lg bg-emerald-950/80 p-2 text-left ring-1 ring-emerald-700 transition hover:bg-emerald-900 active:scale-[0.98] disabled:opacity-40">
-            {e.legendary ? <UnitCard id={e.legendary} unit={units.get(e.legendary)} width="3rem" /> : <span className="flex h-16 w-12 shrink-0 items-center justify-center text-emerald-300">{e.kind === 'upgrade' ? <UpgradeIcon fontSize="large" /> : e.kind === 'specialShop' ? <StorefrontIcon fontSize="large" /> : <CardGiftcardIcon fontSize="large" />}</span>}
+            {e.legendary ? <UnitCard id={e.legendary} unit={units.get(e.legendary)} width="3.5rem" /> : <span className="flex h-16 w-12 shrink-0 items-center justify-center text-emerald-300">{e.kind === 'upgrade' ? <UpgradeIcon fontSize="large" /> : e.kind === 'specialShop' ? <StorefrontIcon fontSize="large" /> : <CardGiftcardIcon fontSize="large" />}</span>}
             <div className="min-w-0">
               <div className="font-semibold text-slate-50">{e.legendary ? `Legendary: ${units.get(e.legendary)?.name ?? ''}` : ENCOUNTER_LABEL[e.kind]?.name}</div>
               <div className="text-xs text-slate-300">{ENCOUNTER_LABEL[e.kind]?.text}</div>
@@ -127,51 +166,20 @@ export function NextStepPanel({ view, units, busy, act }: { view: SafariViewData
           </button>
         ))}
       </div>
-    </Panel>
-  );
-}
-
-/** An opponent chosen: their board and Trainer, and Start battle. The player can still reorder their board and pick their Trainer. */
-export function ReadyPanel({ view, units, cardWidth, busy, act }: { view: SafariViewData; units: Units; cardWidth: string; busy: boolean; act: Act }) {
-  const o = view.opponent;
-  if (!o) return null;
-  const sprite = opponentSprite(o);
-  const empty = !view.board.some((c) => c?.kind === 'pokemon');
-  return (
-    <Panel
-      title={`Battle: ${o.name}`}
-      info={`${DIFFICULTY_LABEL[o.difficulty]}${o.pay ? ` · ₱${o.pay} for a win` : ''}${o.difficulty === 'legendary' ? ` · win and ${units.get(o.board[0]!)?.name ?? 'it'} joins your team` : ''}`}
-      actions={
-        <button type="button" className={`${BUTTON} !bg-yellow-300 !px-5 !py-1.5 font-bold !text-gray-900 hover:!bg-yellow-200`} disabled={busy || empty} onClick={() => act({ type: 'BATTLE' })}>
-          Start battle
-        </button>
-      }
-    >
-      <div className="flex flex-wrap items-start gap-3">
-        {sprite && <img src={sprite} alt="" className="h-20 w-20 [image-rendering:pixelated]" />}
-        <div className="flex flex-wrap gap-2">
-          {o.board.map((id, i) => (
-            <UnitCard key={i} id={id} unit={units.get(id)} width={cardWidth} />
-          ))}
-        </div>
-        {o.trainer && <TrainerCard trainer={o.trainer} width={cardWidth} />}
-      </div>
-      <SynergyChips types={o.board.map((id) => units.get(id)?.type ?? '')} />
-      <p className="text-xs text-slate-300">Reorder your board or pick your Trainer card below before starting. {empty && 'Put a Pokémon on your board first.'}</p>
-    </Panel>
+    </Overlay>
   );
 }
 
 /** What an upgrade does, in words. */
 function upgradeText(u: NonNullable<Extract<NonNullable<SafariViewData['encounter']>, { kind: 'upgrade' }>>['upgrades'][number]): string {
   if (u.kind === 'rareCandy') return 'Rare Candy: it evolves now';
-  if (u.kind === 'keyword') return `Learns ${u.keyword}: ${KEYWORDS[u.keyword]?.text ?? ''}`;
+  if (u.kind === 'keyword') return `Learns ${u.keyword}: ${KEYWORDS[u.keyword as keyof typeof KEYWORDS]?.text ?? ''}`;
   const boost = UPGRADES[u.kind];
   return `${boost.name}: ${boost.attack ? `+${boost.attack} attack` : `+${boost.hp} HP`}`;
 }
 
 /** An encounter under way (issue #239, 6.3): an upgrade, a gift or the special shop, and Leave. */
-export function EncounterPanel({ view, units, cardWidth, busy, act }: { view: SafariViewData; units: Units; cardWidth: string; busy: boolean; act: Act }) {
+export function EncounterOverlay({ view, units, busy, act }: { view: SafariViewData; units: Units; busy: boolean; act: Act }) {
   const e = view.encounter;
   if (!e) return null;
   const take = (index: number) => (busy ? undefined : () => act({ type: 'TAKE', index }));
@@ -182,11 +190,11 @@ export function EncounterPanel({ view, units, cardWidth, busy, act }: { view: Sa
   );
   if (e.kind === 'upgrade')
     return (
-      <Panel title="Upgrade" info="Pick one." actions={leave}>
-        <div className="flex flex-wrap gap-3">
+      <Overlay title="Upgrade" info="Pick one." actions={leave}>
+        <div className="flex flex-wrap justify-center gap-3">
           {e.upgrades.map((u, i) => (
-            <button key={i} type="button" disabled={busy} onClick={take(i)} className="flex w-64 items-center gap-2 rounded-lg bg-slate-800 p-2 text-left ring-1 ring-slate-600 hover:bg-slate-700 disabled:opacity-40">
-              <UnitCard id={u.unit} unit={units.get(u.unit)} width="3.5rem" />
+            <button key={i} type="button" disabled={busy} onClick={take(i)} className="flex w-64 items-center gap-2 rounded-lg bg-slate-900 p-2 text-left ring-1 ring-slate-600 hover:bg-slate-700 disabled:opacity-40">
+              <UnitCard id={u.unit} unit={units.get(u.unit)} width="4rem" />
               <span className="text-sm text-slate-100">
                 <span className="font-semibold">{units.get(u.unit)?.name}</span>
                 <br />
@@ -195,35 +203,35 @@ export function EncounterPanel({ view, units, cardWidth, busy, act }: { view: Sa
             </button>
           ))}
         </div>
-      </Panel>
+      </Overlay>
     );
   if (e.kind === 'cardGift')
     return (
-      <Panel title="Card gift" info="Pick one, free." actions={leave}>
-        <div className="flex flex-wrap gap-3">
+      <Overlay title="Card gift" info="Pick one, free." actions={leave}>
+        <div className="flex flex-wrap justify-center gap-3">
           {e.cards.map((id, i) => (
-            <UnitCard key={i} id={id} unit={units.get(id)} width={cardWidth} onClick={take(i)} />
+            <UnitCard key={i} id={id} unit={units.get(id)} width={CARD} onClick={take(i)} />
           ))}
         </div>
-      </Panel>
+      </Overlay>
     );
   if (e.kind === 'trainerGift')
     return (
-      <Panel title="Trainer gift" info="Pick one, free. Each is used up by one battle." actions={leave}>
-        <div className="flex flex-wrap gap-3">
+      <Overlay title="Trainer gift" info="Pick one, free. Each is used up by one battle." actions={leave}>
+        <div className="flex flex-wrap justify-center gap-3">
           {e.trainers.map((t, i) => (
-            <TrainerChoice key={i} trainer={t} width={cardWidth} onClick={take(i)} />
+            <TrainerCard key={i} trainer={t} width={CARD} onClick={take(i)} />
           ))}
         </div>
-      </Panel>
+      </Overlay>
     );
   return (
-    <Panel title="Special shop" info="Buy as many as you like." actions={leave}>
-      <div className="flex flex-wrap gap-3">
+    <Overlay title="Special shop" info="Buy as many as you like." actions={leave}>
+      <div className="flex flex-wrap justify-center gap-3">
         {e.cards.map((id, i) =>
           id ? (
             <div key={i} className="flex flex-col items-center gap-1">
-              <UnitCard id={id} unit={units.get(id)} width={cardWidth} />
+              <UnitCard id={id} unit={units.get(id)} width={CARD} />
               <button type="button" className={BUTTON} disabled={busy || view.pokedollars < (view.prices.special[i] ?? 0)} onClick={take(i)}>
                 Buy ₱{view.prices.special[i]}
               </button>
@@ -233,7 +241,7 @@ export function EncounterPanel({ view, units, cardWidth, busy, act }: { view: Sa
         {e.trainers.map((t, j) =>
           t ? (
             <div key={`t${j}`} className="flex flex-col items-center gap-1">
-              <TrainerChoice trainer={t} width={cardWidth} />
+              <TrainerCard trainer={t as TrainerName} width={CARD} />
               <button type="button" className={BUTTON} disabled={busy || view.pokedollars < (view.prices.special[e.cards.length + j] ?? 0)} onClick={take(e.cards.length + j)}>
                 Buy ₱{view.prices.special[e.cards.length + j]}
               </button>
@@ -241,38 +249,80 @@ export function EncounterPanel({ view, units, cardWidth, busy, act }: { view: Sa
           ) : null,
         )}
       </div>
-    </Panel>
-  );
-}
-
-function TrainerChoice({ trainer, width, onClick }: { trainer: TrainerName; width: string; onClick?: () => void }) {
-  return (
-    <div className="flex flex-col items-center gap-1" style={{ width: `calc(${width} + 2rem)` }}>
-      <TrainerCard trainer={trainer} width={width} onClick={onClick} />
-      <p className="text-center text-[11px] leading-tight text-slate-300">{TRAINERS[trainer]}</p>
-    </div>
+    </Overlay>
   );
 }
 
 /** A merge's, golden copy's or Rare Candy's result: the player's pick (issue #239, 4). */
-export function PickDialog({ view, units, cardWidth, busy, act }: { view: SafariViewData; units: Units; cardWidth: string; busy: boolean; act: Act }) {
+export function PickDialog({ view, units, busy, act }: { view: SafariViewData; units: Units; busy: boolean; act: Act }) {
   const pick = view.pick;
   if (!pick) return null;
   const from = pick.from.map((id) => units.get(id)?.name ?? id).join(' + ');
   const title = pick.kind === 'golden' ? 'A golden copy!' : pick.kind === 'evolve' ? 'Rare Candy' : 'They merge!';
   return (
-    <div className={`${DIALOG_BACKDROP} z-[1050]`}>
-      <div className={`${DIALOG} max-w-full space-y-3 p-4`}>
-        <h3 className="font-heading text-lg text-slate-50">{title}</h3>
-        <p className="text-sm text-slate-300">
-          {from}: pick {pick.kind === 'golden' ? 'the print it becomes (+20 attack, +20 HP)' : 'the card it becomes'}.
-        </p>
-        <div className="flex flex-wrap justify-center gap-3">
-          {pick.options.map((id) => (
-            <UnitCard key={id} id={id} unit={units.get(id)} golden={pick.kind === 'golden'} width={cardWidth} onClick={busy ? undefined : () => act({ type: 'PICK', unit: id })} />
-          ))}
+    <CenterDialog>
+      <h3 className="font-heading text-lg text-slate-50">{title}</h3>
+      <p className="text-sm text-slate-300">
+        {from}: pick {pick.kind === 'golden' ? 'the print it becomes (+20 attack, +20 HP)' : 'the card it becomes'}.
+      </p>
+      <div className="flex flex-wrap justify-center gap-3">
+        {pick.options.map((id) => (
+          <UnitCard key={id} id={id} unit={units.get(id)} golden={pick.kind === 'golden'} width="clamp(6rem, 22vw, 9rem)" onClick={busy ? undefined : () => act({ type: 'PICK', unit: id })} />
+        ))}
+      </div>
+    </CenterDialog>
+  );
+}
+
+/** No run under way: the last run's result, if any, and a new run. */
+export function RunOverDialog({ run, busy, onStart, onWatch }: { run: ClientSafari | null; busy: boolean; onStart: () => void; onWatch: () => void }) {
+  const view = run?.view;
+  return (
+    <CenterDialog className="w-[32rem]">
+      <h3 className="font-heading text-lg text-slate-50">{view ? (view.phase === 'won' ? 'You beat the Champion!' : 'Run over') : 'Welcome to the Safari Draft!'}</h3>
+      <div className="space-y-3 text-sm text-slate-200">
+        {view?.phase === 'won' && <p className="text-yellow-200">₱{commas(view.pokedollars)} went to your bank.</p>}
+        {view?.phase === 'lost' && <p>{view.conceded ? 'You conceded the run.' : 'You ran out of HP.'} Nothing was banked.</p>}
+        {!view && (
+          <ul className="list-disc space-y-1 pl-5 text-slate-300">
+            <li>Pick a starter, then buy Pokémon cards in the shop after every battle. Up to 6 fight on your board, 6 more wait in your inventory.</li>
+            <li>Battles play themselves: each side attacks left to right, every attack at a random opposing Pokémon (a Taunt one first), which strikes back.</li>
+            <li>Each Pokémon has its attack, its HP and at most one keyword: hover a card for what its keyword does.</li>
+            <li>2 of a Pokémon that evolve into the same card merge into it; 3 of a Pokémon with no evolutions make a golden copy. 2, 4 or 6 of a type give a synergy.</li>
+            <li>15 battles, then Champion Blue, on 3 HP. Beat him to bank the run's ₱.</li>
+          </ul>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={START_BUTTON} disabled={busy} onClick={onStart}>
+            {view ? 'Start a new run' : 'Start a run'}
+          </button>
+          {view?.last && (
+            <button type="button" className={BUTTON} onClick={onWatch}>
+              Watch the last battle
+            </button>
+          )}
         </div>
       </div>
-    </div>
+    </CenterDialog>
+  );
+}
+
+/** The run's log, newest first, in a panel down the table's right edge. */
+export function LogPanel({ log, onClose }: { log: string[]; onClose: () => void }) {
+  return (
+    <aside className={`${DIALOG} panel-right absolute bottom-2 right-2 top-2 z-40 flex w-72 max-w-[calc(100%-1rem)] flex-col gap-2 p-3 shadow-2xl shadow-black/60`} data-keep-action>
+      <header className="flex items-center">
+        <h3 className="font-heading text-sm text-slate-50">Run log</h3>
+        <button type="button" className={`${ICON_BUTTON} ml-auto`} onClick={onClose} title="Close">
+          <CloseIcon fontSize="small" />
+        </button>
+      </header>
+      <ol className="min-h-0 flex-1 space-y-0.5 overflow-y-auto text-xs text-slate-300">
+        {[...log].reverse().map((line, i) => (
+          <li key={log.length - i}>{line}</li>
+        ))}
+        {!log.length && <li className="text-slate-500">Nothing yet.</li>}
+      </ol>
+    </aside>
   );
 }

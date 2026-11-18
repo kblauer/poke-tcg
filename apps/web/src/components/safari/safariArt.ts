@@ -1,15 +1,9 @@
-// Safari Draft's pictures (README: Safari Draft; issue #239, section 8): FireRed's, which the Idle Adventure already
-// ships (public/idle/gen1/): the Safari Zone's maps behind the page, its tall grass behind a battle, and the trainers'
-// battle sprites for the opponents. The Trainer cards' pictures are their Base Set prints (Gambler Fossil's).
+// Safari Draft's pictures (README: Safari Draft; issue #239, section 8): the trainers' battle sprites for the opponents,
+// FireRed's, which the Idle Adventure already ships (public/idle/gen1/). The Trainer cards' pictures are their Base Set
+// prints (Gambler Fossil's).
 import type { TrainerName } from '@poke-tcg/safari/effects';
 
 const GEN1 = '/idle/gen1';
-
-/** The Safari Zone's areas (FireRed): one behind each part of a run, the centre first. */
-export const SAFARI_MAPS = ['center', 'east', 'north', 'west'].map((area) => `${GEN1}/maps/safarizone_${area}.png`);
-/** Behind a battle: FireRed's tall grass. */
-export const BATTLE_TERRAIN = `${GEN1}/terrain/longgrass.png`;
-export const SAFARI_BALL = `${GEN1}/battle/balls/safari-ball.png`;
 
 /** FireRed's battle sprite of each of the Badge Challenge's trainer classes (campaign's TRAINERS). */
 const CLASS_SPRITES: Record<string, string> = {

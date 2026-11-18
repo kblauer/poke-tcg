@@ -10,6 +10,8 @@ export interface ShownFighter {
   side: SideId;
   unit: string | undefined;
   name: string;
+  /** Its keyword (Taunt draws its border); a Family copy has none. */
+  keyword?: string;
   attack: number;
   hp: number;
   maxHp: number;
@@ -41,7 +43,7 @@ const sideName = (side: SideId) => (side === 0 ? 'Your' : "The opponent's");
 /** The lines a battle starts with: each board's units left to right, uids as the battle gives them (a0…, b0…). */
 export function startLines(mine: Board, opponent: Board): [ShownFighter[], ShownFighter[]] {
   const line = (board: Board, side: SideId) =>
-    board.units.map((u, i): ShownFighter => ({ uid: `${'ab'[side]}${i}`, side, unit: u.id, name: u.name, attack: u.attack, hp: u.hp, maxHp: u.hp, status: [], fainted: false }));
+    board.units.map((u, i): ShownFighter => ({ uid: `${'ab'[side]}${i}`, side, unit: u.id, name: u.name, ...(u.keyword && { keyword: u.keyword }), attack: u.attack, hp: u.hp, maxHp: u.hp, status: [], fainted: false }));
   return [line(mine, 0), line(opponent, 1)];
 }
 
@@ -54,7 +56,7 @@ export function playbackFrames(mine: Board, opponent: Board, events: readonly Ba
   let round = 1;
   const frames: Frame[] = [{ lines, mark: null, round }];
   const find = (uid: string) => lines[0].find((f) => f.uid === uid) ?? lines[1].find((f) => f.uid === uid);
-  // Remembered across leaving and coming back (Rebirth, Revive, Scoop Up): a Pokémon keeps its card and its attack.
+  // Remembered across leaving and coming back (Revive, Scoop Up): a Pokémon keeps its card and its attack.
   const known = new Map<string, ShownFighter>(lines.flat().map((f) => [f.uid, f]));
   const change = (uid: string, fn: (f: ShownFighter) => ShownFighter) => {
     lines = [lines[0].map((f) => (f.uid === uid ? fn(f) : f)), lines[1].map((f) => (f.uid === uid ? fn(f) : f))];
@@ -84,7 +86,7 @@ export function playbackFrames(mine: Board, opponent: Board, events: readonly Ba
         break;
       case 'join': {
         const before = known.get(ev.uid);
-        const f: ShownFighter = { uid: ev.uid, side: ev.side, unit: before?.unit ?? lines.flat().concat([...known.values()]).find((g) => g.name === ev.name)?.unit, name: ev.name, attack: ev.attack, hp: ev.hp, maxHp: Math.max(before?.maxHp ?? 0, ev.hp), status: [], fainted: false };
+        const f: ShownFighter = { uid: ev.uid, side: ev.side, unit: before?.unit ?? lines.flat().concat([...known.values()]).find((g) => g.name === ev.name)?.unit, name: ev.name, ...(before?.keyword && { keyword: before.keyword }), attack: ev.attack, hp: ev.hp, maxHp: Math.max(before?.maxHp ?? 0, ev.hp), status: [], fainted: false };
         const line = [...lines[ev.side].filter((g) => g.uid !== ev.uid)];
         line.splice(Math.min(ev.at, line.length), 0, f);
         lines = ev.side === 0 ? [line, lines[1]] : [lines[0], line];
@@ -92,10 +94,6 @@ export function playbackFrames(mine: Board, opponent: Board, events: readonly Ba
         push({ kind: 'note', text: `${ev.name} ${before ? 'came back' : 'joined'} (${ev.why})` });
         break;
       }
-      case 'become':
-        change(ev.uid, (f) => ({ ...f, unit: ev.unit, name: ev.name, attack: ev.attack, hp: ev.hp, maxHp: ev.hp }));
-        push({ kind: 'note', text: `It became ${ev.name}` });
-        break;
       case 'buff':
         change(ev.uid, (f) => ({ ...f, attack: Math.max(0, f.attack + ev.attack) }));
         push({ kind: 'note', text: `${find(ev.uid)?.name}: ${ev.attack > 0 ? '+' : '−'}${Math.abs(ev.attack)} attack (${ev.why})` });

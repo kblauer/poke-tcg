@@ -23,7 +23,7 @@ describe('unit conversion', () => {
     for (const u of units) {
       const row = rows.get(u.id);
       expect(row, u.id).toBeDefined();
-      expect({ name: u.name, type: u.type, stage: u.stage, hp: String(u.hp), attack: String(u.attack), tier: String(u.tier), keyword: u.keyword ?? '', power: u.power ?? '' }, u.id).toEqual({
+      expect({ name: u.name, type: u.type, stage: u.stage, hp: String(u.hp), attack: String(u.attack), tier: String(u.tier), keyword: u.keyword ?? '' }, u.id).toEqual({
         name: row!.name,
         type: row!.type,
         stage: row!.stage,
@@ -31,7 +31,6 @@ describe('unit conversion', () => {
         attack: row!.attack,
         tier: row!.tier,
         keyword: row!.keyword,
-        power: row!.power,
       });
     }
   });
@@ -40,21 +39,19 @@ describe('unit conversion', () => {
     expect(units.length).toBe(432);
     const count = (key: (u: (typeof units)[number]) => string | number) => units.reduce<Record<string, number>>((n, u) => ({ ...n, [key(u)]: (n[key(u)] ?? 0) + 1 }), {});
     expect(count((u) => u.stage)).toEqual({ basic: 246, stage1: 146, stage2: 40 });
-    expect(count((u) => u.tier)).toEqual({ 1: 106, 2: 96, 3: 85, 4: 80, 5: 65 });
+    expect(count((u) => u.tier)).toEqual({ 1: 105, 2: 97, 3: 82, 4: 84, 5: 64 });
     expect(units.filter((u) => u.raisedFrom !== undefined).length).toBe(13);
-    expect(units.filter((u) => !u.keyword).length).toBe(166);
-    expect(units.filter((u) => u.power).length).toBe(66);
+    expect(units.filter((u) => !u.keyword).length).toBe(150);
+    expect(units.filter((u) => u.keyword === 'Taunt').map((u) => u.name).sort()).toEqual(["Brock's Rhydon", 'Mr. Mime', "Rocket's Snorlax", 'Slowbro', 'Snorlax', 'Snorlax']);
   });
 
-  it('ranks a unit higher for a stronger keyword or power', () => {
+  it('ranks a unit higher for a stronger keyword', () => {
     const plain = { attack: 30, hp: 60 };
     expect(unitScore({ ...plain, keyword: 'Sleep' })).toBeGreaterThan(unitScore({ ...plain, keyword: 'Paralyze' }));
     expect(unitScore({ ...plain, keyword: 'Paralyze' })).toBeGreaterThan(unitScore(plain));
-    expect(unitScore({ ...plain, power: 'Transparency' })).toBeGreaterThan(unitScore({ ...plain, power: 'Trickery' }));
-    expect(unitScore({ ...plain, power: 'Trickery' })).toBe(unitScore(plain));
     // The units with the strongest keywords sit higher than the plain ones.
     const tier = (list: typeof units) => list.reduce((s, u) => s + u.tier, 0) / list.length;
-    expect(tier(units.filter((u) => ['Sleep', 'Drain', 'Toxic', 'Explode', 'Family'].includes(u.keyword ?? '')))).toBeGreaterThan(tier(units.filter((u) => !u.keyword && !u.power)) + 1);
+    expect(tier(units.filter((u) => ['Sleep', 'Drain', 'Toxic', 'Explode', 'Family'].includes(u.keyword ?? '')))).toBeGreaterThan(tier(units.filter((u) => !u.keyword)) + 1);
     for (const k of KEYWORD_NAMES) expect(KEYWORD_WORTH[k], k).toBeTypeOf('number');
   });
 

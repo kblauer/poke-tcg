@@ -5,11 +5,11 @@
 //   - the pool: no word-for-word reprints, a card printed holo and not in one set once (the holo, the user's), no
 //     Pokémon past #151 (the Wizards promos' Gen 2 Pokémon, the user's);
 //   - HP: the printed HP;
-//   - tier 1–5 from the derived stats and what the unit's keyword and power are worth (the user's, 2026-11-18, after the
-//     balance pass: packages/safari's unitScore and its worth tables, the one thing this tool takes from the game code), a
-//     slight pyramid (TIER_SHARES), an evolved card always above what it evolves from;
-//   - keyword: one auto-battler effect, by the wording of its attacks (KEYWORDS, first match wins). Pokémon Powers are
-//     never mapped here: each is listed for the user's ruling.
+//   - tier 1–5 from the derived stats and what the unit's keyword is worth (the user's, 2026-11-18, after the balance
+//     pass: packages/safari's unitScore and its worth table, with POWER_KEYWORDS the things this tool takes from the game
+//     code), a slight pyramid (TIER_SHARES), an evolved card always above what it evolves from;
+//   - keyword: one auto-battler effect: its Pokémon Power's (packages/safari's POWER_KEYWORDS: the powers were removed,
+//     the user's, 2026-11-18), else by the wording of its attacks (KEYWORDS, first match wins).
 // Run from the repo's root: npx tsx tools/safari/unit_table.ts
 // Writes tools/safari/out/gen1-units.csv (every unit) and gen1-report.md (the spread, the outliers, the open rulings).
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -17,7 +17,7 @@ import type { Attack, PokemonCardDef } from '../../packages/game-engine/src/card
 import { BASE4_REPRINTS } from '../../packages/game-engine/src/effects/base4.ts';
 import { LC_REPRINTS } from '../../packages/game-engine/src/effects/lc.ts';
 import { TEST_POOL } from '../../packages/campaign/src/test-pool.ts';
-import { unitScore, type Keyword } from '../../packages/safari/src/units.ts';
+import { POWER_KEYWORDS, unitScore, type Keyword } from '../../packages/safari/src/units.ts';
 
 /** The formula's knobs (the user's, 2026-11-18: 1 Energy to start with and 1 more for each stage). */
 const TURNS = 6;
@@ -114,6 +114,8 @@ const KEYWORDS: [keyword: string, wording: RegExp][] = [
 ];
 
 function keywordOf(def: PokemonCardDef) {
+  const fromPower = def.power && POWER_KEYWORDS[def.power.name];
+  if (fromPower) return { keyword: fromPower as string, from: def.power!.name };
   for (const [keyword, wording] of KEYWORDS) {
     const from = def.attacks.find((a) => wording.test(`${a.name}. ${a.text ?? ''}`));
     if (from) return { keyword, from: from.name };
@@ -149,8 +151,8 @@ const units: Unit[] = defs.map((def) => {
   const attack = round10(raw);
   return { def, raw, attack, hp: def.hp, score: 0, tier: 0, flags: [], ...keywordOf(def) };
 });
-// A unit's worth in a fight is about what it deals times how long it lasts, raised by what its effects are worth.
-const scoreOf = (u: Unit) => unitScore({ attack: u.attack, hp: u.hp, keyword: (u.keyword || undefined) as Keyword | undefined, power: u.def.power?.name });
+// A unit's worth in a fight is about what it deals times how long it lasts, raised by what its keyword is worth.
+const scoreOf = (u: Unit) => unitScore({ attack: u.attack, hp: u.hp, keyword: (u.keyword || undefined) as Keyword | undefined });
 
 // The evolution floor (the user's, 2026-11-18): an evolved unit's attack and HP together are at least 10 more than every
 // print it evolves from, its attack raised to get there. Stage 1s first, so a Stage 2 stands on the raised ones.
@@ -235,13 +237,13 @@ ${spread.join('\n')}
 |---|---|---|---|---|---|---|
 ${rows.filter((u) => u.flags.length).map(line).join('\n')}
 
-## Pokémon Powers, each for the user's ruling (${powers.length} cards, ${new Set(powers.map((u) => u.def.power!.name)).size} powers)
+## Pokémon Powers: the keyword in each one's place (${powers.length} cards, ${new Set(powers.map((u) => u.def.power!.name)).size} powers; none: the card keeps its attacks' keyword)
 
-| Power | Cards | Text |
-|---|---|---|
+| Power | Keyword | Cards | Text |
+|---|---|---|---|
 ${[...new Set(powers.map((u) => u.def.power!.name))].sort().map((name) => {
   const with_ = powers.filter((u) => u.def.power!.name === name);
-  return `| ${name} | ${with_.map((u) => `${u.def.name} (${u.def.id})`).join(', ')} | ${with_[0]!.def.power!.text.replace(/\|/g, '/').replace(/\s+/g, ' ')} |`;
+  return `| ${name} | ${POWER_KEYWORDS[name] ?? ''} | ${with_.map((u) => `${u.def.name} (${u.def.id})`).join(', ')} | ${with_[0]!.def.power!.text.replace(/\|/g, '/').replace(/\s+/g, ' ')} |`;
 }).join('\n')}
 `;
 writeFileSync(new URL('gen1-report.md', out), report);

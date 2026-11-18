@@ -35,7 +35,7 @@ function shop(board: string[], inventory: string[] = [], offers: string[] = [], 
   s.inventory = Array.from({ length: DRAFT.inventory }, (_, i) => (inventory[i] ? card(inventory[i]!, key++) : null));
   s.nextKey = key;
   s.pokedollars = 1000;
-  s.shop = { offers: [...offers], frozen: false, freeUsed: 0, oak: false };
+  s.shop = { offers: [...offers], frozen: false, oak: false };
   s.encounterSteps = []; // no encounter step unless a test sets one
   s.encounters = [];
   return s;
@@ -134,13 +134,13 @@ describe('the shop', () => {
     expect([...after.board, ...after.inventory].filter(Boolean)).toHaveLength(12);
   });
 
-  it('sells for 75% of the price, rounded down, Cowardice for the full price', () => {
+  it('sells for 75% of the price, rounded down', () => {
     const s = shop(['base1-61', 'base3-56', 'base1-32'], [], []);
     expect(sellPrice(s.board[0]!, pool)).toBe(45);
-    expect(sellPrice(s.board[1]!, pool)).toBe(60); // Tentacool, Cowardice
+    expect(sellPrice(s.board[1]!, pool)).toBe(45); // Tentacool: Cowardice's full price went with the powers
     expect(sellPrice(s.board[2]!, pool)).toBe(Math.floor(DRAFT.cardPrice[unit('base1-32').tier - 1]! * 0.75));
     const sold = must(s, { type: 'SELL', place: { zone: 'board', at: 1 } });
-    expect(sold.pokedollars).toBe(1060);
+    expect(sold.pokedollars).toBe(1045);
     expect(sold.board[1]).toBeNull();
     expect(refused(sold, { type: 'SELL', place: { zone: 'board', at: 1 } })).toBe('No card there');
     expect(refused(sold, { type: 'SELL', place: { zone: 'board', at: 9 } })).toBe('No such place');
@@ -160,30 +160,22 @@ describe('the shop', () => {
     expect(refused(s, { type: 'TIER_UP' })).toBe('The shop is at its top tier');
   });
 
-  it('rerolls for ₱20, free while the board has a reroll power, and every one free after Professor Oak', () => {
+  it('rerolls for ₱20, every one free after Professor Oak', () => {
     let s = shop(STRONG);
-    expect(rerollPrice(s, pool)).toBe(20);
+    expect(rerollPrice(s)).toBe(20);
     s = must(s, { type: 'REROLL' });
     expect(s.pokedollars).toBe(980);
-    // Dark Kadabra (Matter Exchange) and Rattata (Trickery): 2 free rerolls a shop.
-    s.board[1] = card('base5-39', 1);
-    s.board[2] = card('base5-66', 2);
-    s = must(must(s, { type: 'REROLL' }), { type: 'REROLL' });
-    expect(s.pokedollars).toBe(980);
-    expect(rerollPrice(s, pool)).toBe(20);
-    // In the inventory they don't count.
-    s.inventory[0] = s.board[1] ?? null;
-    s.board[1] = null;
-    expect(rerollPrice({ ...s, shop: { ...s.shop!, freeUsed: 0 } }, pool)).toBe(0);
     s.shop!.oak = true;
-    expect(rerollPrice(s, pool)).toBe(0);
+    expect(rerollPrice(s)).toBe(0);
+    s = must(s, { type: 'REROLL' });
+    expect(s.pokedollars).toBe(980);
   });
 
-  it('shows 1 more card for each Evolutionary Light on the board', () => {
+  it("shows its tier's number of cards", () => {
     const s = shop(['base5-33', 'base1-61']);
-    expect(shopSize(s, pool)).toBe(4);
+    expect(shopSize(s)).toBe(3);
     s.shopTier = 4;
-    expect(shopSize(s, pool)).toBe(6);
+    expect(shopSize(s)).toBe(5);
   });
 
   it('keeps a frozen shop\'s unbought cards for the next, filling the rest; a reroll unfreezes', () => {
@@ -330,18 +322,15 @@ describe('the shop\'s favour for cards held', () => {
   });
 });
 
-describe('gifts and the draft-only powers', () => {
-  it('gives tier-1 Basics when Reel In or Summon Minions is gained, and loses a gift with no room', () => {
+describe('gifts', () => {
+  it('gives a card to a free place, and loses a gift with no room', () => {
     let s = shop([FILL[0]!], []);
-    s = must(s, { type: 'GIFT', unit: 'base5-12' }); // Dark Slowbro
-    const got = [...s.board, ...s.inventory].filter(Boolean);
-    expect(got).toHaveLength(3);
-    expect(unit((got[2] as PokemonCard).unit)).toMatchObject({ tier: 1, stage: 'basic' });
+    s = must(s, { type: 'GIFT', unit: 'base5-12' }); // Dark Slowbro: Reel In's gift went with the powers
+    expect([...s.board, ...s.inventory].filter(Boolean)).toHaveLength(2);
 
-    s = shop(FILL.slice(0, 6), FILL.slice(6, 11));
-    s = must(s, { type: 'GIFT', unit: 'base5-5' }); // Dark Dragonite, to the last place: 2 gifts, room for neither
-    expect(ids(s.inventory)[5]).toBe('base5-5');
-    expect(s.log.filter((l) => l.startsWith('No room for'))).toHaveLength(2);
+    s = shop(FILL.slice(0, 6), FILL.slice(6, 12));
+    s = must(s, { type: 'GIFT', unit: 'base5-5' });
+    expect(s.log.filter((l) => l.startsWith('No room for'))).toHaveLength(1);
   });
 
   it('keeps Trainer cards in the inventory, plays the chosen one in the next battle and uses it up', () => {
@@ -364,7 +353,7 @@ describe('gifts and the draft-only powers', () => {
     s = must(s, { type: 'SET_TRAINER', key: s.inventory[0]!.key });
     s = fight(s, weak(), 450);
     expect(s.shop!.oak).toBe(true);
-    expect(rerollPrice(s, pool)).toBe(0);
+    expect(rerollPrice(s)).toBe(0);
     s = fight(s, weak(), 450);
     expect(s.shop!.oak).toBe(false);
   });

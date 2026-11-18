@@ -33,8 +33,6 @@
 //   - a merge with only one card it can give, or a golden copy of 3 of the same print, gives it with no pick;
 //   - when several merges are possible, the board's cards go first, left to right, then the inventory's;
 //   - a freeze keeps the shop's unbought cards for the next shop, which fills the rest; a reroll unfreezes;
-//   - the draft-only powers count while their Pokémon is on the board (Evolutionary Light, the free rerolls, each Pokémon
-//     its own) or when it's gained (bought, merged into, given: Reel In, Summon Minions); Toxic Gas is a battle's only;
 //   - Bill pays DRAFT.bill, Pay Day DRAFT.payDay a Knock Out (won or lost); a Trainer card sells as a tier-1 card.
 //
 // A battle step (opponents.ts, step 3): the shop shows 1–3 opponents, never their boards; CHOOSE takes one (phase
@@ -91,10 +89,6 @@ export const DRAFT = {
 export const LEGENDARIES = ['Articuno', 'Zapdos', 'Moltres', 'Mewtwo', 'Mew'];
 export const isLegendary = (u: Pick<Unit, 'name'>) => LEGENDARIES.some((name) => namesMatch(u.name, name));
 
-/** The draft-only powers (effects.ts marks them `draft`). */
-const FREE_REROLL = ['Matter Exchange', 'Special Delivery', 'Trickery'];
-const GIFTS_WHEN_GAINED: Record<string, number> = { 'Reel In': 1, 'Summon Minions': 2 };
-
 /** A unit's lasting bonus: an upgrade's (step 4). A merge keeps each `from` once. */
 export interface Bonus {
   from: string;
@@ -120,8 +114,6 @@ export interface Shop {
   offers: (string | null)[];
   /** Kept for the next shop (FREEZE). */
   frozen: boolean;
-  /** The free rerolls the board's powers gave that have been used. */
-  freeUsed: number;
   /** Every reroll free (Professor Oak). */
   oak: boolean;
 }
@@ -317,11 +309,10 @@ export const opponentBoard = (o: Pick<Opponent, 'board' | 'trainer'>, pool: Draf
 /** What a card costs in a shop. */
 export const cardPrice = (tier: number) => DRAFT.cardPrice[tier - 1]!;
 
-/** What a card sells for: 75% of its price rounded down, Cowardice its full price. */
+/** What a card sells for: 75% of its price rounded down. */
 export function sellPrice(card: Card, pool: DraftPool): number {
   if (card.kind === 'trainer') return Math.floor(DRAFT.trainerPrice * DRAFT.sellShare);
-  const u = unitOf(pool, card.unit);
-  return u.power === 'Cowardice' ? cardPrice(u.tier) : Math.floor(cardPrice(u.tier) * DRAFT.sellShare);
+  return Math.floor(cardPrice(unitOf(pool, card.unit).tier) * DRAFT.sellShare);
 }
 
 /** What the next shop tier costs now, or null at the top. */
@@ -331,17 +322,11 @@ export function tierPrice(state: Pick<SafariState, 'shopTier' | 'sinceTier'>): n
   return Math.max(base / 2, base - DRAFT.tierDiscount * state.sinceTier);
 }
 
-const boardPowers = (state: SafariState, pool: DraftPool, powers: readonly string[]) =>
-  state.board.filter((c) => c?.kind === 'pokemon' && powers.includes(unitOf(pool, c.unit).power ?? '')).length;
+/** What a reroll costs now: nothing with Professor Oak. */
+export const rerollPrice = (state: Pick<SafariState, 'shop'>): number => (!state.shop || state.shop.oak ? 0 : DRAFT.reroll);
 
-/** What a reroll costs now: nothing while the board's powers have free ones left, or with Professor Oak. */
-export function rerollPrice(state: SafariState, pool: DraftPool): number {
-  if (!state.shop || state.shop.oak) return 0;
-  return boardPowers(state, pool, FREE_REROLL) > state.shop.freeUsed ? 0 : DRAFT.reroll;
-}
-
-/** How many cards a shop shows: its tier's, and 1 more for each Evolutionary Light on the board. */
-export const shopSize = (state: SafariState, pool: DraftPool) => DRAFT.shopSize[state.shopTier - 1]! + boardPowers(state, pool, ['Evolutionary Light']);
+/** How many cards a shop shows: its tier's. */
+export const shopSize = (state: Pick<SafariState, 'shopTier'>) => DRAFT.shopSize[state.shopTier - 1]!;
 
 /** Whether the next battle is the Champion. */
 export const championNext = (state: Pick<SafariState, 'battles'>) => state.battles >= DRAFT.battles;
@@ -491,17 +476,7 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
   };
   const name = (id: string) => unitOf(pool, id).name;
 
-  /** A card has joined the player's: what its power does then (Reel In, Summon Minions). */
-  const gained = (card: Card) => {
-    if (card.kind !== 'pokemon') return;
-    const gifts = GIFTS_WHEN_GAINED[unitOf(pool, card.unit).power ?? ''] ?? 0;
-    for (let i = 0; i < gifts && pool.firstTier.length; i++) state.gifts.push(pool.firstTier[int(rng, pool.firstTier.length)]!.id);
-  };
-
-  const place = (card: Card, p: Place) => {
-    put(state, p, card);
-    gained(card);
-  };
+  const place = (card: Card, p: Place) => put(state, p, card);
 
   /** Makes a merge's or golden copy's card at `p`. */
   const make = (kind: DraftPick['kind'], unit: string, bonuses: Bonus[], p: Place, from: string[], since: number) => {
@@ -533,7 +508,6 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
     }
     const combo = card.kind === 'pokemon' ? findCombo(state, pool, card) : null;
     if (!combo) return false;
-    gained(card);
     startCombo(combo);
     return true;
   };
@@ -555,8 +529,8 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
 
   const openShop = () => {
     const kept = state.shop?.frozen ? state.shop.offers.filter((o): o is string => !!o) : [];
-    const size = shopSize(state, pool);
-    state.shop = { offers: [...kept, ...rollOffers(rng, pool, state.shopTier, Math.max(0, size - kept.length), kept, wantedCards(state, pool))], frozen: false, freeUsed: 0, oak: state.oakNext };
+    const size = shopSize(state);
+    state.shop = { offers: [...kept, ...rollOffers(rng, pool, state.shopTier, Math.max(0, size - kept.length), kept, wantedCards(state, pool))], frozen: false, oak: state.oakNext };
     state.oakNext = false;
     openStep();
   };
@@ -714,12 +688,11 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
     }
 
     case 'REROLL': {
-      const price = rerollPrice(state, pool);
+      const price = rerollPrice(state);
       if (state.pokedollars < price) return fail('Not enough ₱');
-      if (!price && !shop.oak) shop.freeUsed++;
       state.pokedollars -= price;
       shop.frozen = false;
-      shop.offers = rollOffers(rng, pool, state.shopTier, shopSize(state, pool), [], wantedCards(state, pool));
+      shop.offers = rollOffers(rng, pool, state.shopTier, shopSize(state), [], wantedCards(state, pool));
       return ok();
     }
 

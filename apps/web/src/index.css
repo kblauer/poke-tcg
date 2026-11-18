@@ -193,16 +193,26 @@ html[data-font="emerald"] {
   75% { transform: translateX(6px); }
 }
 
-/* Safari Draft's battle playback (components/safari/BattlePlayback.tsx): a hit Pokémon shaking, a number popping up off it. */
-@keyframes safari-shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  75% { transform: translateX(5px); }
+/*
+ * Safari Draft's table (pages/Safari.tsx): its cards fill it as the battle page's do. Per height, the opponent's row and
+ * the player's board one card each and the inventory 0.8 (1.397 card widths tall each), and 13rem of bars, labels and
+ * gaps; per width, 6 cards and a Trainer card's 0.8 with their gaps.
+ */
+.safari-cards {
+  --safari-card: max(2.6rem, min(calc((100cqw - 2.5rem) / 6.9), calc((100cqh - 13rem) / 3.91)));
+  --safari-inv: calc(var(--safari-card) * 0.8);
 }
-@keyframes safari-pop {
-  from { opacity: 0; transform: translate(-50%, 6px) scale(0.8); }
-  30% { opacity: 1; transform: translate(-50%, -4px) scale(1.15); }
-  to { opacity: 1; transform: translate(-50%, -10px) scale(1); }
+/* A tall table (a phone held upright): the opponent's row and the board 3 cards wide in 2 rows each (.safari-row), the inventory one row. */
+@container (aspect-ratio < 0.8) {
+  .safari-cards {
+    --safari-card: max(2.6rem, min(calc((100cqw - 2rem) / 3.4), calc((100cqh - 13rem) / 6.71)));
+    --safari-inv: min(calc(var(--safari-card) * 0.8), calc((100cqw - 3rem) / 6.2));
+  }
+  .safari-row {
+    flex-wrap: wrap;
+    max-width: calc(var(--safari-card) * 3 + 1.5rem);
+    margin-inline: auto;
+  }
 }
 
 /* The battle transitions (components/BattleTransition.tsx; first the Battle Tower's): the double white flash, then the screen closing. */

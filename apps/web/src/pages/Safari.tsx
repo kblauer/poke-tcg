@@ -1,15 +1,19 @@
+import FavoriteIcon from '@mui/icons-material/Favorite';
+import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import type { SafariAction } from '@poke-tcg/safari';
 import { useEffect, useState } from 'react';
-import { PageHeader } from '../components/PageHeader';
+import { Playmat } from '../components/Playmat';
 import { ReturnToPlay } from '../components/ReturnToPlay';
 import { Toasts } from '../components/Toasts';
-import { BattlePlayback } from '../components/safari/BattlePlayback';
-import { SafariBoard } from '../components/safari/SafariBoard';
-import { EncounterPanel, NextStepPanel, Panel, PickDialog, ReadyPanel, ShopPanel, StarterPanel } from '../components/safari/SafariPanels';
-import { SAFARI_BALL, SAFARI_MAPS } from '../components/safari/safariArt';
-import { useIsPhone } from '../hooks/useIsPhone';
-import { useSafariActions, useSafariOverview, useSafariUnits, type ClientSafari } from '../hooks/useSafari';
+import { BattleBar, BattleLine, useBattlePlayback, type LastBattle } from '../components/safari/BattlePlayback';
+import { CARD, CardRow, EmptyPlace, PlayerSide, SynergyChips } from '../components/safari/SafariBoard';
+import { EncounterOverlay, LogPanel, NextStepOverlay, PickDialog, RunOverDialog, ShopOverlay, StarterDialog } from '../components/safari/SafariPanels';
+import { TrainerCard, UnitCard } from '../components/safari/UnitCard';
+import { DIFFICULTY_COLOR, DIFFICULTY_LABEL, opponentSprite } from '../components/safari/safariArt';
+import { useCosmetics } from '../hooks/useCosmetics';
+import { useSafariActions, useSafariOverview, useSafariUnits, type ClientSafari, type SafariUnit, type SafariViewData } from '../hooks/useSafari';
 import { useToasts } from '../hooks/useToasts';
+import { useWindowFill } from '../hooks/useWindowFill';
 import { PAGE_WIDTH } from '../utils/layout';
 import { commas } from '../utils/math';
 import { BUTTON, DIALOG, DIALOG_BACKDROP } from '../utils/styles';
@@ -33,24 +37,34 @@ function writeSeen(key: string) {
 }
 
 const BATTLES = 15;
+/** The bar's buttons, small, so it stays one line where it can. */
+const HUD_BUTTON = `${BUTTON} !px-2 !py-0.5 !text-xs`;
+type Units = Map<string, SafariUnit>;
+type Act = (action: SafariAction) => void;
 
 /**
- * Safari Draft (`/safari`, from the Play tab's menu; README: Safari Draft; issue #239): an auto-battler run on the Safari
- * Zone's map (FireRed's). With no run under way, its start (and the last run's result); then the starter, and between
- * battles the shop, the step's opponents and encounters, the board and the inventory; an opponent chosen, their board and
- * Start battle; each battle played back (BattlePlayback) as soon as its result comes, once. The server plays everything:
- * the page sends the player's actions (safari.act) and shows the view it gets back.
+ * Safari Draft (`/safari`, from the Play tab's menu; README: Safari Draft; issue #239): an auto-battler run in one window,
+ * the battle page's way (the user's, 2026-11-18): a table filling the window, the opponent's row at the top, the player's
+ * board in the middle and the inventory at the bottom, the run's figures in a bar above it. The shop, the step's choices
+ * and the encounters are panels over the opponent's row (the board stays usable under them); the starter, a merge's pick
+ * and the run's start and end are dialogs; the log a panel down the right. A battle plays back on the table itself, once,
+ * as soon as its result comes. The server plays everything: the page sends the player's actions (safari.act) and shows
+ * the view it gets back.
  */
 export function SafariPage() {
   const overview = useSafariOverview();
   const units = useSafariUnits();
   const actions = useSafariActions();
   const toasts = useToasts();
-  const phone = useIsPhone();
+  const fill = useWindowFill<HTMLDivElement>();
+  const { playmat } = useCosmetics();
   const run = overview.data?.run ?? null;
   const view = run?.view;
   const [watching, setWatching] = useState<string | null>(null);
   const [conceding, setConceding] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
+  /** The panel over the top of the table between battles: the shop, the step's choices, or none (hidden). */
+  const [panel, setPanel] = useState<'shop' | 'next' | null>('shop');
 
   // A battle's result plays back once, as soon as it comes (and not again after a reload).
   const lastKey = run && battleKey(run);
@@ -60,6 +74,11 @@ export function SafariPage() {
       setWatching(lastKey);
     }
   }, [lastKey]);
+  // Each shop opens on its cards (an encounter step with no shop on its choices).
+  const shopId = view?.phase === 'shop' ? `${view.battles}:${view.encounters.length}:${view.opponents.length}:${!!view.shop}` : null;
+  useEffect(() => {
+    if (shopId) setPanel(view?.shop ? 'shop' : 'next');
+  }, [shopId]);
 
   const act = (action: SafariAction) => {
     if (!run || actions.busy) return;
@@ -67,60 +86,65 @@ export function SafariPage() {
   };
   const start = () => actions.start().catch((e: Error) => toasts.push('warning', e.message));
 
-  const cardWidth = phone ? '4.6rem' : 'clamp(5rem, 7.5vw, 7.5rem)';
-  const background = SAFARI_MAPS[Math.min(SAFARI_MAPS.length - 1, Math.floor((view?.battles ?? 0) / 4))]!;
   const over = !run || run.status !== 'ACTIVE';
+  const battle = watching && run?.view.last && battleKey(run) === watching ? run.view.last : null;
 
   if (overview.error && !overview.data) return <div className={`${PAGE_WIDTH} text-red-400`}>Couldn't load the Safari Draft: {overview.error.message}</div>;
 
   return (
-    <div className="relative min-h-full">
-      {/* The Safari Zone (FireRed) behind the page, a different area as the run goes on, dimmed so the panels read over it. */}
-      <div className="pointer-events-none fixed inset-0 -z-10 bg-cover bg-center opacity-60 [image-rendering:pixelated]" style={{ backgroundImage: `url(${background})` }} />
-      <div className="pointer-events-none fixed inset-0 -z-10 bg-slate-950/40" />
-      <div className={`${PAGE_WIDTH} space-y-4 pb-8`}>
-        <PageHeader
-          title="Safari Draft"
-          info={view && !over ? <RunFigures view={view} /> : 'Draft a team, battle 15 trainers, then beat the Champion.'}
-          actions={
-            <>
-              {view && !over && (
-                <button type="button" className={BUTTON} onClick={() => setConceding(true)}>
-                  Concede
-                </button>
-              )}
-              <ReturnToPlay />
-            </>
-          }
-        />
-
-        {overview.isPending && <p className="text-slate-300">Loading…</p>}
-
-        {!overview.isPending && over && <RunOver run={run} busy={actions.busy} onStart={start} onWatch={() => run && setWatching(battleKey(run))} />}
-
-        {view && !over && (
-          <>
-            {view.phase === 'starter' && <StarterPanel view={view} units={units} cardWidth={cardWidth} busy={actions.busy} act={act} />}
-            {view.phase === 'shop' && <NextStepPanel view={view} units={units} busy={actions.busy} act={act} />}
-            {view.phase === 'ready' && <ReadyPanel view={view} units={units} cardWidth={cardWidth} busy={actions.busy} act={act} />}
-            {view.phase === 'encounter' && <EncounterPanel view={view} units={units} cardWidth={cardWidth} busy={actions.busy} act={act} />}
-            {view.phase !== 'starter' && (
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                <Panel title="Your team" info={view.last && <WatchAgain onWatch={() => setWatching(battleKey(run!))} />}>
-                  <SafariBoard view={view} units={units} cardWidth={cardWidth} busy={actions.busy} canSell={view.phase !== 'ready'} act={act} />
-                </Panel>
-                <div className="space-y-4">
-                  {view.phase !== 'encounter' && <ShopPanel view={view} units={units} cardWidth={cardWidth} busy={actions.busy} act={act} open={view.phase === 'shop'} />}
-                  <RunLog log={view.log} />
-                </div>
-              </div>
+    // Fills the window below the header, as the battle page does (-mt/-mb undo the layout's spacing).
+    <div ref={fill.ref} className="-mb-4 -mt-6 flex select-none" style={fill.style}>
+      <div className={`flex min-w-0 flex-1 flex-col gap-2 py-2 ${PAGE_WIDTH}`}>
+        <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <h1 className="hidden font-heading text-base text-slate-50 sm:block">Safari Draft</h1>
+          {view && !over && <RunFigures view={view} before={battle} />}
+          <div className="ml-auto flex flex-wrap items-center gap-1.5">
+            {view?.last && !battle && (
+              <button type="button" className={HUD_BUTTON} onClick={() => setWatching(battleKey(run!))}>
+                Watch again
+              </button>
             )}
-            <PickDialog view={view} units={units} cardWidth={cardWidth} busy={actions.busy} act={act} />
-          </>
-        )}
+            {view && (
+              <button type="button" className={HUD_BUTTON} onClick={() => setLogOpen((o) => !o)}>
+                Log
+              </button>
+            )}
+            {view && !over && (
+              <button type="button" className={HUD_BUTTON} onClick={() => setConceding(true)}>
+                Concede
+              </button>
+            )}
+            <ReturnToPlay small />
+          </div>
+        </header>
+
+        {/* The table: the player's playmat over slate, its cards sized to fill it (index.css's .safari-cards). */}
+        <div className="relative min-h-0 flex-1 rounded-lg bg-slate-900 ring-1 ring-slate-700 [container-type:size]">
+          <div className="safari-cards absolute inset-0 rounded-[inherit]">
+            <Playmat id={playmat} />
+            <div className="relative flex h-full flex-col justify-between gap-1.5 overflow-y-auto p-2">
+              {overview.isPending && <p className="m-auto text-slate-300">Loading…</p>}
+              {view && battle && <BattleTable key={watching!} battle={battle} view={view} units={units} busy={actions.busy} act={act} onClose={() => setWatching(null)} />}
+              {view && !battle && <DraftTable view={view} units={units} busy={actions.busy} act={act} active={!over} onPanel={setPanel} />}
+              {!view && !overview.isPending && <EmptyTable />}
+            </div>
+
+            {/* What's over the table between battles. */}
+            {view && !over && !battle && (
+              <>
+                {view.phase === 'shop' && panel === 'shop' && <ShopOverlay view={view} units={units} busy={actions.busy} act={act} onClose={() => setPanel(null)} onNext={() => setPanel('next')} />}
+                {view.phase === 'shop' && panel === 'next' && <NextStepOverlay view={view} units={units} busy={actions.busy} act={act} onBack={() => setPanel('shop')} />}
+                {view.phase === 'encounter' && <EncounterOverlay view={view} units={units} busy={actions.busy} act={act} />}
+              </>
+            )}
+            {logOpen && view && <LogPanel log={view.log} onClose={() => setLogOpen(false)} />}
+          </div>
+        </div>
       </div>
 
-      {watching && run?.view.last && battleKey(run) === watching && <BattlePlayback battle={run.view.last} units={units} cardWidth={phone ? '3.4rem' : 'clamp(4rem, 6.5vw, 6.5rem)'} onClose={() => setWatching(null)} />}
+      {view && !over && !battle && view.phase === 'starter' && <StarterDialog view={view} units={units} busy={actions.busy} act={act} />}
+      {view && !over && !battle && <PickDialog view={view} units={units} busy={actions.busy} act={act} />}
+      {!overview.isPending && over && !battle && <RunOverDialog run={run} busy={actions.busy} onStart={start} onWatch={() => run && setWatching(battleKey(run))} />}
 
       {conceding && (
         <div className={`${DIALOG_BACKDROP} z-[1100]`} onClick={() => setConceding(false)}>
@@ -142,71 +166,137 @@ export function SafariPage() {
   );
 }
 
-/** The run's figures in the heading: its HP as Safari Balls, its ₱, the battle and the shop tier. */
-function RunFigures({ view }: { view: NonNullable<ClientSafari['view']> }) {
+/** The run's figures in the bar: its HP as hearts, its ₱, the battle and the shop tier. */
+function RunFigures({ view, before }: { view: SafariViewData; before: LastBattle | null }) {
   const champion = view.battles >= BATTLES;
+  // While a battle plays back, the figures before it: its result shows at its end.
+  const hp = before?.winner === 1 ? view.hp + 1 : view.hp;
+  const pokedollars = view.pokedollars - (before?.pay ?? 0);
   return (
-    <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-slate-200">
-      <span className="flex items-center gap-0.5" title={`${view.hp} HP left`}>
-        {Array.from({ length: 3 }, (_, i) => (
-          <img key={i} src={SAFARI_BALL} alt="" className={`h-4 w-4 [image-rendering:pixelated] ${i < view.hp ? '' : 'opacity-25 grayscale'}`} />
-        ))}
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-200">
+      <span className="flex items-center text-red-500" title={`${hp} HP left`}>
+        {Array.from({ length: 3 }, (_, i) => (i < hp ? <FavoriteIcon key={i} sx={{ fontSize: 18 }} /> : <FavoriteBorderIcon key={i} sx={{ fontSize: 18 }} />))}
       </span>
-      <span className="text-yellow-200">₱{commas(view.pokedollars)}</span>
-      <span>{champion ? `Champion${view.championTries ? `, try ${view.championTries + 1}` : ''}` : `Battle ${Math.min(view.battles + 1, BATTLES)} of ${BATTLES}`}</span>
+      <span className="text-yellow-200">₱{commas(pokedollars)}</span>
+      {!before && (
+        <>
+          <span>{champion ? `Champion${view.championTries ? `, try ${view.championTries + 1}` : ''}` : `Battle ${Math.min(view.battles + 1, BATTLES)} of ${BATTLES}`}</span>
+          <span className="text-slate-400">Shop tier {view.shopTier}</span>
+        </>
+      )}
     </span>
   );
 }
 
-function WatchAgain({ onWatch }: { onWatch: () => void }) {
+/** No run yet: the table bare, its places dashed (the run's start is a dialog over it). */
+function EmptyTable() {
+  const row = (
+    <CardRow>
+      {Array.from({ length: 6 }, (_, i) => (
+        <EmptyPlace key={i} width={CARD} />
+      ))}
+    </CardRow>
+  );
   return (
-    <button type="button" className="text-xs text-yellow-300 underline-offset-2 hover:underline" onClick={onWatch}>
-      Watch the last battle again
-    </button>
+    <>
+      {row}
+      {row}
+    </>
   );
 }
 
-/** The run's log, newest first. */
-function RunLog({ log }: { log: string[] }) {
-  if (!log.length) return null;
+/** An opponent's name, sprite (or the legendary's card), difficulty and pay, beside their row. */
+function OpponentTag({ o, units }: { o: { name: string; boss?: string; difficulty: string; pay: number; board?: string[] }; units: Units }) {
+  const sprite = opponentSprite(o);
   return (
-    <Panel title="Log">
-      <ol className="max-h-48 space-y-0.5 overflow-y-auto text-xs text-slate-300">
-        {[...log].reverse().map((line, i) => (
-          <li key={log.length - i}>{line}</li>
-        ))}
-      </ol>
-    </Panel>
+    <div className="flex items-center justify-center gap-2">
+      {sprite ? <img src={sprite} alt="" className="h-10 w-10 [image-rendering:pixelated]" /> : o.board?.[0] && <UnitCard id={o.board[0]} unit={units.get(o.board[0])} width="1.75rem" />}
+      <span className="font-heading text-sm text-slate-50">{o.name}</span>
+      <span className={`rounded px-1.5 text-xs font-bold text-gray-900 ${DIFFICULTY_COLOR[o.difficulty]}`}>{DIFFICULTY_LABEL[o.difficulty]}</span>
+      {o.pay > 0 && <span className="text-xs text-yellow-200">₱{o.pay} for a win</span>}
+    </div>
   );
 }
 
-/** No run under way: the last run's result, if any, and a new run. */
-function RunOver({ run, busy, onStart, onWatch }: { run: ClientSafari | null; busy: boolean; onStart: () => void; onWatch: () => void }) {
-  const view = run?.view;
+/**
+ * The table between battles: the chosen opponent's board at the top (dashed places until one is chosen), the bar (Start
+ * battle once an opponent is chosen; the shop's and the next step's buttons while a panel is hidden), the player's side.
+ */
+function DraftTable({ view, units, busy, act, active, onPanel }: { view: SafariViewData; units: Units; busy: boolean; act: Act; active: boolean; onPanel: (p: 'shop' | 'next') => void }) {
+  const o = view.phase === 'ready' ? view.opponent : null;
+  const empty = !view.board.some((c) => c?.kind === 'pokemon');
   return (
-    <Panel title={view ? (view.phase === 'won' ? 'You beat the Champion!' : 'Run over') : 'Welcome to the Safari Zone!'}>
-      <div className="space-y-3 text-sm text-slate-200">
-        {view?.phase === 'won' && <p className="text-yellow-200">₱{commas(view.pokedollars)} went to your bank.</p>}
-        {view?.phase === 'lost' && <p>{view.conceded ? 'You conceded the run.' : 'You ran out of HP.'} Nothing was banked.</p>}
-        {!view && (
-          <ul className="list-disc space-y-1 pl-5 text-slate-300">
-            <li>Pick a starter, then buy Pokémon cards in the shop after every battle. Up to 6 fight on your board, 6 more wait in your inventory.</li>
-            <li>Battles play themselves: each side attacks left to right, every attack at a random opposing Pokémon, which strikes back.</li>
-            <li>2 of a Pokémon that evolve into the same card merge into it; 3 of a Pokémon with no evolutions make a golden copy. 2, 4 or 6 of a type give a synergy.</li>
-            <li>15 battles, then Champion Blue, on 3 HP. Beat him to bank the run's ₱.</li>
-          </ul>
+    <>
+      <div className="flex flex-col gap-1.5">
+        {o ? (
+          <>
+            <OpponentTag o={o} units={units} />
+            <CardRow>
+              {o.board.map((id, i) => (
+                <UnitCard key={i} id={id} unit={units.get(id)} width={CARD} />
+              ))}
+              {o.trainer && <TrainerCard trainer={o.trainer} width="var(--safari-inv)" />}
+            </CardRow>
+            <div className="flex min-h-6 justify-center">
+              <SynergyChips types={o.board.map((id) => units.get(id)?.type ?? '')} quiet />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex min-h-10 items-center justify-center text-xs text-slate-500">{active ? "Your next opponent's board shows here once chosen." : ''}</div>
+            <CardRow>
+              {Array.from({ length: 6 }, (_, i) => (
+                <EmptyPlace key={i} width={CARD} />
+              ))}
+            </CardRow>
+            <div className="min-h-6" />
+          </>
         )}
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className={`${BUTTON} !bg-yellow-300 !px-5 !py-1.5 font-bold !text-gray-900 hover:!bg-yellow-200`} disabled={busy} onClick={onStart}>
-            {view ? 'Start a new run' : 'Start a run'}
-          </button>
-          {view?.last && (
-            <button type="button" className={BUTTON} onClick={onWatch}>
-              Watch the last battle
-            </button>
-          )}
-        </div>
       </div>
-    </Panel>
+
+      <div className="flex min-h-9 flex-wrap items-center justify-center gap-2" data-keep-action>
+        {active && o && (
+          <>
+            <span className="text-xs text-slate-300">Reorder your board or pick your Trainer card first.</span>
+            <button type="button" className={`${BUTTON} !bg-yellow-300 !px-5 !py-1.5 font-bold !text-gray-900 hover:!bg-yellow-200`} disabled={busy || empty} onClick={() => act({ type: 'BATTLE' })}>
+              Start battle
+            </button>
+          </>
+        )}
+        {active && view.phase === 'shop' && (
+          <>
+            {view.shop && (
+              <button type="button" className={BUTTON} onClick={() => onPanel('shop')}>
+                Shop
+              </button>
+            )}
+            <button type="button" className={`${BUTTON} !bg-yellow-300 font-bold !text-gray-900 hover:!bg-yellow-200`} onClick={() => onPanel('next')}>
+              Next battle →
+            </button>
+          </>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <PlayerSide view={view} units={units} busy={busy || !active} canSell={active && view.phase !== 'ready'} act={act} />
+      </div>
+    </>
+  );
+}
+
+/** A battle played back on the table: the opponent's line at the top, the bar, the player's line where their board is. */
+function BattleTable({ battle, view, units, busy, act, onClose }: { battle: LastBattle; view: SafariViewData; units: Units; busy: boolean; act: Act; onClose: () => void }) {
+  const playback = useBattlePlayback(battle);
+  return (
+    <>
+      <div className="flex flex-col gap-1.5">
+        <OpponentTag o={{ ...battle.against, pay: 0, board: battle.opponent.units.map((u) => u.id) }} units={units} />
+        <BattleLine playback={playback} side={1} units={units} types={battle.opponent.units.map((u) => u.type)} trainer={battle.opponent.trainer} />
+      </div>
+      <BattleBar playback={playback} battle={battle} onClose={onClose} />
+      <div className="flex flex-col gap-1.5">
+        <PlayerSide view={view} units={units} busy canSell={false} act={act} board={<BattleLine playback={playback} side={0} units={units} types={battle.mine.units.map((u) => u.type)} trainer={battle.mine.trainer} />} />
+      </div>
+    </>
   );
 }

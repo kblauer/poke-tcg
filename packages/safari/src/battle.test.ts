@@ -2,7 +2,7 @@ import { int, rngFrom, sample } from '@poke-tcg/campaign';
 import type { EnergyType } from '@poke-tcg/game-engine';
 import { describe, expect, it } from 'vitest';
 import { simulateBattle, type BattleEvent, type BattleResult, type Board } from './battle.js';
-import { KEYWORDS, POWERS, SPEC, TRAINERS, TRAINER_NAMES, TUNING, synergyLevel, type TrainerName } from './effects.js';
+import { KEYWORDS, SPEC, TRAINERS, TRAINER_NAMES, TUNING, synergyLevel, type TrainerName } from './effects.js';
 import { gen1Units } from './gen1.js';
 import { KEYWORD_NAMES, type Unit } from './units.js';
 
@@ -188,7 +188,7 @@ describe('Special Conditions', () => {
 describe('keywords', () => {
   it('every keyword has its effect, and every effect its words', () => {
     expect(Object.keys(KEYWORDS).sort()).toEqual([...KEYWORD_NAMES].sort());
-    for (const h of [...Object.values(KEYWORDS), ...Object.values(POWERS)]) expect(h.text.length).toBeGreaterThan(5);
+    for (const h of Object.values(KEYWORDS)) expect(h.text.length).toBeGreaterThan(5);
   });
 
   it('Explode: when it faints, damage to every opposing Pokémon', () => {
@@ -426,113 +426,19 @@ describe('Trainers', () => {
   });
 });
 
-describe('Pokémon Powers', () => {
-  const units = gen1Units();
-  const power = (name: string, over: Partial<Unit> = {}) => unit({ power: name, ...over });
-
-  it("every Gen 1 unit's power is in the table, and the table holds no other", () => {
-    expect(Object.keys(POWERS).sort()).toEqual(units.flatMap((u) => (u.power ? [u.power] : [])).sort());
-    for (const [name, h] of Object.entries(POWERS)) {
-      const hooks = Object.keys(h).filter((k) => k !== 'text');
-      expect(hooks.length, name).toBeGreaterThan(0);
-      if (h.draft || h.rule) expect(hooks.filter((k) => k !== 'unanswered'), name).toHaveLength(1);
+describe('Taunt and the tuning', () => {
+  it('Taunt: every attack goes at a Taunt Pokémon while one stands, then at random', () => {
+    for (const r of seeds(10, [unit({ hp: 900 }), unit({ hp: 900 }), unit({ hp: 900 })], [unit({ hp: 900 }), unit({ keyword: 'Taunt', hp: 60 }), unit({ hp: 900 })])) {
+      const at = events(r, 'attack').filter((x) => x.uid[0] === 'a');
+      const fell = r.events.findIndex((e) => e.e === 'faint' && e.uid === 'b1');
+      const before = r.events.slice(0, fell < 0 ? undefined : fell).filter((e): e is Extract<BattleEvent, { e: 'attack' }> => e.e === 'attack' && e.uid[0] === 'a');
+      expect(before.length).toBeGreaterThan(0);
+      expect(before.every((x) => x.target === 'b1')).toBe(true);
+      if (fell >= 0) expect(at.length).toBeGreaterThan(before.length);
     }
-    // The powers that work in the draft only (step 2): they must do nothing in a battle.
-    expect(Object.entries(POWERS).filter(([, h]) => h.draft).map(([name]) => name).sort()).toEqual(['Cowardice', 'Evolutionary Light', 'Matter Exchange', 'Reel In', 'Special Delivery', 'Summon Minions', 'Trickery']);
-  });
-
-  it('Toxic Gas stops every other power, either side\'s, while Muk stands', () => {
-    const r = play([power('Toxic Gas', { hp: 900 })], [power('Strikes Back', { hp: 900 }), power('Energy Burn', { hp: 900 })]);
-    expect(events(r, 'buff')).toEqual([]);
-    expect(damage(r, 'a0', 'Strikes Back')).toEqual([]);
-  });
-
-  it('Hay Fever: neither side\'s Trainer works', () => {
-    const r = play({ units: [power('Hay Fever')], trainer: 'PlusPower' }, { units: [unit()], trainer: 'Gambler' });
-    expect(events(r, 'trainer')).toEqual([]);
-    expect(events(r, 'buff')).toEqual([]);
-  });
-
-  it('Transform copies the Pokémon across from it; Shapeshift the ally on its right', () => {
-    const across = unit({ name: 'Machamp', attack: 60, hp: 100, type: 'fighting', stage: 'stage2', keyword: 'Finisher', power: 'Strikes Back' });
-    const r = play([power('Transform', { hp: 50 })], [across]);
-    expect(events(r, 'become')).toEqual([{ e: 'become', uid: 'a0', unit: across.id, name: 'Machamp', attack: 60, hp: 100 }]);
-    expect(damage(r, 'b0', 'Strikes Back')).toEqual([]); // the copy has no power
-    const right = unit({ name: 'Arcanine', attack: 50, hp: 100 });
-    expect(events(play([power('Shapeshift'), right], [unit()]), 'become')[0]).toMatchObject({ uid: 'a0', name: 'Arcanine', attack: 50, hp: 100 });
-  });
-
-  it('prevention: Neutral Shield, Invisible Wall, Transparency, Flee', () => {
-    const shield = play([power('Neutral Shield', { hp: 50 })], [unit({ stage: 'stage1', attack: 40, hp: 60 })]);
-    expect(damage(shield, 'a0').every((d) => d.why === 'rising')).toBe(true);
-    const wall = play([power('Invisible Wall', { hp: 50, attack: 0 })], [unit({ attack: 30, hp: 900 }), unit({ attack: 20, hp: 900 })]);
-    expect(damage(wall, 'a0').filter((d) => d.why !== 'rising').every((d) => d.amount === 20)).toBe(true);
-    const blocked = seeds(20, [power('Transparency', { hp: 900 })], [unit({ hp: 900 })]).map((r) => events(r, 'blocked').length);
-    expect(Math.max(...blocked)).toBeGreaterThan(1);
-    const flee = play([power('Flee', { hp: 100 }), unit({ hp: 100 })], [unit({ attack: 30, hp: 900 })]);
-    expect(events(flee, 'blocked').filter((x) => x.why === 'Flee')).toHaveLength(1);
-    expect(events(flee, 'move')[0]).toMatchObject({ uid: 'a0', why: 'Flee' });
-  });
-
-  it('reduction: Kabuto Armor, Strange Barrier, Shell Armor, Relaxing Scent', () => {
-    const hits = (target: Unit, by: Partial<Unit>) => damage(play([target], [unit({ hp: 900, ...by })]), 'a0').filter((d) => d.why !== 'rising')[0]?.amount;
-    expect(hits(power('Kabuto Armor', { hp: 900 }), { attack: 30 })).toBe(10);
-    expect(hits(power('Strange Barrier', { hp: 900 }), { attack: 50 })).toBe(10);
-    expect(hits(power('Strange Barrier', { hp: 900 }), { attack: 50, stage: 'stage1' })).toBe(50);
-    expect(hits(power('Shell Armor', { hp: 900 }), { attack: 50 })).toBe(40);
-    expect(hits(power('Relaxing Scent', { hp: 900 }), { attack: 30 })).toBe(20);
-  });
-
-  it('Bench Guard shields its neighbours from 10 of every hit; Strange Behavior takes 10 of a hit on another', () => {
-    const rhydon = play([unit({ hp: 900 }), power('Bench Guard', { hp: 900, attack: 0 })], [unit({ attack: 30, hp: 900 })]);
-    expect(damage(rhydon, 'a0', 'attack').slice(0, 3).map((d) => d.amount)).toEqual([20, 20, 20]);
-    expect(damage(rhydon, 'a0', 'strike back').slice(0, 3).map((d) => d.amount)).toEqual([20, 20, 20]);
-    expect(damage(rhydon, 'a1', 'Bench Guard')).toEqual([]);
-    const slowbro = play([unit({ hp: 900 }), power('Strange Behavior', { hp: 40, attack: 0 })], [unit({ attack: 30, hp: 900 })]);
-    expect(damage(slowbro, 'a1', 'Strange Behavior').length).toBeLessThanOrEqual(3); // never fainting from it
-  });
-
-  it('Aurora Veil keeps Splash, Explode and start-of-battle damage off its allies', () => {
-    const psychic = Array.from({ length: 2 }, () => unit({ type: 'psychic', hp: 900 }));
-    const r = play([power('Aurora Veil', { hp: 900 }), unit({ hp: 900 })], psychic);
-    expect(damage(r, 'a0', 'Mind')).toHaveLength(1);
-    expect(damage(r, 'a1', 'Mind')).toEqual([]);
-  });
-
-  it('coming back: Rebirth at the end of the line, Fortitude on a coin, Scram once at exactly 10 HP', () => {
-    const rebirth = play([power('Rebirth', { hp: 100 }), unit({ hp: 900 })], [unit({ attack: 100, hp: 5000 })]);
-    expect(events(rebirth, 'join').filter((j) => j.why === 'Rebirth')).toEqual([expect.objectContaining({ uid: 'a0', at: 1, hp: 50 })]);
-    const stays = seeds(30, [power('Fortitude', { hp: 50 })], [unit({ attack: 50, hp: 900 })]).map((r) => events(r, 'heal').filter((h) => h.why === 'Fortitude').length);
-    expect(Math.min(...stays)).toBe(0);
-    expect(Math.max(...stays)).toBeGreaterThan(0);
-    const scram = play([power('Scram', { hp: 40 }), unit({ hp: 900 })], [unit({ attack: 30, hp: 900 })]);
-    expect(events(scram, 'heal').filter((h) => h.why === 'Scram')).toEqual([expect.objectContaining({ uid: 'a0', hp: 40 })]);
-  });
-
-  it("Step In makes its side's first attack; Thick Skinned takes no condition; Clairvoyance sees through Guard", () => {
-    const stepIn = play([unit({ hp: 900 }), unit({ hp: 900 }), power('Step In', { hp: 900 })], [unit({ hp: 900 })]);
-    expect(events(stepIn, 'attack').filter((x) => x.uid[0] === 'a').slice(0, 3).map((x) => x.uid)).toEqual(['a2', 'a0', 'a1']);
-    const snorlax = play([power('Thick Skinned', { hp: 900 })], [unit({ keyword: 'Sleep', hp: 900 }), unit({ keyword: 'Poison', hp: 900 })]);
-    expect(events(snorlax, 'status')).toEqual([]);
-    for (const r of seeds(20, [power('Clairvoyance', { hp: 900 })], [unit({ keyword: 'Guard', hp: 900 }), power('Transparency', { hp: 900 })])) expect(events(r, 'blocked')).toEqual([]);
-  });
-
-  it('attack by the board: Psylink, Prehistoric Power, Energy Charge, Rain Dance', () => {
-    const psylink = play([power('Psylink', { type: 'psychic', attack: 10, hp: 900 }), unit({ type: 'psychic', attack: 50, hp: 900 })], [unit({ hp: 900, attack: 0 })], 1);
-    // +10 attack for each other Psychic ally (the balance pass).
-    expect(damage(psylink, 'b0').filter((d) => d.why === 'attack' && events(psylink, 'attack').some((x) => x.uid === 'a0')).length).toBeGreaterThan(0);
-    const psyHits = (r: BattleResult) => {
-      const at = r.events.findIndex((e) => e.e === 'attack' && e.uid === 'a0');
-      return r.events.slice(at + 1).find((e): e is Extract<BattleEvent, { e: 'damage' }> => e.e === 'damage' && e.uid === 'b0')?.amount;
-    };
-    expect(psyHits(psylink)).toBe(20);
-    const aerodactyl = play([power('Prehistoric Power', { hp: 900, attack: 0 })], [unit({ stage: 'stage1', attack: 30, hp: 900 }), unit({ attack: 30, hp: 900 })]);
-    expect(damage(aerodactyl, 'a0').filter((d) => d.why === 'attack').map((d) => d.amount).sort().slice(0, 2)).toEqual([20, 20]);
-    expect(damage(aerodactyl, 'a0').some((d) => d.amount === 30)).toBe(true);
-    const magneton = play([power('Energy Charge', { type: 'lightning', attack: 10, hp: 900 }), unit({ type: 'lightning', hp: 900, attack: 0 })], [unit({ hp: 900, attack: 0 })]);
-    expect(damage(magneton, 'b0').filter((d) => d.amount === 20).length).toBeGreaterThan(0);
-    const blastoise = play([power('Rain Dance', { type: 'water' }), unit({ type: 'water' }), unit({ type: 'fire' })], [unit()]);
-    expect(events(blastoise, 'buff').filter((x) => x.why === 'Rain Dance').map((x) => x.uid)).toEqual(['a0', 'a1']);
+    // Gust of Wind's aim comes first.
+    const gust = play({ units: [unit({ hp: 900 })], trainer: 'Gust of Wind' }, [unit({ hp: 900, attack: 50 }), unit({ keyword: 'Taunt', hp: 900 })]);
+    expect(events(gust, 'attack').filter((x) => x.uid === 'a0')[0]!.target).toBe('b0');
   });
 
   it("the numbers battles play by are the issue's but for the balance pass's changes", () => {
@@ -540,9 +446,9 @@ describe('Pokémon Powers', () => {
     const changed = (Object.keys(SPEC) as (keyof typeof SPEC)[]).filter((k) => JSON.stringify(SPEC[k]) !== JSON.stringify(TUNING[k]));
     expect(changed.sort()).toEqual(
       [
-        'blindAttackOnly', 'explode', 'gust', 'gustStruckBack', 'lightning', 'quickStruckBack', 'restingStrikesBack', 'scoopUpReturns', 'sinkhole', 'versatileAttack', 'versatileOwn',
+        'blindAttackOnly', 'explode', 'gust', 'gustStruckBack', 'lightning', 'quickStruckBack', 'restingStrikesBack', 'scoopUpReturns', 'versatileAttack', 'versatileOwn',
         // Step 7's balance pass (the user's, 2026-11-18); Whirlwind's and Charge's switches stay off.
-        'benchGuardShields', 'blindAtOnce', 'flurrySure', 'fragranceUnanswered', 'frenzyStartsConfused', 'frenzyUnhurt', 'gamblerTails', 'peekUnanswered', 'psylinkPerAlly', 'scentHeadsOnly', 'stepInUnanswered',
+        'blindAtOnce', 'flurrySure', 'gamblerTails',
       ].sort(),
     );
     expect([TUNING.whirlwindUnanswered, TUNING.chargeUnanswered]).toEqual([false, false]);
@@ -554,28 +460,6 @@ describe('Pokémon Powers', () => {
     const next = r.events.findIndex((e, i) => i > at && (e.e === 'attack' || e.e === 'end'));
     return r.events.slice(at + 1, next);
   };
-
-  it("no strike back: Step In's and Peek's first attacks, Fragrance Trap's aimed one", () => {
-    const stepIn = play([unit({ hp: 900 }), power('Step In', { hp: 900 })], [unit({ hp: 900, attack: 30 })]);
-    expect(firstExchange(stepIn, 'a1').filter((e) => e.e === 'damage' && e.uid === 'a1')).toEqual([]);
-    for (const r of seeds(10, [power('Peek', { hp: 900 })], [unit({ hp: 900, attack: 30 }), unit({ hp: 50, attack: 30 })])) {
-      const ex = firstExchange(r, 'a0');
-      expect(ex.filter((e) => e.e === 'damage' && e.uid === 'a0')).toEqual([]);
-    }
-    const trapped = seeds(30, [power('Fragrance Trap', { hp: 900 })], [unit({ hp: 900, attack: 30 }), unit({ hp: 50, attack: 30 })]).map((r) => firstExchange(r, 'a0').filter((e) => e.e === 'damage' && e.uid === 'a0').length);
-    expect(Math.min(...trapped)).toBe(0);
-    expect(Math.max(...trapped)).toBe(1);
-  });
-
-  it('Frenzy starts Confused and its Confusion never hurts it; the scents work on heads only', () => {
-    for (const r of seeds(10, [power('Frenzy', { hp: 900, attack: 10 })], [unit({ hp: 900, attack: 0 })])) {
-      expect(events(r, 'status')[0]).toMatchObject({ uid: 'a0', status: 'confused' });
-      expect(damage(r, 'a0', 'Confused')).toEqual([]);
-      expect(damage(r, 'b0', 'attack')[0]?.amount).toBe(40);
-    }
-    for (const r of seeds(20, [power('Long Distance Hypnosis', { hp: 900 })], [unit({ hp: 900 })])) expect(events(r, 'status').filter((x) => x.uid === 'a0')).toEqual([]);
-    expect(seeds(20, [power('Pollen Stench', { hp: 900 })], [unit({ hp: 900 })]).some((r) => events(r, 'status').some((x) => x.uid === 'b0' && x.status === 'confused'))).toBe(true);
-  });
 
   it("Blind: its target's strike back to the hit flips a coin too", () => {
     const backs = seeds(30, [unit({ keyword: 'Blind', hp: 900 })], [unit({ hp: 900, attack: 30 })]).map((r) => firstExchange(r, 'a0').filter((e) => e.e === 'damage' && e.uid === 'a0').length);
