@@ -57,7 +57,9 @@ def slug(s):
 
 def strip(frames):
     """A sheet's frames as a 12-frame strip; standing-only sheets (their step frames all the same placeholder) repeat
-    their standing frames; a 9-frame sheet (Cilan's: up 2, down 2, left 3) faces right as its left, mirrored."""
+    their standing frames; a 9-frame sheet (Cilan's: up 2, down 2, left 3) faces right as its left, mirrored; a 7- or
+    8-frame sheet (most people's: up and down a stand and a step each, the other step the step mirrored; left a stand and
+    two steps; right the left mirrored, as the game draws them) likewise."""
     same = lambda a, b: ImageChops.difference(a, b).getbbox() is None
     if len(frames) >= 12:
         stands = [3, 0, 6, 9]
@@ -67,6 +69,9 @@ def strip(frames):
     elif len(frames) == 9:
         mirror = lambda i: frames[i].transpose(Image.FLIP_LEFT_RIGHT)
         pick = [frames[2], frames[0], frames[4], mirror(4), frames[3], frames[3], frames[1], frames[1], frames[5], frames[6], mirror(5), mirror(6)]
+    elif len(frames) in (7, 8):
+        mirror = lambda i: frames[i].transpose(Image.FLIP_LEFT_RIGHT)
+        pick = [frames[2], frames[0], frames[4], mirror(4), frames[3], mirror(3), frames[1], mirror(1), frames[5], frames[6], mirror(5), mirror(6)]
     else:
         pick = [frames[0]] * 12
     out = Image.new('RGBA', (FRAME * 12, FRAME), (0, 0, 0, 0))
