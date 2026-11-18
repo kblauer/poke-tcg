@@ -4,6 +4,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { generation, basicFor, calcStats, cooldownTicks, machineMoves, moveData, species, usableStones, type IdleAction, type Mon } from '@poke-tcg/idle';
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import { useEscape } from '../../hooks/useEscape';
+import { useIsPhone, useTouchScreen } from '../../hooks/useIsPhone';
 import { gbaArt, pokemonPics } from '../../utils/idleLook';
 import { screenPx as px } from './GameScreen';
 import { HgssParty } from './HgssParty';
@@ -22,6 +23,11 @@ const LIST_LEFT = 240 - (10 + SLOT_W + 4);
 export const PANEL_W = 104;
 const PANEL_TOP = 2;
 const PANEL_MAX_H = 160 - 2 - PANEL_TOP;
+/**
+ * On a phone or any touchscreen (the user's, 2026-11-18: its moves' handles were too small to drag): the panel fills the scene's left, below
+ * the Map and Stop buttons, up to the party's slots, its handles, selects and box bigger and its stats smaller to fit.
+ */
+const PHONE_PANEL = { left: 1, top: 26, width: LIST_LEFT - 2, maxH: 160 - 26 - 1 };
 /** The panel's colours: a slot's (slot.png's border, fill and light). */
 const FRAME = { border: '#4a4a62', fill: '#3994de', light: '#83c5de', shade: '#297bb4' };
 /** How far (game pixels) a slot must be dragged before it's a drag, not a click. */
@@ -95,6 +101,10 @@ function FireRedParty({
 }: Parameters<typeof PartyOverlay>[0]) {
   const open = opened || !!replacing;
   const [chosen, setChosen] = useState<string | null>(null);
+  // A phone, or any touchscreen (a tablet or a phone held sideways): the panel with room for a finger.
+  const isPhone = useIsPhone();
+  const touch = useTouchScreen();
+  const phone = isPhone || touch;
   const mon = party.find((m) => m.uid === chosen) ?? null;
   // Open by itself while a catch waits: only the Pokémon's panel closes.
   const close = () => (setChosen(null), !replacing && onToggle(false));
@@ -191,7 +201,7 @@ function FireRedParty({
       </div>
       {open && mon && (
         <div ref={panel} className="contents">
-          <MonPanel mon={mon} bag={bag} busy={busy} pending={pending} maxH={PANEL_MAX_H} onAct={onAct} onClose={() => setChosen(null)} replacing={replacing} onReplace={onReplace} />
+          <MonPanel mon={mon} bag={bag} busy={busy} pending={pending} maxH={PANEL_MAX_H} onAct={onAct} onClose={() => setChosen(null)} replacing={replacing} onReplace={onReplace} phone={phone} />
         </div>
       )}
       {replacing && !mon && <ReplacePrompt mon={replacing} />}
@@ -359,17 +369,17 @@ function StatHex({ stats, height }: { stats: number[]; height: number }) {
 }
 
 /** A set move slot in the Pokémon's panel (MonPanel): its select, and a handle on its left to drag it into another place. */
-function SlotRow({ id, busy, children }: { id: string; busy: boolean; children: ReactNode }) {
+function SlotRow({ id, busy, big, children }: { id: string; busy: boolean; big?: boolean; children: ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   return (
-    <div ref={setNodeRef} className="flex items-center" style={{ marginTop: px(1.5), gap: px(1), transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 1 : undefined, position: 'relative', opacity: isDragging ? 0.85 : 1 }}>
+    <div ref={setNodeRef} className="flex items-center" style={{ marginTop: px(big ? 2.5 : 1.5), gap: px(1), transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 1 : undefined, position: 'relative', opacity: isDragging ? 0.85 : 1 }}>
       <button
         type="button"
         {...attributes}
         {...listeners}
         disabled={busy}
         className="flex shrink-0 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
-        style={{ ...TEXT, width: px(5), height: px(10), fontSize: px(8) }}
+        style={{ ...TEXT, width: px(big ? 12 : 5), height: px(big ? 13 : 10), fontSize: px(big ? 12 : 8) }}
         aria-label={`Drag ${moveData(id).name} into another place`}
         title="Drag to change the order: of two moves as strong, the first is used first"
       >
@@ -397,9 +407,12 @@ export function MonPanel({
   replacing,
   onReplace,
   left = LIST_LEFT - PANEL_W,
+  phone = false,
 }: {
   /** Where it stands (game pixels): just left of FireRed's slots, or beside HGSS's chosen one. */
   left?: number;
+  /** On a phone: at PHONE_PANEL, with bigger handles and selects (FireRed's and Emerald's party screens). */
+  phone?: boolean;
   mon: Mon;
   bag: Record<string, number>;
   busy: boolean;
@@ -442,7 +455,7 @@ export function MonPanel({
   return (
     <div
       className="pointer-events-auto absolute overflow-y-auto"
-      style={{ left: px(left), top: px(PANEL_TOP), width: px(PANEL_W), maxHeight: px(maxH), zIndex: 5, background: FRAME.fill, border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(3), boxShadow: `inset 0 0 0 ${px(1)} ${FRAME.light}`, padding: px(2) }}
+      style={{ left: px(phone ? PHONE_PANEL.left : left), top: px(phone ? PHONE_PANEL.top : PANEL_TOP), width: px(phone ? PHONE_PANEL.width : PANEL_W), maxHeight: px(phone ? PHONE_PANEL.maxH : maxH), zIndex: 5, background: FRAME.fill, border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(3), boxShadow: `inset 0 0 0 ${px(1)} ${FRAME.light}`, padding: px(2) }}
     >
       <div className="flex items-center justify-between">
         <span className="truncate" style={{ ...TEXT, fontSize: px(9) }}>
@@ -472,7 +485,7 @@ export function MonPanel({
           ))}
         </div>
         <div style={{ marginTop: px(1) }}>
-          <StatHex stats={stats} height={40} />
+          <StatHex stats={stats} height={phone ? 30 : 40} />
         </div>
       </div>
       <div style={{ ...TEXT, ...small, marginTop: px(2) }}>Basic: {moveData(basic).name}</div>
@@ -482,7 +495,7 @@ export function MonPanel({
             const select = (
               <select
                 className="block min-w-0 flex-1"
-                style={{ fontSize: px(7), height: px(10), padding: `0 ${px(1)}`, background: '#ffffff', color: '#303030', border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(2) }}
+                style={{ fontSize: px(phone ? 8 : 7), height: px(phone ? 13 : 10), padding: `0 ${px(1)}`, background: '#ffffff', color: '#303030', border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(2) }}
                 value={shown[slot] ?? ''}
                 disabled={busy}
                 onChange={(e) => setSlot(slot, e.target.value)}
@@ -507,11 +520,11 @@ export function MonPanel({
             );
             // A set slot is dragged by its handle; an empty one stays put at the end.
             return shown[slot] ? (
-              <SlotRow key={shown[slot]} id={shown[slot]!} busy={busy}>
+              <SlotRow key={shown[slot]} id={shown[slot]!} busy={busy} big={phone}>
                 {select}
               </SlotRow>
             ) : (
-              <div key={`empty${slot}`} className="flex items-center" style={{ marginTop: px(1.5), gap: px(1), paddingLeft: px(6) }}>
+              <div key={`empty${slot}`} className="flex items-center" style={{ marginTop: px(phone ? 2.5 : 1.5), gap: px(1), paddingLeft: px(phone ? 13 : 6) }}>
                 {select}
               </div>
             );
@@ -519,7 +532,7 @@ export function MonPanel({
         </SortableContext>
       </DndContext>
       <label className="flex items-center" style={{ ...TEXT, ...small, gap: px(2), marginTop: px(2) }}>
-        <input type="checkbox" checked={mon.autoSlots} disabled={busy || mon.autoSlots} onChange={() => onAct({ type: 'SET_SLOTS', uid: mon.uid, slots: [], auto: true })} style={{ width: px(6), height: px(6) }} />
+        <input type="checkbox" checked={mon.autoSlots} disabled={busy || mon.autoSlots} onChange={() => onAct({ type: 'SET_SLOTS', uid: mon.uid, slots: [], auto: true })} style={{ width: px(phone ? 9 : 6), height: px(phone ? 9 : 6) }} />
         Pick the 3 strongest
       </label>
       {stones.map((st) => (
