@@ -12,7 +12,6 @@ import { DeckSummary } from '../DeckList';
 import { DeckMenu, DeckOption } from './DeckMenu';
 import { CatalogContext } from '../InspectContext';
 import { EnergyIcon } from '../EnergyIcon';
-import { towerUnderway, useTowerOverview } from '../../hooks/useTower';
 
 type RunTypeInfo = Overview['runTypes'][number];
 
@@ -159,11 +158,10 @@ export function NewRunPicker({ overview: given, run, title, defaultType, extra }
   const deckId = picked ?? lastPlayed?.id ?? playable[0]?.id ?? null;
   const favorites = overview.decks.filter((d) => d.favorite);
   const [starter, setStarter] = useState<StarterId>(STARTER_IDS[0]);
-  const tower = towerUnderway(useTowerOverview().data?.challenge);
   const phone = useIsPhone();
   const chosen = overview.runTypes.find((t) => t.id === type);
   // Starting the picked run (the selected tile's Start run) with the deck picked (or the starter).
-  const canStart = !run.busy && !tower && (overview.needsStarter || !!deckId) && chosen?.locked === null;
+  const canStart = !run.busy && (overview.needsStarter || !!deckId) && chosen?.locked === null;
   const start = () => {
     if (overview.needsStarter) run.start(type, { starter }, debugLocked.has(type));
     else if (deckId) run.start(type, { deckId }, debugLocked.has(type));
@@ -259,7 +257,6 @@ export function NewRunPicker({ overview: given, run, title, defaultType, extra }
       )}
 
       <p className="text-xs text-slate-500">The new run starts with ₱500 and 3 HP.</p>
-      {tower && <p className="text-xs text-amber-300">Save or finish your Battle Tower challenge first.</p>}
       {/* Start is on the selected run's tile (RunTypeOption). */}
       {extra && <div className="flex flex-wrap items-center gap-3">{extra}</div>}
     </section>

@@ -8,7 +8,7 @@ import { loadCardLibrary } from '../cards.js';
 import { actionRows, asJson, loadGame, newSeed, storedState } from '../games.js';
 import { cardPool } from '../pool.js';
 import { loadOwnRun, settleBattle } from '../runs.js';
-import { loadOwnTower, settleTowerBattle, towerUnderway } from '../towers.js';
+import { loadOwnTower, settleTowerBattle } from '../towers.js';
 import { PLAYER_TEST_DECK, expandDeck } from '../test-decks.js';
 import type { AuthUser } from '../auth.js';
 import { protectedProcedure, router } from '../trpc.js';
@@ -115,10 +115,10 @@ function cardImages(state: GameState): string[] {
 export const gameRouter = router({
   /**
    * Starts a single battle with one of the player's decks, which must follow the deck rules and hold only unlocked
-   * cards, or with the test deck (`deckId` null). Not during a Battle Tower challenge that isn't saved (towerUnderway).
+   * cards, or with the test deck (`deckId` null). Any time: nothing blocks a battle or a run anywhere in the app (the
+   * user's, issue #239), a Battle Tower challenge or a Safari Draft under way included.
    */
   create: protectedProcedure.input(singleBattleInput).mutation(async ({ ctx, input }) => {
-    await towerUnderway(ctx.user.id);
     const deck = input.deckId === null ? null : await playableDeck(input.deckId, ctx.user.id);
     const game = await startGame(ctx.user, deck?.cards ?? expandDeck(PLAYER_TEST_DECK), input, deck?.cosmetics ?? null);
     if (input.deckId !== null) await markPlayed(ctx.user.id, input.deckId);

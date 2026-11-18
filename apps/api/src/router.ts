@@ -10,6 +10,7 @@ import { gameRouter } from './routers/game.js';
 import { idleRouter } from './routers/idle.js';
 import { packsRouter } from './routers/packs.js';
 import { runRouter } from './routers/run.js';
+import { safariRouter } from './routers/safari.js';
 import { settingsRouter } from './routers/settings.js';
 import { towerRouter } from './routers/tower.js';
 import { whosThatRouter } from './routers/whosThat.js';
@@ -25,6 +26,7 @@ export const appRouter = router({
   run: runRouter,
   tower: towerRouter,
   idle: idleRouter,
+  safari: safariRouter,
   packs: packsRouter,
   cosmetics: cosmeticsRouter,
   flair: flairRouter,

@@ -3,7 +3,7 @@
  * PlayModes, and which pages light Play): each its page, its name, a line on it, and a scene from the games filling its tile
  * (`public/play/`, by tools/play/play_tiles.py; the user's), with where the tile's crop of it centres (`focus`).
  */
-export const PLAY_MODES: readonly { to: '/badge' | '/tower' | '/idle' | '/battle'; label: string; text: string; picture: string; focus: string }[] = [
+export const PLAY_MODES: readonly { to: '/badge' | '/tower' | '/idle' | '/safari' | '/battle'; label: string; text: string; picture: string; focus: string }[] = [
   {
     to: '/badge',
     label: 'Badge Challenge',
@@ -27,6 +27,14 @@ export const PLAY_MODES: readonly { to: '/badge' | '/tower' | '/idle' | '/battle
     // Route 1 (FireRed): Red setting off up the road from Pallet Town.
     picture: '/play/idle.png',
     focus: '50% 60%',
+  },
+  {
+    to: '/safari',
+    label: 'Safari Draft',
+    text: 'Draft a team of Pokémon cards, merge and evolve them, and watch them battle their way to the Champion!',
+    // The Safari Zone's centre (FireRed): its pond and rest house.
+    picture: '/play/safari.png',
+    focus: '50% 50%',
   },
   {
     to: '/battle',

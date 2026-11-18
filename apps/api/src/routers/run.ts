@@ -5,7 +5,6 @@ import { TRPCError } from '@trpc/server';
 import { userRow } from '../auth.js';
 import { debugWinGame } from '../games.js';
 import { runViewPool } from '../pool.js';
-import { towerUnderway } from '../towers.js';
 import { runTypeProgress } from '../progress.js';
 import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, lockUser, needsStarter, retryError, settleBattle, startRun, syncRunDeck, takeItem, type LoadedRun } from '../runs.js';
 import { holoTwins, lockedProblem, unlockedIds } from '../unlocks.js';
@@ -27,7 +26,6 @@ async function latestStock(userId: string) {
 
 /** Starts a run of `type` with one of the account's own decks, which must be playable, or (its first run) the starter deck it picked. */
 async function startWithDeck(userId: string, type: RunTypeId, { deckId, starter }: { deckId?: string; starter?: StarterId }) {
-  await towerUnderway(userId);
   if (starter) return startRun(userId, type, { starter });
   const deck = await playableDeck(deckId!, userId);
   if (deck.runDeck) throw new TRPCError({ code: 'BAD_REQUEST', message: "Start a run with one of your own decks (save the run's deck first)" });

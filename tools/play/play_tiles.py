@@ -9,8 +9,8 @@ anywhere else, so it's rendered apart and passed in:
     python tools/routes/render_route.py <dir> <dir>/dojo.png <dir>/dojo.json 13 16
     python tools/play/play_tiles.py <dir>/dojo.png
 
-The Idle Adventure's tile is Route 1 (tools/idle/kanto_areas.py draws it), Red setting off up the road; run with no
-argument, only it is made."""
+The Idle Adventure's tile is Route 1 (tools/idle/kanto_areas.py draws it), Red setting off up the road; Safari Draft's
+the Safari Zone's centre (the same tool's), Red by its pond and rest house; run with no argument, only those two are made."""
 import os, sys
 from PIL import Image, ImageOps
 
@@ -44,7 +44,11 @@ def main():
     routes = os.path.join(PUBLIC, 'routes')
     os.makedirs(OUT, exist_ok=True)
     # The Idle Adventure: Route 1 (tools/idle/kanto_areas.py's picture), Red setting off up the road from Pallet Town.
-    idle = {'idle': scene(os.path.join(PUBLIC, 'idle', 'gen1', 'maps', 'route1.png'), [('red', 13, 33, 'up')], (48, 368, 336, 608))}
+    # Safari Draft: the Safari Zone's centre (the same tool's picture), Red by its pond, looking up at it.
+    idle = {
+        'idle': scene(os.path.join(PUBLIC, 'idle', 'gen1', 'maps', 'route1.png'), [('red', 13, 33, 'up')], (48, 368, 336, 608)),
+        'safari': scene(os.path.join(PUBLIC, 'idle', 'gen1', 'maps', 'safarizone_center.png'), [('red', 24, 22, 'up')], (250, 180, 570, 420)),
+    }
     if len(sys.argv) < 2:
         # Without the dojo's picture, only the tiles that need nothing else.
         for name, im in idle.items():

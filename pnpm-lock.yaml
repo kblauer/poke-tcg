@@ -205,6 +205,9 @@ importers:
       '@poke-tcg/idle':
         specifier: workspace:*
         version: link:../../packages/idle
+      '@poke-tcg/safari':
+        specifier: workspace:*
+        version: link:../../packages/safari
       '@poke-tcg/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -263,6 +266,9 @@ importers:
       '@poke-tcg/idle':
         specifier: workspace:*
         version: link:../../packages/idle
+      '@poke-tcg/safari':
+        specifier: workspace:*
+        version: link:../../packages/safari
       '@poke-tcg/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -367,6 +373,19 @@ importers:
         specifier: ^5.0.4
         version: 5.0.4(@types/node@26.6.5)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
+  packages/safari:
+    dependencies:
+      '@poke-tcg/campaign':
+        specifier: workspace:*
+        version: link:../campaign
+      '@poke-tcg/game-engine':
+        specifier: workspace:*
+        version: link:../game-engine
+    devDependencies:
+      vitest:
+        specifier: ^5.0.4
+        version: 5.0.4(@types/node@26.6.5)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+
   packages/shared:
     dependencies:
       '@poke-tcg/campaign':
@@ -378,6 +397,9 @@ importers:
       '@poke-tcg/idle':
         specifier: workspace:*
         version: link:../idle
+      '@poke-tcg/safari':
+        specifier: workspace:*
+        version: link:../safari
       zod:
         specifier: ^4.6.7
         version: 4.6.7
