@@ -84,6 +84,7 @@ model User {
   poffins       Poffin[]
   idleRuns      IdleRun[]
   idleDex       IdleDex[]
+  safariRuns    SafariRun[]
   whosThat      WhosThatGame[]
 }
 
@@ -459,6 +460,35 @@ model Equipment {
   itemId String
 
   @@id([userId, slot])
+}
+
+enum SafariStatus {
+  ACTIVE
+  /// The Champion beaten.
+  WON
+  /// Out of HP, or conceded.
+  LOST
+}
+
+/// A Safari Draft run (README: Safari Draft): an auto-battler run of drafted Pokémon units. Its battles are no Game rows:
+/// the server plays each from the run's seed (the safari package's simulateBattle).
+model SafariRun {
+  id        String       @id @default(uuid()) @db.Uuid
+  ownerId   String       @db.Uuid
+  owner     User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  status    SafariStatus @default(ACTIVE)
+  /// The safari package's SafariState (shop, cards, opponents, encounters). Contains RNG state and the opponents' boards –
+  /// never return it to clients directly (safariView).
+  state     Json
+  /// Mirrors state.version; used for optimistic concurrency on writes.
+  version   Int
+  seed      Int
+  /// Its ₱ have been moved to the bank (once, when it was won).
+  banked    Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([ownerId, status])
 }
 
 enum IdleStatus {

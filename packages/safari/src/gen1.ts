@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { TEST_POOL } from '../../campaign/src/test-pool.js';
 import { BASE4_REPRINTS, LC_REPRINTS, type PokemonCardDef } from '@poke-tcg/game-engine';
-import { deriveUnits, safariPool, type DerivedUnit } from './units.js';
+import { unitsFrom, type DerivedUnit } from './units.js';
 
 let units: DerivedUnit[] | undefined;
 
@@ -15,5 +15,5 @@ export function gen1Units(): DerivedUnit[] {
   const dex = new Map(snapshot.cards.map((c) => [c.id, c.dexId ?? []]));
   const reprints = new Set([...Object.keys(BASE4_REPRINTS), ...Object.keys(LC_REPRINTS)]);
   const pokemon = TEST_POOL.map((c) => c.def).filter((d): d is PokemonCardDef => d.kind === 'pokemon');
-  return (units = deriveUnits(safariPool(pokemon, reprints, (id) => dex.get(id))));
+  return (units = unitsFrom(pokemon, reprints, (id) => dex.get(id)));
 }

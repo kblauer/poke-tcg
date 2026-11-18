@@ -7,3 +7,4 @@ export * from './draft.js';
 export * from './economy.js';
 export * from './opponents.js';
 export * from './encounters.js';
+export * from './view.js';

@@ -217,6 +217,9 @@ export function safariPool(defs: readonly PokemonCardDef[], reprints: ReadonlySe
   return pokemon.filter((d) => d.holo || !holos.has(print(d)));
 }
 
+/** A generation's units from its Pokémon cards' definitions: safariPool's cards, derived (the API's and gen1.ts's one way). */
+export const unitsFrom = (defs: readonly PokemonCardDef[], reprints: ReadonlySet<string>, dexOf: (id: string) => readonly number[] | undefined) => deriveUnits(safariPool(defs, reprints, dexOf));
+
 /** Whether `evolved` is printed to evolve from a Pokémon called `name` (the TCG's rule, by name, never by card id). */
 export const unitEvolvesFrom = (evolved: Pick<Unit, 'evolvesFrom' | 'alsoEvolvesFrom'>, name: string) => evolvesFromName(evolved, name) || !!evolved.alsoEvolvesFrom?.includes(name);
 

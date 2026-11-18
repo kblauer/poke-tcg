@@ -205,6 +205,9 @@ importers:
       '@poke-tcg/idle':
         specifier: workspace:*
         version: link:../../packages/idle
+      '@poke-tcg/safari':
+        specifier: workspace:*
+        version: link:../../packages/safari
       '@poke-tcg/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -391,6 +394,9 @@ importers:
       '@poke-tcg/idle':
         specifier: workspace:*
         version: link:../idle
+      '@poke-tcg/safari':
+        specifier: workspace:*
+        version: link:../safari
       zod:
         specifier: ^4.6.7
         version: 4.6.7

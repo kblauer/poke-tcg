@@ -18,7 +18,7 @@ import { useIsPhone } from '../hooks/useIsPhone';
 import { useTRPC } from '../lib/trpc';
 import { useRun } from '../hooks/useRun';
 import { useToasts } from '../hooks/useToasts';
-import { towerUnderway, useTowerActions, useTowerOverview, type ClientTower } from '../hooks/useTower';
+import { challengeUnderway, useTowerActions, useTowerOverview, type ClientTower } from '../hooks/useTower';
 import { DEBUG_BUILD, useDebugEnabled } from '../utils/debug';
 import { PAGE_WIDTH } from '../utils/layout';
 import { commas } from '../utils/math';
@@ -146,7 +146,7 @@ export function TowerPage() {
   const playable = decks.filter((d) => d.problems.length === 0);
   const chosen = playable.find((d) => d.id === deckId)?.id ?? playable.find((d) => d.id === runOverview.data?.lastDeckId)?.id ?? playable[0]?.id ?? null;
   const v = challenge?.view;
-  const underway = towerUnderway(challenge);
+  const underway = challengeUnderway(challenge);
   return (
     <div className={`${PAGE_WIDTH} space-y-6`}>
       <PageHeader

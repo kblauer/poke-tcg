@@ -28,8 +28,8 @@ export function useTowerBp(): number | null {
   return path === '/tower' || (game && tower.challenge?.gameId === game) ? tower.bp : null;
 }
 
-/** A challenge under way and not saved: no run or Training battle starts until it's saved or over (the server refuses them). */
-export const towerUnderway = (challenge: ClientTower | null | undefined) => challenge?.status === 'ACTIVE' && !challenge.view.saved;
+/** A challenge under way and not saved: the Tower's heading has Return to Play (nothing elsewhere waits for it: issue #239). */
+export const challengeUnderway = (challenge: ClientTower | null | undefined) => challenge?.status === 'ACTIVE' && !challenge.view.saved;
 
 /**
  * The Battle Tower's moves: starting a challenge and the attendant's and receptionist's choices (tower.act), each

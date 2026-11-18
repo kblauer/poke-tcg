@@ -10,6 +10,8 @@ import { describe, expect, it } from 'vitest';
 /** Helpers that lock the user row themselves, by file. */
 const LOCKING: Record<string, string[]> = {
   'contest.ts': ['loadContest('],
+  // Safari Draft's start and act lock the user row in apps/api/src/safari.ts (a won run banks its ₱ in the same transaction).
+  'safari.ts': ['startSafari(', 'actSafari('],
 };
 
 /**

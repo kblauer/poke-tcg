@@ -17,7 +17,7 @@ import {
   type TowerState,
   type TowerSystemAction,
 } from '@poke-tcg/campaign';
-import { prisma, type Prisma, type TowerChallenge } from '@poke-tcg/db';
+import { prisma, type TowerChallenge } from '@poke-tcg/db';
 import { createGame, runCpu } from '@poke-tcg/game-engine';
 import { CPU_ID, HUMAN_ID } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
@@ -34,8 +34,6 @@ export const towerStarts = (best: number, all: boolean) => startFloors(all ? TOP
 export type LoadedTower = Omit<TowerChallenge, 'state'> & { state: TowerState };
 const loaded = (tower: TowerChallenge): LoadedTower => ({ ...tower, state: tower.state as unknown as TowerState });
 
-type Db = Prisma.TransactionClient | typeof prisma;
-
 /** The challenge's status column for its state. */
 const statusOf = (state: TowerState) => (state.phase === 'won' ? 'WON' : state.phase === 'lost' ? 'LOST' : 'ACTIVE');
 
@@ -50,17 +48,6 @@ export async function loadOwnTower(towerId: string, userId: string): Promise<Loa
 export async function latestTower(userId: string): Promise<LoadedTower | null> {
   const tower = await prisma.towerChallenge.findFirst({ where: { ownerId: userId }, orderBy: { createdAt: 'desc' } });
   return tower && settleTowerBattle(loaded(tower));
-}
-
-/**
- * Refuses (BAD_REQUEST) while a challenge is under way and not saved: the Play tab stays on it until it's saved with the
- * attendant or over (the user's), so no run or Training battle starts meanwhile.
- */
-export async function towerUnderway(userId: string, db: Db = prisma) {
-  const active = await db.towerChallenge.findFirst({ where: { ownerId: userId, status: 'ACTIVE' }, select: { state: true } });
-  if (active && !(active.state as unknown as TowerState).saved) {
-    throw new TRPCError({ code: 'BAD_REQUEST', message: 'Save or finish your Battle Tower challenge first' });
-  }
 }
 
 /**
