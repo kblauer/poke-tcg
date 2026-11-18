@@ -148,6 +148,19 @@ const units: Unit[] = defs.map((def) => {
   return { def, raw, attack, hp: def.hp, score: Math.sqrt(attack * def.hp), tier: 0, flags: [], ...keywordOf(def) };
 });
 
+// The evolution floor (the user's, 2026-11-18): an evolved unit's attack and HP together are at least 10 more than every
+// print it evolves from, its attack raised to get there. Stage 1s first, so a Stage 2 stands on the raised ones.
+const printsBelow = (u: Unit) => units.filter((p) => p.def.name === u.def.evolvesFrom || u.def.alsoEvolvesFrom?.includes(p.def.name));
+for (const stage of ['stage1', 'stage2']) {
+  for (const u of units.filter((x) => x.def.stage === stage)) {
+    const need = 10 + Math.max(0, ...printsBelow(u).map((p) => p.attack + p.hp));
+    if (!printsBelow(u).length || u.attack + u.hp >= need) continue;
+    u.flags.push(`attack raised from ${u.attack} by the evolution floor`);
+    u.attack = need - u.hp;
+    u.score = Math.sqrt(u.attack * u.hp);
+  }
+}
+
 // Tiers: fifths of the score, then an evolved card at least one above every print it evolves from (the user's, 1c). A card
 // that evolves leaves room above it (a Basic of a 3-stage line at most 3).
 const sorted = [...units].sort((a, b) => a.score - b.score);
@@ -158,9 +171,7 @@ const stagesAbove = (name: string): number => Math.max(0, ...evolvesInto(name).m
 for (const u of units) u.tier = Math.min(u.tier, 5 - stagesAbove(u.def.name));
 for (const stage of ['stage1', 'stage2']) {
   for (const u of units.filter((x) => x.def.stage === stage)) {
-    const below = units.filter((p) => p.def.name === u.def.evolvesFrom || u.def.alsoEvolvesFrom?.includes(p.def.name));
-    u.tier = Math.max(u.tier, 1 + Math.max(0, ...below.map((p) => p.tier)));
-    if (below.some((p) => p.attack + p.hp >= u.attack + u.hp)) u.flags.push('not stronger than what it evolves from');
+    u.tier = Math.max(u.tier, 1 + Math.max(0, ...printsBelow(u).map((p) => p.tier)));
   }
 }
 
@@ -214,7 +225,7 @@ ${units.length} units (word-for-word reprints left out). Attack: the average dam
 |---|---|---|---|---|
 ${spread.join('\n')}
 
-## Outliers and evolutions that aren't stronger (${units.filter((u) => u.flags.length).length})
+## Outliers and raised evolutions (${units.filter((u) => u.flags.length).length})
 
 | Id | Name | Stage | HP | Attack (raw) | Tier | Why |
 |---|---|---|---|---|---|---|

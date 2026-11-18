@@ -4,10 +4,10 @@
 
 ## Counts
 
-- By tier: tier 1: 92, tier 2: 104, tier 3: 87, tier 4: 84, tier 5: 65
+- By tier: tier 1: 100, tier 2: 97, tier 3: 89, tier 4: 84, tier 5: 62
 - By type: colorless: 72, fighting: 56, fire: 43, grass: 97, lightning: 44, psychic: 50, water: 70
 - By stage: basic: 246, stage1: 146, stage2: 40
-- By attack: 10: 85, 20: 140, 30: 106, 40: 52, 50: 31, 60: 15, 70: 3
+- By attack: 10: 77, 20: 145, 30: 107, 40: 54, 50: 31, 60: 15, 70: 3
 - By keyword: (none): 166, Blind: 8, Charge: 1, Confuse: 21, Copycat: 3, Destiny Bond: 1, Drain: 9, Enrage: 6, Explode: 8, Family: 7, Finisher: 11, Flurry: 35, Guard: 4, Harden: 3, Paralyze: 40, Pay Day: 4, Poison: 39, Recoil: 16, Sleep: 22, Splash: 11, Toxic: 2, Weaken: 6, Whirlwind: 9
 
 ## Attack by stage and HP band
@@ -23,10 +23,10 @@
 | stage1 90+ | 10 | 37.7 | 13.4 | 20–60 |
 | stage1 ≤40 | 2 | 20.0 | 10.0 | 10–30 |
 | stage2 50–60 | 3 | 41.7 | 2.4 | 40–50 |
-| stage2 70–80 | 18 | 42.4 | 14.1 | 20–70 |
+| stage2 70–80 | 18 | 42.4 | 14.1 | 30–70 |
 | stage2 90+ | 19 | 44.4 | 11.7 | 20–60 |
 
-## Outliers and evolutions that aren't stronger (68)
+## Outliers and raised evolutions (68)
 
 | Id | Name | Stage | HP | Attack (raw) | Tier | Why |
 |---|---|---|---|---|---|---|
@@ -43,10 +43,11 @@
 | base3-54 | Shellder | basic | 30 | 10 (0.0) | 1 | low for basic ≤40 (mean 17); almost no damage: its attacks are effects |
 | base3-55 | Slowpoke | basic | 50 | 10 (0.0) | 1 | low for basic 50–60 (mean 20); almost no damage: its attacks are effects |
 | base2-1 | Clefable | stage1 | 70 | 10 (0.0) | 2 | low for stage1 70–80 (mean 33); almost no damage: its attacks are effects |
-| base5-36 | Dark Gloom | stage1 | 50 | 10 (10.0) | 2 | not stronger than what it evolves from |
+| base5-36 | Dark Gloom | stage1 | 50 | 20 (10.0) | 2 | attack raised from 10 by the evolution floor |
+| base5-7 | Dark Golbat | stage1 | 50 | 20 (0.0) | 2 | attack raised from 10 by the evolution floor; low for stage1 50–60 (mean 28); almost no damage: its attacks are effects |
 | base1-47 | Diglett | basic | 30 | 30 (30.0) | 2 | high for basic ≤40 (mean 17) |
 | gym1-75 | Erika's Bellsprout | basic | 40 | 30 (30.0) | 2 | high for basic ≤40 (mean 17) |
-| base3-6 | Haunter | stage1 | 50 | 10 (10.0) | 2 | not stronger than what it evolves from |
+| base3-6 | Haunter | stage1 | 50 | 20 (10.0) | 2 | attack raised from 10 by the evolution floor |
 | gym2-47 | Koga's Kakuna | stage1 | 60 | 10 (0.0) | 2 | low for stage1 50–60 (mean 28); almost no damage: its attacks are effects |
 | base5-61 | Mankey | basic | 40 | 30 (30.0) | 2 | high for basic ≤40 (mean 17) |
 | base1-60 | Ponyta | basic | 40 | 30 (30.0) | 2 | high for basic ≤40 (mean 17) |
@@ -54,12 +55,11 @@
 | base2-13 | Venomoth | stage1 | 70 | 10 (10.0) | 2 | low for stage1 70–80 (mean 33) |
 | gym2-67 | Brock's Diglett | basic | 40 | 40 (40.0) | 3 | high for basic ≤40 (mean 17) |
 | gym1-68 | Brock's Mankey | basic | 40 | 40 (40.0) | 3 | high for basic ≤40 (mean 17) |
-| base5-2 | Dark Arbok | stage1 | 60 | 10 (10.0) | 3 | not stronger than what it evolves from |
-| base5-7 | Dark Golbat | stage1 | 50 | 10 (0.0) | 3 | not stronger than what it evolves from; low for stage1 50–60 (mean 28); almost no damage: its attacks are effects |
-| base5-42 | Dark Persian | stage1 | 60 | 10 (10.0) | 3 | not stronger than what it evolves from |
-| basep-17 | Dark Persian | stage1 | 60 | 10 (10.0) | 3 | not stronger than what it evolves from |
-| base5-46 | Dark Wartortle | stage1 | 60 | 10 (10.0) | 3 | not stronger than what it evolves from |
-| gym1-45 | Erika's Gloom | stage1 | 60 | 10 (0.0) | 3 | not stronger than what it evolves from; low for stage1 50–60 (mean 28); almost no damage: its attacks are effects |
+| base5-2 | Dark Arbok | stage1 | 60 | 20 (10.0) | 3 | attack raised from 10 by the evolution floor |
+| base5-42 | Dark Persian | stage1 | 60 | 20 (10.0) | 3 | attack raised from 10 by the evolution floor |
+| basep-17 | Dark Persian | stage1 | 60 | 20 (10.0) | 3 | attack raised from 10 by the evolution floor |
+| base5-46 | Dark Wartortle | stage1 | 60 | 20 (10.0) | 3 | attack raised from 10 by the evolution floor |
+| gym1-45 | Erika's Gloom | stage1 | 60 | 20 (0.0) | 3 | attack raised from 10 by the evolution floor; low for stage1 50–60 (mean 28); almost no damage: its attacks are effects |
 | gym2-69 | Erika's Jigglypuff | basic | 50 | 40 (40.0) | 3 | high for basic 50–60 (mean 20) |
 | gym2-72 | Giovanni's Machop | basic | 50 | 40 (40.0) | 3 | high for basic 50–60 (mean 20) |
 | gym2-76 | Giovanni's Nidoran ♂ | basic | 40 | 30 (30.0) | 3 | high for basic ≤40 (mean 17) |
@@ -70,7 +70,7 @@
 | gym2-93 | Sabrina's Abra | basic | 40 | 40 (40.0) | 3 | high for basic ≤40 (mean 17) |
 | gym2-97 | Sabrina's Gastly | basic | 40 | 30 (30.0) | 3 | high for basic ≤40 (mean 17) |
 | gym2-42 | Giovanni's Machoke | stage1 | 80 | 60 (60.0) | 4 | high for stage1 70–80 (mean 33) |
-| base3-35 | Golduck | stage1 | 70 | 20 (20.0) | 4 | not stronger than what it evolves from |
+| base3-35 | Golduck | stage1 | 70 | 30 (20.0) | 4 | attack raised from 20 by the evolution floor |
 | base1-29 | Haunter | stage1 | 60 | 50 (50.0) | 4 | high for stage1 50–60 (mean 28) |
 | base3-7 | Hitmonlee | basic | 60 | 40 (41.7) | 4 | high for basic 50–60 (mean 20) |
 | base1-32 | Kadabra | stage1 | 60 | 50 (50.0) | 4 | high for stage1 50–60 (mean 28) |
@@ -81,9 +81,10 @@
 | gym1-11 | Rocket's Hitmonchan | basic | 60 | 40 (41.7) | 4 | high for basic 50–60 (mean 20) |
 | gym1-58 | Sabrina's Haunter | stage1 | 50 | 60 (60.0) | 4 | high for stage1 50–60 (mean 28) |
 | basep-45 | Scyther | basic | 60 | 40 (40.0) | 4 | high for basic 50–60 (mean 20) |
-| base2-14 | Victreebel | stage2 | 80 | 20 (20.0) | 4 | not stronger than what it evolves from; low for stage2 70–80 (mean 42) |
+| base2-14 | Victreebel | stage2 | 80 | 30 (20.0) | 4 | attack raised from 20 by the evolution floor; low for stage2 70–80 (mean 42) |
+| base2-16 | Wigglytuff | stage1 | 80 | 30 (20.0) | 4 | attack raised from 20 by the evolution floor |
 | basep-24 | ___________'s Pikachu | basic | 50 | 60 (55.0) | 5 | high for basic 50–60 (mean 20) |
-| base1-1 | Alakazam | stage2 | 80 | 30 (30.0) | 5 | not stronger than what it evolves from |
+| base1-1 | Alakazam | stage2 | 80 | 40 (30.0) | 5 | attack raised from 30 by the evolution floor |
 | gym1-1 | Blaine's Moltres | basic | 90 | 50 (45.0) | 5 | high for basic 90+ (mean 22) |
 | gym2-22 | Brock's Dugtrio | stage1 | 60 | 60 (60.0) | 5 | high for stage1 50–60 (mean 28) |
 | base5-3 | Dark Blastoise | stage2 | 70 | 70 (70.0) | 5 | high for stage2 70–80 (mean 42) |
@@ -91,13 +92,12 @@
 | base1-19 | Dugtrio | stage1 | 70 | 70 (65.0) | 5 | high for stage1 70–80 (mean 33) |
 | gym2-4 | Erika's Venusaur | stage2 | 90 | 20 (20.0) | 5 | low for stage2 90+ (mean 44) |
 | base2-3 | Flareon | stage1 | 70 | 50 (53.3) | 5 | high for stage1 70–80 (mean 33) |
-| base3-5 | Gengar | stage2 | 80 | 30 (30.0) | 5 | not stronger than what it evolves from |
+| base3-5 | Gengar | stage2 | 80 | 40 (30.0) | 5 | attack raised from 30 by the evolution floor |
 | gym2-13 | Misty's Gyarados | stage1 | 100 | 60 (58.3) | 5 | high for stage1 90+ (mean 38) |
 | basep-21 | Moltres | basic | 70 | 50 (50.0) | 5 | high for basic 70–80 (mean 30) |
 | base1-12 | Ninetales | stage1 | 80 | 70 (66.7) | 5 | high for stage1 70–80 (mean 33) |
 | gym2-14 | Rocket's Mewtwo | basic | 70 | 50 (46.7) | 5 | high for basic 70–80 (mean 30) |
 | gym2-15 | Rocket's Zapdos | basic | 70 | 50 (53.3) | 5 | high for basic 70–80 (mean 30) |
-| base2-16 | Wigglytuff | stage1 | 80 | 20 (20.0) | 5 | not stronger than what it evolves from |
 
 ## Pokémon Powers, each for the user's ruling (66 cards, 66 powers)
 
