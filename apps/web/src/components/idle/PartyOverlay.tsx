@@ -25,7 +25,7 @@ const PANEL_TOP = 2;
 const PANEL_MAX_H = 160 - 2 - PANEL_TOP;
 /**
  * On a phone or any touchscreen (the user's, 2026-11-18: its moves' handles were too small to drag): the panel fills the scene's left, below
- * the Map and Stop buttons, up to the party's slots, its handles, selects and box bigger and its stats smaller to fit.
+ * the Map and Pause buttons, up to the party's slots (over fast forward, under them, while it's open), its handles, selects and box bigger and its stats smaller to fit.
  */
 const PHONE_PANEL = { left: 1, top: 26, width: LIST_LEFT - 2, maxH: 160 - 26 - 1 };
 /** The panel's colours: a slot's (slot.png's border, fill and light). */

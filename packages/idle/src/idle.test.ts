@@ -7,7 +7,7 @@ import type { BattleEvent } from './battle.js';
 import { catchTextFrame, FRAME_MS, openingMs } from './battle-timing.js';
 import { townMapPlaces, townMapArea } from './town-map.js';
 import { inGeneration } from './generation.js';
-import { applyIdleAction, atProgress, legendError, rodsOf, starters, BATTLE_HOLD_MS, BATTLE_MS, catchUp, cutSegment, mapGrindPlan, progressOf, reachedArea, repairState, travelError, wildSpots, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, modeOf, playing, previousRoute, routeGrindPlan, starterOptions, TICK_MS, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
+import { applyIdleAction, atProgress, legendError, rodsOf, starters, BATTLE_HOLD_MS, BATTLE_MS, catchUp, cutSegment, mapGrindPlan, progressOf, reachedArea, repairState, travelError, wildSpots, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, loopMode, modeOf, playing, previousRoute, routeGrindPlan, starterOptions, TICK_MS, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
 
@@ -531,6 +531,23 @@ describe('an idle run', () => {
       expect(on.ok && (on.state.loop?.resume.step ?? on.state.step)).toBe(60);
       expect(on.ok && simulateSegment(on.state, MANUAL, new Set())).not.toBeNull();
     }
+  });
+
+  it("picks a stopped grind up where it was with the play button (SET_MODE loopMode), the user's", () => {
+    const area = areas().findIndex((a) => a.id === 'route-2');
+    const base = createIdleRun({ species: 4 }, 2);
+    const s: IdleState = { ...base, area, step: 60, party: [{ ...base.party[0]!, level: 40 }] };
+    for (const mode of ['wild', 'trainers'] as const) {
+      const grinding = (applyIdleAction(s, { type: 'SET_MODE', mode }) as { state: IdleState }).state;
+      const stopped = (applyIdleAction(grinding, { type: 'SET_MODE', mode: 'stop' }) as { state: IdleState }).state;
+      // Stop keeps the grind's loop: play goes on with the same one, not to the run's furthest place.
+      expect(loopMode(stopped)).toBe(mode);
+      const played = applyIdleAction(stopped, { type: 'SET_MODE', mode: loopMode(stopped) });
+      expect(played.ok && modeOf(played.state)).toBe(mode);
+      expect(played.ok && played.state.loop).toEqual(grinding.loop);
+    }
+    // Walking on when it stopped: play walks on.
+    expect(loopMode((applyIdleAction(s, { type: 'SET_MODE', mode: 'stop' }) as { state: IdleState }).state)).toBe('route');
   });
 
   it('switches modes with SET_MODE: a grind already on stays as it is, and Route ends one', () => {
