@@ -217,6 +217,7 @@ export function GamePage() {
           error={act.error?.message}
           errorAt={act.submittedAt}
           runTab={data.runId && phone ? <GameRunTab /> : undefined}
+          concedeNote={data.towerId ? 'Your Battle Tower challenge will end here.' : data.runId ? 'It counts as a lost battle in your run.' : undefined}
           overlay={
             flips.length > 0 ? (
               <CoinFlip flips={flips} you={view.you} onDone={reveal} />

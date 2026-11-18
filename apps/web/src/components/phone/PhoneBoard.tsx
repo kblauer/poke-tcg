@@ -8,6 +8,7 @@ import type { useCosmetics } from '../../hooks/useCosmetics';
 import type { useToasts } from '../../hooks/useToasts';
 import { benchSlotId, type SlotId } from '../../utils/slots';
 import type { PokemonPick } from '../Board';
+import { ConcedeButton } from '../ConcedeButton';
 import { DiscardPane, type ZoneAbilities } from '../DiscardPane';
 import { FloatingDialog } from '../FloatingDialog';
 import { LogSheet } from '../LogDrawer';
@@ -54,6 +55,7 @@ export function PhoneBoard({
   toasts,
   prompt,
   runTab,
+  concedeNote,
   debugEnabled,
   tableOverlay,
   playerSlot,
@@ -95,6 +97,8 @@ export function PhoneBoard({
   prompt: string | null;
   /** The side panel's Run tab during a run's battle. */
   runTab?: ReactNode;
+  /** What conceding costs here, asked before it (ConcedeButton). */
+  concedeNote?: string;
   debugEnabled: boolean;
   /** Board's pieces: over the play area (the coin flips, the turn-order flip, the CPU's card), a slot of yours, the status bar, the dialog over the CPU's side, the hand, the drag overlay and End turn's reminder dialog. */
   tableOverlay: ReactNode;
@@ -217,16 +221,15 @@ export function PhoneBoard({
             onClose={() => setMenu(false)}
             actions={
               phase !== 'finished' && (
-                <button
+                <ConcedeButton
                   className="rounded bg-slate-700 px-4 py-2 text-sm transition hover:bg-slate-600 active:scale-95 disabled:cursor-progress"
                   disabled={busy}
-                  onClick={() => {
+                  note={concedeNote}
+                  onConcede={() => {
                     setMenu(false);
                     send({ type: 'CONCEDE' });
                   }}
-                >
-                  Concede
-                </button>
+                />
               )
             }
           />
