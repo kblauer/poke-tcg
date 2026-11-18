@@ -1,16 +1,20 @@
-"""Safari Draft's blank cards: one Base Set Basic Pokémon card of each type with its printed words painted out.
+"""Safari Draft's blank cards: Base Set Pokémon cards of each type with their printed words painted out.
 
 The Safari Draft's cards (apps/web's UnitCard) are drawn on these blanks, our own name, HP, artwork, attack and keyword laid
 over them, so a card looks like its type's printed card but never shows the TCG text that doesn't apply (the user's,
-2026-11-18). Gen 1's style first (the WOTC Base Set frame); later generations' styles get blanks of their own.
+2026-11-18). Gen 1's style first (the WOTC Base Set frame), in two frames a type: a Basic Pokémon's (`<type>.webp`) and an
+evolved one's (`<type>-evolved.webp`: the Stage badge in the top left corner, with its window for the Pokémon it evolves
+from, which the screen fills from the unit's own printed card). Later generations' styles get blanks of their own.
 
-How: each type's card (CARDS) is fetched from TCGdex at 600 x 825; the regions holding words (measured on Base Set's Basic
-Pokémon frame) are filled from the card's own background: the big ones row by row from the body's margins (AREA_REGIONS), the
-words on something kept (the strip, the flavour text's box) by inpainting only their ink (INK_REGIONS), keeping the yellow border, the type's symbol, the artwork's frame, the strip under it and the
-flavour text's box, which the screen fills.
+How: each card (CARDS) is fetched from TCGdex at 600 x 825. Inside the regions that hold words (REGIONS, measured on Base
+Set's frames), only what stands out from the card's background is painted out: the words, the Energy symbols, the
+Weakness and Resistance symbols, the stamp (pixels far from a wide median of the card, the print's own background), filled
+by inpainting from round them. The background's own colour and texture stay as printed (the user's: no blur over the
+text's space), as do the yellow border, the type's symbol, the artwork's frame, the strip under it, the flavour text's box
+and the Stage badge.
 
 Needs numpy, Pillow and opencv-python-headless (a venv: see the README's Python tools note).
-Run from the repo's root: python tools/safari/blank_cards.py   (writes apps/web/public/safari/cards/<type>.webp)
+Run from the repo's root: python tools/safari/blank_cards.py [types…]   (writes apps/web/public/safari/cards/)
 """
 from __future__ import annotations
 
@@ -26,34 +30,48 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'apps' / 'web' / 'public' / 'safari' / 'cards'
 
-# One Base Set Basic Pokémon card a type (TCGdex's image, base1/<number>): the frame is the same on each.
+# A Base Set card a type and frame (TCGdex's image, base1/<number>): the frames are the same on each.
 CARDS = {
-    'grass': 44,  # Bulbasaur
-    'fire': 46,  # Charmander
-    'water': 63,  # Squirtle
-    'lightning': 58,  # Pikachu
-    'psychic': 43,  # Abra
-    'fighting': 52,  # Machop
-    'colorless': 57,  # Pidgey
+    # Bulbasaur, Charmander, Squirtle, Pikachu, Abra, Machop, Pidgey
+    'basic': {'grass': 44, 'fire': 46, 'water': 63, 'lightning': 58, 'psychic': 43, 'fighting': 52, 'colorless': 57},
+    # Ivysaur, Charmeleon, Wartortle, Raichu, Kadabra, Machoke, Pidgeotto
+    'evolved': {'grass': 30, 'fire': 24, 'water': 42, 'lightning': 14, 'psychic': 32, 'fighting': 34, 'colorless': 22},
 }
+SUFFIX = {'basic': '', 'evolved': '-evolved'}
 
 W, H = 600, 825
-# The body's inner margins, left and right, between the yellow border and anything printed: what each row's fill is made of.
-LEFT, RIGHT = (23, 31), (569, 578)
-# The regions holding words on Base Set's Basic Pokémon frame at 600 x 825 (x0, y0, x1, y1), filled row by row from the
-# margins (the body's colour on either side, blended across, softened and grained like the print).
-AREA_REGIONS = [
-    (32, 24, 500, 86),  # "Basic Pokémon", the name and the HP
-    (24, 436, 58, 482),  # the 1st Edition stamp's part off the strip
-    (24, 474, 576, 737),  # the attacks (and a Pokémon Power), weakness, resistance and retreat with their line
-]
-# Regions where only the ink is painted out (its dark pixels, at full size), keeping what's printed under it.
-INK_REGIONS = [
-    (40, 82, 380, 96),  # the name's descenders, over the artwork's frame
-    (52, 440, 512, 474),  # the strip's species, length and weight, and the stamp's part on it
+# Regions (x0, y0, x1, y1 at 600 x 825) where whatever stands out from the background is painted out: words, symbols.
+REGIONS = {
+    'basic': [
+        (36, 24, 380, 86),  # "Basic Pokémon" and the name
+        (370, 44, 500, 86),  # the HP
+        (24, 436, 58, 482),  # the 1st Edition stamp's part off the strip
+        (24, 476, 576, 737),  # the attacks (and a Pokémon Power), weakness, resistance and retreat with their line
+    ],
+    'evolved': [
+        (120, 22, 580, 44),  # "Evolves from …" and "Put … on the Basic Pokémon"
+        (140, 46, 380, 86),  # the name
+        (370, 44, 500, 86),  # the HP
+        (24, 436, 58, 482),  # the 1st Edition stamp's part off the strip
+        (24, 476, 576, 737),  # the attacks (and a Pokémon Power), weakness, resistance and retreat with their line
+    ],
+}
+# Regions on something kept (the artwork's frame, the strip, the flavour text's box, the badge, the border's edge) where
+# only the dark ink is painted out.
+INK = {
+    'basic': [(40, 84, 380, 98)],  # the name's descenders, over the artwork frame's top
+    'evolved': [(140, 84, 380, 98), (50, 36, 114, 56)],  # the descenders; "STAGE 1" on the badge
+}
+LOWER_INK = [
+    (52, 440, 520, 474),  # the strip's species, length and weight, and the stamp's part on it
     (52, 740, 550, 784),  # the flavour text in its box
-    (22, 786, 580, 805),  # the illustrator, copyright, number and rarity
+    (22, 786, 580, 806),  # the illustrator, copyright, number and rarity
 ]
+DARK = 110
+# How far a pixel's colour must be from the background's to be painted out, and the background's median window (at a
+# quarter of the size: 25 there is 100 here, wider than any word or symbol).
+THRESHOLD = 34
+WINDOW = 25
 
 
 def fetch(number: int) -> np.ndarray:
@@ -65,53 +83,33 @@ def fetch(number: int) -> np.ndarray:
     return cv2.cvtColor(np.asarray(im), cv2.COLOR_RGB2BGR)
 
 
-def blank(card: np.ndarray) -> np.ndarray:
-    out = card.astype(np.float32)
-    rng = np.random.default_rng(239)
-    for x0, y0, x1, y1 in AREA_REGIONS:
-        rows = []
-        for y in range(y0, y1):
-            left = np.median(out[y, LEFT[0]:LEFT[1]], axis=0)
-            right = np.median(out[y, RIGHT[0]:RIGHT[1]], axis=0)
-            t = (np.arange(x0, x1) - LEFT[0]) / (RIGHT[1] - LEFT[0])
-            rows.append(left[None, :] * (1 - t[:, None]) + right[None, :] * t[:, None])
-        fill = np.stack(rows)
-        fill = cv2.GaussianBlur(fill, (0, 0), 5)
-        fill += rng.normal(0, 2.2, fill.shape)
-        # Feathered into what's round it, so the fill has no edge.
-        alpha = np.ones((y1 - y0, x1 - x0), np.float32)
-        alpha = cv2.copyMakeBorder(alpha, 6, 6, 6, 6, cv2.BORDER_CONSTANT, value=0)
-        alpha = cv2.GaussianBlur(alpha, (0, 0), 3)[6:-6, 6:-6][..., None]
-        out[y0:y1, x0:x1] = out[y0:y1, x0:x1] * (1 - alpha) + fill * alpha
-    out = np.clip(out, 0, 255).astype(np.uint8)
-    # The ink: dark pixels (the black words, the stamp, the rarity), grown a little for their antialiasing, filled at full size.
-    gray = cv2.cvtColor(out, cv2.COLOR_BGR2GRAY)
-    ink = np.zeros((H, W), np.uint8)
-    for x0, y0, x1, y1 in INK_REGIONS:
-        ink[y0:y1, x0:x1] = (gray[y0:y1, x0:x1] < 120).astype(np.uint8) * 255
-    ink = cv2.dilate(ink, np.ones((5, 5), np.uint8))
-    return cv2.inpaint(out, ink, 4, cv2.INPAINT_TELEA)
-
-
-def border_mask(card: np.ndarray) -> np.ndarray:
-    """The yellow outer border: the card's edge band, by its colour (bright yellow), joined to the edge."""
-    hsv = cv2.cvtColor(card, cv2.COLOR_BGR2HSV)
-    yellow = cv2.inRange(hsv, (18, 90, 170), (38, 255, 255))
-    band = np.zeros_like(yellow)
-    band[:26, :] = band[-18:, :] = 255
-    band[:, :24] = band[:, -24:] = 255
-    return cv2.bitwise_and(yellow, band)
+def blank(card: np.ndarray, frame: str) -> np.ndarray:
+    # The print's background: a wide median, at a quarter of the size.
+    small = cv2.resize(card, (W // 4, H // 4), interpolation=cv2.INTER_AREA)
+    background = cv2.resize(cv2.medianBlur(small, WINDOW), (W, H), interpolation=cv2.INTER_LINEAR)
+    differs = (np.abs(card.astype(np.int16) - background.astype(np.int16)).max(axis=2) > THRESHOLD).astype(np.uint8) * 255
+    dark = (cv2.cvtColor(card, cv2.COLOR_BGR2GRAY) < DARK).astype(np.uint8) * 255
+    mask = np.zeros((H, W), np.uint8)
+    for x0, y0, x1, y1 in REGIONS[frame]:
+        mask[y0:y1, x0:x1] = differs[y0:y1, x0:x1]
+    for x0, y0, x1, y1 in INK[frame] + LOWER_INK:
+        mask[y0:y1, x0:x1] |= dark[y0:y1, x0:x1]
+    # Grown for the words' antialiasing and the symbols' outlines.
+    mask = cv2.dilate(mask, np.ones((5, 5), np.uint8))
+    return cv2.inpaint(card, mask, 5, cv2.INPAINT_TELEA)
 
 
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     only = set(sys.argv[1:])
-    for type_, number in CARDS.items():
-        if only and type_ not in only:
-            continue
-        out = blank(fetch(number))
-        Image.fromarray(cv2.cvtColor(out, cv2.COLOR_BGR2RGB)).save(OUT / f'{type_}.webp', quality=90)
-        print(f'{type_}: base1-{number} -> {OUT / (type_ + ".webp")}')
+    for frame, cards in CARDS.items():
+        for type_, number in cards.items():
+            if only and type_ not in only:
+                continue
+            out = blank(fetch(number), frame)
+            path = OUT / f'{type_}{SUFFIX[frame]}.webp'
+            Image.fromarray(cv2.cvtColor(out, cv2.COLOR_BGR2RGB)).save(path, quality=90)
+            print(f'{type_} ({frame}): base1-{number} -> {path}')
 
 
 if __name__ == '__main__':

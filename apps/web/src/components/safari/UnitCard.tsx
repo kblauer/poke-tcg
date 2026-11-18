@@ -40,11 +40,14 @@ function CardArt({ src, alt, trainer = false }: { src: string | undefined; alt: 
 
 /** The types with a blank card (tools/safari/blank_cards.py: Base Set's frame, its words painted out): Gen 1's seven. */
 const BLANK_TYPES = new Set(['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'colorless']);
-const blankCard = (type: string | undefined) => `/safari/cards/${type && BLANK_TYPES.has(type) ? type : 'colorless'}.webp`;
+/** A type's blank: a Basic Pokémon's frame, or an evolved one's (`evolved`: the Stage badge with its window). */
+const blankCard = (type: string | undefined, evolved = false) => `/safari/cards/${type && BLANK_TYPES.has(type) ? type : 'colorless'}${evolved ? '-evolved' : ''}.webp`;
 /** Where things sit on Base Set's frame, in percent of the card (measured at 600 x 825 on the blanks). */
 const FRAME = {
   /** The artwork's window, inside its gold frame. */
   art: { left: 10.83, top: 11.76, width: 78.33, height: 40 },
+  /** The Stage badge's window on an evolved card, top left: the printed card's picture of the Pokémon it evolves from. */
+  portrait: { left: 7.5, top: 7.03, width: 12.67, height: 7.64 },
   /** The type's symbol, top right. */
   symbol: { left: 507 / 6, top: 44 / 8.25, size: 46 / 6 },
 };
@@ -72,9 +75,11 @@ function TypeSymbol({ type, size }: { type: string | undefined; size: number }) 
 
 /**
  * A card on Safari Draft's screens, drawn as its type's printed card (the user's, 2026-11-18): the type's blank Base Set
- * card (`public/safari/cards/`, tools/safari/blank_cards.py) with the unit's own words laid on it where the card prints
- * them: its stage, name and HP at the top, the card's artwork in the art window, its tier's stars on the strip under it,
- * its keyword as the attack's name with what it does, and its attack as the attack's damage. Golden copies ringed in
+ * card (`public/safari/cards/`, tools/safari/blank_cards.py; an evolved unit's with the Stage badge) with the unit's own
+ * words laid on it where the card prints them: its name and HP at the top (an evolved one's "Evolves from" above them and
+ * the printed card's picture of what it evolves from in the badge's window), the card's artwork in the art window, its
+ * tier's stars on the strip under it, its keyword as the attack's name with what it does, its attack as the attack's
+ * damage, and its stage in the flavour text's box. Golden copies ringed in
  * gold, a Taunt with a stone border. Right-click opens the printed card in the inspector, as everywhere. `width` is the
  * card's, in CSS (the frame keeps the card's 63:88); its words scale with it (cqw).
  */
@@ -90,6 +95,20 @@ export const UnitCard = forwardRef<HTMLDivElement, { id: string; unit: SafariUni
   const keyword = stats?.keyword || unit?.keyword;
   const name = unit?.name ?? card?.name ?? '';
   const art = FRAME.art;
+  const evolved = !!unit && unit.stage !== 'basic';
+  /** The printed card's own picture behind a window of the frame's (`box`, in percent of the card): its art, its badge's picture. */
+  const cutout = (box: { left: number; top: number; width: number; height: number }) =>
+    card?.imageUrl && (
+      <div className="absolute overflow-hidden" style={{ left: `${box.left}%`, top: `${box.top}%`, width: `${box.width}%`, height: `${box.height}%` }}>
+        <CardImage
+          src={`${card.imageUrl}/low.webp`}
+          alt=""
+          draggable={false}
+          className="absolute max-w-none"
+          style={{ width: `${10000 / box.width}%`, height: `${10000 / box.height}%`, left: `${(-box.left * 100) / box.width}%`, top: `${(-box.top * 100) / box.height}%` }}
+        />
+      </div>
+    );
   return (
     <div
       ref={ref}
@@ -102,27 +121,21 @@ export const UnitCard = forwardRef<HTMLDivElement, { id: string; unit: SafariUni
       style={{ width, aspectRatio: '600 / 825', ...CARD_FONT }}
       {...inspect(card)}
     >
-      <img src={blankCard(unit?.type)} alt="" draggable={false} className="absolute inset-0 h-full w-full" />
-      {/* The card's own artwork in the window: its whole picture behind a window the art box's size (every WOTC frame's). */}
-      <div className="absolute overflow-hidden" style={{ left: `${art.left}%`, top: `${art.top}%`, width: `${art.width}%`, height: `${art.height}%` }}>
-        {card?.imageUrl && (
-          <CardImage
-            src={`${card.imageUrl}/low.webp`}
-            alt={name}
-            draggable={false}
-            className="absolute max-w-none"
-            style={{ width: `${10000 / art.width}%`, height: `${10000 / art.height}%`, left: `${(-art.left * 100) / art.width}%`, top: `${(-art.top * 100) / art.height}%` }}
-          />
-        )}
-      </div>
+      <img src={blankCard(unit?.type, evolved)} alt="" draggable={false} className="absolute inset-0 h-full w-full" />
+      {/* The card's own artwork in the window (every WOTC frame's art box is the same), and an evolved one's badge picture. */}
+      {cutout(art)}
+      {evolved && cutout(FRAME.portrait)}
       <div className="absolute inset-0 text-gray-900 [container-type:size]">
-        {unit && <span className="absolute left-[8%] top-[3%] text-[4.4cqw] font-semibold leading-none">{STAGE_NAME[unit.stage] ?? ''}</span>}
-        {/* Long names ("Erika's Bellsprout") smaller, as the printed cards squeeze them, so they stay clear of the HP. */}
-        <span className="absolute left-[8%] right-[35%] top-[5.6%] truncate font-bold leading-tight" style={{ fontSize: `${name.length > 16 ? 6 : name.length > 11 ? 7.2 : 9}cqw`, marginTop: `${name.length > 16 ? 1.2 : name.length > 11 ? 0.8 : 0}cqw` }}>
+        {evolved && unit.evolvesFrom && <span className="absolute left-[21%] right-[4%] top-[2.3%] truncate text-[3.9cqw] font-semibold italic leading-none">Evolves from {unit.evolvesFrom}</span>}
+        {/* Above the artwork's frame; long names ("Erika's Bellsprout") smaller, as the printed cards squeeze them, clear of the HP. */}
+        <span
+          className={`absolute right-[35%] truncate font-bold leading-none ${evolved ? 'left-[25%] top-[4.6%]' : 'left-[8%] top-[3%]'}`}
+          style={{ fontSize: `${(name.length > 16 ? 6 : name.length > 11 ? 7.2 : 9) * (evolved ? 0.85 : 1)}cqw`, marginTop: `${name.length > 16 ? 1.2 : name.length > 11 ? 0.8 : 0}cqw` }}
+        >
           {name}
         </span>
         {unit && (
-          <span className="absolute right-[17%] top-[6.2%] text-[8cqw] font-bold leading-tight text-red-600">
+          <span className={`absolute right-[17%] font-bold leading-none text-red-600 ${evolved ? 'top-[5.2%] text-[7cqw]' : 'top-[3.8%] text-[8cqw]'}`}>
             {hp} <span className="text-[5.4cqw]">HP</span>
           </span>
         )}
@@ -147,6 +160,7 @@ export const UnitCard = forwardRef<HTMLDivElement, { id: string; unit: SafariUni
             <span className="text-[12cqw] font-semibold leading-none">{attack}</span>
           </div>
         )}
+        {unit && <span className="absolute inset-x-[10%] top-[90.4%] flex h-[4.2%] items-center justify-center text-[4.6cqw] font-semibold italic leading-none">{STAGE_NAME[unit.stage] ?? ''}</span>}
       </div>
       {children}
     </div>

@@ -85,7 +85,7 @@ function BattleFighter({ f, playback, units }: { f: ShownFighter; playback: Play
     <div className="relative">
       <div ref={ref}>
         <UnitCard id={f.unit ?? ''} unit={f.unit ? units.get(f.unit) : undefined} stats={{ attack: f.attack, hp: f.hp, keyword: f.keyword ?? '' }} width="var(--safari-card)" lit={mine('attack') || targeted}>
-          <span className="absolute bottom-[7.4%] left-[25%] right-[25%] h-[2.4%] overflow-hidden rounded-full bg-slate-950/80">
+          <span className="absolute bottom-[11.6%] left-[25%] right-[25%] h-[2%] overflow-hidden rounded-full bg-slate-950/80">
             <span className={`block h-full transition-[width] duration-300 ${pct > 50 ? 'bg-emerald-400' : pct > 20 ? 'bg-amber-400' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
           </span>
           <FighterConditions status={f.status} />
