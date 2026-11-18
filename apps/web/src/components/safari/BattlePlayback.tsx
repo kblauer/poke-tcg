@@ -85,7 +85,7 @@ function BattleFighter({ f, playback, units }: { f: ShownFighter; playback: Play
     <div className="relative">
       <div ref={ref}>
         <UnitCard id={f.unit ?? ''} unit={f.unit ? units.get(f.unit) : undefined} stats={{ attack: f.attack, hp: f.hp, keyword: f.keyword ?? '' }} width="var(--safari-card)" lit={mine('attack') || targeted}>
-          <span className="absolute bottom-[9%] left-[36%] right-[36%] h-[3%] overflow-hidden rounded-full bg-slate-950/80">
+          <span className="absolute bottom-[7.4%] left-[25%] right-[25%] h-[2.4%] overflow-hidden rounded-full bg-slate-950/80">
             <span className={`block h-full transition-[width] duration-300 ${pct > 50 ? 'bg-emerald-400' : pct > 20 ? 'bg-amber-400' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
           </span>
           <FighterConditions status={f.status} />
@@ -179,7 +179,7 @@ function FighterConditions({ status }: { status: readonly string[] }) {
   const blind = status.includes('Blinded') ? [{ label: 'BLD', title: "Blinded: its next hit flips a coin (tails, it does nothing)", className: 'bg-gray-600' }] : [];
   const text = [...(textStatus ? tags : []), ...blind];
   return (
-    <span className="pointer-events-auto absolute left-[4%] top-[14%] flex flex-wrap items-start gap-0.5">
+    <span className="pointer-events-auto absolute left-[12%] top-[12.8%] flex flex-wrap items-start gap-0.5">
       {!textStatus &&
         tags.map((t) => (
           <span key={t.image} title={t.title} className="relative inline-block shrink-0">
