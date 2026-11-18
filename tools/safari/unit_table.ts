@@ -5,7 +5,9 @@
 //   - the pool: no word-for-word reprints, a card printed holo and not in one set once (the holo, the user's), no
 //     Pokémon past #151 (the Wizards promos' Gen 2 Pokémon, the user's);
 //   - HP: the printed HP;
-//   - tier 1–5 from the derived stats, a slight pyramid (TIER_SHARES), an evolved card always above what it evolves from;
+//   - tier 1–5 from the derived stats and what the unit's keyword and power are worth (the user's, 2026-11-18, after the
+//     balance pass: packages/safari's unitScore and its worth tables, the one thing this tool takes from the game code), a
+//     slight pyramid (TIER_SHARES), an evolved card always above what it evolves from;
 //   - keyword: one auto-battler effect, by the wording of its attacks (KEYWORDS, first match wins). Pokémon Powers are
 //     never mapped here: each is listed for the user's ruling.
 // Run from the repo's root: npx tsx tools/safari/unit_table.ts
@@ -15,6 +17,7 @@ import type { Attack, PokemonCardDef } from '../../packages/game-engine/src/card
 import { BASE4_REPRINTS } from '../../packages/game-engine/src/effects/base4.ts';
 import { LC_REPRINTS } from '../../packages/game-engine/src/effects/lc.ts';
 import { TEST_POOL } from '../../packages/campaign/src/test-pool.ts';
+import { unitScore, type Keyword } from '../../packages/safari/src/units.ts';
 
 /** The formula's knobs (the user's, 2026-11-18: 1 Energy to start with and 1 more for each stage). */
 const TURNS = 6;
@@ -144,9 +147,10 @@ interface Unit {
 const units: Unit[] = defs.map((def) => {
   const raw = derivedAttack(def);
   const attack = round10(raw);
-  // A unit's worth in a fight is about what it deals times how long it lasts.
-  return { def, raw, attack, hp: def.hp, score: Math.sqrt(attack * def.hp), tier: 0, flags: [], ...keywordOf(def) };
+  return { def, raw, attack, hp: def.hp, score: 0, tier: 0, flags: [], ...keywordOf(def) };
 });
+// A unit's worth in a fight is about what it deals times how long it lasts, raised by what its effects are worth.
+const scoreOf = (u: Unit) => unitScore({ attack: u.attack, hp: u.hp, keyword: (u.keyword || undefined) as Keyword | undefined, power: u.def.power?.name });
 
 // The evolution floor (the user's, 2026-11-18): an evolved unit's attack and HP together are at least 10 more than every
 // print it evolves from, its attack raised to get there. Stage 1s first, so a Stage 2 stands on the raised ones.
@@ -157,9 +161,9 @@ for (const stage of ['stage1', 'stage2']) {
     if (!printsBelow(u).length || u.attack + u.hp >= need) continue;
     u.flags.push(`attack raised from ${u.attack} by the evolution floor`);
     u.attack = need - u.hp;
-    u.score = Math.sqrt(u.attack * u.hp);
   }
 }
+for (const u of units) u.score = scoreOf(u);
 
 // Tiers: fifths of the score, then an evolved card at least one above every print it evolves from (the user's, 1c). A card
 // that evolves leaves room above it (a Basic of a 3-stage line at most 3).

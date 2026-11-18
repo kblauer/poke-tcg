@@ -1,0 +1,433 @@
+id,name,tier,stage,type,attack,hp,keyword,power,games,winRate,standardErrors
+gym2-7,"Giovanni's Nidoking",5,stage2,grass,60,120,Weaken,,9857,0.6419,28.17
+basep-13,"Venusaur",5,stage2,grass,40,100,Drain,Solar Power,9870,0.6411,28.03
+base1-4,"Charizard",5,stage2,fire,50,120,,Energy Burn,9891,0.6344,26.73
+base1-2,"Blastoise",5,stage2,water,60,100,,Rain Dance,9794,0.6210,23.96
+base1-15,"Venusaur",5,stage2,grass,60,100,,Energy Trans,9988,0.6182,23.63
+gym2-6,"Giovanni's Machamp",5,stage2,fighting,60,100,Flurry,Fortitude,9874,0.6182,23.49
+base2-6,"Mr. Mime",2,basic,psychic,20,40,Finisher,Invisible Wall,5975,0.6481,22.90
+basep-9,"Mew",2,basic,psychic,20,50,Poison,,6086,0.6413,22.05
+gym2-23,"Giovanni's Nidoqueen",4,stage2,grass,40,100,,,7081,0.6305,21.96
+base2-13,"Venomoth",2,stage1,grass,10,70,Poison,Shift,6088,0.6401,21.86
+gym2-42,"Giovanni's Machoke",4,stage1,fighting,60,80,Paralyze,,7170,0.6275,21.60
+base3-36,"Golem",5,stage2,fighting,60,80,Explode,,9879,0.6079,21.45
+base1-32,"Kadabra",4,stage1,psychic,50,60,Drain,,7080,0.6246,20.98
+base5-68,"Squirtle",1,basic,water,20,50,,,5637,0.6395,20.95
+base3-53,"Psyduck",1,basic,water,20,50,Flurry,,5702,0.6364,20.61
+base2-49,"Bellsprout",1,basic,grass,10,40,Family,,5655,0.6368,20.57
+base1-8,"Machamp",5,stage2,fighting,60,100,,Strikes Back,9660,0.6034,20.32
+basep-20,"Psyduck",1,basic,water,20,50,Flurry,,5719,0.6285,19.44
+base3-6,"Haunter",4,stage1,psychic,20,50,Sleep,Transparency,7134,0.6139,19.24
+gym2-77,"Koga's Ekans",1,basic,grass,10,50,Poison,,5590,0.6268,18.97
+gym2-47,"Koga's Kakuna",3,stage1,grass,10,60,Toxic,Emerge,7264,0.6101,18.77
+base1-51,"Koffing",1,basic,grass,10,50,Poison,,5729,0.6221,18.48
+gym2-71,"Erika's Paras",1,basic,grass,10,50,Poison,,5628,0.6230,18.46
+base5-63,"Oddish",1,basic,grass,10,50,Poison,,5691,0.6198,18.07
+base5-3,"Dark Blastoise",5,stage2,water,70,70,Guard,,9771,0.5896,17.70
+gym1-47,"Erika's Oddish",1,basic,grass,10,40,Poison,Photosynthesis,5633,0.6143,17.16
+gym2-83,"Koga's Zubat",2,basic,grass,20,40,Family,,6035,0.6094,17.00
+gym1-33,"Rocket's Snorlax",4,basic,colorless,20,90,Sleep,Restless Sleep,7149,0.5962,16.27
+base3-45,"Weezing",4,stage1,grass,30,60,Explode,,7212,0.5944,16.04
+base2-34,"Dodrio",2,stage1,colorless,10,70,Enrage,Retreat Aid,6039,0.5996,15.48
+gym1-64,"Blaine's Tauros",3,basic,colorless,40,70,Flurry,,7355,0.5899,15.41
+gym1-46,"Erika's Gloom",4,stage1,grass,30,70,Sleep,,7206,0.5889,15.09
+base3-44,"Tentacruel",2,stage1,water,10,60,Poison,,6120,0.5958,14.98
+gym1-39,"Brock's Golbat",2,stage1,grass,20,70,,,6119,0.5928,14.52
+gym2-38,"Erika's Bellsprout",1,basic,grass,10,40,Splash,Soak Up,5676,0.5952,14.35
+base3-8,"Hypno",3,stage1,psychic,30,90,,,7204,0.5843,14.31
+base1-29,"Haunter",4,stage1,psychic,50,60,Sleep,,7241,0.5840,14.30
+base2-58,"Oddish",1,basic,grass,10,50,Paralyze,,5739,0.5937,14.19
+base2-5,"Kangaskhan",3,basic,colorless,30,90,Flurry,,7292,0.5815,13.91
+gym1-32,"Misty's Tentacool",1,basic,water,10,40,Sleep,,5633,0.5908,13.63
+base1-65,"Staryu",1,basic,water,20,40,,,5625,0.5887,13.31
+gym1-86,"Misty's Horsea",1,basic,water,20,40,Blind,,5684,0.5877,13.22
+base1-56,"Onix",2,basic,fighting,10,90,Harden,,6099,0.5844,13.19
+base2-12,"Vaporeon",4,stage1,water,50,80,,,7245,0.5774,13.18
+gym2-92,"Misty's Staryu",1,basic,water,20,40,,,5805,0.5833,12.69
+gym2-93,"Sabrina's Abra",2,basic,psychic,40,40,,,6182,0.5804,12.64
+base2-8,"Pidgeot",3,stage2,colorless,30,80,,,7291,0.5740,12.64
+gym2-70,"Erika's Oddish",1,basic,grass,10,40,Sleep,,5743,0.5781,11.84
+base1-42,"Wartortle",4,stage1,water,40,70,Guard,,7106,0.5695,11.72
+basep-19,"Sabrina's Abra",2,basic,psychic,40,40,,,5978,0.5757,11.70
+base2-15,"Vileplume",5,stage2,grass,60,80,Confuse,Heal,9851,0.5584,11.60
+gym2-26,"Koga's Muk",4,stage1,grass,40,80,,Energy Drain,7062,0.5682,11.46
+base1-55,"Nidoran♂",1,basic,grass,20,40,,,5684,0.5752,11.34
+base2-45,"Rhydon",5,stage1,fighting,40,100,Explode,,9916,0.5562,11.19
+gym1-36,"Blaine's Kangaskhan",3,basic,colorless,30,80,,,7274,0.5652,11.13
+base1-34,"Machoke",4,stage1,fighting,50,80,Enrage,,7169,0.5657,11.13
+base5-70,"Zubat",1,basic,grass,20,40,,,5645,0.5740,11.11
+basep-17,"Dark Persian",3,stage1,colorless,20,60,Poison,,7253,0.5646,11.00
+gym2-48,"Koga's Koffing",2,basic,grass,30,50,Blind,,6009,0.5700,10.85
+base5-39,"Dark Kadabra",2,stage1,psychic,30,50,,Matter Exchange,6011,0.5698,10.82
+basep-10,"Meowth",1,basic,colorless,20,50,,,5712,0.5714,10.80
+gym2-82,"Koga's Weedle",1,basic,grass,10,40,Poison,,5578,0.5713,10.64
+base5-42,"Dark Persian",3,stage1,colorless,20,60,Poison,,7284,0.5623,10.64
+gym2-90,"Misty's Psyduck",1,basic,water,10,60,Copycat,,5753,0.5692,10.49
+base1-69,"Weedle",1,basic,grass,10,40,Poison,,5740,0.5692,10.48
+base3-48,"Grimer",1,basic,grass,10,50,Paralyze,,5656,0.5697,10.48
+gym2-44,"Giovanni's Nidorina",3,stage1,grass,20,80,Poison,,7180,0.5613,10.39
+gym1-74,"Brock's Zubat",1,basic,grass,10,40,Poison,,5661,0.5689,10.37
+basep-49,"Snorlax",5,basic,colorless,20,90,Sleep,Guard,9744,0.5523,10.32
+gym1-85,"Misty's Goldeen",1,basic,water,10,40,Confuse,,5689,0.5679,10.24
+base2-41,"Parasect",4,stage1,grass,30,60,Sleep,,7119,0.5606,10.23
+base3-40,"Omastar",3,stage2,water,40,70,Flurry,,7176,0.5603,10.21
+base1-38,"Poliwhirl",4,stage1,water,60,60,Weaken,,7084,0.5584,9.84
+gym2-79,"Koga's Koffing",1,basic,grass,10,40,Splash,,5751,0.5637,9.67
+base1-6,"Gyarados",5,stage1,water,50,100,Paralyze,,9867,0.5480,9.54
+gym2-81,"Koga's Tangela",2,basic,grass,10,50,Sleep,,6078,0.5604,9.41
+base1-64,"Starmie",2,stage1,water,20,60,Paralyze,,6046,0.5604,9.39
+base1-33,"Kakuna",3,stage1,grass,20,80,Poison,,7315,0.5547,9.35
+gym2-78,"Koga's Grimer",2,basic,grass,20,50,Poison,,6079,0.5599,9.34
+base1-27,"Farfetch'd",2,basic,colorless,30,50,,,6104,0.5594,9.28
+gym2-13,"Misty's Gyarados",5,stage1,water,60,100,,Rebellion,9794,0.5466,9.23
+gym1-25,"Erika's Clefairy",1,basic,colorless,20,50,Flurry,,5758,0.5608,9.22
+gym1-10,"Misty's Tentacruel",3,stage1,water,10,70,Poison,Flee,7301,0.5538,9.20
+gym1-49,"Erika's Weepinbell",4,stage1,grass,40,70,Poison,,7149,0.5532,9.00
+base2-10,"Scyther",3,basic,grass,30,70,Charge,,7272,0.5521,8.89
+base5-54,"Drowzee",2,basic,psychic,10,50,Sleep,Long Distance Hypnosis,6055,0.5563,8.76
+gym2-39,"Erika's Bulbasaur",2,basic,grass,10,50,Sleep,,5985,0.5563,8.71
+base3-57,"Zubat",1,basic,grass,10,40,Confuse,,5701,0.5572,8.64
+basep-45,"Scyther",3,basic,grass,40,60,,,7302,0.5494,8.45
+base3-11,"Magneton",5,stage1,lightning,50,80,Explode,,9857,0.5422,8.37
+base5-56,"Ekans",2,basic,grass,20,50,Poison,,5973,0.5536,8.28
+base5-51,"Dark Raticate",2,stage1,colorless,30,50,,,5924,0.5527,8.11
+gym1-41,"Brock's Lickitung",3,basic,colorless,30,80,Flurry,,7248,0.5470,8.01
+gym2-14,"Rocket's Mewtwo",5,basic,psychic,50,70,Sleep,,9749,0.5405,7.99
+base1-5,"Clefairy",1,basic,colorless,10,40,Sleep,,5712,0.5528,7.98
+base5-36,"Dark Gloom",2,stage1,grass,20,50,Poison,Pollen Stench,6142,0.5504,7.90
+gym2-97,"Sabrina's Gastly",2,basic,psychic,30,40,,Gaseous Form,5992,0.5504,7.80
+gym1-79,"Erika's Tangela",2,basic,grass,20,60,,,6005,0.5499,7.73
+gym2-56,"Sabrina's Hypno",3,stage1,psychic,40,70,Flurry,,7234,0.5448,7.62
+base2-52,"Exeggcute",3,basic,grass,20,50,Sleep,,7217,0.5445,7.56
+base3-39,"Magmar",3,basic,fire,20,70,Poison,,7083,0.5443,7.46
+gym1-77,"Erika's Exeggcute",1,basic,grass,20,40,Flurry,,5636,0.5492,7.39
+base1-66,"Tangela",2,basic,grass,20,50,Poison,,6035,0.5472,7.34
+base5-7,"Dark Golbat",2,stage1,grass,20,50,,Sneak Attack,6113,0.5428,6.69
+base1-12,"Ninetales",5,stage1,fire,70,80,Whirlwind,,9869,0.5334,6.63
+gym2-36,"Brock's Sandslash",3,stage1,fighting,20,70,Poison,,7101,0.5389,6.55
+base1-11,"Nidoking",5,stage2,grass,30,90,Toxic,,9823,0.5328,6.50
+gym2-73,"Giovanni's Magikarp",1,basic,water,20,30,Flurry,,5648,0.5427,6.41
+base3-54,"Shellder",1,basic,water,10,30,Confuse,,5679,0.5425,6.41
+gym1-3,"Erika's Clefable",3,stage1,colorless,30,70,,,7213,0.5371,6.30
+base5-9,"Dark Hypno",3,stage1,psychic,40,60,,,7336,0.5367,6.29
+base2-35,"Exeggutor",4,stage1,grass,40,80,Flurry,,6944,0.5372,6.19
+gym1-92,"Sabrina's Drowzee",2,basic,psychic,20,50,Weaken,,6156,0.5391,6.13
+gym2-49,"Koga's Pidgey",1,basic,colorless,20,40,,,5578,0.5403,6.03
+base3-2,"Articuno",4,basic,water,40,70,Paralyze,,7250,0.5339,5.78
+base2-9,"Pinsir",4,basic,grass,40,60,Paralyze,,7133,0.5341,5.77
+base3-42,"Seadra",3,stage1,water,40,60,,,7102,0.5341,5.76
+gym1-30,"Misty's Goldeen",1,basic,water,20,30,,,5872,0.5376,5.76
+base3-14,"Raichu",3,stage1,lightning,30,90,,,7261,0.5334,5.69
+base1-52,"Machop",1,basic,fighting,20,50,,,5642,0.5369,5.54
+gym1-69,"Brock's Onix",4,basic,fighting,30,100,Paralyze,,7009,0.5320,5.36
+basep-11,"Eevee",1,basic,colorless,20,30,,Chain Reaction,5640,0.5355,5.34
+gym1-60,"Sabrina's Slowbro",5,stage1,psychic,40,70,Sleep,,9810,0.5269,5.32
+gym2-24,"Giovanni's Pinsir",4,basic,grass,40,70,,,7151,0.5310,5.25
+gym2-32,"Blaine's Dodrio",3,stage1,colorless,30,70,,,7287,0.5307,5.24
+gym1-82,"Lt. Surge's Rattata",1,basic,colorless,20,40,,,5753,0.5344,5.22
+gym2-53,"Lt. Surge's Raticate",3,stage1,colorless,30,60,Recoil,,7271,0.5303,5.17
+base2-63,"Venonat",1,basic,grass,10,40,Paralyze,,5605,0.5339,5.08
+base1-45,"Caterpie",1,basic,grass,10,40,Paralyze,,5827,0.5331,5.06
+base5-14,"Dark Weezing",5,stage1,grass,40,60,Explode,,9886,0.5249,4.95
+base2-42,"Persian",3,stage1,colorless,30,70,,,7221,0.5289,4.92
+gym1-44,"Erika's Exeggutor",4,stage1,grass,40,70,Pay Day,,7008,0.5290,4.86
+base5-1,"Dark Alakazam",3,stage2,psychic,40,60,,,7230,0.5280,4.76
+basep-15,"Cool Porygon",3,basic,colorless,30,50,Finisher,,7177,0.5273,4.63
+gym1-42,"Erika's Dratini",2,basic,colorless,20,40,,Strange Barrier,6248,0.5290,4.58
+base2-40,"Nidorina",4,stage1,grass,30,70,Confuse,,7138,0.5266,4.50
+gym2-99,"Sabrina's Psyduck",2,basic,water,20,50,Confuse,,5989,0.5280,4.33
+base1-35,"Magikarp",1,basic,water,20,30,,,5745,0.5285,4.33
+base2-57,"Nidoran♀",3,basic,grass,20,60,Family,,7206,0.5249,4.23
+base2-7,"Nidoqueen",5,stage2,grass,50,90,,,9895,0.5210,4.18
+base2-4,"Jolteon",3,stage1,lightning,40,70,Flurry,,7329,0.5241,4.12
+base1-23,"Arcanine",5,stage1,fire,50,100,Recoil,,9818,0.5200,3.96
+base5-12,"Dark Slowbro",2,stage1,psychic,20,60,,Reel In,6107,0.5248,3.88
+gym2-98,"Sabrina's Porygon",1,basic,colorless,20,40,,,5746,0.5253,3.84
+gym1-24,"Brock's Zubat",1,basic,grass,20,30,Pay Day,,5846,0.5244,3.73
+gym2-43,"Giovanni's Meowth",1,basic,colorless,20,40,Flurry,,5862,0.5242,3.71
+gym2-51,"Lt. Surge's Eevee",1,basic,colorless,20,40,,,5665,0.5240,3.61
+base2-16,"Wigglytuff",5,stage1,colorless,30,80,Sleep,,9861,0.5181,3.60
+base1-41,"Seel",1,basic,water,10,60,,,5780,0.5233,3.54
+gym2-55,"Sabrina's Haunter",4,stage1,psychic,20,70,Sleep,,7085,0.5207,3.49
+gym1-53,"Misty's Poliwhirl",4,stage1,water,40,70,Finisher,,7177,0.5203,3.45
+base1-36,"Magmar",3,basic,fire,50,50,,,7198,0.5191,3.24
+gym2-37,"Brock's Vulpix",3,basic,fire,20,50,Sleep,,7263,0.5188,3.20
+base1-24,"Charmeleon",4,stage1,fire,50,80,,,7172,0.5185,3.14
+base1-49,"Drowzee",1,basic,psychic,10,50,Confuse,,5659,0.5204,3.07
+gym2-50,"Koga's Weezing",5,stage1,grass,30,70,Explode,,9868,0.5154,3.06
+gym2-35,"Brock's Primeape",5,stage1,fighting,50,70,Recoil,Scram,9758,0.5155,3.06
+base1-54,"Metapod",3,stage1,grass,20,70,Paralyze,,7293,0.5177,3.02
+base5-66,"Rattata",1,basic,colorless,20,40,,Trickery,5780,0.5188,2.85
+gym2-68,"Brock's Geodude",1,basic,fighting,20,50,Flurry,,5870,0.5181,2.78
+gym2-75,"Giovanni's Nidoran ♀",2,basic,grass,20,50,Recoil,,5949,0.5176,2.71
+gym2-62,"Blaine's Growlithe",2,basic,fire,20,60,Paralyze,,5988,0.5173,2.68
+gym1-28,"Lt. Surge's Raichu",4,stage1,lightning,50,70,,,7208,0.5157,2.67
+basep-23,"Zapdos",2,basic,lightning,20,70,Recoil,,6114,0.5167,2.61
+base1-37,"Nidorino",4,stage1,grass,50,60,Flurry,,7058,0.5154,2.58
+gym2-15,"Rocket's Zapdos",4,basic,lightning,50,70,,,7115,0.5147,2.48
+gym1-76,"Erika's Bellsprout",2,basic,grass,20,50,Recoil,,6066,0.5152,2.38
+gym2-74,"Giovanni's Meowth",3,basic,colorless,30,50,Confuse,,7137,0.5139,2.36
+gym1-38,"Brock's Geodude",1,basic,fighting,10,50,Splash,,5738,0.5152,2.30
+gym2-41,"Erika's Ivysaur",3,stage1,grass,40,60,Flurry,Relaxing Scent,7118,0.5136,2.29
+base1-10,"Mewtwo",2,basic,psychic,20,60,,,6195,0.5136,2.13
+base1-47,"Diglett",1,basic,fighting,30,30,,,5747,0.5134,2.03
+base1-18,"Dragonair",4,stage1,colorless,30,80,Finisher,,7109,0.5116,1.96
+gym1-96,"Sabrina's Venonat",2,basic,grass,20,40,Poison,,5925,0.5123,1.90
+gym1-7,"Lt. Surge's Fearow",3,stage1,colorless,30,70,Flurry,,7052,0.5109,1.83
+gym2-57,"Sabrina's Jynx",2,basic,psychic,20,60,,,5931,0.5117,1.80
+gym2-45,"Giovanni's Nidorino",4,stage1,grass,30,70,Finisher,,7248,0.5099,1.68
+base1-44,"Bulbasaur",2,basic,grass,20,40,Drain,,6185,0.5104,1.64
+base1-13,"Poliwrath",5,stage2,water,50,90,Finisher,,9738,0.5078,1.54
+basep-3,"Mewtwo",3,basic,psychic,30,70,,,7226,0.5086,1.46
+base5-8,"Dark Gyarados",4,stage1,water,30,70,Paralyze,Final Beam,7297,0.5083,1.42
+gym1-61,"Blaine's Charmander",2,basic,fire,20,50,Finisher,,5975,0.5089,1.37
+gym1-43,"Erika's Exeggcute",2,basic,grass,20,50,Recoil,,6047,0.5081,1.26
+base3-13,"Muk",4,stage1,grass,30,70,Poison,Toxic Gas,7148,0.5067,1.14
+gym2-59,"Sabrina's Mr. Mime",2,basic,psychic,20,60,Flurry,,6036,0.5071,1.11
+gym2-89,"Misty's Poliwag",2,basic,water,20,50,Weaken,,6086,0.5071,1.10
+gym1-87,"Misty's Poliwag",2,basic,water,20,50,Paralyze,,5978,0.5062,0.96
+gym2-58,"Sabrina's Kadabra",3,stage1,psychic,30,70,,,7227,0.5055,0.93
+base5-64,"Ponyta",2,basic,fire,30,50,,,6052,0.5054,0.84
+basep-44,"Magmar",3,basic,fire,40,60,,,7294,0.5046,0.78
+base2-51,"Eevee",2,basic,colorless,20,50,Weaken,,6211,0.5049,0.77
+base2-54,"Jigglypuff",4,basic,colorless,20,60,Sleep,,7214,0.5044,0.74
+gym2-91,"Misty's Seel",1,basic,water,10,50,Blind,,5741,0.5048,0.73
+gym1-59,"Sabrina's Jynx",4,basic,psychic,20,60,Sleep,,7134,0.5041,0.70
+gym2-16,"Sabrina's Alakazam",5,stage2,psychic,60,80,,Psylink,9807,0.5035,0.69
+base2-38,"Lickitung",2,basic,colorless,10,90,Paralyze,,6046,0.5042,0.66
+basep-7,"Jigglypuff",4,basic,colorless,30,70,Drain,,7209,0.5035,0.59
+gym1-4,"Erika's Dragonair",4,stage1,colorless,30,80,Splash,,7224,0.5029,0.49
+base3-46,"Ekans",2,basic,grass,20,40,Poison,,6054,0.5031,0.49
+base1-39,"Porygon",1,basic,colorless,10,30,Finisher,,5719,0.5030,0.45
+gym1-78,"Erika's Oddish",2,basic,grass,20,50,,,6060,0.5017,0.26
+base1-46,"Charmander",2,basic,fire,30,50,,,6078,0.5015,0.23
+gym1-70,"Brock's Rhyhorn",2,basic,fighting,20,70,,,6166,0.5015,0.23
+basep-21,"Moltres",4,basic,fire,50,70,,,7075,0.5008,0.14
+gym1-95,"Sabrina's Slowpoke",4,basic,psychic,30,50,Sleep,,7128,0.5005,0.08
+base1-31,"Jynx",4,basic,psychic,30,70,Finisher,,7126,0.5004,0.07
+base1-63,"Squirtle",1,basic,water,10,40,Paralyze,,5742,0.5002,0.03
+base5-37,"Dark Golduck",4,stage1,water,50,60,,,7169,0.5001,0.01
+base1-19,"Dugtrio",5,stage1,fighting,70,70,,,9711,0.5001,0.01
+base3-34,"Golbat",4,stage1,grass,30,60,Drain,,7179,0.4999,-0.01
+base2-46,"Seaking",3,stage1,water,30,70,,,7118,0.4984,-0.27
+basep-24,"___________'s Pikachu",4,basic,lightning,60,50,,,7001,0.4984,-0.27
+base1-40,"Raticate",2,stage1,colorless,20,60,,,6059,0.4977,-0.36
+base2-48,"Weepinbell",4,stage1,grass,30,70,Poison,,7209,0.4975,-0.42
+gym2-85,"Lt. Surge's Rattata",1,basic,colorless,20,30,,,5755,0.4970,-0.45
+base3-7,"Hitmonlee",3,basic,fighting,40,60,,,7172,0.4967,-0.55
+basep-14,"Mewtwo",3,basic,psychic,30,70,,,7006,0.4965,-0.59
+gym1-88,"Misty's Seel",2,basic,water,20,60,,,6207,0.4958,-0.66
+gym1-35,"Blaine's Growlithe",2,basic,fire,30,50,Whirlwind,,6109,0.4957,-0.67
+gym1-55,"Misty's Seaking",3,stage1,water,30,70,,,7215,0.4959,-0.69
+gym1-56,"Misty's Starmie",4,stage1,water,30,80,Paralyze,,7329,0.4957,-0.74
+base1-61,"Rattata",1,basic,colorless,20,30,,,5718,0.4945,-0.83
+base3-52,"Omanyte",2,stage1,water,30,40,,Clairvoyance,6125,0.4946,-0.84
+gym1-89,"Misty's Shellder",1,basic,water,10,40,Paralyze,,5696,0.4942,-0.87
+base5-57,"Grimer",2,basic,grass,20,40,Paralyze,,6086,0.4942,-0.90
+base5-58,"Koffing",2,basic,grass,20,40,Poison,,6068,0.4941,-0.92
+base2-3,"Flareon",4,stage1,fire,50,70,,,7175,0.4941,-1.00
+base3-15,"Zapdos",3,basic,lightning,30,80,,,7163,0.4940,-1.02
+base3-10,"Lapras",4,basic,water,30,80,Confuse,,7196,0.4935,-1.10
+gym1-52,"Lt. Surge's Spearow",1,basic,colorless,20,30,,,5929,0.4912,-1.35
+gym2-25,"Koga's Arbok",4,stage1,grass,20,90,Poison,,7002,0.4912,-1.47
+base1-22,"Pidgeotto",2,stage1,colorless,20,60,Whirlwind,,6030,0.4905,-1.48
+gym2-67,"Brock's Diglett",2,basic,fighting,40,40,,,6227,0.4906,-1.48
+base3-50,"Kabuto",1,stage1,fighting,10,30,,Kabuto Armor,5583,0.4896,-1.55
+base5-5,"Dark Dragonite",4,stage2,colorless,40,70,,Summon Minions,7057,0.4906,-1.58
+gym2-1,"Blaine's Arcanine",5,stage1,fire,50,90,Recoil,,9799,0.4918,-1.62
+gym2-28,"Lt. Surge's Jolteon",3,stage1,lightning,30,70,Recoil,,7152,0.4898,-1.73
+gym2-30,"Sabrina's Golduck",3,stage1,water,30,70,,,7331,0.4899,-1.73
+gym2-46,"Koga's Golbat",4,stage1,grass,30,60,Confuse,,7132,0.4898,-1.73
+base5-48,"Porygon",2,basic,colorless,20,40,Confuse,,6020,0.4887,-1.75
+base1-3,"Chansey",5,basic,colorless,30,120,Guard,,9810,0.4907,-1.85
+gym2-94,"Sabrina's Abra",2,basic,psychic,20,50,,,5982,0.4876,-1.91
+gym1-13,"Rocket's Scyther",3,basic,grass,30,60,,,7139,0.4882,-2.00
+base5-33,"Dark Dragonair",3,stage1,colorless,30,60,,Evolutionary Light,7204,0.4867,-2.26
+base3-37,"Graveler",4,stage1,fighting,40,60,Harden,,7089,0.4864,-2.29
+base5-65,"Psyduck",3,basic,water,40,50,Pay Day,,7289,0.4865,-2.31
+base5-59,"Machop",2,basic,fighting,30,50,,,6221,0.4851,-2.36
+gym1-58,"Sabrina's Haunter",4,stage1,psychic,60,50,Flurry,,7114,0.4858,-2.39
+gym1-94,"Sabrina's Mr. Mime",2,basic,psychic,20,50,,,5915,0.4842,-2.43
+gym2-96,"Sabrina's Gastly",2,basic,psychic,30,30,Paralyze,,5959,0.4841,-2.46
+gym1-23,"Brock's Sandslash",3,stage1,fighting,20,60,Poison,,7062,0.4853,-2.46
+base1-50,"Gastly",1,basic,psychic,10,30,Destiny Bond,,5681,0.4836,-2.47
+gym2-95,"Sabrina's Drowzee",2,basic,psychic,20,50,,,6139,0.4840,-2.50
+gym2-69,"Erika's Jigglypuff",4,basic,colorless,40,50,Drain,,7278,0.4853,-2.51
+base5-46,"Dark Wartortle",2,stage1,water,20,60,Flurry,,6034,0.4833,-2.59
+base1-68,"Vulpix",1,basic,fire,10,50,Confuse,,5789,0.4826,-2.65
+basep-48,"Articuno",4,basic,water,20,80,Paralyze,Aurora Veil,7121,0.4839,-2.71
+basep-47,"Mew",1,basic,psychic,10,40,Confuse,Neutral Shield,5673,0.4818,-2.75
+base2-11,"Snorlax",4,basic,colorless,20,90,Paralyze,Thick Skinned,7160,0.4834,-2.81
+base1-53,"Magnemite",3,basic,lightning,20,40,Explode,,7330,0.4836,-2.81
+gym1-11,"Rocket's Hitmonchan",3,basic,fighting,40,60,,,7180,0.4834,-2.82
+gym1-91,"Sabrina's Abra",1,basic,psychic,20,40,,,5703,0.4805,-2.94
+base5-52,"Diglett",1,basic,fighting,20,40,,,5666,0.4801,-2.99
+gym1-29,"Misty's Cloyster",4,stage1,water,30,70,Flurry,Shell Armor,7142,0.4821,-3.03
+gym1-20,"Brock's Golem",5,stage2,fighting,50,90,,,9797,0.4845,-3.06
+gym1-26,"Erika's Victreebel",5,stage2,grass,50,80,,Fragrance Trap,9850,0.4844,-3.10
+base3-43,"Slowbro",3,stage1,psychic,20,60,Paralyze,Strange Behavior,7335,0.4814,-3.19
+base1-25,"Dewgong",5,stage1,water,50,80,Paralyze,,9888,0.4839,-3.21
+base2-44,"Rapidash",3,stage1,fire,30,70,,,7307,0.4804,-3.35
+base2-60,"Pikachu",1,basic,lightning,20,50,,,5709,0.4771,-3.45
+gym1-5,"Erika's Vileplume",5,stage2,grass,30,80,Drain,Pollen Defense,9956,0.4823,-3.53
+gym1-9,"Misty's Seadra",4,stage1,water,40,70,,,7060,0.4788,-3.56
+gym1-1,"Blaine's Moltres",5,basic,fire,50,90,,,9858,0.4819,-3.59
+base3-12,"Moltres",3,basic,fire,30,70,,,7288,0.4788,-3.62
+gym2-76,"Giovanni's Nidoran ♂",2,basic,grass,30,40,Flurry,,6102,0.4766,-3.66
+gym2-63,"Blaine's Mankey",1,basic,fighting,20,40,Flurry,,5634,0.4755,-3.68
+gym1-93,"Sabrina's Gastly",2,basic,psychic,20,50,,,5999,0.4760,-3.72
+basep-1,"Pikachu",2,basic,lightning,20,60,Paralyze,,6042,0.4760,-3.73
+basep-28,"Surfing Pikachu",2,basic,lightning,30,50,,,6000,0.4757,-3.77
+base2-36,"Fearow",4,stage1,colorless,40,70,,,7037,0.4775,-3.78
+gym1-50,"Lt. Surge's Magnemite",1,basic,lightning,20,30,Confuse,,5836,0.4746,-3.87
+base1-30,"Ivysaur",4,stage1,grass,30,60,Poison,,7089,0.4767,-3.93
+base3-31,"Arbok",3,stage1,grass,20,60,Poison,,7178,0.4760,-4.07
+base1-17,"Beedrill",5,stage2,grass,40,80,Poison,,9910,0.4791,-4.16
+base3-35,"Golduck",4,stage1,water,30,70,Paralyze,,7202,0.4753,-4.19
+base2-59,"Paras",3,basic,grass,20,40,Sleep,,7334,0.4753,-4.23
+base1-59,"Poliwag",2,basic,water,30,40,,,6110,0.4720,-4.38
+basep-43,"Machamp",5,stage2,fighting,50,90,Whirlwind,,9826,0.4779,-4.38
+gym2-52,"Lt. Surge's Electrode",4,stage1,lightning,40,70,,Shock Blast,7063,0.4739,-4.38
+gym2-87,"Misty's Horsea",2,basic,water,20,50,Blind,,6080,0.4714,-4.46
+base2-37,"Gloom",3,stage1,grass,20,60,Poison,,7258,0.4731,-4.58
+base5-50,"Charmander",1,basic,fire,20,40,,Gather Fire,5730,0.4694,-4.64
+gym1-45,"Erika's Gloom",3,stage1,grass,20,60,Poison,,7367,0.4723,-4.75
+gym2-21,"Blaine's Ninetales",3,stage1,fire,30,60,,Healing Fire,7386,0.4708,-5.02
+gym2-80,"Koga's Pidgey",2,basic,colorless,20,50,Blind,,5927,0.4668,-5.10
+gym2-9,"Koga's Beedrill",5,stage2,grass,40,80,Poison,,9921,0.4740,-5.17
+basep-4,"Pikachu",1,basic,lightning,20,50,,,5621,0.4652,-5.22
+gym2-27,"Koga's Pidgeotto",3,stage1,colorless,30,60,Flurry,,7155,0.4690,-5.24
+base2-53,"Goldeen",1,basic,water,10,40,,,5755,0.4644,-5.40
+base3-1,"Aerodactyl",5,stage1,fighting,30,60,,Prehistoric Power,9906,0.4722,-5.53
+gym1-65,"Blaine's Vulpix",2,basic,fire,20,40,Confuse,Natural Healing,6102,0.4644,-5.57
+base3-32,"Cloyster",3,stage1,water,30,50,Paralyze,,7082,0.4668,-5.58
+base1-16,"Zapdos",3,basic,lightning,20,90,Recoil,,7346,0.4673,-5.60
+base5-2,"Dark Arbok",3,stage1,grass,20,60,Poison,,7137,0.4664,-5.67
+base1-9,"Magneton",5,stage1,lightning,40,60,Explode,,9927,0.4712,-5.73
+basep-22,"Articuno",3,basic,water,20,70,Paralyze,,7275,0.4662,-5.77
+base5-83,"Dark Raichu",4,stage1,lightning,30,70,Splash,,7132,0.4657,-5.79
+base1-21,"Electrode",5,stage1,lightning,50,80,Recoil,Buzzap,9885,0.4707,-5.82
+base3-33,"Gastly",1,basic,psychic,10,50,Paralyze,,5677,0.4611,-5.87
+base5-32,"Dark Charmeleon",3,stage1,fire,40,50,,,7205,0.4653,-5.89
+base3-3,"Ditto",1,basic,colorless,10,50,,Transform,5714,0.4610,-5.90
+gym2-8,"Giovanni's Persian",4,stage1,colorless,30,60,,Call the Boss,7254,0.4649,-5.98
+base2-62,"Spearow",1,basic,colorless,10,50,Copycat,,5686,0.4591,-6.17
+base1-7,"Hitmonchan",4,basic,fighting,40,70,,,7053,0.4633,-6.17
+base1-28,"Growlithe",2,basic,fire,20,60,,,5887,0.4591,-6.27
+base2-50,"Cubone",1,basic,fighting,10,40,Enrage,,5780,0.4584,-6.33
+base3-49,"Horsea",1,basic,water,10,40,Blind,,5873,0.4585,-6.35
+gym1-66,"Brock's Geodude",2,basic,fighting,20,40,Family,,5966,0.4588,-6.37
+basep-12,"Mewtwo",3,basic,psychic,30,60,,,7314,0.4627,-6.37
+gym2-11,"Lt. Surge's Raichu",3,stage1,lightning,20,80,Paralyze,,7211,0.4623,-6.39
+gym1-37,"Blaine's Magmar",2,basic,fire,20,60,,,6106,0.4589,-6.42
+base2-33,"Butterfree",5,stage2,grass,40,70,Drain,,9645,0.4665,-6.59
+gym2-40,"Erika's Clefairy",2,basic,colorless,20,50,,,6079,0.4577,-6.59
+gym1-90,"Misty's Staryu",2,basic,water,20,50,,,6074,0.4576,-6.61
+gym2-4,"Erika's Venusaur",4,stage2,grass,20,90,,,7225,0.4606,-6.69
+gym1-73,"Brock's Vulpix",1,basic,fire,20,40,,,5719,0.4549,-6.82
+gym2-34,"Brock's Graveler",4,stage1,fighting,30,70,Splash,,7167,0.4585,-7.03
+base2-1,"Clefable",2,stage1,colorless,10,70,Copycat,,6054,0.4543,-7.11
+gym2-54,"Misty's Dewgong",5,stage1,water,50,80,Recoil,,9827,0.4633,-7.27
+base5-41,"Dark Muk",4,stage1,grass,20,60,Poison,Sticky Goo,7113,0.4567,-7.30
+base5-43,"Dark Primeape",4,stage1,fighting,40,60,Confuse,Frenzy,7200,0.4565,-7.38
+gym1-57,"Misty's Tentacool",2,basic,water,20,50,,,6105,0.4515,-7.58
+base1-20,"Electabuzz",4,basic,lightning,30,70,Paralyze,,7210,0.4552,-7.61
+gym2-31,"Blaine's Charmeleon",3,stage1,fire,30,70,Flurry,,7336,0.4549,-7.72
+gym2-72,"Giovanni's Machop",3,basic,fighting,40,50,,,7364,0.4543,-7.84
+base1-1,"Alakazam",5,stage2,psychic,40,80,Confuse,Damage Swap,9891,0.4597,-8.01
+base5-45,"Dark Vaporeon",4,stage1,water,30,60,Finisher,,7020,0.4519,-8.06
+base1-60,"Ponyta",2,basic,fire,30,40,,,6071,0.4480,-8.10
+gym1-40,"Brock's Graveler",3,stage1,fighting,30,70,Flurry,,7300,0.4521,-8.18
+gym1-63,"Blaine's Ponyta",1,basic,fire,20,40,,,5767,0.4459,-8.22
+gym1-48,"Erika's Weepinbell",4,stage1,grass,20,60,Splash,,7164,0.4507,-8.35
+gym2-61,"Blaine's Doduo",2,basic,colorless,20,50,,,6109,0.4465,-8.37
+gym2-65,"Blaine's Rhyhorn",2,basic,fighting,20,60,,,6001,0.4458,-8.39
+gym1-83,"Lt. Surge's Spearow",2,basic,colorless,20,50,Whirlwind,,6040,0.4455,-8.47
+base5-4,"Dark Charizard",5,stage2,fire,60,80,Flurry,,9795,0.4570,-8.51
+gym1-21,"Brock's Onix",3,basic,fighting,20,70,Paralyze,,7230,0.4495,-8.59
+gym2-2,"Blaine's Charizard",4,stage2,fire,30,100,,,7205,0.4489,-8.68
+base3-5,"Gengar",5,stage2,psychic,40,80,,Curse,9956,0.4565,-8.69
+base3-41,"Sandslash",3,stage1,fighting,30,70,Flurry,,7269,0.4490,-8.70
+base3-38,"Kingler",4,stage1,water,40,60,,,7170,0.4483,-8.76
+gym2-22,"Brock's Dugtrio",5,stage1,fighting,60,60,Harden,,9763,0.4538,-9.14
+gym1-6,"Lt. Surge's Electabuzz",2,basic,lightning,20,70,Flurry,,6060,0.4405,-9.26
+basep-27,"Pikachu",1,basic,lightning,20,30,Paralyze,,5799,0.4390,-9.28
+base1-58,"Pikachu",2,basic,lightning,30,40,Recoil,,6000,0.4399,-9.31
+base5-53,"Dratini",1,basic,colorless,10,40,Paralyze,,5807,0.4376,-9.51
+base5-69,"Voltorb",1,basic,lightning,20,40,,,5663,0.4366,-9.54
+gym2-84,"Lt. Surge's Pikachu",1,basic,lightning,20,40,,,5641,0.4352,-9.73
+base5-13,"Dark Vileplume",5,stage2,grass,50,60,Confuse,Hay Fever,9775,0.4497,-9.95
+base2-47,"Tauros",4,basic,colorless,30,60,Confuse,,7156,0.4410,-9.99
+base5-44,"Dark Rapidash",3,stage1,fire,30,60,,,7253,0.4413,-9.99
+base5-6,"Dark Dugtrio",4,stage1,fighting,30,50,,Sinkhole,7231,0.4407,-10.09
+gym1-54,"Misty's Psyduck",2,basic,water,10,50,Family,,5883,0.4340,-10.12
+gym2-29,"Sabrina's Gengar",5,stage2,psychic,40,90,,,9860,0.4489,-10.15
+base5-38,"Dark Jolteon",3,stage1,lightning,30,50,Paralyze,,7268,0.4400,-10.23
+base5-60,"Magnemite",1,basic,lightning,20,40,,,5730,0.4312,-10.42
+gym1-84,"Lt. Surge's Voltorb",1,basic,lightning,20,40,Flurry,,5685,0.4289,-10.72
+base3-56,"Tentacool",1,basic,water,10,30,,Cowardice,5791,0.4295,-10.72
+basep-2,"Electabuzz",2,basic,lightning,20,60,,,6098,0.4310,-10.78
+basep-51,"Rapidash",3,stage1,fire,30,60,,,7070,0.4357,-10.81
+basep-26,"Pikachu",2,basic,lightning,30,40,,,6150,0.4301,-10.97
+base2-43,"Primeape",5,stage1,fighting,50,70,Confuse,,9811,0.4439,-11.11
+base5-47,"Magikarp",1,basic,water,10,30,,,5673,0.4262,-11.11
+gym1-8,"Lt. Surge's Magneton",4,stage1,lightning,30,70,Recoil,Energy Charge,7115,0.4337,-11.19
+gym2-88,"Misty's Magikarp",1,basic,water,10,30,,,5666,0.4256,-11.20
+gym2-3,"Brock's Ninetales",4,stage1,fire,30,70,,Shapeshift,7108,0.4331,-11.28
+base5-49,"Abra",1,basic,psychic,10,40,Paralyze,,5717,0.4253,-11.29
+base5-61,"Mankey",2,basic,fighting,30,40,,,6079,0.4269,-11.40
+gym1-75,"Erika's Bellsprout",3,basic,grass,30,40,Poison,,7145,0.4321,-11.49
+base5-11,"Dark Magneton",4,stage1,lightning,30,60,Finisher,,7191,0.4312,-11.67
+base5-67,"Slowpoke",1,basic,psychic,10,50,,,5736,0.4224,-11.75
+base2-2,"Electrode",4,stage1,lightning,20,90,Splash,,7056,0.4297,-11.81
+base1-14,"Raichu",5,stage1,lightning,50,80,Recoil,,9940,0.4403,-11.90
+gym1-62,"Blaine's Growlithe",2,basic,fire,20,50,,,6096,0.4231,-12.00
+gym2-5,"Giovanni's Gyarados",5,stage1,water,30,90,Splash,,9845,0.4385,-12.20
+gym1-81,"Lt. Surge's Pikachu",2,basic,lightning,20,50,Paralyze,,6181,0.4221,-12.25
+base5-40,"Dark Machoke",4,stage1,fighting,30,60,Splash,,7119,0.4270,-12.31
+gym1-22,"Brock's Rhyhorn",3,basic,fighting,30,60,Whirlwind,,7235,0.4276,-12.32
+gym2-60,"Blaine's Charmander",2,basic,fire,20,50,,,6010,0.4202,-12.37
+base5-34,"Dark Electrode",2,stage1,lightning,20,60,,,6037,0.4192,-12.55
+base2-56,"Meowth",1,basic,colorless,10,50,Pay Day,,5700,0.4159,-12.70
+base3-55,"Slowpoke",1,basic,psychic,10,50,,,5811,0.4158,-12.83
+base1-62,"Sandshrew",1,basic,fighting,10,40,Blind,,5916,0.4159,-12.94
+gym1-71,"Brock's Sandshrew",2,basic,fighting,20,40,Guard,,5931,0.4149,-13.10
+base1-43,"Abra",1,basic,psychic,10,30,Paralyze,,5563,0.4101,-13.41
+base2-61,"Rhyhorn",4,basic,fighting,30,70,Weaken,,7109,0.4205,-13.41
+base3-47,"Geodude",1,basic,fighting,10,50,Flurry,,5770,0.4117,-13.41
+gym1-12,"Rocket's Moltres",5,basic,fire,30,60,,Rebirth,9837,0.4319,-13.51
+gym2-64,"Blaine's Ponyta",2,basic,fire,20,50,,,6220,0.4141,-13.54
+gym1-68,"Brock's Mankey",3,basic,fighting,40,40,Enrage,,7243,0.4190,-13.78
+base1-48,"Doduo",1,basic,colorless,10,50,Flurry,,5666,0.4081,-13.83
+base5-55,"Eevee",1,basic,colorless,10,40,Blind,,5742,0.4085,-13.87
+basep-6,"Arcanine",4,stage1,fire,30,70,Enrage,,7156,0.4174,-13.97
+gym1-27,"Lt. Surge's Electabuzz",2,basic,lightning,20,60,,,5987,0.4078,-14.27
+base2-39,"Marowak",4,stage1,fighting,30,60,Family,,7165,0.4151,-14.37
+gym1-14,"Sabrina's Gengar",5,stage2,psychic,40,80,,,10004,0.4277,-14.47
+base2-14,"Victreebel",5,stage2,grass,30,80,Whirlwind,,9811,0.4254,-14.77
+gym1-2,"Brock's Rhydon",4,stage1,fighting,30,80,,Bench Guard,7143,0.4126,-14.78
+base3-4,"Dragonite",5,stage2,colorless,40,100,Flurry,Step In,9760,0.4241,-15.00
+gym2-86,"Lt. Surge's Voltorb",3,basic,lightning,30,50,Recoil,,7052,0.4089,-15.30
+gym1-67,"Brock's Mankey",1,basic,fighting,10,40,Whirlwind,,5700,0.3971,-15.54
+basep-18,"Team Rocket's Meowth",1,basic,colorless,10,40,Flurry,,5773,0.3977,-15.54
+gym1-72,"Brock's Sandshrew",2,basic,fighting,20,50,,,6258,0.4014,-15.60
+base1-57,"Pidgey",1,basic,colorless,10,40,Whirlwind,,5642,0.3949,-15.79
+gym2-33,"Blaine's Rapidash",5,stage1,fire,40,70,Splash,,9962,0.4206,-15.84
+base1-26,"Dratini",1,basic,colorless,10,40,,,5608,0.3935,-15.94
+gym1-34,"Sabrina's Venomoth",3,stage1,grass,10,60,Confuse,,7238,0.4058,-16.03
+gym2-10,"Koga's Ditto",1,basic,colorless,10,40,,,5665,0.3879,-16.87
+gym2-66,"Blaine's Vulpix",1,basic,fire,10,50,,,5704,0.3878,-16.95
+gym1-80,"Lt. Surge's Magnemite",2,basic,lightning,20,40,Paralyze,,5958,0.3895,-17.06
+base5-62,"Meowth",1,basic,colorless,10,40,,,5769,0.3844,-17.56
+basep-46,"Electabuzz",1,basic,lightning,10,60,,,5679,0.3819,-17.79
+base3-51,"Krabby",3,basic,water,20,50,Family,,7142,0.3946,-17.81
+gym2-12,"Misty's Golduck",3,stage1,water,20,70,,,7229,0.3893,-18.82
+basep-25,"Flying Pikachu",1,basic,lightning,10,40,Paralyze,,5790,0.3761,-18.86
+base2-55,"Mankey",1,basic,fighting,10,30,,Peek,5717,0.3711,-19.49
+base5-35,"Dark Flareon",4,stage1,fire,40,50,Enrage,,7167,0.3826,-19.88
+gym1-51,"Lt. Surge's Raticate",2,stage1,colorless,10,70,,,6103,0.3713,-20.11
+gym1-31,"Misty's Poliwrath",5,stage2,water,30,90,,,9735,0.3906,-21.59
+base1-67,"Voltorb",1,basic,lightning,10,40,,,5734,0.3557,-21.86
+base3-9,"Kabutops",5,stage2,fighting,40,60,Drain,,9751,0.3847,-22.77
+basep-5,"Dragonite",5,stage2,colorless,30,90,,Special Delivery,9742,0.3742,-24.84
+base5-10,"Dark Machamp",5,stage2,fighting,30,70,,,9751,0.3558,-28.48
