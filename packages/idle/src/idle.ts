@@ -765,8 +765,12 @@ export const QUEUED_ACTIONS: IdleAction['type'][] = ['SET_ORDER', 'SET_SLOTS', '
 export const IDLE_MODES = ['route', 'wild', 'trainers', 'stop'] as const;
 export type IdleMode = (typeof IDLE_MODES)[number];
 
-/** A route grind's mode (IdleState.loop): grinding wild Pokémon or trainers on a route, else going on. */
-const loopMode = (s: Pick<IdleState, 'loop'>): IdleMode => (s.loop?.kind === 'pace' || s.loop?.kind === 'fish' ? 'wild' : s.loop?.kind === 'trainers' ? 'trainers' : 'route');
+/**
+ * A route grind's mode (IdleState.loop): grinding wild Pokémon or trainers on a route, else going on. Also what a stopped
+ * run picks up again (the play button, the user's, 2026-11-18: SET_MODE with it): Stop keeps a route grind's loop, so its
+ * grind goes on where it was; a town's auto-grind stopped is left on its route (leaveAutoGrind), walked on to the town.
+ */
+export const loopMode = (s: Pick<IdleState, 'loop'>): IdleMode => (s.loop?.kind === 'pace' || s.loop?.kind === 'fish' ? 'wild' : s.loop?.kind === 'trainers' ? 'trainers' : 'route');
 
 /** The mode a run is in: stopped, grinding wild Pokémon (a town's auto-grind too: not the run going on, the user's, 2026-10-28) or trainers on a route, else going on. */
 export const modeOf = (s: Pick<IdleState, 'stopped' | 'loop' | 'phase'>): IdleMode => (s.stopped ? 'stop' : s.phase === 'grinding' ? 'wild' : loopMode(s));
@@ -881,7 +885,7 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
         // Auto-grinding (the user's): the grind ends, the player stopped where they stand on its route.
         if (state.phase === 'grinding') leaveAutoGrind(state);
         state.stopped = true;
-        state.log.push('Stopped.');
+        state.log.push('Paused.');
         return ok();
       }
       const was = state.stopped;

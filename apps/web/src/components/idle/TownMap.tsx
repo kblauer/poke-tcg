@@ -1,4 +1,4 @@
-import { generation, areas, areaIndex, areaOpen, atProgress, isTown, legendError, mapGrindPlan, mapView, modeOf, reachedArea, runLegendOf, species, townMapGrid, townMapPlaces, townMapArea, townMapAreas, townMapPlaceOf, travelError, wildSpots, type IdleAction, type IdleMode, type TownMapPlace } from '@poke-tcg/idle';
+import { generation, areas, areaIndex, areaOpen, atProgress, isTown, legendError, mapGrindPlan, mapView, loopMode, modeOf, reachedArea, runLegendOf, species, townMapGrid, townMapPlaces, townMapArea, townMapAreas, townMapPlaceOf, travelError, wildSpots, type IdleAction, type IdleMode, type TownMapPlace } from '@poke-tcg/idle';
 import { useState } from 'react';
 import { useEscape } from '../../hooks/useEscape';
 import type { ClientIdleRun } from '../../hooks/useIdle';
@@ -38,7 +38,7 @@ const CHOICE_ROW = 14;
 /** About a character's width in the menus' font, to fit the box to its longest choice. */
 const CHAR_W = 6;
 
-const MODE_LABEL: Record<IdleMode, string> = { route: 'Walking', wild: 'Wild grind', trainers: 'Trainer grind', stop: 'Stopped' };
+const MODE_LABEL: Record<IdleMode, string> = { route: 'Walking', wild: 'Wild grind', trainers: 'Trainer grind', stop: 'Paused' };
 
 /**
  * The Town Map (the user's, in place of the mode drop-down): a Map button in the game screen's top left corner, on
@@ -79,7 +79,8 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
   };
   // Stop (the map's and the one under the Map button): at once, a battle begun dropped; nothing to stop in a town.
   const stop = (then?: () => void) => mode !== 'stop' && view.phase !== 'town' && send({ type: 'SET_MODE', mode: 'stop' }, then);
-  const stopTitle = view.phase === 'town' ? 'Nothing to stop in a town' : 'Stop where you are now (a battle under way ends with no rewards), offline too, until Continue run';
+  // Called Pause on screen (the user's, 2026-11-18); the mode stays `stop`.
+  const stopTitle = view.phase === 'town' ? 'Nothing to pause in a town' : 'Pause where you are now (a battle under way ends with no rewards), offline too, until Play';
 
   // A cell's places reached: a route or dungeon offers its grinds (and the town under a dungeon); a town alone is gone to.
   const click = (places: TownMapPlace[], x: number, y: number) => {
@@ -133,38 +134,62 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
 
   return (
     <div className="pointer-events-none absolute inset-0 [container-type:inline-size]">
+      {/* The Map button, and Pause or play and fast forward in a column under it (the user's, 2026-11-18: a row to its
+          right covered a trainer's party balls in battle). */}
+      <div className="pointer-events-none absolute flex flex-col items-start" style={{ left: px(2), top: px(TOWN_MAP_TOP), gap: px(2) }}>
       <button
         type="button"
         title={`Town Map (mode: ${MODE_LABEL[mode]})`}
         disabled={busy}
-        className="pointer-events-auto absolute flex items-center whitespace-nowrap disabled:cursor-default"
-        style={{ ...TEXT, ...BOX, left: px(2), top: px(TOWN_MAP_TOP), height: px(TOWN_MAP_HEIGHT), gap: px(3), padding: `0 ${px(3)}`, color: '#404040', textShadow: `${px(1)} ${px(1)} 0 #d0d0c8` }}
+        className="pointer-events-auto flex items-center whitespace-nowrap disabled:cursor-default"
+        style={{ ...TEXT, ...BOX, height: px(TOWN_MAP_HEIGHT), gap: px(3), padding: `0 ${px(3)}`, color: '#404040', textShadow: `${px(1)} ${px(1)} 0 #d0d0c8` }}
         onClick={(e) => (e.stopPropagation(), setOpen(true))}
       >
         Map
         {/* The mode: a dot, red when stopped, blue walking on, yellow grinding (a town's auto-grind too). */}
         <span aria-hidden style={{ width: px(5), height: px(5), borderRadius: '50%', background: mode === 'stop' ? '#e03030' : mode === 'route' ? FRAME.on : '#e8b820' }} />
       </button>
-      {/* Stop or play under it (the user's, 2026-10-27): the map's Stop without opening the map, and once stopped a play
-          icon in its place, the map's Continue run. Nothing to stop in a town. */}
+      {/* Pause or play (the user's, 2026-10-27; called Stop until 2026-11-18): the map's Pause without opening the map, and once stopped a play icon in its
+          place that picks up what the run was doing (the user's, 2026-11-18: its route grind where it was, or walking on:
+          loopMode). Nothing to stop in a town. Then fast forward, the map's Continue run: straight to the furthest the run
+          has been, and on from there; nothing to do already walking on from there. */}
       {(() => {
         const stopped = mode === 'stop';
+        const resume = loopMode(view);
+        const there = mode === 'route' && atProgress(view);
+        const button = { ...BOX, width: px(TOWN_MAP_HEIGHT), height: px(TOWN_MAP_HEIGHT) };
         return (
-          <button
-            type="button"
-            title={stopped ? 'Continue run: straight to the furthest you have been in this run, and on from there' : stopTitle}
-            aria-label={stopped ? 'Continue run' : 'Stop'}
-            disabled={locked || (!stopped && view.phase === 'town')}
-            className="pointer-events-auto absolute flex items-center justify-center disabled:cursor-default"
-            style={{ ...BOX, left: px(2), top: px(TOWN_MAP_TOP + TOWN_MAP_HEIGHT + 2), width: px(TOWN_MAP_HEIGHT), height: px(TOWN_MAP_HEIGHT) }}
-            onClick={(e) => (e.stopPropagation(), stopped ? send({ type: 'CONTINUE_RUN' }) : stop())}
-          >
-            <svg aria-hidden viewBox="0 0 6 6" style={{ width: px(6), height: px(6) }} fill={!stopped && view.phase === 'town' ? '#a0a0a0' : '#404040'}>
-              {stopped ? <path d="M1 0.5L5.5 3L1 5.5z" /> : <rect x="0.5" y="0.5" width="5" height="5" />}
-            </svg>
-          </button>
+          <>
+            <button
+              type="button"
+              title={stopped ? (resume === 'route' ? 'Play: walk on from here' : `Play: back to the ${MODE_LABEL[resume].toLowerCase()} where it stopped`) : stopTitle}
+              aria-label={stopped ? 'Play' : 'Pause'}
+              disabled={locked || (!stopped && view.phase === 'town')}
+              className="pointer-events-auto flex shrink-0 items-center justify-center disabled:cursor-default"
+              style={button}
+              onClick={(e) => (e.stopPropagation(), stopped ? send({ type: 'SET_MODE', mode: resume }) : stop())}
+            >
+              <svg aria-hidden viewBox="0 0 6 6" style={{ width: px(6), height: px(6) }} fill={!stopped && view.phase === 'town' ? '#a0a0a0' : '#404040'}>
+                {stopped ? <path d="M1 0.5L5.5 3L1 5.5z" /> : <path d="M1 0.5h1.5v5H1z M3.5 0.5H5v5H3.5z" />}
+              </svg>
+            </button>
+            <button
+              type="button"
+              title={there ? 'Already walking on from the furthest you have been' : 'Fast forward: straight to the furthest you have been in this run, and on from there'}
+              aria-label="Fast forward"
+              disabled={locked || there}
+              className="pointer-events-auto flex shrink-0 items-center justify-center disabled:cursor-default"
+              style={button}
+              onClick={(e) => (e.stopPropagation(), send({ type: 'CONTINUE_RUN' }))}
+            >
+              <svg aria-hidden viewBox="0 0 8 6" style={{ width: px(8), height: px(6) }} fill={there ? '#a0a0a0' : '#404040'}>
+                <path d="M0.5 0.5L4 3L0.5 5.5z M4 0.5L7.5 3L4 5.5z" />
+              </svg>
+            </button>
+          </>
         );
       })()}
+      </div>
 
       {open && (
         <div className="pointer-events-auto absolute inset-0 z-20 overflow-hidden" style={{ background: '#000000' }} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Town Map">
@@ -230,7 +255,7 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
               onClick={() => send({ type: 'CONTINUE_RUN' }, close)}
             />
             <MapButton
-              label="Stop"
+              label="Pause"
               title={view.phase === 'town' ? `${stopTitle} (closes the map)` : stopTitle}
               on={mode === 'stop'}
               disabled={locked}
