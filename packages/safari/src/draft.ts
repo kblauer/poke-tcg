@@ -79,6 +79,12 @@ export const DRAFT = {
   favour: 0.04,
   /** A golden copy's bonus (the user's, 2026-11-18). */
   golden: { attack: 20, hp: 20 },
+  /**
+   * The share of an opponent's pay a battle not won still brings (the user's, 2026-11-18): a loss half, a draw three
+   * quarters, rounded down to ₱10.
+   */
+  lossShare: 0.5,
+  drawShare: 0.75,
   /** Mine, placeholders: what Bill pays after the battle, Pay Day for each Knock Out, a Trainer card's price. */
   bill: 100,
   payDay: 20,
@@ -140,7 +146,7 @@ export interface SafariBattle {
   champion: boolean;
   /** Who it was against: the opponent's name, boss and difficulty. */
   against: Pick<Opponent, 'name' | 'boss' | 'difficulty'>;
-  /** ₱ it brought: the win's, Pay Day's, Bill's. */
+  /** ₱ it brought: the opponent's pay (all of it for a win, a share for a draw or a loss), Pay Day's, Bill's. */
   pay: number;
   payDay: number;
   bill: number;
@@ -305,6 +311,9 @@ export function battleBoard(state: SafariState, pool: DraftPool): Board {
 
 /** An opponent's side of its battle. */
 export const opponentBoard = (o: Pick<Opponent, 'board' | 'trainer'>, pool: DraftPool): Board => ({ units: o.board.map((id) => unitOf(pool, id)), ...(o.trainer && { trainer: o.trainer }) });
+
+/** What an opponent's `pay` brings at `share` of it (a win all, a draw or a loss DRAFT's shares), rounded down to ₱10. */
+export const battlePay = (pay: number, share: number) => Math.floor((pay * share) / 10) * 10;
 
 /** What a card costs in a shop. */
 export const cardPrice = (tier: number) => DRAFT.cardPrice[tier - 1]!;
@@ -823,7 +832,8 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
       const won = result.winner === 0;
       const payDay = result.payDays[0] * DRAFT.payDay;
       const bill = mine.trainer === 'Bill' ? DRAFT.bill : 0;
-      const pay = (won ? against.pay : 0) + payDay + bill;
+      const share = won ? 1 : result.winner === 'draw' ? DRAFT.drawShare : DRAFT.lossShare;
+      const pay = battlePay(against.pay, share) + payDay + bill;
       state.pokedollars += pay;
       state.last = { mine, opponent, seed, winner: result.winner, champion, against: { name: against.name, difficulty: against.difficulty, ...(against.boss && { boss: against.boss }) }, pay, payDay, bill };
       if (mine.trainer) {

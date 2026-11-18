@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { int, rngFrom } from '@poke-tcg/campaign';
 import { BOARD_SIZE, type Board } from './battle.js';
-import { DRAFT, LEGENDARIES, applySafariAction, bankablePokedollars, battleBoard, cardUnit, createSafari, draftPool, isLegendary, rerollPrice, sellPrice, shopSize, tierPrice, wantedCards, type Card, type PokemonCard, type SafariAction, type SafariState, type SafariSystemAction } from './draft.js';
+import { DRAFT, LEGENDARIES, applySafariAction, bankablePokedollars, battlePay, battleBoard, cardUnit, createSafari, draftPool, isLegendary, rerollPrice, sellPrice, shopSize, tierPrice, wantedCards, type Card, type PokemonCard, type SafariAction, type SafariState, type SafariSystemAction } from './draft.js';
 import { gen1Units } from './gen1.js';
 import type { Opponent } from './opponents.js';
 
@@ -345,7 +345,7 @@ describe('gifts', () => {
     const before = s.pokedollars;
     s = fight(s, strong, 450);
     expect(s.last).toMatchObject({ bill: DRAFT.bill });
-    expect(s.pokedollars).toBe(before + DRAFT.bill + s.last!.payDay + (s.last!.winner === 0 ? 450 : 0));
+    expect(s.pokedollars).toBe(before + DRAFT.bill + s.last!.payDay + battlePay(450, s.last!.winner === 0 ? 1 : s.last!.winner === 'draw' ? DRAFT.drawShare : DRAFT.lossShare));
     expect(s.inventory[0]).toBeNull();
     expect(s.trainer).toBeNull();
 
@@ -374,15 +374,18 @@ describe('the board', () => {
 });
 
 describe('battles and the run', () => {
-  it('pays a win, costs a loss 1 HP, a draw nothing, and opens the next shop', () => {
+  it('pays a win, half for a loss and 3/4 for a draw (rounded down to ₱10), costs a loss 1 HP, a draw nothing, and opens the next shop', () => {
     let s = shop(STRONG);
     s = fight(s, weak(), 550);
     expect(s.last!.winner).toBe(0);
     expect(s).toMatchObject({ battles: 1, hp: 3, sinceTier: 1 });
     expect(s.pokedollars).toBe(1000 + 550 + s.last!.payDay);
+    const before = s.pokedollars;
     s = lose(s, 550);
     expect(s.last!.winner).toBe(1);
     expect(s).toMatchObject({ battles: 2, hp: 2 });
+    expect(s.pokedollars).toBe(before + 270 + s.last!.payDay);
+    expect([battlePay(450, DRAFT.lossShare), battlePay(450, DRAFT.drawShare), battlePay(1000, DRAFT.drawShare), battlePay(0, DRAFT.lossShare)]).toEqual([220, 330, 750, 0]);
     expect(s.shop!.offers.length).toBe(3);
     s.board = s.board.map(() => null);
     expect(refused(must(s, { type: 'CHOOSE', index: 0 }), { type: 'BATTLE' })).toBe('Put a Pokémon on the board first');
