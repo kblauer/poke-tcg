@@ -90,6 +90,7 @@ Issue #99 (https://github.com/kblauer/poke-tcg/issues/99) was a whole-codebase r
   - The listener uses the capture phase.
   - Elements marked `data-keep-action` are exempt.
   - Clicks right after a drag are ignored.
+- Conceding a battle always asks first (`ConcedeButton`, both layouts; the user's, 2026-11-18).
 - Dialogs share one style: `bg-slate-800`, `ring-1 ring-slate-600`, buttons `bg-slate-600`/`hover:bg-slate-500`.
   - The Trainer dialog floats above the CPU's Active Pokémon. It shows no card image, and an eye button makes it see-through and click-through. It only appears when it has something to click (buttons, a multi-card Choose); single-click questions are a prompt toast, and an unplayable Trainer is a warning toast.
   - The deck-search dialog is large and centred, and is rendered outside the PlayArea (its `container-type` would trap fixed elements).

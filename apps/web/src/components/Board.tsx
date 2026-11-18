@@ -23,6 +23,7 @@ import { AttackChoicePanel } from './AttackChoicePanel';
 import { AttackList } from './AttackList';
 import { Card } from './Card';
 import { CardPreview } from './CardPreview';
+import { ConcedeButton } from './ConcedeButton';
 import { DeckAndDiscard } from './DeckAndDiscard';
 import { FlairEffect } from './FlairEffect';
 import { FloatingDialog } from './FloatingDialog';
@@ -93,6 +94,7 @@ export function Board({
   errorAt,
   gameId,
   runTab,
+  concedeNote,
   overlay,
 }: {
   view: PlayerView;
@@ -112,6 +114,8 @@ export function Board({
   gameId: string;
   /** A run's battle: the side panel's Run tab on a phone (HP, ₱, EXP, the Bag; a big screen has the run in the site menu). */
   runTab?: ReactNode;
+  /** What conceding costs here (a run's battle, the Battle Tower challenge), asked before it (ConcedeButton). */
+  concedeNote?: string;
   /** Shown over the play area, centred on it: the coin flips (CoinFlip). */
   overlay?: ReactNode;
 }) {
@@ -734,6 +738,7 @@ export function Board({
         toasts={toasts}
         prompt={movePrompt}
         runTab={runTab}
+        concedeNote={concedeNote}
         debugEnabled={debugEnabled}
         tableOverlay={tableOverlay}
         playerSlot={playerSlot}
@@ -813,13 +818,12 @@ export function Board({
                 <div className="relative flex w-full items-end gap-3">
                   <div className="mb-8 flex flex-col gap-2">
                     {phase !== 'finished' && (
-                      <button
+                      <ConcedeButton
                         className="w-full rounded bg-slate-700 px-2 py-1 text-xs transition hover:bg-slate-600 active:scale-95 disabled:cursor-progress"
                         disabled={busy}
-                        onClick={() => send({ type: 'CONCEDE' })}
-                      >
-                        Concede
-                      </button>
+                        note={concedeNote}
+                        onConcede={() => send({ type: 'CONCEDE' })}
+                      />
                     )}
                     <PrizeCards count={self.prizeCount} faceUp={self.prizes && { prizes: self.prizes, cards: view.cards }} />
                   </div>
