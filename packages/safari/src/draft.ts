@@ -39,14 +39,17 @@
 //
 // A battle step (opponents.ts, step 3): the shop shows 1–3 opponents, never their boards; CHOOSE takes one (phase
 // `ready`: its board is shown, and only the board's order and the Trainer can still change, the issue's 6.2), BATTLE
-// plays it. After the 15 battles the only opponent is the Champion, rolled when the run starts. The encounters (step 4)
-// aren't built: GIFT, the server's, gives a card.
+// plays it. After the 15 battles the only opponent is the Champion, rolled when the run starts. The 5 encounter steps
+// (encounters.ts, step 4) come between battles: the step's opponents and one encounter, or two encounters; ENCOUNTER opens
+// one (phase `encounter`: TAKE an option or a special shop's card, LEAVE to end it), a battle there is an extra one (not
+// one of the 15), and a legendary's board is fought for the legendary. GIFT, the server's, gives a card.
 import { namesMatch } from '@poke-tcg/game-engine';
-import { chance, int, rngFrom, sample, seed as newSeed, weighted, type Rng } from '@poke-tcg/campaign';
+import { chance, int, pick as pickOne, rngFrom, sample, seed as newSeed, weighted, type Rng } from '@poke-tcg/campaign';
 import { BOARD_SIZE, simulateBattle, type Board, type SideId } from './battle.js';
-import type { TrainerName } from './effects.js';
+import { TRAINER_NAMES, type TrainerName } from './effects.js';
+import { GIFT_CHOICES, LEGENDARY_FROM, SPECIAL_SHOP, UPGRADES, UPGRADE_CHOICES, UPGRADE_KEYWORDS, legendaryOpponent, legendaryUnits, rollEncounterOffers, rollEncounterSteps, type EncounterOffer, type EncounterStep, type OpenEncounter, type Upgrade } from './encounters.js';
 import { rollChampion, rollOpponents, type Opponent } from './opponents.js';
-import { TOP_TIER, unitEvolvesFrom, type Unit, type UnitStage } from './units.js';
+import { TOP_TIER, unitEvolvesFrom, type Keyword, type Unit, type UnitStage } from './units.js';
 
 /** The draft's numbers: the issue's (section 7, approved as placeholders) but where marked. */
 export const DRAFT = {
@@ -71,10 +74,11 @@ export const DRAFT = {
    * How often a shop card is a partner of a card the player has (one it would merge with, or a golden copy's name), the
    * card picked by how many battles the player has held it (the user's, 2026-11-18: the shop favours cards you have, so a
    * Pokémon held for many battles can be fully evolved or golden by about the 10th; the share measured with the economy
-   * check's bot: at 0.08 three runs in four alive at battle 10 hold a Stage 2 or golden copy by then, the first by battle
-   * 8 (median); none 29%, 0.1 80%, 0.2 99% by battle 6).
+   * check's bot, with the encounters' card gifts (which favour them too) and Rare Candy: at 0.04 80% of runs alive at
+   * battle 10 hold a Stage 2 or golden copy by then, the first by battle 7–8 (median), a golden copy about one run in 3;
+   * none 68% and almost never a golden copy, 0.08 95% by battle 6. Before the encounters 0.08 gave 78% by battle 8).
    */
-  favour: 0.08,
+  favour: 0.04,
   /** A golden copy's bonus (the user's, 2026-11-18). */
   golden: { attack: 20, hp: 20 },
   /** Mine, placeholders: what Bill pays after the battle, Pay Day for each Knock Out, a Trainer card's price. */
@@ -96,6 +100,8 @@ export interface Bonus {
   from: string;
   attack: number;
   hp: number;
+  /** A keyword upgrade's: the Pokémon's keyword when it has none of its own. */
+  keyword?: Keyword;
 }
 
 /** One of the player's cards. `key` is the card's own for the whole run. */
@@ -122,7 +128,8 @@ export interface Shop {
 
 /** A merge's or golden copy's result, waiting for the player's pick (PICK). Its parts are already gone. */
 export interface DraftPick {
-  kind: 'merge' | 'golden';
+  /** evolve: Rare Candy's (an upgrade). */
+  kind: 'merge' | 'golden' | 'evolve';
   options: string[];
   /** What it was made of, for the screen and the log. */
   from: string[];
@@ -153,9 +160,10 @@ export interface SafariState {
   rngState: number;
   /**
    * starter: picking the first Pokémon; shop: between battles, the shop open and the opponents offered; ready: an opponent
-   * chosen, its board shown, the battle not yet started; won: the Champion beaten; lost: 0 HP or conceded.
+   * chosen, its board shown, the battle not yet started; encounter: an encounter open; won: the Champion beaten; lost: 0 HP
+   * or conceded.
    */
-  phase: 'starter' | 'shop' | 'ready' | 'won' | 'lost';
+  phase: 'starter' | 'shop' | 'ready' | 'encounter' | 'won' | 'lost';
   /** The starters offered. */
   starters: string[];
   hp: number;
@@ -185,6 +193,12 @@ export interface SafariState {
   champion: Opponent;
   /** The gym leaders fought this run (their ids): each at most once. */
   leadersMet: string[];
+  /** The encounter steps still to come, in order; the step's encounters offered, and the one open. */
+  encounterSteps: EncounterStep[];
+  encounters: EncounterOffer[];
+  encounter: OpenEncounter | null;
+  /** A legendary's board has been offered and taken (once a run). */
+  legendaryMet: boolean;
   last: SafariBattle | null;
   log: string[];
 }
@@ -208,6 +222,12 @@ export type SafariAction =
   | { type: 'CHOOSE'; index: number }
   /** Start the chosen battle. */
   | { type: 'BATTLE' }
+  /** Open the step's encounter at `index` (a legendary's board: its battle, as CHOOSE). */
+  | { type: 'ENCOUNTER'; index: number }
+  /** Take the open encounter's option at `index`: an upgrade, a gift, or a special shop's card (its cards, then its Trainers). */
+  | { type: 'TAKE'; index: number }
+  /** End the open encounter, taking nothing more. */
+  | { type: 'LEAVE' }
   | { type: 'CONCEDE' };
 
 /** Actions only the server sends. Never accepted from clients. */
@@ -280,7 +300,8 @@ export function cardUnit(card: PokemonCard, pool: DraftPool): Unit {
   const u = unitOf(pool, card.unit);
   const bonuses = card.golden ? [...card.bonuses, { from: 'golden', ...DRAFT.golden }] : card.bonuses;
   if (!bonuses.length) return u;
-  return { ...u, attack: u.attack + bonuses.reduce((s, b) => s + b.attack, 0), hp: u.hp + bonuses.reduce((s, b) => s + b.hp, 0) };
+  const keyword = u.keyword ?? bonuses.find((b) => b.keyword)?.keyword;
+  return { ...u, attack: u.attack + bonuses.reduce((s, b) => s + b.attack, 0), hp: u.hp + bonuses.reduce((s, b) => s + b.hp, 0), ...(keyword && { keyword }) };
 }
 
 /** The player's side of the next battle: the board's Pokémon left to right, and the Trainer chosen. */
@@ -368,6 +389,7 @@ export function createSafari(runSeed: number, units: readonly Unit[]): SafariSta
   const rng = rngFrom(runSeed);
   const starters = sample(rng, pool.firstTier, DRAFT.starters).map((u) => u.id);
   const champion = rollChampion(rng, units);
+  const encounterSteps = rollEncounterSteps(rng);
   return {
     version: 0,
     rngState: rng.state,
@@ -392,6 +414,10 @@ export function createSafari(runSeed: number, units: readonly Unit[]): SafariSta
     opponent: null,
     champion,
     leadersMet: [],
+    encounterSteps,
+    encounters: [],
+    encounter: null,
+    legendaryMet: false,
     last: null,
     log: ['Started a Safari Draft.'],
   };
@@ -412,7 +438,7 @@ function freePlace(state: SafariState, card: Card): Place | null {
 
 /** A merge or golden copy that can be made: its parts (a part with no place is the card coming in) and what it can give. */
 interface Combo {
-  kind: 'merge' | 'golden';
+  kind: 'merge' | 'golden' | 'evolve';
   parts: { card: PokemonCard; place: Place | null }[];
   targets: string[];
 }
@@ -481,7 +507,7 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
   const make = (kind: DraftPick['kind'], unit: string, bonuses: Bonus[], p: Place, from: string[], since: number) => {
     const card: PokemonCard = { key: state.nextKey++, kind: 'pokemon', unit, bonuses, since, ...(kind === 'golden' && { golden: true as const }) };
     place(card, p);
-    state.log.push(kind === 'golden' ? `3 ${from[0]} made a golden ${name(unit)}.` : `${from.join(' and ')} merged into ${name(unit)}.`);
+    state.log.push(kind === 'golden' ? `3 ${from[0]} made a golden ${name(unit)}.` : kind === 'evolve' ? `${from[0]} evolved into ${name(unit)}.` : `${from.join(' and ')} merged into ${name(unit)}.`);
   };
 
   /** Takes a combo's parts and makes its card, or asks which (PICK). */
@@ -492,7 +518,7 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
     for (const b of combo.parts.flatMap((x) => x.card.bonuses)) if (!bonuses.some((k) => k.from === b.from)) bonuses.push(b);
     const from = combo.parts.map((x) => name(x.card.unit));
     // A merge offers 2 of the cards it can give (never the same one twice); a golden copy any of its prints.
-    const options = combo.kind === 'merge' ? sample(rng, combo.targets, 2) : combo.targets;
+    const options = combo.kind === 'golden' ? combo.targets : sample(rng, combo.targets, 2);
     const since = Math.min(...combo.parts.map((x) => x.card.since ?? 0));
     if (options.length === 1) make(combo.kind, options[0]!, bonuses, p, from, since);
     else state.pick = { kind: combo.kind, options, from, bonuses, place: p, since };
@@ -532,9 +558,82 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
     const size = shopSize(state, pool);
     state.shop = { offers: [...kept, ...rollOffers(rng, pool, state.shopTier, Math.max(0, size - kept.length), kept, wantedCards(state, pool))], frozen: false, freeUsed: 0, oak: state.oakNext };
     state.oakNext = false;
-    state.opponents = championNext(state) ? [state.champion] : rollOpponents(rng, units, state.battles, state.leadersMet);
+    openStep();
+  };
+
+  /** Whether the step under way is an encounter step. */
+  const atEncounterStep = () => state.encounterSteps[0]?.after === state.battles && !championNext(state);
+
+  /** The next step's choices: the battle step's opponents, or an encounter step's. */
+  const openStep = () => {
+    const step = atEncounterStep() ? state.encounterSteps[0]! : null;
+    if (step) {
+      const legendaries = !state.legendaryMet && state.battles >= LEGENDARY_FROM ? legendaryUnits(units, isLegendary) : [];
+      state.opponents = step.battle ? rollOpponents(rng, units, state.battles, state.leadersMet) : [];
+      state.encounters = rollEncounterOffers(rng, step.battle ? 1 : 2, legendaries);
+    } else {
+      state.opponents = championNext(state) ? [state.champion] : rollOpponents(rng, units, state.battles, state.leadersMet);
+      state.encounters = [];
+    }
     state.opponent = null;
+    state.encounter = null;
     state.phase = 'shop';
+  };
+
+  /** The encounter step is over: the next step's choices (the shop stays as it was). */
+  const finishEncounter = () => {
+    state.encounterSteps.shift();
+    openStep();
+  };
+
+  const held = () => [...state.board, ...state.inventory].filter((c): c is PokemonCard => c?.kind === 'pokemon');
+  /** A held card, the longer held the likelier (as the shop's favour). */
+  const longHeld = (cards: readonly PokemonCard[]) => weighted(rng, cards.map((c) => [c, 1 + state.battles - (c.since ?? 0)] as const));
+  /** The cards a held Pokémon could evolve into now (Rare Candy). */
+  const evolutions = (c: PokemonCard) => {
+    const u = unitOf(pool, c.unit);
+    return c.golden ? [] : pool.into(u.name).filter((t) => t.stage === NEXT_STAGE[u.stage]);
+  };
+
+  /** An encounter's options, rolled as it opens. */
+  const openEncounter = (offer: EncounterOffer): OpenEncounter => {
+    switch (offer.kind) {
+      case 'upgrade': {
+        const cards = held();
+        const kinds: ('stats' | 'keyword' | 'rareCandy')[] = [];
+        if (cards.length) kinds.push('stats');
+        if (cards.some((c) => !cardUnit(c, pool).keyword)) kinds.push('keyword');
+        if (cards.some((c) => evolutions(c).length)) kinds.push('rareCandy');
+        const chosen = sample(rng, kinds, UPGRADE_CHOICES);
+        while (chosen.length < UPGRADE_CHOICES && cards.length) chosen.push('stats');
+        const stats = sample(rng, ['protein', 'hpUp'] as const, 2);
+        const upgrades = chosen.map((kind): Upgrade => {
+          if (kind === 'stats') {
+            const c = longHeld(cards);
+            return { kind: stats.shift() ?? 'protein', key: c.key, unit: c.unit };
+          }
+          if (kind === 'keyword') {
+            const c = longHeld(cards.filter((x) => !cardUnit(x, pool).keyword));
+            return { kind, key: c.key, unit: c.unit, keyword: pickOne(rng, UPGRADE_KEYWORDS) };
+          }
+          const c = longHeld(cards.filter((x) => evolutions(x).length));
+          return { kind, key: c.key, unit: c.unit };
+        });
+        return { kind: 'upgrade', upgrades };
+      }
+      case 'cardGift': {
+        const wanted = wantedCards(state, pool);
+        const mate = wanted.length ? pickOne(rng, weighted(rng, wanted.map((w) => [w.mates, w.weight] as const))) : undefined;
+        const keep = mate ? [mate.id] : [];
+        return { kind: 'cardGift', cards: [...keep, ...rollOffers(rng, pool, state.shopTier, GIFT_CHOICES - keep.length, keep, wanted)] };
+      }
+      case 'trainerGift':
+        return { kind: 'trainerGift', trainers: sample(rng, TRAINER_NAMES, GIFT_CHOICES) };
+      case 'specialShop':
+        return { kind: 'specialShop', cards: rollOffers(rng, pool, Math.min(TOP_TIER, state.shopTier + 1), SPECIAL_SHOP.cards, [], wantedCards(state, pool)), trainers: sample(rng, TRAINER_NAMES, SPECIAL_SHOP.trainers) };
+      case 'legendary':
+        throw new Error('A legendary\'s board is a battle');
+    }
   };
 
   if (state.phase === 'won' || state.phase === 'lost') return fail('This run is over');
@@ -574,6 +673,8 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
   if (state.phase === 'starter' || !state.shop) return fail('Pick a starter first');
   const shop = state.shop;
   if (state.phase === 'ready' && action.type !== 'MOVE' && action.type !== 'SET_TRAINER' && action.type !== 'BATTLE') return fail('The opponent is chosen: start the battle');
+  if (state.phase === 'encounter' && !['TAKE', 'LEAVE', 'MOVE', 'SELL', 'SET_TRAINER'].includes(action.type)) return fail('Finish the encounter first');
+  if (state.phase === 'shop' && (action.type === 'TAKE' || action.type === 'LEAVE')) return fail('No encounter under way');
 
   switch (action.type) {
     case 'BUY': {
@@ -663,6 +764,78 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
       return ok();
     }
 
+    case 'ENCOUNTER': {
+      const offer = state.encounters[action.index];
+      if (!offer) return fail('No such encounter');
+      if (offer.kind === 'legendary') {
+        state.legendaryMet = true;
+        state.opponent = legendaryOpponent(rng, units, unitOf(pool, offer.legendary!), state.battles);
+        state.phase = 'ready';
+        state.log.push(`Chose to battle the legendary ${name(offer.legendary!)}.`);
+        return ok();
+      }
+      state.encounter = openEncounter(offer);
+      state.phase = 'encounter';
+      return ok();
+    }
+
+    case 'TAKE': {
+      const open = state.encounter!;
+      if (open.kind === 'upgrade') {
+        const upgrade = open.upgrades[action.index];
+        if (!upgrade) return fail('No such upgrade');
+        const where = [...state.board.map((c, at) => ({ c, place: { zone: 'board', at } as Place })), ...state.inventory.map((c, at) => ({ c, place: { zone: 'inventory', at } as Place }))].find((x) => x.c?.key === upgrade.key);
+        const card = where?.c;
+        if (!where || card?.kind !== 'pokemon') return fail('That card is gone');
+        if (upgrade.kind === 'rareCandy') {
+          const targets = evolutions(card).map((t) => t.id);
+          if (!targets.length) return fail('It can\'t evolve');
+          startCombo({ kind: 'evolve', parts: [{ card, place: where.place }], targets });
+        } else if (upgrade.kind === 'keyword') {
+          card.bonuses.push({ from: `TM ${state.nextKey++}`, attack: 0, hp: 0, keyword: upgrade.keyword });
+          state.log.push(`${name(card.unit)} learned ${upgrade.keyword}.`);
+        } else {
+          const boost = UPGRADES[upgrade.kind];
+          card.bonuses.push({ from: `${boost.name} ${state.nextKey++}`, attack: boost.attack, hp: boost.hp });
+          state.log.push(`${name(card.unit)} took ${boost.name}.`);
+        }
+        settle();
+        finishEncounter();
+        return ok();
+      }
+      if (open.kind === 'cardGift' || open.kind === 'trainerGift') {
+        const card: Card | undefined =
+          open.kind === 'cardGift'
+            ? open.cards[action.index] !== undefined ? { key: state.nextKey++, kind: 'pokemon', unit: open.cards[action.index]!, bonuses: [], since: state.battles } : undefined
+            : open.trainers[action.index] !== undefined ? { key: state.nextKey++, kind: 'trainer', trainer: open.trainers[action.index]! } : undefined;
+        if (!card) return fail('No such gift');
+        const what = card.kind === 'pokemon' ? name(card.unit) : card.trainer;
+        state.log.push(add(card) ? `Got ${what}.` : `No room for ${what}: it was lost.`);
+        settle();
+        finishEncounter();
+        return ok();
+      }
+      // The special shop: its cards, then its Trainer cards.
+      const cardAt = open.cards[action.index];
+      const trainer = open.trainers[action.index - open.cards.length];
+      if (action.index < open.cards.length ? !cardAt : !trainer) return fail('No card there');
+      const price = cardAt ? cardPrice(unitOf(pool, cardAt).tier) : SPECIAL_SHOP.trainerPrice;
+      if (state.pokedollars < price) return fail('Not enough ₱');
+      state.pokedollars -= price;
+      const bought: Card = cardAt ? { key: state.nextKey++, kind: 'pokemon', unit: cardAt, bonuses: [], since: state.battles } : { key: state.nextKey++, kind: 'trainer', trainer: trainer! };
+      if (!add(bought)) return fail('No room: sell a card first');
+      if (cardAt) open.cards[action.index] = null;
+      else open.trainers[action.index - open.cards.length] = null;
+      state.log.push(`Bought ${cardAt ? name(cardAt) : trainer} for ₱${price}.`);
+      settle();
+      return ok();
+    }
+
+    case 'LEAVE': {
+      finishEncounter();
+      return ok();
+    }
+
     case 'BATTLE': {
       const against = state.opponent;
       if (state.phase !== 'ready' || !against) return fail('Choose an opponent first');
@@ -670,6 +843,8 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
       if (!mine.units.length) return fail('Put a Pokémon on the board first');
       const opponent = opponentBoard(against, pool);
       const champion = against.difficulty === 'champion';
+      // A battle at an encounter step (a step's opponent there, or a legendary's board) is an extra one, not one of the 15.
+      const extra = atEncounterStep();
       const seed = newSeed(rng);
       const result = simulateBattle(mine, opponent, seed, { events: false });
       const won = result.winner === 0;
@@ -684,10 +859,16 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
         if (mine.trainer === 'Professor Oak') state.oakNext = true;
       }
       const outcome = won ? 'Won' : result.winner === 'draw' ? 'Drew' : 'Lost';
-      state.log.push(`${outcome} ${champion ? 'against the Champion' : `battle ${state.battles + 1}`} (${against.name})${pay ? `: +₱${pay}` : ''}.`);
+      state.log.push(`${outcome} ${champion ? 'against the Champion' : extra ? 'an extra battle' : `battle ${state.battles + 1}`} (${against.name})${pay ? `: +₱${pay}` : ''}.`);
       if (result.winner === 1) state.hp--;
       if (champion) state.championTries++;
+      else if (extra) state.encounterSteps.shift();
       else state.battles++;
+      if (won && against.difficulty === 'legendary') {
+        const legend = against.board[0]!;
+        state.log.push(add({ key: state.nextKey++, kind: 'pokemon', unit: legend, bonuses: [], since: state.battles }) ? `${name(legend)} joined the team.` : `No room for ${name(legend)}: it was lost.`);
+        settle();
+      }
       state.opponent = null;
       state.opponents = [];
       if (champion && won) {

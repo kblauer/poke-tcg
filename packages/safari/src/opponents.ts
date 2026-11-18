@@ -22,14 +22,15 @@ import { BOARD_SIZE } from './battle.js';
 import type { TrainerName } from './effects.js';
 import { TOP_TIER, unitScore, type Unit } from './units.js';
 
-export type Difficulty = 'easy' | 'medium' | 'hard' | 'gymLeader' | 'champion';
+/** A legendary's board (an encounter, encounters.ts) pays nothing but the legendary. */
+export type Difficulty = 'easy' | 'medium' | 'hard' | 'gymLeader' | 'champion' | 'legendary';
 
 /** What beating an opponent pays (issue #239, section 7). */
-export const OPPONENT_PAY: Record<Difficulty, number> = { easy: 450, medium: 550, hard: 700, gymLeader: 850, champion: 1000 };
+export const OPPONENT_PAY: Record<Difficulty, number> = { easy: 450, medium: 550, hard: 700, gymLeader: 850, champion: 1000, legendary: 0 };
 /** A medium opponent's tier by battle (0–14): the fixed curve (the user's, 2026-11-18). */
 export const MEDIUM_TIERS = [1, 1, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5];
 /** Each difficulty's tier against the curve. */
-export const DIFFICULTY_TIER: Record<Exclude<Difficulty, 'champion'>, number> = { easy: -1, medium: 0, hard: 1, gymLeader: 2 };
+export const DIFFICULTY_TIER: Record<Exclude<Difficulty, 'champion' | 'legendary'>, number> = { easy: -1, medium: 0, hard: 1, gymLeader: 2 };
 /** How many opponents a step offers: 3, 2 or 1, by weight. */
 export const OFFER_WEIGHTS: [count: number, weight: number][] = [[3, 4], [2, 2], [1, 1]];
 export const LEADER_CHANCE = 0.25;
@@ -132,7 +133,7 @@ export function leaderOpponent(rng: Rng, units: readonly Unit[], leader: (typeof
 }
 
 /** A trainer class's board: around `target`, their favourite Pokémon where they can. */
-export function trainerOpponent(rng: Rng, units: readonly Unit[], name: string, difficulty: Exclude<Difficulty, 'gymLeader' | 'champion'>, target: number): Opponent {
+export function trainerOpponent(rng: Rng, units: readonly Unit[], name: string, difficulty: Exclude<Difficulty, 'gymLeader' | 'champion' | 'legendary'>, target: number): Opponent {
   const favourites = trainerFavorites(name) ?? [];
   const board = rollBoard(rng, units, target, () => true, (u) => favourites.some((f) => namesMatch(u.name, f)));
   return { name, difficulty, type: mainType(board), pay: OPPONENT_PAY[difficulty], board: board.map((u) => u.id) };

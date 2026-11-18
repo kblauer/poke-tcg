@@ -36,6 +36,8 @@ function shop(board: string[], inventory: string[] = [], offers: string[] = [], 
   s.nextKey = key;
   s.pokedollars = 1000;
   s.shop = { offers: [...offers], frozen: false, freeUsed: 0, oak: false };
+  s.encounterSteps = []; // no encounter step unless a test sets one
+  s.encounters = [];
   return s;
 }
 const ids = (cards: readonly (Card | null)[]) => cards.map((c) => (c?.kind === 'pokemon' ? c.unit : c?.kind === 'trainer' ? c.trainer : null));
@@ -445,6 +447,9 @@ describe('battles and the run', () => {
           { type: 'GIFT', unit: units[int(rng, units.length)]!.id },
           { type: 'GIFT', trainer: 'PlusPower' },
           { type: 'CHOOSE', index: int(rng, 3) },
+          { type: 'ENCOUNTER', index: int(rng, 2) },
+          { type: 'TAKE', index: int(rng, 7) },
+          { type: 'LEAVE' },
           { type: 'BATTLE' },
           { type: 'BATTLE' },
         ];

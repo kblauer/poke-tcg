@@ -10,8 +10,13 @@
 // The bot: picks the best starter and merge result (unitScore); raises the shop tier once its board is full and it can
 // still buy a card after; buys what completes a merge, then what pairs with a card it holds (a merge or golden copy on the
 // way), then the strongest card; sells its weakest card that pairs with nothing for a clearly stronger one or one that
-// pairs; rerolls once when nothing was worth buying; and keeps its 6 strongest on the board.
+// pairs; rerolls once when nothing was worth buying; and keeps its 6 strongest on the board. At an encounter step it takes
+// an encounter, never a legendary's board (an upgrade first, then a card gift, the special shop, a Trainer gift): Rare
+// Candy, then Protein; the gift that pairs with a card held, else the strongest; the special shop's cards that complete a
+// merge or pair, and a Trainer card while it holds none. It plays its best Trainer card (TRAINER_RANK) in every battle.
 import { BOARD_SIZE } from './battle.js';
+import type { TrainerName } from './effects.js';
+import type { EncounterKind } from './encounters.js';
 import { applySafariAction, cardPrice, cardUnit, createSafari, draftPool, tierPrice, type Card, type DraftPool, type Place, type PokemonCard, type SafariAction, type SafariState, type SafariSystemAction } from './draft.js';
 import { DIFFICULTY_TIER, MEDIUM_TIERS, type Difficulty } from './opponents.js';
 import { TOP_TIER, unitScore, type Unit } from './units.js';
@@ -41,11 +46,19 @@ export interface BotRun {
   fromSales: number;
   /** The battle (1–16) by which the run first held a Stage 2 or a golden copy, if it did. */
   firstTop: number | null;
-  /** Battles fought (the Champion's tries too). */
+  /** Battles fought (the Champion's and extra ones too), and of the 15 when the run ended. */
   fought: number;
+  battles: number;
+  /** Encounters taken. */
+  encounters: number;
   /** Battles fought and won by the opponent's difficulty. */
   byDifficulty: Partial<Record<Difficulty, { fought: number; won: number }>>;
 }
+
+/** The Trainer cards by what the balance report measured them worth, the best first. */
+export const TRAINER_RANK: TrainerName[] = ['Defender', 'PlusPower', 'Imposter Professor Oak', 'Super Energy Removal', 'Super Potion', 'Pokémon Center', 'Scoop Up', 'Full Heal', 'Gust of Wind', 'Energy Removal', 'Revive', 'Potion', 'Bill', 'Professor Oak', 'Gambler'];
+/** The encounters the bot takes, the likeliest to help first (never a legendary's board). */
+const ENCOUNTER_RANK: EncounterKind[] = ['upgrade', 'cardGift', 'specialShop', 'trainerGift'];
 
 const clampTier = (t: number) => Math.min(TOP_TIER, Math.max(1, t));
 
@@ -59,7 +72,7 @@ const scoreOf = (card: PokemonCard, pool: DraftPool) => unitScore(cardUnit(card,
 export function botRun(units: readonly Unit[], seed: number): BotRun {
   const pool = draftPool(units);
   let state = createSafari(seed, units);
-  const out: BotRun = { won: false, banked: 0, pokedollars: 0, hp: 0, battlesLost: 0, draws: 0, championTries: 0, shopTier: 1, bought: 0, sold: 0, merges: 0, goldens: 0, rerolls: 0, earned: 0, onCards: 0, onTiers: 0, onRerolls: 0, fromSales: 0, firstTop: null, fought: 0, byDifficulty: {} };
+  const out: BotRun = { won: false, banked: 0, pokedollars: 0, hp: 0, battlesLost: 0, draws: 0, championTries: 0, shopTier: 1, bought: 0, sold: 0, merges: 0, goldens: 0, rerolls: 0, earned: 0, onCards: 0, onTiers: 0, onRerolls: 0, fromSales: 0, firstTop: null, fought: 0, battles: 0, encounters: 0, byDifficulty: {} };
   const apply = (action: SafariAction | SafariSystemAction) => {
     const result = applySafariAction(state, action, units);
     if (!result.ok) throw new Error(`The bot's ${action.type} was refused: ${result.error}`);
@@ -76,10 +89,55 @@ export function botRun(units: readonly Unit[], seed: number): BotRun {
     while (state.pick) apply({ type: 'PICK', unit: [...state.pick.options].sort((a, b) => unitScore(pool.units.get(b)!) - unitScore(pool.units.get(a)!))[0]! });
   };
 
+  /** Takes what helps from the open encounter. */
+  const resolveEncounter = () => {
+    const open = state.encounter;
+    if (!open) return;
+    const cards = pokemon([...state.board, ...state.inventory]);
+    const pairs = (id: string) => cards.some((c) => !c.golden && pool.mates(c.unit).some((u) => u.id === id));
+    if (open.kind === 'upgrade') {
+      const order = ['rareCandy', 'protein', 'keyword', 'hpUp'];
+      const best = open.upgrades.map((u, i) => ({ u, i })).sort((a, b) => order.indexOf(a.u.kind) - order.indexOf(b.u.kind))[0];
+      apply(best ? { type: 'TAKE', index: best.i } : { type: 'LEAVE' });
+      return;
+    }
+    if (open.kind === 'cardGift') {
+      const best = open.cards.map((id, i) => ({ i, pairs: pairs(id), score: unitScore(pool.units.get(id)!) })).sort((a, b) => Number(b.pairs) - Number(a.pairs) || b.score - a.score)[0]!;
+      apply({ type: 'TAKE', index: best.i });
+      return;
+    }
+    if (open.kind === 'trainerGift') {
+      const best = open.trainers.map((t, i) => ({ i, rank: TRAINER_RANK.indexOf(t) })).sort((a, b) => a.rank - b.rank)[0]!;
+      apply({ type: 'TAKE', index: best.i });
+      return;
+    }
+    // The special shop.
+    for (let guard = 0; guard < 10 && state.encounter?.kind === 'specialShop'; guard++) {
+      const shop = state.encounter;
+      const want = shop.cards.findIndex((id) => !!id && pairs(id) && cardPrice(pool.units.get(id)!.tier) <= state.pokedollars && tryApply({ type: 'TAKE', index: shop.cards.indexOf(id) }).ok);
+      if (want >= 0) {
+        out.onCards += cardPrice(pool.units.get(shop.cards[want]!)!.tier);
+        apply({ type: 'TAKE', index: want });
+        out.bought++;
+        pickBest();
+        continue;
+      }
+      const t = shop.trainers.findIndex((x) => !!x);
+      if (t >= 0 && !state.inventory.some((c) => c?.kind === 'trainer') && state.pokedollars >= 100 + cardPrice(state.shopTier) && tryApply({ type: 'TAKE', index: shop.cards.length + t }).ok) {
+        out.onCards += 100;
+        apply({ type: 'TAKE', index: shop.cards.length + t });
+        continue;
+      }
+      break;
+    }
+    if (state.encounter) apply({ type: 'LEAVE' });
+  };
+
   apply({ type: 'PICK_STARTER', unit: [...state.starters].sort((a, b) => unitScore(pool.units.get(b)!) - unitScore(pool.units.get(a)!))[0]! });
   pickBest();
 
   for (let step = 0; step < 100 && state.phase === 'shop'; step++) {
+    pickBest();
     // The shop.
     let rerolled = 0;
     for (let guard = 0; guard < 40; guard++) {
@@ -141,10 +199,24 @@ export function botRun(units: readonly Unit[], seed: number): BotRun {
       apply({ type: 'MOVE', from: up.place, to: { zone: 'board', at: down } });
     }
 
+    // An encounter step: an encounter (not a legendary's board), whenever one is offered.
+    const encounter = ENCOUNTER_RANK.map((kind) => state.encounters.findIndex((e) => e.kind === kind)).find((i) => i >= 0);
+    if (encounter !== undefined) {
+      apply({ type: 'ENCOUNTER', index: encounter });
+      out.encounters++;
+      resolveEncounter();
+      pickBest();
+      continue;
+    }
+
+    // Its best Trainer card.
+    const trainers = state.inventory.filter((c): c is Extract<Card, { kind: 'trainer' }> => c?.kind === 'trainer').sort((a, b) => TRAINER_RANK.indexOf(a.trainer) - TRAINER_RANK.indexOf(b.trainer));
+    if (trainers[0] && state.trainer !== trainers[0].key) apply({ type: 'SET_TRAINER', key: trainers[0].key });
+
     // The hardest opponent a tier below the board's average (a tier beats the one below 93–95% of the time), else the easiest.
     const mine = pokemon(state.board).map((c) => pool.units.get(c.unit)!.tier);
     const strength = Math.round(mine.reduce((x, y) => x + y, 0) / Math.max(1, mine.length));
-    const tierOf = (d: Difficulty) => (d === 'champion' ? TOP_TIER : clampTier(MEDIUM_TIERS[Math.min(state.battles, MEDIUM_TIERS.length - 1)]! + DIFFICULTY_TIER[d]));
+    const tierOf = (d: Difficulty) => (d === 'champion' || d === 'legendary' ? TOP_TIER : clampTier(MEDIUM_TIERS[Math.min(state.battles, MEDIUM_TIERS.length - 1)]! + DIFFICULTY_TIER[d]));
     const index = state.opponents.map((o, i) => ({ o, i })).reverse().find(({ o }) => tierOf(o.difficulty) < strength)?.i ?? 0;
     const difficulty = state.opponents[index]!.difficulty;
     apply({ type: 'CHOOSE', index });
@@ -158,7 +230,7 @@ export function botRun(units: readonly Unit[], seed: number): BotRun {
     if (state.last!.winner === 'draw') out.draws++;
   }
 
-  Object.assign(out, { won: state.phase === 'won', banked: state.phase === 'won' ? state.pokedollars : 0, pokedollars: state.pokedollars, hp: state.hp, championTries: state.championTries, shopTier: state.shopTier });
+  Object.assign(out, { won: state.phase === 'won', banked: state.phase === 'won' ? state.pokedollars : 0, pokedollars: state.pokedollars, hp: state.hp, championTries: state.championTries, shopTier: state.shopTier, battles: state.battles });
   return out;
 }
 

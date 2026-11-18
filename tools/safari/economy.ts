@@ -17,7 +17,7 @@ const mean = (rs: BotRun[], f: (r: BotRun) => number) => (rs.length ? rs.reduce(
 const pd = (n: number) => `₱${Math.round(n).toLocaleString('en-US')}`;
 const quantile = (xs: number[], q: number) => [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.floor(q * xs.length))] ?? 0;
 const banked = won.map((r) => r.banked);
-const alive10 = runs.filter((r) => r.fought >= 9);
+const alive10 = runs.filter((r) => r.battles >= 9);
 const tops = runs.map((r) => r.firstTop).filter((x): x is number => x !== null).sort((a, b) => a - b);
 const pct = (n: number, of: number) => `${of ? Math.round((100 * n) / of) : 0}%`;
 
@@ -37,6 +37,7 @@ const rows: [string, (r: BotRun) => number, boolean][] = [
   ['Merges', (r) => r.merges, false],
   ['Golden copies', (r) => r.goldens, false],
   ['Rerolls paid for', (r) => r.rerolls, false],
+  ['Encounters taken', (r) => r.encounters, false],
 ];
 
 const report = `# Safari Draft: the economy report
