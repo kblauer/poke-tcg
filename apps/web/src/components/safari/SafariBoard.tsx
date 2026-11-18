@@ -1,9 +1,11 @@
+import { DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
 import type { Place } from '@poke-tcg/safari';
 import { SYNERGIES, type SynergyType } from '@poke-tcg/safari/effects';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { SafariUnit, SafariViewData } from '../../hooks/useSafari';
 import { useEscape } from '../../hooks/useEscape';
 import { dropIn, reducedMotion } from '../../utils/cardMotion';
+import { centerOnPointer } from '../../utils/dragOverlay';
 import { BUTTON } from '../../utils/styles';
 import { EnergyIcon } from '../EnergyIcon';
 import { TrainerCard, UnitCard } from './UnitCard';
@@ -59,11 +61,17 @@ export function EmptyPlace({ width, label, onClick, lit }: { width: string; labe
 }
 
 const samePlace = (a: Place | null, b: Place) => !!a && a.zone === b.zone && a.at === b.at;
+const placeId = (p: Place) => `${p.zone}-${p.at}`;
+const placeOf = (id: string | number): Place => {
+  const [zone, at] = String(id).split('-');
+  return { zone: zone as Place['zone'], at: Number(at) };
+};
 
 /**
  * The player's side of the table: the 6 board places (left to right, the battle's order) with their synergies, and the 6
- * inventory places under them, smaller, as a hand. A card is picked up by clicking it (or dragged, on a big screen) and
- * put down by clicking (or dropping on) another place: the two swap, an empty place too (MOVE). A picked-up card can be
+ * inventory places under them, smaller, as a hand. A card is picked up by clicking it and put down by clicking another
+ * place, or dragged there as the battle page's cards are (dnd-kit: the card follows the pointer, tilted; the place under
+ * it lifts and glows green, red where it can't go): the two swap, an empty place too (MOVE). A picked-up card can be
  * sold, a Trainer card chosen for the next battle. `canSell`: not once an opponent is chosen (the draft's rule). A card
  * new to a place drops in, as the battle page's do.
  */
@@ -83,37 +91,50 @@ export function PlayerSide({ view, units, busy, canSell, act, board }: { view: S
     if (at(p)) setHeld(p);
   };
 
+  // Dragging, as the battle page's hand: a 6 px move starts it, so a click still picks the card up.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const [dragging, setDragging] = useState<Place | null>(null);
+  const draggedCard = dragging && at(dragging);
+  /** Whether the dragged card may go to `to`: Trainer cards stay in the inventory, and one can't be swapped onto the board. */
+  const fits = (from: Place, to: Place) => {
+    const a = at(from);
+    const b = at(to);
+    return !((a?.kind === 'trainer' && to.zone === 'board') || (b?.kind === 'trainer' && from.zone === 'board'));
+  };
+  const onDragStart = (e: DragStartEvent) => {
+    setHeld(null);
+    setDragging(placeOf(e.active.id));
+  };
+  const onDragEnd = (e: DragEndEvent) => {
+    setDragging(null);
+    if (!e.over) return;
+    const from = placeOf(e.active.id);
+    const to = placeOf(e.over.id);
+    if (fits(from, to)) put(to, from);
+  };
+
   const slot = (p: Place) => {
     const card = at(p);
     const lit = samePlace(held, p);
     const width = p.zone === 'board' ? CARD : INVENTORY_CARD;
     return (
-      <div
-        key={`${p.zone}${p.at}`}
-        className={`relative ${held && !lit ? 'cursor-pointer' : ''}`}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault();
-          const from = JSON.parse(e.dataTransfer.getData('text/plain') || 'null') as Place | null;
-          if (from) put(p, from);
-        }}
-      >
+      <DropPlace key={placeId(p)} place={p} disabled={busy} fits={!dragging || fits(dragging, p)} className={held && !lit ? 'cursor-pointer' : ''}>
         {card ? (
           <Arriving id={card.key}>
-            <div draggable={!busy} onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify(p))}>
+            <DragCard place={p} disabled={busy}>
               <HeldCardView card={card} units={units} view={view} width={width} lit={lit} onClick={() => (lit ? setHeld(null) : click(p))} />
-            </div>
+            </DragCard>
           </Arriving>
         ) : (
           <EmptyPlace width={width} label={p.zone === 'board' ? p.at + 1 : ''} lit={!!held} onClick={() => click(p)} />
         )}
-      </div>
+      </DropPlace>
     );
   };
 
   const types = view.board.flatMap((c) => (c?.kind === 'pokemon' ? [units.get(c.unit)?.type ?? ''] : []));
   return (
-    <>
+    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
       {board ?? (
         <>
           <CardRow>{view.board.map((_, i) => slot({ zone: 'board', at: i }))}</CardRow>
@@ -145,7 +166,38 @@ export function PlayerSide({ view, units, busy, canSell, act, board }: { view: S
         <div className="mb-1 text-center text-[10px] uppercase tracking-wide text-slate-400">Inventory</div>
         <CardRow wraps={false}>{view.inventory.map((_, i) => slot({ zone: 'inventory', at: i }))}</CardRow>
       </div>
-    </>
+      <DragOverlay dropAnimation={null} modifiers={[centerOnPointer]}>
+        {dragging && draggedCard ? (
+          // As the battle page's: the card tilted under the pointer, a little see-through.
+          <div className="flex h-full w-full items-center justify-center">
+            <div className="rotate-3 cursor-grabbing opacity-90">
+              <HeldCardView card={draggedCard} units={units} view={view} width={dragging.zone === 'board' ? CARD : INVENTORY_CARD} lit={false} onClick={() => {}} />
+            </div>
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+/** A place a card can be dropped on: it lifts and glows green under a card that may go there (the battle page's slot), red where it can't. */
+function DropPlace({ place, disabled, fits, className, children }: { place: Place; disabled: boolean; fits: boolean; className: string; children: ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: placeId(place), disabled });
+  const ring = !isOver ? '' : fits ? '-translate-y-1 scale-105 rounded-lg ring-4 ring-emerald-300 shadow-[0_0_28px_6px_rgba(52,211,153,0.8)]' : 'rounded-lg ring-4 ring-red-400 shadow-[0_0_24px_4px_rgba(248,113,113,0.7)]';
+  return (
+    <div ref={setNodeRef} className={`relative transition ${ring} ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+/** A card that can be dragged to another place: faded where it was while it's carried (the battle page's hand card). */
+function DragCard({ place, disabled, children }: { place: Place; disabled: boolean; children: ReactNode }) {
+  const { setNodeRef, listeners, attributes, isDragging } = useDraggable({ id: placeId(place), disabled });
+  return (
+    <div ref={setNodeRef} {...listeners} {...attributes} data-keep-action className={`touch-none ${isDragging ? 'opacity-30' : ''}`}>
+      {children}
+    </div>
   );
 }
 
