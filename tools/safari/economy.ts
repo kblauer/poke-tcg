@@ -1,10 +1,11 @@
 // Safari Draft (issue #239, section 10): the economy report. A simple buying bot plays whole runs through the draft
-// (packages/safari/src/economy.ts) against stand-in opponents and writes tools/safari/out/economy-report.md: what the
+// (packages/safari/src/economy.ts) against the draft's opponents and writes tools/safari/out/economy-report.md: what the
 // runs bank against the issue's target (an average run banking about ₱3,000–5,000), and where their ₱ came from and went.
 // Run from the repo's root: npx tsx tools/safari/economy.ts          (RUNS=2000 for less noise; the default is 1000)
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { DRAFT } from '../../packages/safari/src/draft.ts';
-import { botRuns, STANDIN_PAY, STANDIN_TIERS, type BotRun } from '../../packages/safari/src/economy.ts';
+import { botRuns, type BotRun } from '../../packages/safari/src/economy.ts';
+import { DIFFICULTY_TIER, LEADER_CHANCE, MEDIUM_TIERS, OPPONENT_PAY, type Difficulty } from '../../packages/safari/src/opponents.ts';
 import { gen1Units } from '../../packages/safari/src/gen1.ts';
 
 const RUNS = Number(process.env.RUNS ?? 1000);
@@ -39,13 +40,21 @@ const report = `# Safari Draft: the economy report
 
 ${RUNS} runs by the buying bot (packages/safari/src/economy.ts), ${((Date.now() - t0) / 1000).toFixed(1)} s. The draft's numbers are \`DRAFT\`'s (packages/safari/src/draft.ts): start ${pd(DRAFT.startPokedollars)}, cards ${DRAFT.cardPrice.map(pd).join(' / ')}, sold for ${DRAFT.sellShare * 100}%, rerolls ${pd(DRAFT.reroll)}, shop tiers ${DRAFT.tierPrice.map(pd).join(' / ')} less ${pd(DRAFT.tierDiscount)} a battle.
 
-**The opponents are a stand-in until step 3 builds them:** each battle offers one of each difficulty (paying ${STANDIN_PAY.map(pd).join(' / ')}), a board of 6 random units of a tier that rises through the run (medium: ${STANDIN_TIERS.join(', ')}; easy a tier lower, hard one higher, a gym leader two), and the Champion a top-tier board with Defender. The bot takes the hardest a tier below its board's average (a tier beats the one below 93–95% of the time), or the easiest. So these numbers say whether the ₱ flow fits the target, not how hard a run will be.
+**The opponents are the draft's** (packages/safari/src/opponents.ts): 1–3 a step, paying ${(['easy', 'medium', 'hard', 'gymLeader', 'champion'] as Difficulty[]).map((d) => `${d} ${pd(OPPONENT_PAY[d])}`).join(', ')}; boards around a tier that rises through the run (medium: ${MEDIUM_TIERS.join(', ')}; easy ${DIFFICULTY_TIER.easy}, hard +${DIFFICULTY_TIER.hard}, a gym leader +${DIFFICULTY_TIER.gymLeader}, about ${LEADER_CHANCE * 100}% of steps); Blue's FireRed team with Defender. The bot sees what a player sees (difficulty and pay, never the boards) and takes the hardest whose tier by the curve is below its board's average, or the easiest offered.
 
 ## Runs
 
 - **Won: ${won.length} of ${RUNS} (${((100 * won.length) / RUNS).toFixed(1)}%).**
 - **Banked by a won run: ${pd(mean(won, (r) => r.banked))} on average** (the target: about ₱3,000–5,000); a quarter bank under ${pd(quantile(banked, 0.25))}, a quarter over ${pd(quantile(banked, 0.75))}.
 - A lost run banks nothing; it ended holding ${pd(mean(lost, (r) => r.pokedollars))} on average.
+
+| Opponent | Fought (a run) | Won |
+|---|---|---|
+${(['easy', 'medium', 'hard', 'gymLeader', 'champion'] as Difficulty[]).map((d) => {
+  const fought = runs.reduce((n, r) => n + (r.byDifficulty[d]?.fought ?? 0), 0);
+  const wins = runs.reduce((n, r) => n + (r.byDifficulty[d]?.won ?? 0), 0);
+  return `| ${d} | ${(fought / RUNS).toFixed(2)} | ${fought ? ((100 * wins) / fought).toFixed(0) : '–'}% |`;
+}).join('\n')}
 
 | | Won runs | Lost runs |
 |---|---|---|

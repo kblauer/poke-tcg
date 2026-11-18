@@ -34,12 +34,15 @@
 //     its own) or when it's gained (bought, merged into, given: Reel In, Summon Minions); Toxic Gas is a battle's only;
 //   - Bill pays DRAFT.bill, Pay Day DRAFT.payDay a Knock Out (won or lost); a Trainer card sells as a tier-1 card.
 //
-// The opponents (step 3) and the encounters (step 4) aren't built: a battle is the server's FIGHT, with the opponent's
-// board and what a win pays, and GIFT gives a card.
+// A battle step (opponents.ts, step 3): the shop shows 1–3 opponents, never their boards; CHOOSE takes one (phase
+// `ready`: its board is shown, and only the board's order and the Trainer can still change, the issue's 6.2), BATTLE
+// plays it. After the 15 battles the only opponent is the Champion, rolled when the run starts. The encounters (step 4)
+// aren't built: GIFT, the server's, gives a card.
 import { namesMatch } from '@poke-tcg/game-engine';
 import { int, rngFrom, sample, seed as newSeed, weighted, type Rng } from '@poke-tcg/campaign';
 import { BOARD_SIZE, simulateBattle, type Board, type SideId } from './battle.js';
 import type { TrainerName } from './effects.js';
+import { rollChampion, rollOpponents, type Opponent } from './opponents.js';
 import { TOP_TIER, unitEvolvesFrom, type Unit, type UnitStage } from './units.js';
 
 /** The draft's numbers: the issue's (section 7, approved as placeholders) but where marked. */
@@ -122,6 +125,8 @@ export interface SafariBattle {
   seed: number;
   winner: SideId | 'draw';
   champion: boolean;
+  /** Who it was against: the opponent's name, boss and difficulty. */
+  against: Pick<Opponent, 'name' | 'boss' | 'difficulty'>;
   /** ₱ it brought: the win's, Pay Day's, Bill's. */
   pay: number;
   payDay: number;
@@ -132,8 +137,11 @@ export interface SafariState {
   /** Bumped by every action; saves check it (optimistic concurrency, as runs). */
   version: number;
   rngState: number;
-  /** starter: picking the first Pokémon; shop: between battles; won: the Champion beaten; lost: 0 HP or conceded. */
-  phase: 'starter' | 'shop' | 'won' | 'lost';
+  /**
+   * starter: picking the first Pokémon; shop: between battles, the shop open and the opponents offered; ready: an opponent
+   * chosen, its board shown, the battle not yet started; won: the Champion beaten; lost: 0 HP or conceded.
+   */
+  phase: 'starter' | 'shop' | 'ready' | 'won' | 'lost';
   /** The starters offered. */
   starters: string[];
   hp: number;
@@ -157,6 +165,12 @@ export interface SafariState {
   /** The next shop's rerolls are free (Professor Oak). */
   oakNext: boolean;
   conceded: boolean;
+  /** The step's opponents (their boards hidden until chosen: the API's view), the one chosen, and Blue for this run. */
+  opponents: Opponent[];
+  opponent: Opponent | null;
+  champion: Opponent;
+  /** The gym leaders fought this run (their ids): each at most once. */
+  leadersMet: string[];
   last: SafariBattle | null;
   log: string[];
 }
@@ -176,12 +190,14 @@ export type SafariAction =
   | { type: 'PICK'; unit: string }
   /** The inventory Trainer card (its key) for the next battle, or none. */
   | { type: 'SET_TRAINER'; key: number | null }
+  /** Battle the step's opponent at `index`: its board is shown, the shop closes. */
+  | { type: 'CHOOSE'; index: number }
+  /** Start the chosen battle. */
+  | { type: 'BATTLE' }
   | { type: 'CONCEDE' };
 
 /** Actions only the server sends. Never accepted from clients. */
 export type SafariSystemAction =
-  /** A battle against `opponent`, paying `pay` if won (steps 3: the opponents, their difficulty and pay). */
-  | { type: 'FIGHT'; opponent: Board; pay: number }
   /** A card given (step 4's encounters). */
   | { type: 'GIFT'; unit: string }
   | { type: 'GIFT'; trainer: TrainerName };
@@ -246,6 +262,9 @@ export function battleBoard(state: SafariState, pool: DraftPool): Board {
   return trainer?.kind === 'trainer' ? { units, trainer: trainer.trainer } : { units };
 }
 
+/** An opponent's side of its battle. */
+export const opponentBoard = (o: Pick<Opponent, 'board' | 'trainer'>, pool: DraftPool): Board => ({ units: o.board.map((id) => unitOf(pool, id)), ...(o.trainer && { trainer: o.trainer }) });
+
 /** What a card costs in a shop. */
 export const cardPrice = (tier: number) => DRAFT.cardPrice[tier - 1]!;
 
@@ -301,6 +320,7 @@ export function createSafari(runSeed: number, units: readonly Unit[]): SafariSta
   const pool = draftPool(units);
   const rng = rngFrom(runSeed);
   const starters = sample(rng, pool.firstTier, DRAFT.starters).map((u) => u.id);
+  const champion = rollChampion(rng, units);
   return {
     version: 0,
     rngState: rng.state,
@@ -321,6 +341,10 @@ export function createSafari(runSeed: number, units: readonly Unit[]): SafariSta
     nextKey: 1,
     oakNext: false,
     conceded: false,
+    opponents: [],
+    opponent: null,
+    champion,
+    leadersMet: [],
     last: null,
     log: ['Started a Safari Draft.'],
   };
@@ -460,6 +484,9 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
     const size = shopSize(state, pool);
     state.shop = { offers: [...kept, ...rollOffers(rng, pool, state.shopTier, Math.max(0, size - kept.length), kept)], frozen: false, freeUsed: 0, oak: state.oakNext };
     state.oakNext = false;
+    state.opponents = championNext(state) ? [state.champion] : rollOpponents(rng, units, state.battles, state.leadersMet);
+    state.opponent = null;
+    state.phase = 'shop';
   };
 
   if (state.phase === 'won' || state.phase === 'lost') return fail('This run is over');
@@ -496,8 +523,9 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
     }
   }
 
-  if (state.phase !== 'shop' || !state.shop) return fail('Pick a starter first');
+  if (state.phase === 'starter' || !state.shop) return fail('Pick a starter first');
   const shop = state.shop;
+  if (state.phase === 'ready' && action.type !== 'MOVE' && action.type !== 'SET_TRAINER' && action.type !== 'BATTLE') return fail('The opponent is chosen: start the battle');
 
   switch (action.type) {
     case 'BUY': {
@@ -577,28 +605,43 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
       return ok();
     }
 
-    case 'FIGHT': {
+    case 'CHOOSE': {
+      const chosen = state.opponents[action.index];
+      if (!chosen) return fail('No such opponent');
+      state.opponent = chosen;
+      state.phase = 'ready';
+      if (chosen.difficulty === 'gymLeader' && chosen.boss) state.leadersMet.push(chosen.boss);
+      state.log.push(`Chose to battle ${chosen.name}.`);
+      return ok();
+    }
+
+    case 'BATTLE': {
+      const against = state.opponent;
+      if (state.phase !== 'ready' || !against) return fail('Choose an opponent first');
       const mine = battleBoard(state, pool);
       if (!mine.units.length) return fail('Put a Pokémon on the board first');
-      const champion = championNext(state);
+      const opponent = opponentBoard(against, pool);
+      const champion = against.difficulty === 'champion';
       const seed = newSeed(rng);
-      const result = simulateBattle(mine, action.opponent, seed, { events: false });
+      const result = simulateBattle(mine, opponent, seed, { events: false });
       const won = result.winner === 0;
       const payDay = result.payDays[0] * DRAFT.payDay;
       const bill = mine.trainer === 'Bill' ? DRAFT.bill : 0;
-      const pay = (won ? action.pay : 0) + payDay + bill;
+      const pay = (won ? against.pay : 0) + payDay + bill;
       state.pokedollars += pay;
-      state.last = { mine, opponent: action.opponent, seed, winner: result.winner, champion, pay, payDay, bill };
+      state.last = { mine, opponent, seed, winner: result.winner, champion, against: { name: against.name, difficulty: against.difficulty, ...(against.boss && { boss: against.boss }) }, pay, payDay, bill };
       if (mine.trainer) {
         state.inventory = state.inventory.map((c) => (c?.key === state.trainer ? null : c));
         state.trainer = null;
         if (mine.trainer === 'Professor Oak') state.oakNext = true;
       }
       const outcome = won ? 'Won' : result.winner === 'draw' ? 'Drew' : 'Lost';
-      state.log.push(`${outcome} ${champion ? 'against the Champion' : `battle ${state.battles + 1}`}${pay ? `: +₱${pay}` : ''}.`);
+      state.log.push(`${outcome} ${champion ? 'against the Champion' : `battle ${state.battles + 1}`} (${against.name})${pay ? `: +₱${pay}` : ''}.`);
       if (result.winner === 1) state.hp--;
       if (champion) state.championTries++;
       else state.battles++;
+      state.opponent = null;
+      state.opponents = [];
       if (champion && won) {
         state.phase = 'won';
         state.shop = null;

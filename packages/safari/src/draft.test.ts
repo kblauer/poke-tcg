@@ -3,7 +3,7 @@ import { int, rngFrom } from '@poke-tcg/campaign';
 import { BOARD_SIZE, type Board } from './battle.js';
 import { DRAFT, LEGENDARIES, applySafariAction, bankablePokedollars, battleBoard, cardUnit, createSafari, draftPool, isLegendary, rerollPrice, sellPrice, shopSize, tierPrice, type Card, type PokemonCard, type SafariAction, type SafariState, type SafariSystemAction } from './draft.js';
 import { gen1Units } from './gen1.js';
-import type { Unit } from './units.js';
+import type { Opponent } from './opponents.js';
 
 const units = gen1Units();
 const pool = draftPool(units);
@@ -45,8 +45,14 @@ const STRONG = pool.shop[4]!.filter((u) => u.stage === 'stage1').filter((u, i, a
 const strong: Board = { units: units.filter((u) => u.tier === 5).sort((a, b) => b.attack + b.hp - a.attack - a.hp).slice(0, BOARD_SIZE), trainer: 'Defender' };
 /** A battle lost for sure: only the weakest unit on the board against `strong` (the board put back after). */
 function lose(s: SafariState, pay: number): SafariState {
-  const after = must({ ...s, board: [card(weak().units[0]!.id, 999), null, null, null, null, null] }, { type: 'FIGHT', opponent: strong, pay });
+  const after = fight({ ...s, board: [card(weak().units[0]!.id, 999), null, null, null, null, null] }, strong, pay);
   return { ...after, board: s.board };
+}
+/** The step's one opponent set to `board` (the Champion after the 15 battles), chosen and fought. */
+function fight(s: SafariState, board: Board, pay: number): SafariState {
+  const difficulty = s.battles >= DRAFT.battles ? ('champion' as const) : ('medium' as const);
+  const opponent: Opponent = { name: 'Test', difficulty, type: 'colorless', pay, board: board.units.map((u) => u.id), ...(board.trainer && { trainer: board.trainer }) };
+  return must(must({ ...s, opponents: [opponent] }, { type: 'CHOOSE', index: 0 }), { type: 'BATTLE' });
 }
 
 describe('the pool', () => {
@@ -183,7 +189,7 @@ describe('the shop', () => {
     s = must(s, { type: 'BUY', index: 0 });
     s = must(s, { type: 'FREEZE' });
     expect(s.shop!.frozen).toBe(true);
-    s = must(s, { type: 'FIGHT', opponent: weak(), pay: 450 });
+    s = fight(s, weak(), 450);
     expect(s.shop!.offers.slice(0, 2)).toEqual(['base3-55', 'base1-26']);
     expect(s.shop!.offers).toHaveLength(3);
     expect(s.shop!.frozen).toBe(false);
@@ -309,7 +315,7 @@ describe('gifts and the draft-only powers', () => {
     s = must(s, { type: 'SET_TRAINER', key: bill.key });
     expect(battleBoard(s, pool).trainer).toBe('Bill');
     const before = s.pokedollars;
-    s = must(s, { type: 'FIGHT', opponent: strong, pay: 450 });
+    s = fight(s, strong, 450);
     expect(s.last).toMatchObject({ bill: DRAFT.bill });
     expect(s.pokedollars).toBe(before + DRAFT.bill + s.last!.payDay + (s.last!.winner === 0 ? 450 : 0));
     expect(s.inventory[0]).toBeNull();
@@ -317,10 +323,10 @@ describe('gifts and the draft-only powers', () => {
 
     s = must(s, { type: 'GIFT', trainer: 'Professor Oak' });
     s = must(s, { type: 'SET_TRAINER', key: s.inventory[0]!.key });
-    s = must(s, { type: 'FIGHT', opponent: weak(), pay: 450 });
+    s = fight(s, weak(), 450);
     expect(s.shop!.oak).toBe(true);
     expect(rerollPrice(s, pool)).toBe(0);
-    s = must(s, { type: 'FIGHT', opponent: weak(), pay: 450 });
+    s = fight(s, weak(), 450);
     expect(s.shop!.oak).toBe(false);
   });
 });
@@ -342,7 +348,7 @@ describe('the board', () => {
 describe('battles and the run', () => {
   it('pays a win, costs a loss 1 HP, a draw nothing, and opens the next shop', () => {
     let s = shop(STRONG);
-    s = must(s, { type: 'FIGHT', opponent: weak(), pay: 550 });
+    s = fight(s, weak(), 550);
     expect(s.last!.winner).toBe(0);
     expect(s).toMatchObject({ battles: 1, hp: 3, sinceTier: 1 });
     expect(s.pokedollars).toBe(1000 + 550 + s.last!.payDay);
@@ -351,7 +357,7 @@ describe('battles and the run', () => {
     expect(s).toMatchObject({ battles: 2, hp: 2 });
     expect(s.shop!.offers.length).toBe(3);
     s.board = s.board.map(() => null);
-    expect(refused(s, { type: 'FIGHT', opponent: weak(), pay: 550 })).toBe('Put a Pokémon on the board first');
+    expect(refused(must(s, { type: 'CHOOSE', index: 0 }), { type: 'BATTLE' })).toBe('Put a Pokémon on the board first');
   });
 
   it('loses the run at 0 HP, banking nothing', () => {
@@ -368,7 +374,7 @@ describe('battles and the run', () => {
     s = lose(s, 1000);
     expect(s).toMatchObject({ phase: 'shop', battles: 15, championTries: 1, hp: 2 });
     expect(s.last!.champion).toBe(true);
-    s = must(s, { type: 'FIGHT', opponent: weak(), pay: 1000 });
+    s = fight(s, weak(), 1000);
     expect(s.phase).toBe('won');
     expect(bankablePokedollars(s)).toBe(s.pokedollars);
     expect(s.pokedollars).toBeGreaterThanOrEqual(2000);
@@ -401,7 +407,9 @@ describe('battles and the run', () => {
           { type: 'SET_TRAINER', key: s.inventory.find((c) => c?.kind === 'trainer')?.key ?? null },
           { type: 'GIFT', unit: units[int(rng, units.length)]!.id },
           { type: 'GIFT', trainer: 'PlusPower' },
-          { type: 'FIGHT', opponent: { units: units.filter((u: Unit) => u.tier === 1 + int(rng, 5)).slice(0, 6) }, pay: 500 },
+          { type: 'CHOOSE', index: int(rng, 3) },
+          { type: 'BATTLE' },
+          { type: 'BATTLE' },
         ];
         const result = applySafariAction(s, actions[int(rng, actions.length)]!, units);
         if (!result.ok) continue;
