@@ -266,11 +266,14 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
           {/* A route's (or dungeon's) grinds, by the cell clicked. */}
           {picked && (
             <div
-              className="absolute flex flex-col"
+              className="absolute flex flex-col overflow-y-auto overscroll-contain [&>*]:shrink-0"
               style={{
                 ...BOX,
                 left: px(Math.min(Math.max(cellX(picked.x) + 4 - choiceW / 2, 2), 240 - choiceW - 2)),
-                top: px(Math.min(Math.max(cellY(picked.y) < 90 ? cellY(picked.y) + 10 : cellY(picked.y) - 2 - choiceH, 2), 160 - choiceH - 2)),
+                // Inside the map, top and bottom; a list taller than it (the Safari Zone's, the user's, 2026-11-18) from its
+                // top, scrolled.
+                top: px(Math.max(Math.min(Math.max(cellY(picked.y) < 90 ? cellY(picked.y) + 10 : cellY(picked.y) - 2 - choiceH, 2), 160 - choiceH - 2), 2)),
+                maxHeight: px(160 - 4),
                 width: px(choiceW),
                 padding: px(2),
                 gap: px(2),
