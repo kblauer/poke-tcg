@@ -1,14 +1,15 @@
 // Safari Draft (issue #239, section 2): a Pokémon card turned into a draft unit: an attack number, an HP number, a tier
-// (1–5) and its effects (one keyword from its attacks' wording, and its Pokémon Power's name). A port of the planning
+// (1–5) and its effect, one keyword (its Pokémon Power's, POWER_KEYWORDS, else the first its attacks' wording matches). A port of the planning
 // tool, tools/safari/unit_table.ts, which stays the reference: units.test.ts checks the two agree on every Gen 1 unit.
 //   - attack: the average damage a turn over 6 turns, alone, attaching 1 Energy a turn, starting with 1 Energy attached
 //     and 1 more for each stage, never under 10;
 //   - HP: the printed HP;
 //   - the evolution floor: an evolved unit's attack and HP together are at least 10 more than every print it evolves from;
-//   - tier: the units ranked by √(attack × HP), raised by what their keyword and power are worth (the user's, 2026-11-18,
-//     from the balance pass: the stronger effects are for the higher tiers), and cut in TIER_SHARES, an evolved card
-//     always above what it evolves from;
-//   - keyword: the first of KEYWORD_WORDINGS one of its attacks matches.
+//   - tier: the units ranked by √(attack × HP), raised by what their keyword is worth (the user's, 2026-11-18, from the
+//     balance pass: the stronger effects are for the higher tiers), and cut in TIER_SHARES, an evolved card always above
+//     what it evolves from;
+//   - keyword: its Pokémon Power's (POWER_KEYWORDS: the powers were removed, the user's, 2026-11-18: one kind of effect),
+//     else the first of KEYWORD_WORDINGS one of its attacks matches.
 // No Weakness, Resistance, Energy or retreat: a unit's type is the card's printed type.
 import { evolvesFromName, type Attack, type EnergyType, type PokemonCardDef } from '@poke-tcg/game-engine';
 
@@ -45,7 +46,8 @@ export type Keyword =
   | 'Charge'
   | 'Flurry'
   | 'Recoil'
-  | 'Pay Day';
+  | 'Pay Day'
+  | 'Taunt';
 
 export type UnitStage = 'basic' | 'stage1' | 'stage2';
 
@@ -60,8 +62,6 @@ export interface Unit {
   attack: number;
   tier: number;
   keyword?: Keyword;
-  /** Its Pokémon Power's name (effects.ts's POWERS has what it does). */
-  power?: string;
   /** The names it's printed to evolve from, for merging by the TCG's rules. */
   evolvesFrom: string | null;
   alsoEvolvesFrom?: string[];
@@ -71,7 +71,7 @@ export interface Unit {
 export interface DerivedUnit extends Unit {
   /** The average damage a turn before rounding. */
   raw: number;
-  /** The attack its keyword came from. */
+  /** The attack (or Pokémon Power) its keyword came from. */
   keywordFrom?: string;
   /** Its attack before the evolution floor raised it. */
   raisedFrom?: number;
@@ -164,23 +164,12 @@ const KEYWORD_WORDINGS: [keyword: Keyword, wording: RegExp][] = [
 
 /**
  * What each keyword is worth to a unit that has it, in points of win rate: the balance report's measurements of
- * 2026-11-18, step 7's (tools/safari/out/balance-report.md, "Keywords": after the changes of step 7's balance pass). A unit's rank for its tier counts them (unitScore).
+ * 2026-11-18, after the Pokémon Powers were removed (tools/safari/out/balance-report.md, "Keywords"; Taunt's below 0: soaking attacks costs its side, an attack being worth no more than being attacked). A unit's rank for its tier counts them (unitScore).
  * Measure again with tools/safari/balance.ts after changing what an effect does, and put its new worth here.
  */
 export const KEYWORD_WORTH: Record<Keyword, number> = {
-  Explode: 15, 'Destiny Bond': 11, Toxic: 16, Poison: 8, Paralyze: 5, Sleep: 15, Confuse: 7, Drain: 7, Mend: 0, Guard: 7, Harden: 9, Blind: 7,
-  Weaken: 4, Splash: 7, Unburden: 0, Whirlwind: 0, Family: 11, Copycat: 6, Enrage: 6, Finisher: 8, Charge: 1, Flurry: 4, Recoil: 2, 'Pay Day': 0,
-};
-
-/** The same for the Pokémon Powers (the report's "Pokémon Powers"); one not listed, a draft-only power among them, counts 0. */
-export const POWER_WORTH: Record<string, number> = {
-  'Step In': 17, 'Prehistoric Power': 16, Transparency: 16, 'Strange Barrier': 13, 'Kabuto Armor': 12, 'Energy Burn': 11, Frenzy: 11, Rebirth: 11,
-  Fortitude: 10, 'Invisible Wall': 10, Sinkhole: 10, 'Bench Guard': 9, Emerge: 9, 'Shell Armor': 9, 'Call the Boss': 8, 'Fragrance Trap': 8,
-  'Rain Dance': 8, Scram: 8, Shift: 8, Shapeshift: 7, Flee: 6, 'Retreat Aid': 6, 'Solar Power': 6, 'Aurora Veil': 5, Peek: 5, Photosynthesis: 5,
-  'Sneak Attack': 5, 'Strikes Back': 5, 'Thick Skinned': 5, Transform: 5, 'Chain Reaction': 4, 'Energy Trans': 4, 'Final Beam': 4, 'Gaseous Form': 4,
-  Guard: 4, 'Pollen Stench': 4, 'Sticky Goo': 4, 'Strange Behavior': 4, Buzzap: 3, 'Healing Fire': 3, 'Long Distance Hypnosis': 3, 'Soak Up': 3,
-  Curse: 2, 'Energy Charge': 2, 'Energy Drain': 2, 'Natural Healing': 2, 'Pollen Defense': 2, Psylink: 2, 'Restless Sleep': 2, Clairvoyance: 1,
-  'Gather Fire': 1, Rebellion: 1, 'Shock Blast': 1, 'Toxic Gas': 1,
+  Explode: 15, 'Destiny Bond': 13, Toxic: 11, Poison: 8, Paralyze: 6, Sleep: 16, Confuse: 7, Drain: 9, Mend: 4, Guard: 8, Harden: 11, Blind: 8,
+  Weaken: 4, Splash: 8, Unburden: 0, Whirlwind: 0, Family: 11, Copycat: 6, Enrage: 5, Finisher: 8, Charge: 1, Flurry: 4, Recoil: 3, 'Pay Day': 0, Taunt: -4,
 };
 
 /**
@@ -191,13 +180,41 @@ export const POWER_WORTH: Record<string, number> = {
  */
 export const WORTH_WEIGHT = 0.04;
 
-/** A unit's rank for its tier: what it deals times how long it lasts, raised by what its effects are worth. */
-export const unitScore = (u: Pick<Unit, 'attack' | 'hp' | 'keyword' | 'power'>) =>
-  Math.sqrt(u.attack * u.hp) * (1 + WORTH_WEIGHT * ((u.keyword ? KEYWORD_WORTH[u.keyword] : 0) + (u.power ? (POWER_WORTH[u.power] ?? 0) : 0)));
+/** A unit's rank for its tier: what it deals times how long it lasts, raised by what its keyword is worth. */
+export const unitScore = (u: Pick<Unit, 'attack' | 'hp' | 'keyword'>) => Math.sqrt(u.attack * u.hp) * (1 + WORTH_WEIGHT * (u.keyword ? KEYWORD_WORTH[u.keyword] : 0));
 
-export const KEYWORD_NAMES: readonly Keyword[] = KEYWORD_WORDINGS.map(([keyword]) => keyword);
+/**
+ * The keyword a Pokémon Power's card has in its place (the user's, 2026-11-18: the powers removed, "add keywords where
+ * they were as required to keep the cards balanced"; the mapping mine, to check with the user): the keyword nearest
+ * what the power did. A power not listed (a stat bonus, a synergy-like aura, a draft-only power, the copies) gives none,
+ * and the card keeps its attacks' keyword; the tiers re-rank every card by what its keyword is worth.
+ */
+export const POWER_KEYWORDS: Record<string, Keyword> = {
+  // The walls: they take the hits for their side.
+  'Bench Guard': 'Taunt', 'Invisible Wall': 'Taunt', 'Strange Behavior': 'Taunt', 'Thick Skinned': 'Taunt', 'Restless Sleep': 'Taunt', Guard: 'Taunt',
+  // Less damage taken.
+  'Kabuto Armor': 'Harden', 'Shell Armor': 'Harden', 'Strange Barrier': 'Harden', 'Neutral Shield': 'Harden',
+  // A hit that does nothing.
+  Transparency: 'Guard', Flee: 'Guard', Fortitude: 'Guard', Scram: 'Guard',
+  // Healing.
+  Heal: 'Mend', 'Healing Fire': 'Mend', 'Natural Healing': 'Mend', 'Damage Swap': 'Mend', 'Solar Power': 'Mend',
+  // Attack taken off the opponent.
+  'Energy Drain': 'Weaken', 'Sticky Goo': 'Weaken', 'Prehistoric Power': 'Weaken',
+  // Damage beyond the target.
+  Curse: 'Splash', Sinkhole: 'Splash', 'Sneak Attack': 'Splash',
+  // On fainting.
+  Buzzap: 'Explode', 'Final Beam': 'Destiny Bond', Rebirth: 'Family',
+  // Special Conditions.
+  'Long Distance Hypnosis': 'Sleep', 'Pollen Stench': 'Confuse', 'Pollen Defense': 'Confuse', 'Toxic Gas': 'Toxic',
+  // The rest by their likeness.
+  'Fragrance Trap': 'Finisher', Peek: 'Finisher', Frenzy: 'Enrage', 'Strikes Back': 'Enrage', 'Shock Blast': 'Recoil', Transform: 'Copycat', Shapeshift: 'Copycat',
+};
+
+export const KEYWORD_NAMES: readonly Keyword[] = [...KEYWORD_WORDINGS.map(([keyword]) => keyword), 'Taunt'];
 
 function keywordOf(def: PokemonCardDef): { keyword?: Keyword; keywordFrom?: string } {
+  const fromPower = def.power && POWER_KEYWORDS[def.power.name];
+  if (fromPower) return { keyword: fromPower, keywordFrom: def.power!.name };
   for (const [keyword, wording] of KEYWORD_WORDINGS) {
     const from = def.attacks.find((a) => wording.test(`${a.name}. ${a.text ?? ''}`));
     if (from) return { keyword, keywordFrom: from.name };
@@ -237,7 +254,6 @@ export function deriveUnits(pool: readonly PokemonCardDef[]): DerivedUnit[] {
       attack: round10(raw),
       tier: 0,
       ...keywordOf(def),
-      ...(def.power ? { power: def.power.name } : {}),
       evolvesFrom: def.evolvesFrom,
       ...(def.alsoEvolvesFrom ? { alsoEvolvesFrom: def.alsoEvolvesFrom } : {}),
       raw,

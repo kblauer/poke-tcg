@@ -1,13 +1,12 @@
 import { useDroppable } from '@dnd-kit/core';
 import { inPlayDef, type CardLibrary, type InPlayPokemon } from '@poke-tcg/game-engine';
 import { useEffect, useRef, type RefObject } from 'react';
+import { ENERGY_RGB, HEAL_RGB, MOTION_MS, dropIn, glow, hitShake, lunge as lungeAt } from '../utils/cardMotion';
 import { LARGE_CARD, SMALL_CARD } from '../utils/layout';
 import { Card } from './Card';
 import type { HoloMotion } from './HoloCard';
 import { ToolPopOverlay } from './ToolPops';
 
-/** Length of the slot animations (a Pokémon arriving, taking damage, healing, getting Energy, attacking). */
-const MOTION_MS = 450;
 /** Length of the glow on a Pokémon the CPU's card changed (`spotlight`). */
 const SPOTLIGHT_MS = 1100;
 
@@ -42,27 +41,10 @@ function useSlotMotion(
     before.current = pokemon;
     const el = ref.current;
     if (!el || !pokemon || prev === pokemon || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const glow = (rgb: string) => [{ filter: 'none' }, { filter: `drop-shadow(0 0 14px rgb(${rgb})) brightness(1.15)`, offset: 0.35 }, { filter: 'none' }];
-    if (!prev || prev.card.uid !== pokemon.card.uid) {
-      el.animate([{ opacity: 0, transform: 'translateY(-14%) scale(0.85)' }, { opacity: 1, transform: 'none' }], { duration: MOTION_MS, easing: 'ease-out' });
-      // Lit from above as it drops in.
-      holo.current?.play([{ x: 50, y: 5, at: 0 }], MOTION_MS * 0.5);
-    } else if (pokemon.damage > prev.damage) {
-      // Starts a moment late, so the attacker's lunge lands first.
-      const shake = ['none', 'translateX(-6%) rotate(-3deg)', 'translateX(5%) rotate(2deg)', 'translateX(-3%)', 'translateX(2%)', 'none'].map((transform) => ({ transform }));
-      el.animate(shake, { duration: MOTION_MS, delay: 180, easing: 'ease-out' });
-      el.animate(glow('239 68 68'), { duration: MOTION_MS, delay: 180 });
-      // Rocks side to side with the shake.
-      const step = MOTION_MS / 5;
-      holo.current?.play([10, 90, 25, 70].map((x, i) => ({ x, y: 50, at: 180 + i * step })), 180 + 4 * step);
-    } else if (pokemon.damage < prev.damage) {
-      el.animate(glow('52 211 153'), { duration: MOTION_MS });
-      // The glow sweeps across the card.
-      holo.current?.play([{ x: 15, y: 15, at: 0 }, { x: 85, y: 85, at: MOTION_MS * 0.4 }], MOTION_MS * 0.8);
-    } else if (pokemon.energy.length > prev.energy.length) {
-      el.animate(glow('250 204 21'), { duration: MOTION_MS });
-      holo.current?.play([{ x: 15, y: 15, at: 0 }, { x: 85, y: 85, at: MOTION_MS * 0.4 }], MOTION_MS * 0.8);
-    }
+    if (!prev || prev.card.uid !== pokemon.card.uid) dropIn(el, holo.current);
+    else if (pokemon.damage > prev.damage) hitShake(el, holo.current);
+    else if (pokemon.damage < prev.damage) glow(el, HEAL_RGB, holo.current);
+    else if (pokemon.energy.length > prev.energy.length) glow(el, ENERGY_RGB, holo.current);
   }, [pokemon]);
   useEffect(() => {
     const stamp = lunge?.stamp ?? null;
@@ -70,10 +52,7 @@ function useSlotMotion(
     lunged.current = stamp;
     const el = ref.current;
     if (!el || !lunge || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const reach = lunge.dir === 'up' ? '-18%' : '18%';
-    el.animate([{ transform: 'none' }, { transform: `translateY(${reach}) scale(1.06)`, offset: 0.4 }, { transform: 'none' }], { duration: MOTION_MS, easing: 'ease-in-out' });
-    // Leans into the lunge, then back.
-    holo.current?.play([{ x: 50, y: lunge.dir === 'up' ? 0 : 100, at: 0 }], MOTION_MS * 0.4);
+    lungeAt(el, lunge.dir, holo.current);
   }, [lunge?.stamp]);
 }
 

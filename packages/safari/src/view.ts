@@ -12,7 +12,7 @@ import { opponentChoice } from './opponents.js';
 import type { Unit } from './units.js';
 
 export interface SafariPrices {
-  /** A reroll now: 0 while free (the board's powers, Professor Oak). */
+  /** A reroll now: 0 while free (Professor Oak). */
   reroll: number;
   /** The next shop tier, or null at the top. */
   tier: number | null;
@@ -39,7 +39,7 @@ export function safariPrices(state: SafariState, units: readonly Unit[]): Safari
   const held = [...state.board, ...state.inventory].filter((c) => c !== null);
   const open = state.encounter?.kind === 'specialShop' ? state.encounter : null;
   return {
-    reroll: rerollPrice(state, pool),
+    reroll: rerollPrice(state),
     tier: tierPrice(state),
     sell: Object.fromEntries(held.map((c) => [c.key, sellPrice(c, pool)])),
     shop: state.shop?.offers.map((id) => (id ? cardPrice(tierOf(id)) : null)) ?? [],

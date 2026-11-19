@@ -33,21 +33,27 @@ export function ToolPopOverlay({ uid }: { uid: string }) {
   if (!pops.length) return null;
   return (
     <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-1" aria-live="polite">
-      {pops.map((p) =>
-        p.damage ? (
-          <div key={p.n} className="tool-pop flex flex-col items-center" style={{ animationDuration: `${TOOL_POP_MS}ms` }}>
-            <span className="text-3xl font-black leading-none text-red-400 [-webkit-text-stroke:1.5px_rgb(127_29_29)] drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">−{p.damage}</span>
-            <span className="mt-1 whitespace-nowrap rounded-full bg-red-950/85 px-2 py-0.5 text-[11px] font-bold text-red-100 ring-1 ring-red-400/60">{p.name}</span>
-          </div>
-        ) : (
-          <div key={p.n} className="tool-pop flex flex-col items-center" style={{ animationDuration: `${TOOL_POP_MS}ms` }}>
-            <span className="text-3xl font-black leading-none text-emerald-300 [-webkit-text-stroke:1.5px_rgb(6_78_59)] drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-              {p.heal ? `+${p.heal}` : 'Cured'}
-            </span>
-            <span className="mt-1 whitespace-nowrap rounded-full bg-emerald-950/85 px-2 py-0.5 text-[11px] font-bold text-emerald-100 ring-1 ring-emerald-400/60">{p.name}</span>
-          </div>
-        ),
-      )}
+      {pops.map((p) => (
+        <PopNumber key={p.n} damage={p.damage} heal={p.heal} name={p.name} ms={TOOL_POP_MS} />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * A number rising and fading over a card (`.tool-pop`, `ms` long): damage as a big red "−20", healing a green "+20" (or
+ * "Cured" with no number), with what did it (`name`) in a pill under it. ToolPopOverlay's, and Safari Draft's battles'.
+ */
+export function PopNumber({ damage, heal, name, ms }: { damage?: number; heal?: number; name?: string; ms: number }) {
+  return damage ? (
+    <div className="tool-pop flex flex-col items-center" style={{ animationDuration: `${ms}ms` }}>
+      <span className="text-3xl font-black leading-none text-red-400 [-webkit-text-stroke:1.5px_rgb(127_29_29)] drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">−{damage}</span>
+      {name && <span className="mt-1 whitespace-nowrap rounded-full bg-red-950/85 px-2 py-0.5 text-[11px] font-bold text-red-100 ring-1 ring-red-400/60">{name}</span>}
+    </div>
+  ) : (
+    <div className="tool-pop flex flex-col items-center" style={{ animationDuration: `${ms}ms` }}>
+      <span className="text-3xl font-black leading-none text-emerald-300 [-webkit-text-stroke:1.5px_rgb(6_78_59)] drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">{heal ? `+${heal}` : 'Cured'}</span>
+      {name && <span className="mt-1 whitespace-nowrap rounded-full bg-emerald-950/85 px-2 py-0.5 text-[11px] font-bold text-emerald-100 ring-1 ring-emerald-400/60">{name}</span>}
     </div>
   );
 }

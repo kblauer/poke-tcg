@@ -29,7 +29,7 @@ describe("Safari Draft's units on the server", () => {
         }
       });
     const dex = new Map(rows.map((r) => [r.id, r.dexId ?? []]));
-    const fields = (u: { id: string; attack: number; hp: number; tier: number; keyword?: string; power?: string }) => [u.id, u.attack, u.hp, u.tier, u.keyword, u.power];
+    const fields = (u: { id: string; attack: number; hp: number; tier: number; keyword?: string }) => [u.id, u.attack, u.hp, u.tier, u.keyword];
     expect(unitsFromDefs(defs, (id) => dex.get(id)).map(fields)).toEqual(gen1Units().map(fields));
   });
 });

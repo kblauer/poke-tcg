@@ -148,13 +148,16 @@ export function trainerOpponent(rng: Rng, units: readonly Unit[], name: string, 
 
 /**
  * A battle step's opponents, easiest first: 1–3 trainer classes of different difficulties, a gym leader in the hardest
- * slot about 1 step in 4 (`met`: the leaders met this run, never again). `battle` is the step's battle, 0–14.
+ * slot about 1 step in 4 (`met`: the leaders met this run, never again), the first battle's always with an easy one.
+ * `battle` is the step's battle, 0–14.
  */
 export function rollOpponents(rng: Rng, units: readonly Unit[], battle: number, met: readonly string[]): Opponent[] {
   const medium = MEDIUM_TIERS[Math.min(battle, MEDIUM_TIERS.length - 1)]!;
   const count = weighted(rng, OFFER_WEIGHTS);
   const all = ['easy', 'medium', 'hard'] as const;
   const kinds: Difficulty[] = count === 3 ? [...all] : sample(rng, all, count).sort((a, b) => all.indexOf(a) - all.indexOf(b));
+  // The first battle always offers an easy opponent (the user's, 2026-11-18), with whatever else was rolled.
+  if (battle === 0) kinds[0] = 'easy';
   const leaders = GYM_LEADERS.filter((l) => !met.includes(l.id));
   if (count >= 2 && leaders.length && chance(rng, LEADER_CHANCE)) kinds[kinds.length - 1] = 'gymLeader';
   const names = sample(rng, TRAINERS, kinds.length);

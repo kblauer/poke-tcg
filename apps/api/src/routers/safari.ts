@@ -12,7 +12,7 @@ export const safariRouter = router({
 
   /** Every draft unit (Gen 1's): what the screen shows of a card id. The same for every account. */
   units: protectedProcedure.query(async () =>
-    (await safariUnits()).map(({ id, name, type, stage, hp, attack, tier, keyword, power, evolvesFrom }) => ({ id, name, type, stage, hp, attack, tier, keyword, power, evolvesFrom })),
+    (await safariUnits()).map(({ id, name, type, stage, hp, attack, tier, keyword, evolvesFrom }) => ({ id, name, type, stage, hp, attack, tier, keyword, evolvesFrom })),
   ),
 
   /** Starts a run (startSafari: not while one is under way). */

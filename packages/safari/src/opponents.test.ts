@@ -62,6 +62,12 @@ describe('a step\'s opponents', () => {
     expect(score(late.flatMap((o) => o.board))).toBeGreaterThan(tier(5));
   });
 
+  it('always offers an easy opponent for the first battle, with whatever else was rolled', () => {
+    const first = steps.filter((_, i) => i % 15 === 0);
+    for (const step of first) expect(step[0]!.difficulty).toBe('easy');
+    expect(first.some((s) => s.length > 1)).toBe(true);
+  });
+
   it('brings a gym leader as the hardest on about 1 step in 4 of 2 or 3, never one already met', () => {
     const many = steps.filter((s) => s.length >= 2);
     expect(many.filter((s) => s.at(-1)!.difficulty === 'gymLeader').length / many.length).toBeCloseTo(0.25, 1);

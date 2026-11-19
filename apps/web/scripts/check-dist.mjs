@@ -44,7 +44,7 @@ const MARKERS = {
   'the rules engine\'s card effects': 'is now Paralyzed',
   'the boss decks': 'Zapping Selfdestruct',
   'the Idle Adventure\'s species data': 'catchRate',
-  'Safari Draft\'s effects': 'Sells for its full price',
+  'Safari Draft\'s effects': 'Opposing Pokémon must attack it while it stands',
   ...REGION_MAPS,
 };
 const [ENGINE, , IDLE, SAFARI] = Object.keys(MARKERS);
