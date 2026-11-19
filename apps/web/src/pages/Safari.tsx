@@ -62,6 +62,15 @@ export function SafariPage() {
   const run = overview.data?.run ?? null;
   const view = run?.view;
   const [watching, setWatching] = useState<string | null>(null);
+  // The shop's card size (the table's, CARD), for the starter's and a merge's pick, which show over the whole window.
+  const [cardProbe, setCardProbe] = useState<HTMLDivElement | null>(null);
+  const [cardWidth, setCardWidth] = useState<string | undefined>();
+  useEffect(() => {
+    if (!cardProbe) return;
+    const observer = new ResizeObserver(() => setCardWidth(`${cardProbe.getBoundingClientRect().width}px`));
+    observer.observe(cardProbe);
+    return () => observer.disconnect();
+  }, [cardProbe]);
   const [conceding, setConceding] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   /** The panel over the top of the table between battles: the shop, the step's choices, or none (hidden). */
@@ -122,6 +131,8 @@ export function SafariPage() {
         {/* The table: the player's playmat over slate, its cards sized to fill it (index.css's .safari-cards). */}
         <div className="relative min-h-0 flex-1 rounded-lg bg-slate-900 ring-1 ring-slate-700 [container-type:size]">
           <div className="safari-cards absolute inset-0 rounded-[inherit]">
+            {/* The table's card width, measured for the dialogs over the whole window (outside the table's sizing). */}
+            <div ref={setCardProbe} aria-hidden className="pointer-events-none invisible absolute" style={{ width: CARD }} />
             <Playmat id={playmat} />
             <div className="relative flex h-full flex-col justify-between gap-1.5 overflow-y-auto p-2">
               {overview.isPending && <p className="m-auto text-slate-300">Loading…</p>}
@@ -143,8 +154,8 @@ export function SafariPage() {
         </div>
       </div>
 
-      {view && !over && !battle && view.phase === 'starter' && <StarterDialog view={view} units={units} busy={actions.busy} act={act} />}
-      {view && !over && !battle && <PickDialog view={view} units={units} busy={actions.busy} act={act} />}
+      {view && !over && !battle && view.phase === 'starter' && <StarterDialog view={view} units={units} busy={actions.busy} act={act} cardWidth={cardWidth} />}
+      {view && !over && !battle && <PickDialog view={view} units={units} busy={actions.busy} act={act} cardWidth={cardWidth} />}
       {!overview.isPending && over && !battle && <RunOverDialog run={run} busy={actions.busy} onStart={start} onWatch={() => run && setWatching(battleKey(run))} />}
 
       {conceding && (

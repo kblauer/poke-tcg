@@ -52,14 +52,17 @@ function CenterDialog({ children, className = '' }: { children: ReactNode; class
 }
 
 /** The run's starter: 1 of 3 tier-1 Basics (issue #239, 6.1). */
-export function StarterDialog({ view, units, busy, act }: { view: SafariViewData; units: Units; busy: boolean; act: Act }) {
+/** A pick's card size: the shop's (`cardWidth`, the table's measured), else a size of its own. */
+const pickWidth = (cardWidth: string | undefined) => cardWidth ?? 'clamp(6rem, 22vw, 9rem)';
+
+export function StarterDialog({ view, units, busy, act, cardWidth }: { view: SafariViewData; units: Units; busy: boolean; act: Act; cardWidth?: string }) {
   return (
     <CenterDialog>
       <h3 className="font-heading text-lg text-slate-50">Pick your first Pokémon</h3>
       <p className="text-sm text-slate-300">It goes on your board. Shops open after every battle.</p>
       <div className="flex flex-wrap justify-center gap-3">
         {view.starters.map((id) => (
-          <UnitCard key={id} id={id} unit={units.get(id)} width="clamp(6rem, 22vw, 9rem)" onClick={busy ? undefined : () => act({ type: 'PICK_STARTER', unit: id })} />
+          <UnitCard key={id} id={id} unit={units.get(id)} width={pickWidth(cardWidth)} onClick={busy ? undefined : () => act({ type: 'PICK_STARTER', unit: id })} />
         ))}
       </div>
     </CenterDialog>
@@ -287,7 +290,7 @@ export function EncounterOverlay({ view, units, busy, act }: { view: SafariViewD
 }
 
 /** A merge's, golden copy's or Rare Candy's result: the player's pick (issue #239, 4). */
-export function PickDialog({ view, units, busy, act }: { view: SafariViewData; units: Units; busy: boolean; act: Act }) {
+export function PickDialog({ view, units, busy, act, cardWidth }: { view: SafariViewData; units: Units; busy: boolean; act: Act; cardWidth?: string }) {
   const pick = view.pick;
   if (!pick) return null;
   const from = pick.from.map((id) => units.get(id)?.name ?? id).join(' + ');
@@ -300,7 +303,7 @@ export function PickDialog({ view, units, busy, act }: { view: SafariViewData; u
       </p>
       <div className="flex flex-wrap justify-center gap-3">
         {pick.options.map((id) => (
-          <UnitCard key={id} id={id} unit={units.get(id)} golden={pick.kind === 'golden'} width="clamp(6rem, 22vw, 9rem)" onClick={busy ? undefined : () => act({ type: 'PICK', unit: id })} />
+          <UnitCard key={id} id={id} unit={units.get(id)} golden={pick.kind === 'golden'} width={pickWidth(cardWidth)} onClick={busy ? undefined : () => act({ type: 'PICK', unit: id })} />
         ))}
       </div>
     </CenterDialog>
