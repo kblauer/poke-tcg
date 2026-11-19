@@ -1,14 +1,15 @@
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import type { SafariAction } from '@poke-tcg/safari';
+import type { TrainerName } from '@poke-tcg/safari/effects';
 import { useEffect, useState } from 'react';
 import { Playmat } from '../components/Playmat';
 import { ReturnToPlay } from '../components/ReturnToPlay';
 import { Toasts } from '../components/Toasts';
-import { BattleBar, BattleLine, useBattlePlayback, type LastBattle } from '../components/safari/BattlePlayback';
+import { BattleBar, BattleLine, TrainerWords, useBattlePlayback, type LastBattle } from '../components/safari/BattlePlayback';
 import { CARD, CardRow, EmptyPlace, PlayerSide, SynergyChips } from '../components/safari/SafariBoard';
 import { EncounterOverlay, LogPanel, NextStepOverlay, PickDialog, RunOverDialog, ShopOverlay, StarterDialog } from '../components/safari/SafariPanels';
-import { TrainerCard, UnitCard } from '../components/safari/UnitCard';
+import { UnitCard } from '../components/safari/UnitCard';
 import { DIFFICULTY_COLOR, DIFFICULTY_LABEL, opponentSprite } from '../components/safari/safariArt';
 import { useCosmetics } from '../hooks/useCosmetics';
 import { useSafariActions, useSafariOverview, useSafariUnits, type ClientSafari, type SafariUnit, type SafariViewData } from '../hooks/useSafari';
@@ -205,8 +206,8 @@ function EmptyTable() {
   );
 }
 
-/** An opponent's name, sprite (or the legendary's card), difficulty and pay, beside their row. */
-function OpponentTag({ o, units }: { o: { name: string; boss?: string; difficulty: string; pay: number; board?: string[] }; units: Units }) {
+/** An opponent's name, sprite (or the legendary's card), difficulty and pay, and their Trainer as words (the user's: no card on the board), above their row. */
+function OpponentTag({ o, units, trainer }: { o: { name: string; boss?: string; difficulty: string; pay: number; board?: string[] }; units: Units; trainer?: TrainerName }) {
   const sprite = opponentSprite(o);
   return (
     <div className="flex items-center justify-center gap-2">
@@ -214,6 +215,7 @@ function OpponentTag({ o, units }: { o: { name: string; boss?: string; difficult
       <span className="font-heading text-sm text-slate-50">{o.name}</span>
       <span className={`rounded px-1.5 text-xs font-bold text-gray-900 ${DIFFICULTY_COLOR[o.difficulty]}`}>{DIFFICULTY_LABEL[o.difficulty]}</span>
       {o.pay > 0 && <span className="text-xs text-yellow-200">₱{o.pay} for a win</span>}
+      {trainer && <TrainerWords trainer={trainer} />}
     </div>
   );
 }
@@ -230,12 +232,11 @@ function DraftTable({ view, units, busy, act, active, onPanel }: { view: SafariV
       <div className="flex flex-col gap-1.5">
         {o ? (
           <>
-            <OpponentTag o={o} units={units} />
+            <OpponentTag o={o} units={units} trainer={o.trainer} />
             <CardRow>
               {o.board.map((id, i) => (
                 <UnitCard key={i} id={id} unit={units.get(id)} width={CARD} />
               ))}
-              {o.trainer && <TrainerCard trainer={o.trainer} width="var(--safari-inv)" />}
             </CardRow>
             <div className="flex min-h-6 justify-center">
               <SynergyChips types={o.board.map((id) => units.get(id)?.type ?? '')} quiet />
@@ -290,7 +291,7 @@ function BattleTable({ battle, view, units, busy, act, onClose }: { battle: Last
   return (
     <>
       <div className="flex flex-col gap-1.5">
-        <OpponentTag o={{ ...battle.against, pay: 0, board: battle.opponent.units.map((u) => u.id) }} units={units} />
+        <OpponentTag o={{ ...battle.against, pay: 0, board: battle.opponent.units.map((u) => u.id) }} units={units} trainer={battle.opponent.trainer} />
         <BattleLine playback={playback} side={1} units={units} types={battle.opponent.units.map((u) => u.type)} trainer={battle.opponent.trainer} />
       </div>
       <BattleBar playback={playback} battle={battle} onClose={onClose} />
