@@ -67,6 +67,25 @@ export function StarterDialog({ view, units, busy, act }: { view: SafariViewData
 }
 
 /** The shop between battles: its cards, reroll, freeze and the shop tier (issue #239, section 7). */
+/**
+ * A shop's cards in one row whatever their number (the user's, 2026-11-18): each takes an equal share of the row, never
+ * wider than the table's cards (CARD), so a big shop's cards shrink rather than wrap.
+ */
+function ShopRow({ children }: { children: ReactNode }) {
+  return <div className="flex flex-nowrap justify-center gap-[clamp(0.25rem,1.2vw,0.75rem)]">{children}</div>;
+}
+/** One card of a ShopRow, with its Buy button under it (or a sold place). */
+function ShopItem({ children, buy }: { children: ReactNode; buy?: ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col items-center gap-1" style={{ maxWidth: CARD }}>
+      {children}
+      {buy}
+    </div>
+  );
+}
+/** Its price only on a narrow screen ("Buy" from `sm` up), so it fits under a shrunk card. */
+const BUY_BUTTON = `${BUTTON} !px-1.5 max-w-full truncate max-sm:!text-xs`;
+
 export function ShopOverlay({ view, units, busy, act, onClose, onNext }: { view: SafariViewData; units: Units; busy: boolean; act: Act; onClose: () => void; onNext: () => void }) {
   const shop = view.shop;
   if (!shop) return null;
@@ -93,22 +112,28 @@ export function ShopOverlay({ view, units, busy, act, onClose, onNext }: { view:
         </>
       }
     >
-      <div className="flex flex-wrap justify-center gap-3">
+      <ShopRow>
         {shop.offers.map((id, i) =>
           id ? (
-            <div key={i} className="flex flex-col items-center gap-1">
-              <UnitCard id={id} unit={units.get(id)} width={CARD} />
-              <button type="button" className={BUTTON} disabled={busy || view.pokedollars < (prices.shop[i] ?? 0)} onClick={() => act({ type: 'BUY', index: i })}>
-                Buy ₱{prices.shop[i]}
-              </button>
-            </div>
+            <ShopItem
+              key={i}
+              buy={
+                <button type="button" className={BUY_BUTTON} disabled={busy || view.pokedollars < (prices.shop[i] ?? 0)} onClick={() => act({ type: 'BUY', index: i })}>
+                  <span className="hidden sm:inline">Buy </span>₱{prices.shop[i]}
+                </button>
+              }
+            >
+              <UnitCard id={id} unit={units.get(id)} width="100%" />
+            </ShopItem>
           ) : (
-            <div key={i} className="flex items-center justify-center rounded-lg border-2 border-dashed border-slate-600 text-xs text-slate-500" style={{ width: CARD, aspectRatio: '63 / 88' }}>
-              Sold
-            </div>
+            <ShopItem key={i}>
+              <div className="flex w-full items-center justify-center rounded-lg border-2 border-dashed border-slate-600 text-xs text-slate-500" style={{ aspectRatio: '63 / 88' }}>
+                Sold
+              </div>
+            </ShopItem>
           ),
         )}
-      </div>
+      </ShopRow>
     </Overlay>
   );
 }
@@ -227,28 +252,36 @@ export function EncounterOverlay({ view, units, busy, act }: { view: SafariViewD
     );
   return (
     <Overlay title="Special shop" info="Buy as many as you like." actions={leave}>
-      <div className="flex flex-wrap justify-center gap-3">
+      <ShopRow>
         {e.cards.map((id, i) =>
           id ? (
-            <div key={i} className="flex flex-col items-center gap-1">
-              <UnitCard id={id} unit={units.get(id)} width={CARD} />
-              <button type="button" className={BUTTON} disabled={busy || view.pokedollars < (view.prices.special[i] ?? 0)} onClick={take(i)}>
-                Buy ₱{view.prices.special[i]}
-              </button>
-            </div>
+            <ShopItem
+              key={i}
+              buy={
+                <button type="button" className={BUY_BUTTON} disabled={busy || view.pokedollars < (view.prices.special[i] ?? 0)} onClick={take(i)}>
+                  <span className="hidden sm:inline">Buy </span>₱{view.prices.special[i]}
+                </button>
+              }
+            >
+              <UnitCard id={id} unit={units.get(id)} width="100%" />
+            </ShopItem>
           ) : null,
         )}
         {e.trainers.map((t, j) =>
           t ? (
-            <div key={`t${j}`} className="flex flex-col items-center gap-1">
-              <TrainerCard trainer={t as TrainerName} width={CARD} />
-              <button type="button" className={BUTTON} disabled={busy || view.pokedollars < (view.prices.special[e.cards.length + j] ?? 0)} onClick={take(e.cards.length + j)}>
-                Buy ₱{view.prices.special[e.cards.length + j]}
-              </button>
-            </div>
+            <ShopItem
+              key={`t${j}`}
+              buy={
+                <button type="button" className={BUY_BUTTON} disabled={busy || view.pokedollars < (view.prices.special[e.cards.length + j] ?? 0)} onClick={take(e.cards.length + j)}>
+                  <span className="hidden sm:inline">Buy </span>₱{view.prices.special[e.cards.length + j]}
+                </button>
+              }
+            >
+              <TrainerCard trainer={t as TrainerName} width="100%" />
+            </ShopItem>
           ) : null,
         )}
-      </div>
+      </ShopRow>
     </Overlay>
   );
 }
