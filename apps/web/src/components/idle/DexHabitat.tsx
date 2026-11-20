@@ -1,4 +1,4 @@
-import { generation, habitat, IDLE_GENERATIONS, inGeneration, townMapGrid, type IdleGen } from '@poke-tcg/idle';
+import { generation, habitat, habitatText, IDLE_GENERATIONS, inGeneration, townMapGrid, type IdleGen } from '@poke-tcg/idle';
 import { useState } from 'react';
 
 /** How long a flash takes, on and off (FireRed's Pokédex area blinks about once a second). */
@@ -10,11 +10,11 @@ const FLASH_MS = 1000;
  * A species found nowhere in the run's places: "Area unknown", as the games say.
  */
 export function DexHabitat({ species }: { species: number }) {
-  const regions = IDLE_GENERATIONS.flatMap((gen) => inGeneration(gen, () => (habitat(species).length ? [{ gen, region: generation().region, grid: townMapGrid(), places: habitat(species) }] : [])));
+  const regions = IDLE_GENERATIONS.flatMap((gen) => inGeneration(gen, () => (habitat(species).length ? [{ gen, region: generation().region, grid: townMapGrid(), places: habitat(species), text: habitatText(species) }] : [])));
   const [picked, setPicked] = useState<IdleGen>(generation().gen);
   const shown = regions.find((r) => r.gen === picked) ?? regions[0];
   if (!shown) return <p className="text-sm text-slate-400">Area unknown</p>;
-  const { grid, places } = shown;
+  const { grid, places, text } = shown;
   // Each cell once (a dungeon's over its route's), with every place there for its title.
   const cells = new Map<string, { x: number; y: number; names: string[] }>();
   for (const place of places)
@@ -53,7 +53,8 @@ export function DexHabitat({ species }: { species: number }) {
           />
         ))}
       </div>
-      <p className="text-xs text-slate-400">{[...new Set(places.map((p) => p.name))].join(', ')}</p>
+      {/* The places, each with its zones where it has several (the user's, 2026-11-20: "SAFARI ZONE: Center, East"). */}
+      <p className="text-xs text-slate-400">{text.join(' · ')}</p>
     </div>
   );
 }

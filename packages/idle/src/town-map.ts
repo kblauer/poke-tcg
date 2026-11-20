@@ -3,6 +3,7 @@
 // (TRAVEL); a route or dungeon takes a Wild or Trainer grind (GRIND_AT); only those the run has reached.
 import { areas, areaIndex, areaOpen, isTown, mapView } from './areas.js';
 import { generation, perGeneration } from './generation.js';
+import type { EncounterTable } from './types.js';
 
 /** The active generation's Town Map picture and its grid (Generation.townMapGrid). */
 export const townMapGrid = () => generation().townMapGrid;
@@ -64,18 +65,72 @@ export function townMapPlaceOf(index: number, map?: string): TownMapPlace | null
  */
 export const habitat = (species: number): readonly TownMapPlace[] => habitats().get(species) ?? [];
 
+/**
+ * A species' habitat as the Pokédex entry writes it (the user's, 2026-11-20): each place, and where it has several zones
+ * with wild Pokémon (Mt. Moon's floors, the Safari Zone's areas), the zones it's found in ("SAFARI ZONE: Center, East").
+ */
+export const habitatText = (species: number): string[] =>
+  habitat(species).map((place) => {
+    const zones = habitatZones().get(species)?.get(place.section) ?? [];
+    const all = zoneMaps().get(place.section) ?? [];
+    return all.length > 1 && zones.length ? `${place.name}: ${zones.map((m) => zoneLabel(m, place.name)).filter((z, i, l) => l.indexOf(z) === i).join(', ')}` : place.name;
+  });
+
+/**
+ * A zone's name in its place: the map's name less the place's ("SafariZone_Center" Center, "MtMoon_B1F" B1F, Johto's
+ * "IcePathB1f" B1F, "MeteorFalls_B1F_1R" B1F 1R), words split and floors in capitals.
+ */
+export function zoneLabel(map: string, placeName: string): string {
+  const words = (s: string) => s.replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/([0-9])([A-Z][a-z])/g, '$1 $2').split(/[\s_]+/).filter(Boolean);
+  const place = words(placeName.replace(/[^A-Za-z0-9 ]/g, '')).map((w) => w.toLowerCase());
+  const rest = map.includes('_') ? words(map.slice(map.indexOf('_') + 1)) : words(map);
+  // Johto's names start with their place's (Ice Path's): those words left out.
+  let i = 0;
+  while (i < rest.length && i < place.length && rest[i]!.toLowerCase().replace(/[^a-z0-9]/g, '') === place[i]!.replace(/[^a-z0-9]/g, '')) i++;
+  return (rest.slice(i).join(' ') || map).replace(/\b(B?\d+)f\b/g, '$1F');
+}
+
+/** Each place's maps with wild Pokémon, by section (zoneLabel's zones). */
+const zoneMaps = perGeneration((g) => {
+  const out = new Map<string, string[]>();
+  for (const [name, map] of Object.entries(g.maps)) if (map.section && g.encounters[map.encounters]) (out.get(map.section) ?? out.set(map.section, []).get(map.section)!).push(name);
+  return out;
+});
+
+/** Each species' maps by section (habitats' wild tables, map by map). */
+const habitatZones = perGeneration((g) => {
+  const out = new Map<number, Map<string, string[]>>();
+  for (const [name, map] of Object.entries(g.maps)) {
+    const table = g.encounters[map.encounters];
+    if (!table || !map.section) continue;
+    for (const s of tableSpecies(table)) {
+      const bySection = out.get(s) ?? out.set(s, new Map()).get(s)!;
+      const maps = bySection.get(map.section) ?? bySection.set(map.section, []).get(map.section)!;
+      if (!maps.includes(name)) maps.push(name);
+    }
+  }
+  return out;
+});
+
+/** Every species a wild table can give (walked, surfed, fished, Rock Smash; mornings', nights', LeafGreen's and SoulSilver's slots, extra slots). */
+function tableSpecies(table: EncounterTable): Set<number> {
+  const out = new Set<number>();
+  for (const slots of [table.land, table.water, table.fishing, table.rockSmash, table.oldRod, table.goodRod, table.superRod]) {
+    if (!slots) continue;
+    for (const list of [slots.mons, slots.extra, slots.morning, slots.night]) for (const [, , s] of list ?? []) out.add(s);
+    for (const list of [slots.leafGreen, slots.soulSilver?.morning, slots.soulSilver?.day, slots.soulSilver?.night]) for (const [, , , s] of list ?? []) out.add(s);
+  }
+  if (table.nightFish) out.add(table.nightFish);
+  return out;
+}
+
 const habitats = perGeneration((g) => {
   const sections = new Map<number, Set<string>>();
   const add = (species: number, section: string) => (sections.get(species) ?? sections.set(species, new Set()).get(species)!).add(section);
   for (const map of Object.values(g.maps)) {
     const table = g.encounters[map.encounters];
     if (!table || !map.section) continue;
-    for (const slots of [table.land, table.water, table.fishing, table.rockSmash, table.oldRod, table.goodRod, table.superRod]) {
-      if (!slots) continue;
-      for (const list of [slots.mons, slots.extra, slots.morning, slots.night]) for (const [, , s] of list ?? []) add(s, map.section);
-      for (const list of [slots.leafGreen, slots.soulSilver?.morning, slots.soulSilver?.day, slots.soulSilver?.night]) for (const [, , , s] of list ?? []) add(s, map.section);
-    }
-    if (table.nightFish) add(table.nightFish, map.section);
+    for (const s of tableSpecies(table)) add(s, map.section);
   }
   const out = new Map<number, TownMapPlace[]>();
   for (const [species, found] of sections) out.set(species, g.townMapPlaces.filter((p) => found.has(p.section)));

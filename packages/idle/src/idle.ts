@@ -91,12 +91,17 @@ export interface IdleSettings {
    * cheapest ball its store sells up to it, as many as the money allows; 0, off.
    */
   autoBalls: number;
+  /**
+   * Species marked Always catch in the Pokédex (the user's, 2026-11-20): caught whenever none is in the party, new or not
+   * and whatever auto-catch says (a full party's Stop catching still holds).
+   */
+  alwaysCatch: number[];
 }
 
 /** The most balls auto-buy keeps. */
 export const MAX_AUTO_BALLS = 99;
 
-export const DEFAULT_IDLE_SETTINGS: IdleSettings = { autoHeal: true, revives: ['last'], autoCatch: 'new', catchMove: 'basic', stopWhenFull: false, replaceLowest: false, autoEvolve: true, autoGrind: true, autoBalls: 0 };
+export const DEFAULT_IDLE_SETTINGS: IdleSettings = { autoHeal: true, revives: ['last'], autoCatch: 'new', catchMove: 'basic', stopWhenFull: false, replaceLowest: false, autoEvolve: true, autoGrind: true, autoBalls: 0, alwaysCatch: [] };
 
 /**
  * The settings a segment plays by, with the player's own throws (the ball button, the user's: `throwAt`, the ticks of
@@ -1231,8 +1236,13 @@ const terrainOf = (tile: string): Terrain => {
   return t as Terrain;
 };
 
-/** Whether auto-catch tries this wild Pokémon: by the setting and the dex, and not with a full party when catching stops then. */
+/**
+ * Whether auto-catch tries this wild Pokémon: by the setting and the dex, or marked Always catch with none of it in the
+ * party; and not with a full party when catching stops then.
+ */
 function shouldCatch(state: IdleState, settings: IdleSettings, caught: ReadonlySet<number>, id: number): boolean {
+  if (state.party.length >= PARTY_SIZE && settings.stopWhenFull) return false;
+  if (settings.alwaysCatch?.includes(id) && !state.party.some((m) => m.species === id)) return true;
   if (settings.autoCatch === 'off') return false;
   if (settings.autoCatch === 'new' && caught.has(id)) return false;
   if (state.party.length >= PARTY_SIZE && settings.stopWhenFull) return false;

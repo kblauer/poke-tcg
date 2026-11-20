@@ -384,6 +384,33 @@ describe('an idle run', () => {
     expect(kakuna!.moves).toEqual(expect.arrayContaining(['poison-sting', 'string-shot', 'harden']));
   });
 
+  it("catches a species marked Always catch with none in the party, caught before and auto-catch off (the user's)", () => {
+    // Viridian Forest's wild grind, every species there caught already.
+    const area = areas().findIndex((a) => a.id === 'route-2');
+    const leg = (areas()[area] as WalkArea).legs[0]!;
+    const forest = leg.maps.indexOf('ViridianForest');
+    const step = leg.track.findIndex(([m, , , , t]) => m === forest && t[0] === 'l');
+    const base = createIdleRun({ species: 4 }, 7);
+    const start = (applyIdleAction({ ...base, area, step, beaten: (areas()[area] as WalkArea).trainers.map((t) => t.key), bag: { 'poke-ball': 99 }, debugCatch: true, party: [{ ...base.party[0]!, level: 15 }] }, { type: 'WILD_GRIND' }) as { state: IdleState }).state;
+    const forestMons = [10, 11, 13, 14, 25];
+    const caughtIn = (alwaysCatch: number[]) => {
+      let s = start;
+      const caught: number[] = [];
+      for (let i = 0; i < 60; i++) {
+        const next = simulateSegment(s, { ...MANUAL, autoCatch: 'off', alwaysCatch }, new Set(forestMons))!;
+        for (const e of next.segment.events) if (e.t === 'caught') caught.push(e.species);
+        s = next.state;
+      }
+      return { caught, party: s.party.map((m) => m.species) };
+    };
+    expect(caughtIn([]).caught).toEqual([]);
+    const marked = caughtIn(forestMons);
+    expect(marked.caught.length).toBeGreaterThan(0);
+    // Each once: not again while one is in the party.
+    expect(new Set(marked.caught).size).toBe(marked.caught.length);
+    expect(marked.party).toEqual(expect.arrayContaining(marked.caught));
+  });
+
   it('waits for the player watching to choose where a Pokémon caught with the party full goes, or the settings away', () => {
     // A full party grinding Viridian Forest's wild Pokémon, catching every one.
     const area = areas().findIndex((a) => a.id === 'route-2');
