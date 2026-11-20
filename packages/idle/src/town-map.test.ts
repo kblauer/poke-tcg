@@ -4,7 +4,7 @@ import { KANTO_MAPS } from './data/gen1/maps.js';
 import { ENCOUNTERS } from './data/gen1/encounters.js';
 import { inGeneration } from './generation.js';
 import { wildSpots } from './idle.js';
-import { habitat, townMapGrid, townMapPlaces, townMapArea, townMapAreas, townMapPlaceAt, townMapPlaceOf } from './town-map.js';
+import { habitat, habitatText, townMapGrid, townMapPlaces, townMapArea, townMapAreas, townMapPlaceAt, townMapPlaceOf, zoneLabel } from './town-map.js';
 
 describe('the Town Map', () => {
   it('has a place for every town, route and dungeon, and one for every gym and League room (its town)', () => {
@@ -108,5 +108,14 @@ describe('the Town Map', () => {
     expect(names(144)).toEqual(['SEAFOAM ISLANDS']);
     expect(names(151)).toEqual([]);
     expect(inGeneration(2, () => habitat(163).map((p) => p.name))).toContain('Route 29');
+  });
+
+  it("writes a habitat's places with the zones it's in where a place has several (the user's)", () => {
+    expect(habitatText(113)).toEqual(['SAFARI ZONE: Center, North']);
+    expect(habitatText(92)).toEqual(['POKéMON TOWER: 3F, 4F, 5F, 6F, 7F']);
+    expect(habitatText(25)).toContain('VIRIDIAN FOREST');
+    expect(inGeneration(2, () => habitatText(220))).toEqual(['Ice Path: 1F, B1F, B2F, B3F']);
+    expect(zoneLabel('MeteorFalls_B1F_1R', 'METEOR FALLS')).toBe('B1F 1R');
+    expect(zoneLabel('ShoalCave_LowTideIceRoom', 'SHOAL CAVE')).toBe('Low Tide Ice Room');
   });
 });

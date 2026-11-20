@@ -38,6 +38,7 @@ export const idleSettingsSchema = z.object({
   autoEvolve: z.boolean(),
   autoGrind: z.boolean(),
   autoBalls: z.number().int().min(0).max(MAX_AUTO_BALLS),
+  alwaysCatch: z.array(z.number().int().min(1).max(DEX_SIZE)).max(DEX_SIZE),
 }) satisfies z.ZodType<IdleSettings>;
 
 /** A new run: its starter (one of the three, or a species the account's Pokédex has caught, from the second run on), shiny if one was caught. */

@@ -49,6 +49,8 @@ export function Pokedex({
   shinyStarters = [],
   onPick,
   busy = false,
+  alwaysCatch,
+  onAlwaysCatch,
 }: {
   dex: DexRow[];
   gen?: number;
@@ -56,6 +58,9 @@ export function Pokedex({
   shinyStarters?: number[];
   onPick?: (species: number, shiny: boolean) => void;
   busy?: boolean;
+  /** The species marked Always catch (IdleSettings.alwaysCatch), and marking one (the run's Pokédex tab; the user's, 2026-11-20). */
+  alwaysCatch?: number[];
+  onAlwaysCatch?: (species: number, on: boolean) => void;
 }) {
   const phone = useIsPhone();
   const byId = new Map(dex.map((d) => [d.species, d]));
@@ -74,7 +79,7 @@ export function Pokedex({
   const shown = all.filter((s) => (query ? matches(s) : s.id >= from && s.id <= to) && keep(byId.get(s.id)));
   const caughtIn = (r: (typeof REGIONS)[number]) => dex.filter((d) => d.caught && d.species >= r.from && d.species <= r.to).length;
   const sel = open !== null ? all[open - 1]! : null;
-  const entry = sel && <DexEntry sel={sel} rec={byId.get(sel.id)} starters={starters} shinyStarters={shinyStarters} onPick={onPick} busy={busy} />;
+  const entry = sel && <DexEntry sel={sel} rec={byId.get(sel.id)} starters={starters} shinyStarters={shinyStarters} onPick={onPick} busy={busy} alwaysCatch={alwaysCatch} onAlwaysCatch={onAlwaysCatch} />;
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -166,6 +171,8 @@ function DexEntry({
   shinyStarters,
   onPick,
   busy,
+  alwaysCatch,
+  onAlwaysCatch,
 }: {
   sel: Species;
   rec?: DexRow;
@@ -173,6 +180,8 @@ function DexEntry({
   shinyStarters: number[];
   onPick?: (species: number, shiny: boolean) => void;
   busy: boolean;
+  alwaysCatch?: number[];
+  onAlwaysCatch?: (species: number, on: boolean) => void;
 }) {
   return (
     <section className="space-y-2 rounded-lg bg-slate-800 p-4 ring-1 ring-slate-600">
@@ -204,6 +213,13 @@ function DexEntry({
           </span>
         )}
       </div>
+      {/* Always catch (the user's, 2026-11-20): caught whenever none is in the party, new or not, auto-catch on or off. */}
+      {rec?.seen && onAlwaysCatch && (
+        <label className="flex items-center gap-2 text-sm" title="Catch it whenever one is met and none is in your party, even if it isn't new or Auto-catch is off (with a full party, Stop catching still holds)">
+          <input type="checkbox" checked={!!alwaysCatch?.includes(sel.id)} onChange={(e) => onAlwaysCatch(sel.id, e.target.checked)} />
+          Always catch
+        </label>
+      )}
       {rec?.seen && (
         <p className="text-sm text-slate-300">
           The {sel.category} Pokémon. {(sel.height / 10).toFixed(1)} m, {(sel.weight / 10).toFixed(1)} kg. {sel.dexText}

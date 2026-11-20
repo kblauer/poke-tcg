@@ -295,7 +295,13 @@ export function IdlePage() {
             ))}
           </div>
           {tab === 'bag' && <Bag bag={v.bag} />}
-          {tab === 'dex' && <Pokedex dex={data.dex} />}
+          {tab === 'dex' && (
+            <Pokedex
+              dex={data.dex}
+              alwaysCatch={settings.alwaysCatch}
+              onAlwaysCatch={(species, on) => void actions.settings({ alwaysCatch: on ? [...settings.alwaysCatch.filter((s) => s !== species), species] : settings.alwaysCatch.filter((s) => s !== species) }).catch(failed)}
+            />
+          )}
           {tab === 'settings' && <IdleSettings settings={settings} busy={false} onChange={(s) => void actions.settings(s).catch(failed)} />}
           {tab === 'log' && (
             <ul className="space-y-1 text-sm text-slate-300">
