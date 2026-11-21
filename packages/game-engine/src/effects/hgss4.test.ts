@@ -3,6 +3,7 @@ import type { CardDef, PokemonCardDef } from '../cards.js';
 import { applyAction, getPlayerView, runCpu, type GameState, type InPlayPokemon, type Target } from '../index.js';
 import { usableAttacks } from '../attacks.js';
 import { act, attack, duel, flips, id, mon, settles, C, F, FI, G, L, P, W } from './test-kit.js';
+import { HGSS4 } from './hgss4.js';
 
 const ash = (s: GameState) => s.players.ash!;
 const misty = (s: GameState) => s.players.misty!;
@@ -412,5 +413,16 @@ describe('Agreed 2026-10-25', () => {
       s = attack(s, 0);
       expect(runCpu(s, 'misty').actions[0]).toEqual({ type: 'RESOLVE_CHOICE', count: answer });
     }
+  });
+});
+
+describe("Spiritomb's Color Tag", () => {
+  it("offers only the types among the opponent's Pokémon in play (the user's), a dual type both of its", () => {
+    const defs = [mon('ct-a', 'Charmander', F, 60, []), mon('ct-b', 'Magnemite', L, 50, [], { types: [L, 'metal'] })];
+    const cards = Object.fromEntries(defs.map((d) => [d.id, d]));
+    const on = (defId: string): InPlayPokemon => ({ card: { uid: defId, defId }, damage: 0, energy: [], evolvedFrom: [] }) as unknown as InPlayPokemon;
+    const situation = { attacker: on('ct-a'), defender: on('ct-a'), opponentBench: [on('ct-b'), null], ownBench: [], ownDiscard: [], cards, turn: 3 };
+    const [spec] = HGSS4['hgss4-10']!['Color Tag']!.choices!(situation, {});
+    expect(spec).toMatchObject({ kind: 'type', options: [F, L, 'metal'] });
   });
 });

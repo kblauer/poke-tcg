@@ -116,10 +116,15 @@ export const HGSS4: Record<string, Record<string, AttackEffect>> = {
       },
     },
   },
-  // Spiritomb – Color Tag: a damage counter on each of the opponent's Pokémon of the type chosen.
+  // Spiritomb – Color Tag: a damage counter on each of the opponent's Pokémon of the type chosen, only the types they have in
+  // play offered (the user's, 2026-11-21: any other does nothing).
   'hgss4-10': {
     'Color Tag': {
-      choices: () => [{ kind: 'type', options: TYPES, prompt: "Color Tag: choose a type (a damage counter on each of your opponent's Pokémon of that type)" }],
+      choices: (s) => {
+        const theirs = [s.defender, ...s.opponentBench].flatMap((p) => (p ? [inPlayDef(s.cards, p)] : []));
+        const options = TYPES.filter((t) => theirs.some((d) => hasType(d, t)));
+        return [{ kind: 'type', options: options.length ? options : TYPES, prompt: "Color Tag: choose a type (a damage counter on each of your opponent's Pokémon of that type)" }];
+      },
       run(ctx) {
         const type = ctx.choices.type;
         if (!type) return;
