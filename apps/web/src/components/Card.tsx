@@ -33,6 +33,7 @@ import { useTextStatus } from '../hooks/useTextStatus';
 import { useTouchHold } from '../hooks/useTouchHold';
 import { holoAttributes } from '../utils/holo';
 import { EnergyIcon } from './EnergyIcon';
+import { EnergyPickContext } from './EnergyPick';
 import { FlairBorder } from './FlairBorder';
 import { HoloCard, type HoloMotion } from './HoloCard';
 import { CatalogContext, InspectContext, useInspectOnRightClick } from './InspectContext';
@@ -117,6 +118,7 @@ export function Card({
   mine?: boolean;
 }) {
   const setPreview = useContext(PreviewContext);
+  const energyPick = useContext(EnergyPickContext);
   const catalog = useContext(CatalogContext);
   const inspect = useInspectOnRightClick({ clearsPreview: true })(def.id);
   // On a touch screen, holding a finger on the card does what right-click does.
@@ -220,9 +222,24 @@ export function Card({
             const type = burned ? 'fire' : provided.type;
             const name = lookupCard(cards, e.defId).name + (burned ? ' (Fire this turn: Energy Burn)' : '');
             // One dot per energy provided: Double Colorless Energy (and a Buzzap'd Electrode) shows two.
-            return Array.from({ length: provided.amount }, (_, i) => (
-              <EnergyIcon key={`${e.uid}-${i}`} type={type} size={small ? 'sm' : 'lg'} title={name} />
-            ));
+            const icons = Array.from({ length: provided.amount }, (_, i) => <EnergyIcon key={`${e.uid}-${i}`} type={type} size={small ? 'sm' : 'lg'} title={name} />);
+            // An attack's question asking for Energy on the player's Pokémon (EnergyPick): its options are buttons, glowing,
+            // the picked ones marked red and faded.
+            if (!energyPick?.options.has(e.uid)) return icons;
+            const on = energyPick.picked.has(e.uid);
+            return [
+              <button
+                key={e.uid}
+                type="button"
+                data-keep-action
+                aria-pressed={on}
+                aria-label={`${on ? 'Unpick' : 'Pick'} ${name}`}
+                className={`flex gap-0.5 rounded-full ring-2 transition ${on ? 'opacity-50 ring-red-400' : 'animate-pulse ring-emerald-300'}`}
+                onClick={(ev) => (ev.stopPropagation(), energyPick.toggle(e.uid))}
+              >
+                {icons}
+              </button>,
+            ];
           })}
         </div>
       )}

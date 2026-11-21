@@ -20,6 +20,7 @@ import { ABILITY_BUTTON, CHOICE_BUTTON, MAT_LABEL, MOVE_BUTTON, MOVE_NOTE } from
 import { centerOnPointer } from '../utils/dragOverlay';
 import { isMyTurn, mustPromote, statusText } from '../utils/turn';
 import { AttackChoicePanel } from './AttackChoicePanel';
+import { EnergyPickContext, type EnergyPick } from './EnergyPick';
 import { AttackList } from './AttackList';
 import { Card } from './Card';
 import { CardPreview } from './CardPreview';
@@ -711,10 +712,17 @@ export function Board({
   // Card flair's effects, over the board (fixed, so either layout).
   const flairEffects = flairMoments.effects.map((e) => <FlairEffect key={e.id} effect={e.effect} moment={e.moment} box={e.box} onDone={() => flairMoments.done(e.id)} />);
 
+  // An attack's question asking for Energy on the player's Pokémon: picked on the board (EnergyPick), the attack's panel
+  // keeping the count and the Active Pokémon's own (the panel can cover its card).
+  const energyPick: EnergyPick | null =
+    attack.spec && attack.energyRange && 'options' in attack.spec
+      ? { options: new Set((attack.spec.options as { uid: string }[]).map((e) => e.uid)), picked: new Set(attack.energyPicked), toggle: attack.toggleEnergy }
+      : null;
+
   /** The phone layout (see above): the same pieces, laid out by PhoneBoard. */
   if (phone) {
     return (
-      <>
+      <EnergyPickContext.Provider value={energyPick}>
       {flairEffects}
       <PhoneBoard
         view={view}
@@ -749,11 +757,12 @@ export function Board({
         dragOverlay={dragOverlay}
         remindersDialog={turnReminders.dialog}
       />
-      </>
+      </EnergyPickContext.Provider>
     );
   }
 
   return (
+    <EnergyPickContext.Provider value={energyPick}>
     <PreviewContext.Provider value={(p) => !dragging && setPreview(p)}>
       <DndContext
         {...dnd}
@@ -858,5 +867,6 @@ export function Board({
       <Toasts toasts={toasts.toasts} prompt={movePrompt} />
       {turnReminders.dialog}
     </PreviewContext.Provider>
+    </EnergyPickContext.Provider>
   );
 }
