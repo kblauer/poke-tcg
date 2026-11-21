@@ -34,9 +34,10 @@ export const copiesAllowed = (card: Pick<DeckRuleCard, 'basicEnergy' | 'name' | 
 
 /**
  * The name the 4-copy limit counts a card under (agreed): a δ (Delta Species) Pokémon counts as its base Pokémon (Kabuto δ
- * as Kabuto); every other name is its own (Pokémon-ex, owners', Dark, Shining… print their limits or have their own names).
+ * as Kabuto), a Pokémon LV.X as its Pokémon (Luxray GL LV.X as Luxray GL, as Diamond & Pearl's plainly named ones already
+ * are); every other name is its own (Pokémon-ex, owners', Dark, Shining… print their limits or have their own names).
  */
-export const limitName = (name: string) => name.replace(/ δ$/, '');
+export const limitName = (name: string) => name.replace(/ δ$/, '').replace(/ LV\.X$/, '');
 
 /** Cards in a deck counted under this name (limitName; basic Energy has no limit, so it isn't counted). */
 export const copiesOfName = (entries: { card: DeckRuleCard; quantity: number }[], name: string) =>

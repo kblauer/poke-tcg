@@ -110,8 +110,16 @@ const OWNER = /^((?:Blaine|Brock|Erika|Lt\. Surge|Misty|Sabrina|Giovanni|Koga|Ro
 /** A second printed "Evolves from" (EX Unseen Forces Blissey ex: "Evolves from Chansey or Chansey ex"), by card id. */
 const ALSO_EVOLVES_FROM: Record<string, string[]> = { 'ex10-101': ['Chansey ex'] };
 
-/** What the card evolves from, filling in TCGdex's gaps. */
+/**
+ * A Pokémon LV.X's name as the engine plays it: the name of the Pokémon it levels up from. TCGdex names Diamond & Pearl's
+ * LV.X like that ("Empoleon") but Platinum's and later with " LV.X" ("Luxray GL LV.X"), which then levelled up nothing
+ * (evolvesOnto matches the names; the user's, 2026-11-21).
+ */
+export const levelUpName = (name: string) => name.replace(/ LV\.X$/, '');
+
+/** What the card evolves from, filling in TCGdex's gaps; a Pokémon LV.X, the Pokémon it levels up from (levelUpName). */
 export const evolvesFrom = (card: Pick<CatalogCard, 'id' | 'name' | 'stage' | 'evolveFrom'>) => {
+  if (card.stage === 'LEVEL-UP') return levelUpName(card.name);
   // Team Rocket's Dark Stage 2 Pokémon evolve from the Dark Stage 1 (Dark Alakazam from Dark Kadabra); TCGdex has the plain one.
   if (card.stage === 'Stage2' && card.name.startsWith('Dark ') && card.evolveFrom && !card.evolveFrom.startsWith('Dark ')) return `Dark ${card.evolveFrom}`;
   // Neo Destiny's Light Stage 2 Pokémon likewise evolve from the Light Stage 1 (Light Dragonite from Light Dragonair).
@@ -273,7 +281,7 @@ export function catalogCardDef(card: CatalogCard, length?: string): CardDef {
     return {
       id: card.id,
       kind: 'pokemon',
-      name: card.name,
+      name: card.stage === 'LEVEL-UP' ? levelUpName(card.name) : card.name,
       imageUrl,
       type: energyType(type),
       ...types,
