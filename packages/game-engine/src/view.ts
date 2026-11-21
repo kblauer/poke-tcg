@@ -157,6 +157,9 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
     ...me.hand,
     ...me.discard,
     ...opp.discard,
+    // The Lost Zone is face up, both players' (it's shown: the user's, 2026-11-21, a card sent there was missing).
+    ...(me.lostZone ?? []),
+    ...(opp.lostZone ?? []),
     ...[me.active, ...me.bench, oppActive, ...oppBench].flatMap((p) => (p ? [p.card, ...p.evolvedFrom, ...p.energy, ...(p.attached ?? []).map((a) => a.card)] : [])),
     ...(pending?.kind === 'arrangeTop' || pending?.kind === 'oppHand' ? pending.cards : pending?.kind === 'pickFromDeck' || pending?.kind === 'pickFromDiscard' ? pending.options : []),
     ...(state.prizesFaceUp ? [...me.prizes, ...opp.prizes] : []),

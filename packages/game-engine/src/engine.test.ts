@@ -78,6 +78,17 @@ describe('game engine', () => {
     expect(getPlayerView(s, 'ash').cards[active]).toBe(start.cards[active]);
   });
 
+  it("gives a player's view the definitions of both Lost Zones' cards, which are face up (the user's: a Pokémon sent there by Catastrophe)", () => {
+    const s = setup(newGame());
+    const mine = s.players.ash!.deck.pop()!;
+    const theirs = s.players.misty!.deck.pop()!;
+    s.players.ash!.lostZone = [mine];
+    s.players.misty!.lostZone = [theirs];
+    const view = getPlayerView(s, 'ash');
+    expect(view.cards[mine.defId]).toBe(s.cards[mine.defId]);
+    expect(view.cards[theirs.defId]).toBe(s.cards[theirs.defId]);
+  });
+
   it('stores only the definitions the decks use', () => {
     expect(Object.keys(newGame().cards).sort()).toEqual(['charizard', 'charmander', 'charmeleon', 'fire-energy', 'squirtle', 'water-energy']);
   });
