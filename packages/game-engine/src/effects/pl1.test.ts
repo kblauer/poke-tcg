@@ -367,6 +367,8 @@ describe('Platinum attacks', () => {
     ash(s).hand = [{ uid: 'w1', defId: 'water' }, { uid: 'f1', defId: 'fire' }, { uid: 'x', defId: id('charmander') }];
     s = attack(s, 0, { amount: 2 });
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'w1' });
+    // The Fire Energy, the other one, is picked too (the player's own picks once they've started a question (the same-card rule only at its start, the user's, 2026-11-21)).
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'f1' });
     expect(ash(s).hand.map((c) => c.uid).sort()).toEqual(['x'].concat(ash(s).hand.filter((c) => c.uid !== 'x').map((c) => c.uid)).sort());
     expect([ash(s).hand.length, ash(s).discard.length]).toEqual([5, 2]);
   });

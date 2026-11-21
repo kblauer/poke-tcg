@@ -154,7 +154,8 @@ describe('HeartGold & SoulSilver attacks and Trainers', () => {
     expect(s.pendingChoice).toMatchObject({ player: 'misty', kind: 'pickFromDeck' });
     for (const end of settles(s)) expect(end.pendingChoice).toBeUndefined();
     s = act(s, 'misty', { type: 'RESOLVE_CHOICE', cardUid: 'm1' });
-    // Misty's last Basic Pokémon is taken without asking (the same-card rule).
+    // Misty's last Basic Pokémon is picked too (the player's own picks once they've started a question (the same-card rule only at its start, the user's, 2026-11-21)).
+    s = act(s, 'misty', { type: 'RESOLVE_CHOICE', cardUid: 'm2' });
     expect([ash(s).bench.filter(Boolean).length, misty(s).bench.filter(Boolean).length]).toEqual([2, 2]);
   });
 

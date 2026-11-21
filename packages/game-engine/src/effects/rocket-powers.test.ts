@@ -51,8 +51,9 @@ describe('Team Rocket Pokémon Powers', () => {
     ];
     s = evolve(s, 'darkSlowbro');
     expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ kind: 'pickFromDiscard', options: [{ uid: 'c1' }, { uid: 'c2' }] });
-    // Squirtle is then the only Pokémon card left, taken without a question (the same-card rule).
+    // Squirtle, then the only Pokémon card left, is picked too (the player's own picks once they've started a question (the same-card rule only at its start, the user's, 2026-11-21)).
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'c1' });
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'c2' });
     // No Pokémon cards left, so it's over after 2.
     expect([ash(s).discard.map((c) => c.uid), s.pendingChoice]).toEqual([['f1'], undefined]);
   });
