@@ -21,6 +21,13 @@ import { CARD_THUMB_XS, PAGE_WIDTH } from '../utils/layout';
 import { PAGE_BUTTON as button } from '../utils/styles';
 
 type CommunityDeck = inferRouterOutputs<AppRouter>['community']['list'][number];
+type PremadeDeck = inferRouterOutputs<AppRouter>['community']['premade'][number];
+
+/** A deck tile's deck: a player's published deck, or a premade one (`premade`: its generation and where its list is from). */
+type TileDeck = (CommunityDeck & { premade?: undefined }) | (Omit<PremadeDeck, 'gen' | 'source' | 'notes' | 'cover'> & { premade: PremadeDeck; author?: undefined; mine?: undefined; createdAt?: undefined });
+
+/** The page's tabs (the user's, 2026-11-20): the decks players publish, and the premade decks (campaign's PREMADE_DECKS). */
+type Tab = 'players' | 'premade';
 
 /**
  * Community Decks (`/community`): decks players have published (Share on the Collection tab), the latest first, for
@@ -29,13 +36,18 @@ type CommunityDeck = inferRouterOutputs<AppRouter>['community']['list'][number];
  * of their own holos as they have) and opens it in the deck builder; Copy code gives its share code. The account's own
  * published decks can be unpublished, and its account name (shown on its decks, never its real name) changed. The search
  * matches deck names, authors and descriptions; the generation dropdown (GenerationFilter) shows the decks with cards
- * from any of the generations ticked.
+ * from any of the generations ticked. A second tab, Premade decks (the user's, 2026-11-20), lists well-known decks of each
+ * era (campaign's PREMADE_DECKS, from jklaczpokemon.com), one generation at a time, to import the same way.
  */
 export function CommunityPage() {
   const trpc = useTRPC();
   // The catalog only changes when the seed is re-run, so load it once per session.
   const catalog = useQuery({ ...trpc.cards.list.queryOptions(), staleTime: Infinity });
   const decks = useQuery(trpc.community.list.queryOptions());
+  const premade = useQuery(trpc.community.premade.queryOptions());
+  const [tab, setTab] = useState<Tab>('players');
+  /** The premade decks' generation shown (one at a time). */
+  const [premadeGen, setPremadeGen] = useState(1);
   const { isLocked } = useUnlocked();
   const byId = useMemo(() => new Map((catalog.data ?? []).map((c) => [c.id, c])), [catalog.data]);
   const [search, setSearch] = useState('');
@@ -58,34 +70,55 @@ export function CommunityPage() {
   if (!decks.data || !catalog.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
 
   const words = foldText(search.trim());
-  const shown = decks.data.filter(
-    (d) =>
-      (!words || [d.name, d.author, d.description].some((s) => foldText(s).includes(words))) &&
-      deckInGenerations(d.cards, byId, shownGens),
+  const shown: TileDeck[] =
+    tab === 'players'
+      ? decks.data.filter((d) => (!words || [d.name, d.author, d.description].some((s) => foldText(s).includes(words))) && deckInGenerations(d.cards, byId, shownGens))
+      : (premade.data ?? []).filter((d) => d.gen === premadeGen && (!words || [d.name, d.description].some((s) => foldText(s).includes(words)))).map((d) => ({ ...d, premade: d }));
+  const premadeGens = [...new Set((premade.data ?? []).map((d) => d.gen))];
+  const tabButton = (t: Tab, label: string) => (
+    <button key={t} className={`rounded px-3 py-1.5 text-sm transition ${tab === t ? 'bg-slate-600 text-slate-50' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`} onClick={() => (setTab(t), setFocused(null))}>
+      {label}
+    </button>
   );
   return (
     <div className={`space-y-4 ${PAGE_WIDTH}`}>
       <PageHeader title="Community Decks" />
+      <div className="flex gap-2" role="tablist">
+        {tabButton('players', 'Player decks')}
+        {tabButton('premade', 'Premade decks')}
+      </div>
       <p className="text-sm text-slate-400">
-        Decks other players have published. Import one to get it in your{' '}
+        {tab === 'players' ? 'Decks other players have published.' : "Well-known decks of each era's sets, from jklaczpokemon.com."} Import one to get it in your{' '}
         <Link to="/decks" className="text-yellow-300 hover:underline">
           Collection
         </Link>
-        , even with cards you haven't unlocked (it can't be played until you have them). To publish one of yours, open it on the Collection tab and use Share.
+        , even with cards you haven't unlocked (it can't be played until you have them).{tab === 'players' && ' To publish one of yours, open it on the Collection tab and use Share.'}
       </p>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <AccountNameField />
-        <GenerationFilter picked={shownGens} onChange={setShownGens} toggles compact />
+        {tab === 'players' ? (
+          <>
+            <AccountNameField />
+            <GenerationFilter picked={shownGens} onChange={setShownGens} toggles compact />
+          </>
+        ) : (
+          <div className="flex flex-wrap gap-1" aria-label="Generation">
+            {premadeGens.map((g) => (
+              <button key={g} className={`rounded px-2.5 py-1 text-xs transition ${g === premadeGen ? 'bg-yellow-300 text-gray-900' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`} onClick={() => (setPremadeGen(g), setFocused(null))}>
+                Gen {g} · {GENERATIONS[g]!.region}
+              </button>
+            ))}
+          </div>
+        )}
         {/* The search right after the generation dropdown. */}
         <input
           className="w-full max-w-xs rounded bg-slate-900 px-3 py-1.5 text-sm ring-1 ring-slate-600 focus:outline-none focus:ring-slate-400"
-          placeholder="Search decks, authors…"
+          placeholder={tab === 'players' ? 'Search decks, authors…' : 'Search decks…'}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           aria-label="Search community decks"
         />
       </div>
-      {shown.length === 0 && <p className="text-sm text-slate-500">{decks.data.length ? 'No decks match the search and generations.' : 'No decks published yet.'}</p>}
+      {shown.length === 0 && <p className="text-sm text-slate-500">{tab === 'premade' ? (premade.data ? 'No premade decks match the search.' : 'Loading…') : decks.data.length ? 'No decks match the search and generations.' : 'No decks published yet.'}</p>}
       <ul className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
         {shown.map((d) => (
           <CommunityDeckTile key={d.id} deck={d} byId={byId} isLocked={isLocked} focused={focused === d.id} onFocus={(on) => setFocused(on ? d.id : null)} />
@@ -100,7 +133,9 @@ export function CommunityPage() {
  * ellipsis, under its Pokémon's names, on one line with commas, beside the Pokémon shown large over the Pokémon/Trainer/Energy bar; the generations its cards are from, G1, G2…,
  * top right) and how many of its cards you haven't unlocked, if any. Clicking it focuses it (`focused`, one at a time;
  * agreed with the user): it grows a little, shows its whole description and its buttons along the bottom (Import, Copy
- * code, Cards for its card list, Unpublish on your own); clicking it again, outside it or Escape puts it back.
+ * code, Cards for its card list, Unpublish on your own); clicking it again, outside it or Escape puts it back. A premade
+ * deck's (`deck.premade`) says Premade, its generation and where its list is from (and any card swapped) in place of its
+ * author, and has no Unpublish.
  */
 function CommunityDeckTile({
   deck,
@@ -109,7 +144,7 @@ function CommunityDeckTile({
   focused,
   onFocus,
 }: {
-  deck: CommunityDeck;
+  deck: TileDeck;
   byId: Map<string, CatalogCard>;
   isLocked: (card: CatalogCard) => boolean;
   focused: boolean;
@@ -132,6 +167,15 @@ function CommunityDeckTile({
       },
     }),
   );
+  const importPremade = useMutation(
+    trpc.community.importPremade.mutationOptions({
+      onSuccess: async ({ id }) => {
+        await queryClient.invalidateQueries({ queryKey: trpc.decks.list.queryKey(), refetchType: 'all' });
+        navigate({ to: '/decks', search: { deck: id } });
+      },
+    }),
+  );
+  const importing = importDeck.isPending || importPremade.isPending;
   const unpublish = useMutation(trpc.community.unpublish.mutationOptions({ onSuccess: () => queryClient.invalidateQueries({ queryKey: trpc.community.list.queryKey() }) }));
   const cards = withCards(deck.cards, byId);
   const locked = cards.reduce((n, e) => n + (isLocked(e.card) ? e.quantity : 0), 0);
@@ -162,9 +206,18 @@ function CommunityDeckTile({
           {deck.cardCount}/{DECK_SIZE}
         </span>
       </div>
-      <p className="truncate text-xs text-slate-500">
-        by {deck.author} · {new Date(deck.createdAt).toLocaleDateString()}
-      </p>
+      {deck.premade ? (
+        <p className="truncate text-xs text-slate-500">
+          Premade · Gen {deck.premade.gen} ·{' '}
+          <a href={deck.premade.source} target="_blank" rel="noreferrer" className="text-yellow-300 hover:underline" onClick={(e) => e.stopPropagation()}>
+            jklaczpokemon.com
+          </a>
+        </p>
+      ) : (
+        <p className="truncate text-xs text-slate-500">
+          by {deck.author} · {new Date(deck.createdAt).toLocaleDateString()}
+        </p>
+      )}
       {/* Its Pokémon large, the bar under them, and their names (one line, comma separated) over the description on their right (under them on a narrow tile), cut
           short with an ellipsis until the tile is focused. */}
       <div className="flex flex-col gap-3 @md:flex-row">
@@ -176,6 +229,7 @@ function CommunityDeckTile({
             </p>
           )}
           <p className={`break-words text-slate-300 ${focused ? 'whitespace-pre-line' : 'line-clamp-2 @md:line-clamp-6'}`}>{deck.description || <span className="italic text-slate-500">No description</span>}</p>
+          {deck.premade?.notes && <p className="text-xs text-slate-500">{deck.premade.notes}</p>}
           {locked > 0 && <p className="text-xs text-amber-300">{locked} of its cards you haven't unlocked yet</p>}
         </div>
       </div>
@@ -183,8 +237,12 @@ function CommunityDeckTile({
         // Its buttons and card list don't put the tile back.
         <div className="mt-auto space-y-2" onClick={(e) => e.stopPropagation()}>
           <div className="flex flex-wrap gap-2">
-            <button className={`${button} bg-emerald-600 font-semibold hover:bg-emerald-500`} disabled={importDeck.isPending} onClick={() => importDeck.mutate({ communityDeckId: deck.id })}>
-              {importDeck.isPending ? 'Importing…' : 'Import'}
+            <button
+              className={`${button} bg-emerald-600 font-semibold hover:bg-emerald-500`}
+              disabled={importing}
+              onClick={() => (deck.premade ? importPremade.mutate({ premadeId: deck.id }) : importDeck.mutate({ communityDeckId: deck.id }))}
+            >
+              {importing ? 'Importing…' : 'Import'}
             </button>
             <CopyButton text={deck.code} label="Copy code" className={`${button} bg-slate-600 hover:bg-slate-500`} />
             <button className={`${button} bg-slate-700 hover:bg-slate-600`} onClick={() => setShowCards((s) => !s)} aria-expanded={showCards}>
@@ -200,7 +258,7 @@ function CommunityDeckTile({
               </button>
             )}
           </div>
-          {(importDeck.error ?? unpublish.error) && <p className="text-xs text-red-400">{(importDeck.error ?? unpublish.error)!.message}</p>}
+          {(importDeck.error ?? importPremade.error ?? unpublish.error) && <p className="text-xs text-red-400">{(importDeck.error ?? importPremade.error ?? unpublish.error)!.message}</p>}
           {showCards && <CardList cards={cards} isLocked={isLocked} />}
         </div>
       )}

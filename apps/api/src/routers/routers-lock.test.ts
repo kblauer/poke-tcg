@@ -24,6 +24,8 @@ const UNLOCKED: Record<string, string> = {
   // A run's event: the run's own version check (advanceRun's expectedVersion) is its guard, as every run action's.
   'whosThat.runStart': "the run's version",
   'whosThat.runGuess': "the run's version",
+  // A new deck from a premade list, as community.import makes one from a published deck (importDeck): no account value checked.
+  'community.importPremade': 'one new deck, as community.import',
 };
 
 /**

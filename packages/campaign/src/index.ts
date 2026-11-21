@@ -1,6 +1,7 @@
 export * from './bosses.js';
 export * from './card-fixes.js';
 export * from './decks.js';
+export * from './premade-decks.js';
 export * from './items.js';
 export * from './packs.js';
 export * from './pool.js';

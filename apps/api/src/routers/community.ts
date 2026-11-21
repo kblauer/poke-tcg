@@ -1,6 +1,7 @@
+import { PREMADE_DECKS, premadeDeck } from '@poke-tcg/campaign';
 import { TRPCError } from '@trpc/server';
 import { prisma } from '@poke-tcg/db';
-import { accountNameInput, communityDeckIdInput, deckPublishInput } from '@poke-tcg/shared';
+import { accountNameInput, communityDeckIdInput, deckPublishInput, premadeDeckIdInput } from '@poke-tcg/shared';
 import { ensureUser } from '../auth.js';
 import { encodeDeck, plainCards } from '../deck-codes.js';
 import { protectedProcedure, router } from '../trpc.js';
@@ -65,6 +66,24 @@ export const communityRouter = router({
     const { count } = await prisma.communityDeck.deleteMany({ where: { id: input.communityDeckId, authorId: ctx.user.id } });
     if (!count) throw new TRPCError({ code: 'NOT_FOUND', message: 'Community deck not found' });
     return { ok: true };
+  }),
+
+  /**
+   * The premade decks (campaign's PREMADE_DECKS: well-known decks of each era, the user's, 2026-11-20), on their own tab
+   * apart from the players' decks: each with its generation, how it plays, where its list is from and its share code.
+   */
+  premade: protectedProcedure.query(() =>
+    PREMADE_DECKS.map((d) => {
+      const cards = d.list.map(([cardId, quantity]) => ({ cardId, quantity }));
+      return { id: d.id, gen: d.gen, name: d.name, description: d.text, notes: d.notes ?? null, source: d.source, cover: d.cover, cards, cardCount: cards.reduce((n, c) => n + c.quantity, 0), code: encodeDeck({ name: d.name, cards }) };
+    }),
+  ),
+
+  /** Saves a premade deck as a new deck of the user's (importDeck), as a community deck is. */
+  importPremade: protectedProcedure.input(premadeDeckIdInput).mutation(async ({ ctx, input }) => {
+    const deck = premadeDeck(input.premadeId);
+    if (!deck) throw new TRPCError({ code: 'NOT_FOUND', message: 'Premade deck not found' });
+    return importDeck(ctx.user, { name: deck.name, cards: deck.list.map(([cardId, quantity]) => ({ cardId, quantity })) });
   }),
 
   /** Saves a community deck as a new deck of the user's (importDeck), even if they haven't unlocked all its cards. */
