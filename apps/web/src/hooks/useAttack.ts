@@ -58,8 +58,15 @@ export function useAttack({ view, send, busy, confirm = (go) => go() }: { view: 
 
   /** Benched Pokémon clicked so far, for a question asking for several (Gigashock); reset for each new question. */
   const [benchPicked, setBenchPicked] = useState<number[]>([]);
+  /** Energy cards clicked so far, for a question asking for Energy on the player's Pokémon (EnergyPick); reset with it. */
+  const [energyPicked, setEnergyPicked] = useState<string[]>([]);
   const questionKey = spec ? `${choosing!.attackIndex}:${spec.kind}:${spec.prompt}` : '';
-  useEffect(() => setBenchPicked([]), [questionKey]);
+  useEffect(() => {
+    setBenchPicked([]);
+    setEnergyPicked([]);
+  }, [questionKey]);
+  /** How many Energy cards the question takes, at least and at most. */
+  const energyRange = spec?.kind === 'ownEnergy' ? { min: spec.count, max: spec.count } : spec?.kind === 'ownEnergyUpTo' ? { min: 0, max: spec.max ?? spec.options.length } : spec?.kind === 'ownEnergyAny' ? { min: 0, max: spec.options.length } : null;
 
   return {
     /** Index of the attack whose questions are being asked. */
@@ -74,6 +81,13 @@ export function useAttack({ view, send, busy, confirm = (go) => go() }: { view: 
       if (choosing && spec) proceed(choosing.attackIndex, answerChoice(choosing.choices, spec, value));
     },
     benchPicked,
+    energyPicked,
+    energyRange,
+    /** Picks or unpicks an Energy card, keeping at most as many as the question takes (the latest ones). */
+    toggleEnergy: (uid: string) => {
+      const max = energyRange?.max ?? 1;
+      setEnergyPicked((p) => (p.includes(uid) ? p.filter((u) => u !== uid) : [...p, uid].slice(-max)));
+    },
     /** How many of the opponent's Pokémon the question wants: all of them if there are fewer, unless one may be picked again (Rock Blast). */
     benchCount: spec?.kind === 'opponentBenchMany' ? (spec.repeat ? spec.count : Math.min(spec.count, spec.options.length)) : 0,
     /** Picks or unpicks one of the opponent's benched Pokémon, keeping at most as many as the question asks for (`repeat`: every click is another pick). */

@@ -14,9 +14,7 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
     <div className="space-y-1 rounded-lg bg-slate-800 p-2 text-xs ring-1 ring-slate-600">
       <p className="text-slate-300">{spec.prompt}:</p>
       <div className="flex flex-col gap-1">
-        {spec.kind === 'ownEnergy' && <EnergyPicker key={spec.prompt} options={spec.options} min={spec.count} max={spec.count} cards={cards} onDone={attack.answer} />}
-        {spec.kind === 'ownEnergyUpTo' && <EnergyPicker key={spec.prompt} options={spec.options} min={0} max={spec.max ?? spec.options.length} cards={cards} onDone={attack.answer} />}
-        {spec.kind === 'ownEnergyAny' && <EnergyPicker key={spec.prompt} options={spec.options} min={0} max={spec.options.length} cards={cards} onDone={attack.answer} />}
+        {(spec.kind === 'ownEnergy' || spec.kind === 'ownEnergyUpTo' || spec.kind === 'ownEnergyAny') && <BoardEnergyPicker options={spec.options} view={view} attack={attack} />}
         {spec.kind === 'ownDiscard' && <DiscardPicker key={spec.prompt} spec={spec} cards={cards} onDone={attack.answer} />}
         {spec.kind === 'opponentBenchMany' && (
           <>
@@ -152,48 +150,44 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
 }
 
 /** Pick between `min` and `max` of the attacker's energy to discard, then confirm. */
-function EnergyPicker({
-  options,
-  min,
-  max,
-  cards,
-  onDone,
-}: {
-  options: CardInstance[];
-  min: number;
-  max: number;
-  cards: CardLibrary;
-  onDone: (uids: string[]) => void;
-}) {
-  const [picked, setPicked] = useState<string[]>([]);
-  const toggle = (uid: string) => setPicked((p) => (p.includes(uid) ? p.filter((u) => u !== uid) : [...p, uid].slice(-max)));
+/**
+ * Energy on the player's Pokémon, picked on the board (EnergyPick, Card: the user's, 2026-11-21, so it's clear whose they
+ * are): the Active Pokémon's here too, as its card can be under this panel, then the count and the attack.
+ */
+function BoardEnergyPicker({ options, view, attack }: { options: CardInstance[]; view: PlayerView; attack: AttackControl }) {
+  const { cards } = view;
+  const active = view.self.active;
+  const range = attack.energyRange!;
+  const picked = attack.energyPicked;
+  const onActive = options.filter((e) => active?.energy.some((a) => a.uid === e.uid));
+  const elsewhere = options.length > onActive.length;
   return (
     <>
-      <div className="flex flex-wrap gap-1">
-        {options.map((e) => {
-          const def = lookupCard(cards, e.defId);
-          const on = picked.includes(e.uid);
-          return (
-            <button
-              key={e.uid}
-              onClick={() => toggle(e.uid)}
-              title={def.name}
-              aria-pressed={on}
-              aria-label={`${on ? 'Keep' : 'Discard'} ${def.name}`}
-              className={`rounded-full transition ${on ? 'opacity-40 ring-2 ring-red-400' : ''}`}
-            >
-              <EnergyIcon type={energyProvided(e, cards).type} size="panel" />
-            </button>
-          );
-        })}
-      </div>
-      <button className={`${option} disabled:opacity-40`} disabled={picked.length < min || picked.length > max} onClick={() => onDone(picked)}>
-        Discard {picked.length}
-        {min === max ? `/${max}` : ''} and attack
+      {elsewhere && <p className={pickHint}>Click the glowing Energy on your Pokémon to choose them.</p>}
+      {onActive.length > 0 && active && (
+        <div className="space-y-0.5">
+          <p className="text-slate-400">{inPlayDef(cards, active).name} (Active):</p>
+          <div className="flex flex-wrap gap-1">
+            {onActive.map((e) => {
+              const def = lookupCard(cards, e.defId);
+              const on = picked.includes(e.uid);
+              return (
+                <button key={e.uid} onClick={() => attack.toggleEnergy(e.uid)} title={def.name} aria-pressed={on} aria-label={`${on ? 'Unpick' : 'Pick'} ${def.name}`} className={`rounded-full transition ${on ? 'opacity-40 ring-2 ring-red-400' : ''}`}>
+                  <EnergyIcon type={energyProvided(e, cards).type} size="panel" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      <button className={`${option} disabled:opacity-40`} disabled={picked.length < range.min || picked.length > range.max} onClick={() => attack.answer(picked)}>
+        Attack ({picked.length}
+        {range.min === range.max ? `/${range.max}` : ''} picked)
       </button>
     </>
   );
 }
+
 
 /** Pick between `min` and `max` cards from the discard pile, then confirm. A single card is chosen by clicking it. */
 function DiscardPicker({
