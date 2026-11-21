@@ -122,6 +122,7 @@ Issue #99 (https://github.com/kblauer/poke-tcg/issues/99) was a whole-codebase r
 ## Deck sharing (agreed)
 - Share codes (`PTCG1.…`, `apps/api/src/deck-codes.ts`) and Community Decks (the tab after Collection, before Extras) hold each card's non-holo version when it has one; importing uses as many of the importer's own holos as they have, the rest non-holo.
 - Imports keep locked cards. Any deck may hold locked cards (the builder adds them with a warning, the API saves them); such a deck can't be played, and wherever deck tiles are shown it's greyed out and tagged Locked (`LOCKED_TAG`).
+- Community Decks has two tabs (the user's, 2026-11-20): Player decks and Premade decks (`premade-decks.ts`: up to 10 well-known decks a generation from jklaczpokemon.com, one generation at a time, imported like a community deck).
 - Community Decks tiles are one size, descriptions cut short with an ellipsis; clicking one focuses it (a little larger, the whole description, and only then its Import, Copy code, Cards and Unpublish buttons); clicking it again, outside or Escape puts it back.
 - A published community deck is a snapshot (later edits don't change it; its author can unpublish it), only of a deck that follows the rules, shown with the author's account name (`User.accountName`: chosen by them, not unique, required to publish), never their Google name (`displayName`) or email.
 

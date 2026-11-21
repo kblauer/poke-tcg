@@ -115,6 +115,8 @@ export const deckPublishInput = deckIdInput.extend({ description: z.string().tri
 
 /** A deck on the Community Decks tab. */
 export const communityDeckIdInput = z.object({ communityDeckId: z.uuid() });
+/** A premade deck on the Community Decks tab (campaign's PREMADE_DECKS id). */
+export const premadeDeckIdInput = z.object({ premadeId: z.string().min(1).max(80) });
 
 /** Longest account name. */
 export const ACCOUNT_NAME_LENGTH = 20;
