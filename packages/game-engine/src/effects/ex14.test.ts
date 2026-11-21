@@ -35,8 +35,9 @@ describe('EX Crystal Guardians', () => {
     expect(s.pendingChoice).toMatchObject({ kind: 'pealTarget' });
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', target: 'active' });
     expect(s.pendingChoice).toMatchObject({ kind: 'pickFromTop', attachTo: 'active' });
-    // The Water Energy left is the only option, so it's attached without asking (the same-card rule).
+    // The Water Energy left, the only option, is picked too (the player's own picks once they've started a question (the same-card rule only at its start, the user's, 2026-11-21)).
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'e1' });
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'e2' });
     expect(s.pendingChoice).toBeUndefined();
     expect(ash(s).active!.energy.map((e) => e.uid)).toEqual(['e1', 'e2']);
     expect(ash(s).discard.map((c) => c.uid)).toEqual(['c1', 'c2', 'c3']);

@@ -331,6 +331,8 @@ describe('Undaunted Trainers', () => {
     ash(s).deck[0] = { uid: 'w', defId: 'water' };
     s = play(s, 'hgss3-77', "Sage's Training");
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'w' });
+    // The second card is picked too, though the rest are all the same (the player's own picks once they've started a question (the same-card rule only at its start, the user's, 2026-11-21)).
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: ash(s).deck.find((c) => c.uid !== 'w')!.uid });
     expect([ash(s).hand.length, ash(s).discard.length, ash(s).deck.length]).toEqual([2, 4, 3]);
   });
 

@@ -275,9 +275,12 @@ describe('Stormfront attacks', () => {
     ash(s).deck = [{ uid: 'sq', defId: id('squirtle') }, { uid: 'ch', defId: id('charmander') }, { uid: 'w1', defId: 'water' }, { uid: 'f1', defId: 'fire' }];
     s = attack(s, 0);
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'sq' });
+    // The Charmander, the only Basic left, and then the Fire Energy, the only Energy left, are picked too (the player's own picks once they've started a question (the same-card rule only at its start, the user's, 2026-11-21)).
+    expect(s.pendingChoice).toMatchObject({ kind: 'pickFromDeck', filter: 'basic' });
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'ch' });
     expect(s.pendingChoice).toMatchObject({ kind: 'pickFromDeck', filter: 'basicEnergy', attachTo: 1 });
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'w1' });
-    // The Charmander was the only Basic left and the Fire Energy the only Energy, so they went without asking.
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'f1' });
     expect([ash(s).bench.map((p) => p?.energy.map((e) => e.uid)), s.currentPlayer]).toEqual([[[], ['w1'], ['f1'], undefined, undefined], 'misty']);
   });
 

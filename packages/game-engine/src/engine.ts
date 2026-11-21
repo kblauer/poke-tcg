@@ -769,8 +769,11 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
     triggeredPoison(prev, result.state, playerId);
     healBlock(prev, result.state);
   }
-  // The same-card rule: a question whose cards are all the same card is answered for its player (then any that follows).
-  for (let guard = 0; result.ok && guard < 50; guard++) {
+  // The same-card rule: a question whose cards are all the same card is answered for its player (then any that follows),
+  // but only before they've started it (the user's, 2026-11-21): the player's own answer to a question that asks again
+  // (a search taking cards one at a time) leaves the rest of its picks to them, the last one included.
+  const started = result.ok && action.type === 'RESOLVE_CHOICE' && askedAgain(prev, result.state);
+  for (let guard = 0; result.ok && !started && guard < 50; guard++) {
     const auto = sameCardAnswer(result.state);
     if (!auto) break;
     const next = act(result.state, auto.player, auto.action);
@@ -829,6 +832,24 @@ function healBlock(prev: GameState, state: GameState) {
   if (!out) return;
   const winner = resolveKnockouts(state, state.currentPlayer);
   if (winner) finish(state, winner);
+}
+
+/**
+ * Whether the question after an answer is the same one asked again (a pick of several, one at a time): the same player
+ * and kind, offering cards the last one offered (the cards picked gone). A new question (a Tool after the Pokémon it's
+ * for, the other player's turn to pick) isn't.
+ */
+function askedAgain(prev: GameState, next: GameState): boolean {
+  const before = prev.pendingChoice;
+  const after = next.pendingChoice;
+  if (!before || !after || before.player !== after.player || before.kind !== after.kind) return false;
+  const uids = (state: GameState, choice: PendingChoice) => {
+    const view = pendingChoiceView(state, choice);
+    return 'options' in view && Array.isArray(view.options) ? (view.options as unknown[]).flatMap((o) => (o && typeof o === 'object' && 'uid' in o ? [(o as CardInstance).uid] : [])) : [];
+  };
+  const was = new Set(uids(prev, before));
+  const now = uids(next, after);
+  return now.length > 0 && now.every((uid) => was.has(uid));
 }
 
 /** Searches that take cards (the most, one at a time, agreed): asked or not, every card the same is answered for the player. */

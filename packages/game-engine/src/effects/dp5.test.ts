@@ -130,13 +130,14 @@ describe('Majestic Dawn attacks', () => {
     const s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('dp5-97', 'Garchomp', C, 140, [['Restore', [], 0]], { stage: 'levelUp' }));
     s.cards = { ...s.cards, gabite: mon('gabite', 'Gabite', C, 80, [], { stage: 'stage1' }) };
-    // Two different Pokémon and Energy cards, so the Pokémon and the first Energy card are asked; the last one is taken for the player (the same-card rule).
+    // Two different Pokémon and Energy cards: the Pokémon and both Energy cards are asked (the player's own picks once they've started a question (the same-card rule only at its start, the user's, 2026-11-21)).
     ash(s).discard = [{ uid: 'g', defId: 'gabite' }, { uid: 'c', defId: id('charmander') }, { uid: 'f1', defId: 'fire' }, { uid: 'f2', defId: 'water' }];
     const asked = attack(s, 0);
     expect(asked.pendingChoice).toMatchObject({ kind: 'discardToBench', filter: 'restore' });
     for (const end of settles(asked)) expect(end.pendingChoice).toBeUndefined();
     let t = act(asked, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'g' });
     t = act(t, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'f1' });
+    t = act(t, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'f2' });
     expect([ash(t).bench[0]?.card.uid, ash(t).bench[0]?.energy.length, ash(t).bench[0]?.asBasic]).toEqual(['g', 2, true]);
   });
 

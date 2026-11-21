@@ -240,6 +240,8 @@ describe('Rising Rivals attacks', () => {
     ash(s).deck = [{ uid: 'gw1', defId: 'gw' }, { uid: 'ge1', defId: 'ge' }, ...pile(3)];
     s = attack(s, 0);
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'gw1' });
+    // The other Gastrodon is picked too (the player's own picks once they've started a question (the same-card rule only at its start, the user's, 2026-11-21)).
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'ge1' });
     expect([ash(s).bench[0]?.damage, ash(s).bench[0]?.asBasic, ash(s).bench[1]?.damage]).toEqual([20, true, 20]);
   });
 

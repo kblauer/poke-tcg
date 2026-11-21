@@ -158,8 +158,9 @@ describe('Abilities used from the hand or the discard pile (USE_CARD_POWER)', ()
     after = act(after, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'f1' });
     const view = getPlayerView(after, 'ash').self.pendingChoice as { options: { uid: string }[] };
     expect(view.options.map((c) => c.uid)).not.toContain('f2');
-    // The last type left (Grass) is taken for the player (the same-card rule).
+    // The last type left (Grass) is picked too: the player's own picks once they've started a question (the same-card rule only at its start, the user's, 2026-11-21).
     after = act(after, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'w1' });
+    after = act(after, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'g1' });
     expect(ash(after).bench[slot]!.energy.map((e) => e.uid)).toEqual(['f1', 'w1', 'g1']);
     expect(after.pendingChoice).toBeUndefined();
     // A full Bench: it can't be used.
