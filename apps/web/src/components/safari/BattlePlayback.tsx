@@ -143,7 +143,7 @@ function BattleFighter({ f, playback, units }: { f: ShownFighter; playback: Play
     <div className={`relative ${attacking ? 'z-30' : ''}`} data-fighter={f.uid}>
       <div ref={ref} className="relative">
         <div ref={card}>
-        <UnitCard id={f.unit ?? ''} unit={f.unit ? units.get(f.unit) : undefined} stats={{ attack: f.attack, hp: f.hp, abilities: f.abilities, shield: f.shield }} width="var(--safari-card)" lit={attacking || targeted}>
+        <UnitCard id={f.unit ?? ''} unit={f.unit ? units.get(f.unit) : undefined} stats={{ attack: f.attack, hp: f.hp, abilities: f.abilities, shield: f.shield, spent: f.spent }} width="var(--safari-card)" lit={attacking || targeted}>
           <span className="absolute bottom-[11.6%] left-[25%] right-[25%] h-[2%] overflow-hidden rounded-full bg-slate-950/80">
             <span className={`block h-full transition-[width] duration-300 ${pct > 50 ? 'bg-emerald-400' : pct > 20 ? 'bg-amber-400' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
           </span>

@@ -14,6 +14,8 @@ export interface ShownFighter {
   abilities: Ability[];
   /** A Shield up: the next hit on it does nothing. */
   shield: boolean;
+  /** Keywords used up (Sturdy, once it has saved its Pokémon). */
+  spent: string[];
   attack: number;
   hp: number;
   maxHp: number;
@@ -45,7 +47,7 @@ const sideName = (side: SideId) => (side === 0 ? 'Your' : "The opponent's");
 /** The lines a battle starts with: each board's units left to right, uids as the battle gives them (a0…, b0…). */
 export function startLines(mine: Board, opponent: Board): [ShownFighter[], ShownFighter[]] {
   const line = (board: Board, side: SideId) =>
-    board.units.map((u, i): ShownFighter => ({ uid: `${'ab'[side]}${i}`, side, unit: u.id, name: u.name, abilities: u.abilities, shield: u.abilities.some((a) => a.k === 'Shield'), attack: u.attack, hp: u.hp, maxHp: u.hp, status: [], fainted: false }));
+    board.units.map((u, i): ShownFighter => ({ uid: `${'ab'[side]}${i}`, side, unit: u.id, name: u.name, abilities: u.abilities, shield: u.abilities.some((a) => a.k === 'Shield'), spent: [], attack: u.attack, hp: u.hp, maxHp: u.hp, status: [], fainted: false }));
   return [line(mine, 0), line(opponent, 1)];
 }
 
@@ -88,7 +90,7 @@ export function playbackFrames(mine: Board, opponent: Board, events: readonly Ba
         break;
       case 'join': {
         const before = known.get(ev.uid);
-        const f: ShownFighter = { uid: ev.uid, side: ev.side, unit: before?.unit ?? lines.flat().concat([...known.values()]).find((g) => g.name === ev.name)?.unit, name: ev.name, abilities: before?.abilities ?? [], shield: false, attack: ev.attack, hp: ev.hp, maxHp: Math.max(before?.maxHp ?? 0, ev.hp), status: [], fainted: false };
+        const f: ShownFighter = { uid: ev.uid, side: ev.side, unit: before?.unit ?? lines.flat().concat([...known.values()]).find((g) => g.name === ev.name)?.unit, name: ev.name, abilities: before?.abilities ?? [], shield: false, spent: before?.spent ?? [], attack: ev.attack, hp: ev.hp, maxHp: Math.max(before?.maxHp ?? 0, ev.hp), status: [], fainted: false };
         const line = [...lines[ev.side].filter((g) => g.uid !== ev.uid)];
         line.splice(Math.min(ev.at, line.length), 0, f);
         lines = ev.side === 0 ? [line, lines[1]] : [lines[0], line];
@@ -126,7 +128,7 @@ export function playbackFrames(mine: Board, opponent: Board, events: readonly Ba
         push({ kind: 'damage', uid: ev.uid, amount: ev.amount, why: ev.why });
         break;
       case 'heal':
-        change(ev.uid, (f) => ({ ...f, hp: ev.hp }));
+        change(ev.uid, (f) => ({ ...f, hp: ev.hp, spent: ev.why === 'Sturdy' ? [...f.spent, 'Sturdy'] : f.spent }));
         push({ kind: 'heal', uid: ev.uid, amount: ev.amount, why: ev.why });
         break;
       case 'status':
