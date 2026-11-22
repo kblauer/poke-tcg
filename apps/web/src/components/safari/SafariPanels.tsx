@@ -3,7 +3,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import UpgradeIcon from '@mui/icons-material/Upgrade';
 import { UPGRADES, type SafariAction } from '@poke-tcg/safari';
-import { KEYWORDS, type TrainerName } from '@poke-tcg/safari/effects';
+import { abilityName, abilityText, type TrainerName } from '@poke-tcg/safari/effects';
 import type { ReactNode } from 'react';
 import type { ClientSafari, SafariUnit, SafariViewData } from '../../hooks/useSafari';
 import { commas } from '../../utils/math';
@@ -201,7 +201,7 @@ export function NextStepOverlay({ view, units, busy, act, onBack }: { view: Safa
 /** What an upgrade does, in words. */
 function upgradeText(u: NonNullable<Extract<NonNullable<SafariViewData['encounter']>, { kind: 'upgrade' }>>['upgrades'][number]): string {
   if (u.kind === 'rareCandy') return 'Rare Candy: it evolves now';
-  if (u.kind === 'keyword') return `Learns ${u.keyword}: ${KEYWORDS[u.keyword as keyof typeof KEYWORDS]?.text ?? ''}`;
+  if (u.kind === 'keyword') return `Learns ${abilityName(u.ability)}: ${abilityText(u.ability)}`;
   const boost = UPGRADES[u.kind];
   return `${boost.name}: ${boost.attack ? `+${boost.attack} attack` : `+${boost.hp} HP`}`;
 }
@@ -323,7 +323,7 @@ export function RunOverDialog({ run, busy, onStart, onWatch }: { run: ClientSafa
           <ul className="list-disc space-y-1 pl-5 text-slate-300">
             <li>Pick a starter, then buy Pokémon cards in the shop after every battle. Up to 6 fight on your board, 6 more wait in your inventory.</li>
             <li>Battles play themselves: each side attacks left to right, every attack at a random opposing Pokémon (a Taunt one first), which strikes back.</li>
-            <li>Each Pokémon has its attack, its HP and at most one keyword: hover a card for what its keyword does.</li>
+            <li>Each Pokémon has its attack, its HP and up to 3 keywords, written on its card. Many read where it stands: its neighbours are the Pokémon beside it, and the Pokémon across from it is the opponent&apos;s in the same place.</li>
             <li>2 of a Pokémon that evolve into the same card merge into it; 3 of a Pokémon with no evolutions make a golden copy. 2, 4 or 6 of a type give a synergy.</li>
             <li>15 battles, then Champion Blue, on 3 HP. Beat him to bank the run's ₱.</li>
           </ul>

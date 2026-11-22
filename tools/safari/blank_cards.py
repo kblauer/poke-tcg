@@ -30,12 +30,13 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'apps' / 'web' / 'public' / 'safari' / 'cards'
 
-# A Base Set card a type and frame (TCGdex's image, base1/<number>): the frames are the same on each.
+# A Base Set card a type and frame (TCGdex's image, base1/<number>): the frames are the same on each. Darkness and Metal
+# (issue #254: Gen 1-3's nine types) have no Base Set card: theirs are the Neo sets', the same frame (<series>/<set>/<number>).
 CARDS = {
-    # Bulbasaur, Charmander, Squirtle, Pikachu, Abra, Machop, Pidgey
-    'basic': {'grass': 44, 'fire': 46, 'water': 63, 'lightning': 58, 'psychic': 43, 'fighting': 52, 'colorless': 57},
-    # Ivysaur, Charmeleon, Wartortle, Raichu, Kadabra, Machoke, Pidgeotto
-    'evolved': {'grass': 30, 'fire': 24, 'water': 42, 'lightning': 14, 'psychic': 32, 'fighting': 34, 'colorless': 22},
+    # Bulbasaur, Charmander, Squirtle, Pikachu, Abra, Machop, Pidgey; Murkrow, Skarmory
+    'basic': {'grass': 44, 'fire': 46, 'water': 63, 'lightning': 58, 'psychic': 43, 'fighting': 52, 'colorless': 57, 'darkness': 'neo/neo1/24', 'metal': 'neo/neo1/13'},
+    # Ivysaur, Charmeleon, Wartortle, Raichu, Kadabra, Machoke, Pidgeotto; Umbreon, Steelix
+    'evolved': {'grass': 30, 'fire': 24, 'water': 42, 'lightning': 14, 'psychic': 32, 'fighting': 34, 'colorless': 22, 'darkness': 'neo/neo2/13', 'metal': 'neo/neo1/15'},
 }
 SUFFIX = {'basic': '', 'evolved': '-evolved'}
 
@@ -74,8 +75,8 @@ THRESHOLD = 34
 WINDOW = 25
 
 
-def fetch(number: int) -> np.ndarray:
-    url = f'https://assets.tcgdex.net/en/base/base1/{number}/high.png'
+def fetch(number: int | str) -> np.ndarray:
+    url = f'https://assets.tcgdex.net/en/{number if isinstance(number, str) else f"base/base1/{number}"}/high.png'
     with urllib.request.urlopen(url) as r:
         im = Image.open(io.BytesIO(r.read())).convert('RGB')
     if im.size != (W, H):
@@ -109,7 +110,7 @@ def main() -> None:
             out = blank(fetch(number), frame)
             path = OUT / f'{type_}{SUFFIX[frame]}.webp'
             Image.fromarray(cv2.cvtColor(out, cv2.COLOR_BGR2RGB)).save(path, quality=90)
-            print(f'{type_} ({frame}): base1-{number} -> {path}')
+            print(f'{type_} ({frame}): {number} -> {path}')
 
 
 if __name__ == '__main__':

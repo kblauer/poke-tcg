@@ -9,11 +9,11 @@
 //   - after every battle a shop: cards to buy, the shop tier (bought with ₱, 20 cheaper for every battle since the last
 //     was bought, never under half), reroll and freeze; a card's price by its tier, sold back for 75% rounded down;
 //   - 6 on the board, 6 in the inventory; a Trainer card takes inventory room; one Trainer chosen for a battle is used up;
-//   - merging by the TCG's evolution rules, by name (unitEvolvesFrom), never by card id: any 2 units that could evolve
+//   - merging by the games' evolution lines (issue #254), by name (unitEvolvesFrom): any 2 units that could evolve
 //     into the same card merge, at once, counting the board and the inventory together; the result the player's pick of
 //     2 random ones the TCG allows; a merged unit keeps its parts' bonuses, one both had once;
 //   - golden copies: 3 of the same name of a Pokémon with no evolution line make a golden one, the player picking which
-//     of the prints it is;
+//     (one unit a Pokémon now, issue #254: nothing left to pick);
 //   - Stage 2s and the legendaries are never in a shop.
 //
 // The user's (2026-11-18, the issue's "Not specified yet"):
@@ -23,14 +23,14 @@
 //   - the shop favours the cards the player has (wantedCards, DRAFT.favour): a shop card is a partner of one of them
 //     (a unit it would merge with, or of a golden copy's name) that often, the card picked by how many battles it has been
 //     held, so a Pokémon held for many battles can be fully evolved or golden by about the 10th (2026-11-18);
-//   - the legendaries kept out of shops are Articuno, Zapdos, Moltres, Mewtwo and Mew, every print (LEGENDARIES);
+//   - the legendaries kept out of shops are species.ts's (issue #254: 21 of Gen 1–3's, isLegendary);
 //   - with no room, a card is bought only if it completes a merge or a golden copy (which frees room); a gift with no room
 //     is lost (and said so in the log).
 //
 // Mine, placeholders to check with the user (README: Safari Draft):
 //   - a bought card goes to the board's first free place, the inventory's when the board is full; a merge's result takes
 //     the place of its first part, a board part's before an inventory one's;
-//   - a merge with only one card it can give, or a golden copy of 3 of the same print, gives it with no pick;
+//   - a merge with only one card it can give, or a golden copy, gives it with no pick;
 //   - when several merges are possible, the board's cards go first, left to right, then the inventory's;
 //   - a freeze keeps the shop's unbought cards for the next shop, which fills the rest; a reroll unfreezes;
 //   - Bill pays DRAFT.bill, Pay Day DRAFT.payDay a Knock Out (won or lost); a Trainer card sells as a tier-1 card.
@@ -41,13 +41,12 @@
 // (encounters.ts, step 4) come between battles: the step's opponents and one encounter, or two encounters; ENCOUNTER opens
 // one (phase `encounter`: TAKE an option or a special shop's card, LEAVE to end it), a battle there is an extra one (not
 // one of the 15), and a legendary's board is fought for the legendary. GIFT, the server's, gives a card.
-import { namesMatch } from '@poke-tcg/game-engine';
 import { chance, int, pick as pickOne, rngFrom, sample, seed as newSeed, weighted, type Rng } from '@poke-tcg/campaign';
 import { BOARD_SIZE, simulateBattle, type Board, type SideId } from './battle.js';
 import { TRAINER_NAMES, type TrainerName } from './effects.js';
-import { GIFT_CHOICES, LEGENDARY_FROM, SPECIAL_SHOP, UPGRADES, UPGRADE_CHOICES, UPGRADE_KEYWORDS, legendaryOpponent, legendaryUnits, rollEncounterOffers, rollEncounterSteps, type EncounterOffer, type EncounterStep, type OpenEncounter, type Upgrade } from './encounters.js';
+import { GIFT_CHOICES, LEGENDARY_FROM, MAX_KEYWORDS, SPECIAL_SHOP, UPGRADES, UPGRADE_CHOICES, UPGRADE_KEYWORDS, legendaryOpponent, legendaryUnits, rollEncounterOffers, rollEncounterSteps, type EncounterOffer, type EncounterStep, type OpenEncounter, type Upgrade } from './encounters.js';
 import { rollChampion, rollOpponents, type Opponent } from './opponents.js';
-import { TOP_TIER, unitEvolvesFrom, type Keyword, type Unit, type UnitStage } from './units.js';
+import { TOP_TIER, abilityName, unitEvolvesFrom, type Ability, type Unit, type UnitStage } from './units.js';
 
 /** The draft's numbers: the issue's (section 7, approved as placeholders) but where marked. */
 export const DRAFT = {
@@ -91,17 +90,16 @@ export const DRAFT = {
   trainerPrice: 60,
 };
 
-/** Never in a shop: encounter rewards only (issue #239, 4; the user's list, 2026-11-18). Matched by namesMatch, so every print. */
-export const LEGENDARIES = ['Articuno', 'Zapdos', 'Moltres', 'Mewtwo', 'Mew'];
-export const isLegendary = (u: Pick<Unit, 'name'>) => LEGENDARIES.some((name) => namesMatch(u.name, name));
+/** Never in a shop: encounter rewards only (issue #254, section 1: species.ts marks them). */
+export const isLegendary = (u: Pick<Unit, 'legendary'>) => !!u.legendary;
 
 /** A unit's lasting bonus: an upgrade's (step 4). A merge keeps each `from` once. */
 export interface Bonus {
   from: string;
   attack: number;
   hp: number;
-  /** A keyword upgrade's: the Pokémon's keyword when it has none of its own. */
-  keyword?: Keyword;
+  /** A keyword upgrade's: one more keyword for the Pokémon. */
+  ability?: Ability;
 }
 
 /** One of the player's cards. `key` is the card's own for the whole run. */
@@ -152,7 +150,12 @@ export interface SafariBattle {
   bill: number;
 }
 
+/** The rules a run is played by: 2 is issue #254's units (one a species). A saved run of other rules can't be played on. */
+export const RULES = 2;
+
 export interface SafariState {
+  /** The rules it was started under (RULES). */
+  rules: number;
   /** Bumped by every action; saves check it (optimistic concurrency, as runs). */
   version: number;
   rngState: number;
@@ -243,7 +246,7 @@ export interface DraftPool {
   shop: readonly Unit[][];
   /** Tier-1 Basics a shop can show: the starters and the gifts. */
   firstTier: readonly Unit[];
-  /** The units of the next stage printed to evolve from a name. */
+  /** The units of the next stage that evolve from a Pokémon. */
   into(name: string): readonly Unit[];
   /** A Pokémon with no evolution line: it evolves from nothing and nothing evolves from it (golden copies). */
   lone(unit: Unit): boolean;
@@ -293,13 +296,13 @@ const unitOf = (pool: DraftPool, id: string) => {
   return u;
 };
 
-/** A card's unit as it fights: its print with its bonuses and golden's. */
+/** A card's unit as it fights: its unit with its bonuses (stats, learned keywords) and golden's. */
 export function cardUnit(card: PokemonCard, pool: DraftPool): Unit {
   const u = unitOf(pool, card.unit);
   const bonuses = card.golden ? [...card.bonuses, { from: 'golden', ...DRAFT.golden }] : card.bonuses;
   if (!bonuses.length) return u;
-  const keyword = u.keyword ?? bonuses.find((b) => b.keyword)?.keyword;
-  return { ...u, attack: u.attack + bonuses.reduce((s, b) => s + b.attack, 0), hp: u.hp + bonuses.reduce((s, b) => s + b.hp, 0), ...(keyword && { keyword }) };
+  const learned = bonuses.flatMap((b) => (b.ability && !u.abilities.some((a) => a.k === b.ability!.k) ? [b.ability] : []));
+  return { ...u, attack: u.attack + bonuses.reduce((s, b) => s + b.attack, 0), hp: u.hp + bonuses.reduce((s, b) => s + b.hp, 0), abilities: [...u.abilities, ...learned.filter((a, i) => learned.findIndex((x) => x.k === a.k) === i)] };
 }
 
 /** The player's side of the next battle: the board's Pokémon left to right, and the Trainer chosen. */
@@ -385,6 +388,7 @@ export function createSafari(runSeed: number, units: readonly Unit[]): SafariSta
   const champion = rollChampion(rng, units);
   const encounterSteps = rollEncounterSteps(rng);
   return {
+    rules: RULES,
     version: 0,
     rngState: rng.state,
     phase: 'starter',
@@ -501,7 +505,7 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
     const bonuses: Bonus[] = [];
     for (const b of combo.parts.flatMap((x) => x.card.bonuses)) if (!bonuses.some((k) => k.from === b.from)) bonuses.push(b);
     const from = combo.parts.map((x) => name(x.card.unit));
-    // A merge offers 2 of the cards it can give (never the same one twice); a golden copy any of its prints.
+    // A merge offers 2 of the cards it can give (never the same one twice); a golden copy its one unit.
     const options = combo.kind === 'golden' ? combo.targets : sample(rng, combo.targets, 2);
     const since = Math.min(...combo.parts.map((x) => x.card.since ?? 0));
     if (options.length === 1) make(combo.kind, options[0]!, bonuses, p, from, since);
@@ -578,6 +582,12 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
     return c.golden ? [] : pool.into(u.name).filter((t) => t.stage === NEXT_STAGE[u.stage]);
   };
 
+  /** The keywords an upgrade could give a held Pokémon: those it hasn't, while it has fewer than MAX_KEYWORDS. */
+  const learnable = (c: PokemonCard) => {
+    const has = cardUnit(c, pool).abilities;
+    return has.length >= MAX_KEYWORDS ? [] : UPGRADE_KEYWORDS.filter((a) => !has.some((x) => x.k === a.k));
+  };
+
   /** An encounter's options, rolled as it opens. */
   const openEncounter = (offer: EncounterOffer): OpenEncounter => {
     switch (offer.kind) {
@@ -585,7 +595,7 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
         const cards = held();
         const kinds: ('stats' | 'keyword' | 'rareCandy')[] = [];
         if (cards.length) kinds.push('stats');
-        if (cards.some((c) => !cardUnit(c, pool).keyword)) kinds.push('keyword');
+        if (cards.some((c) => learnable(c).length)) kinds.push('keyword');
         if (cards.some((c) => evolutions(c).length)) kinds.push('rareCandy');
         const chosen = sample(rng, kinds, UPGRADE_CHOICES);
         while (chosen.length < UPGRADE_CHOICES && cards.length) chosen.push('stats');
@@ -596,8 +606,8 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
             return { kind: stats.shift() ?? 'protein', key: c.key, unit: c.unit };
           }
           if (kind === 'keyword') {
-            const c = longHeld(cards.filter((x) => !cardUnit(x, pool).keyword));
-            return { kind, key: c.key, unit: c.unit, keyword: pickOne(rng, UPGRADE_KEYWORDS) };
+            const c = longHeld(cards.filter((x) => learnable(x).length));
+            return { kind, key: c.key, unit: c.unit, ability: pickOne(rng, learnable(c)) };
           }
           const c = longHeld(cards.filter((x) => evolutions(x).length));
           return { kind, key: c.key, unit: c.unit };
@@ -774,8 +784,8 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
           if (!targets.length) return fail('It can\'t evolve');
           startCombo({ kind: 'evolve', parts: [{ card, place: where.place }], targets });
         } else if (upgrade.kind === 'keyword') {
-          card.bonuses.push({ from: `TM ${state.nextKey++}`, attack: 0, hp: 0, keyword: upgrade.keyword });
-          state.log.push(`${name(card.unit)} learned ${upgrade.keyword}.`);
+          card.bonuses.push({ from: `TM ${state.nextKey++}`, attack: 0, hp: 0, ability: upgrade.ability });
+          state.log.push(`${name(card.unit)} learned ${abilityName(upgrade.ability)}.`);
         } else {
           const boost = UPGRADES[upgrade.kind];
           card.bonuses.push({ from: `${boost.name} ${state.nextKey++}`, attack: boost.attack, hp: boost.hp });

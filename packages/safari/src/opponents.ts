@@ -8,8 +8,8 @@
 //     A board mixes tiers around its target (BOARD_SPREAD) and holds evolved units;
 //   - a step offers 3 opponents, 2 or 1 (OFFER_WEIGHTS 4:2:1, as the Badge Challenge's steps); about 1 step in 4 a gym
 //     leader takes the hardest slot (LEADER_CHANCE), each of the 8 at most once a run;
-//   - a gym leader's board is 6 of their type, their own prints first (Misty's Seadra…), with their Trainer (GYM_LEADERS);
-//   - Blue's board is his FireRed Champion team, the strongest plain print of each line (Pidgeot, Alakazam, Rhydon,
+//   - a gym leader's board is 6 of their type, their own team's Pokémon first (issue #254: `team`; there are no owners' prints any more), with their Trainer (GYM_LEADERS);
+//   - Blue's board is his FireRed Champion team, each one's unit (Pidgeot, Alakazam, Rhydon,
 //     Gyarados, Arcanine and one of Venusaur, Charizard and Blastoise, rolled once a run), with Defender;
 //   - the opponents' boards grow over the first battles, Battlegrounds' way (the user's, 2026-11-18, step 7's balance
 //     pass: a tier-1 shop of 3 cards fields at most 4 Pokémon for battle 1, which lost to 6 five times in six):
@@ -20,10 +20,9 @@
 // random, and a gym leader comes only on a step of 2 or 3; the type shown is the board's most common type; no opponent's
 // board holds a legendary (they're the encounters' rewards).
 import { TRAINERS, trainerFavorites, weighted, int, chance, sample, pick, type Rng } from '@poke-tcg/campaign';
-import { namesMatch, type EnergyType } from '@poke-tcg/game-engine';
 import { BOARD_SIZE } from './battle.js';
 import type { TrainerName } from './effects.js';
-import { TOP_TIER, unitScore, type Unit } from './units.js';
+import { TOP_TIER, unitScore, type Unit, type UnitType } from './units.js';
 
 /** A legendary's board (an encounter, encounters.ts) pays nothing but the legendary. */
 export type Difficulty = 'easy' | 'medium' | 'hard' | 'gymLeader' | 'champion' | 'legendary';
@@ -43,19 +42,19 @@ export const OFFER_WEIGHTS: [count: number, weight: number][] = [[3, 4], [2, 2],
 export const LEADER_CHANCE = 0.25;
 /** A board unit's tier against its target: one lower, the same or one higher, by weight (mine). Not at the tiers' ends (rollBoard). */
 const BOARD_SPREAD: [offset: number, weight: number][] = [[-1, 1], [0, 2], [1, 1]];
-/** How often a slot takes the trainer's favourite or the leader's own print, where the tier has one (mine). */
+/** How often a slot takes the trainer's favourite or one of the leader's own team, where the tier has one (mine). */
 const FAVOURITE_SHARE = 0.7;
 
-/** Kanto's gym leaders: their type in the TCG, their own prints' owner's name, their Trainer (the user's, 2026-11-18). */
-export const GYM_LEADERS: { id: string; name: string; type: EnergyType; trainer: TrainerName }[] = [
-  { id: 'brock', name: 'Brock', type: 'fighting', trainer: 'Defender' },
-  { id: 'misty', name: 'Misty', type: 'water', trainer: 'Super Potion' },
-  { id: 'lt-surge', name: 'Lt. Surge', type: 'lightning', trainer: 'PlusPower' },
-  { id: 'erika', name: 'Erika', type: 'grass', trainer: 'Full Heal' },
-  { id: 'koga', name: 'Koga', type: 'grass', trainer: 'Gust of Wind' },
-  { id: 'sabrina', name: 'Sabrina', type: 'psychic', trainer: 'Imposter Professor Oak' },
-  { id: 'blaine', name: 'Blaine', type: 'fire', trainer: 'Scoop Up' },
-  { id: 'giovanni', name: 'Giovanni', type: 'fighting', trainer: 'Super Energy Removal' },
+/** Kanto's gym leaders: their type, their own team's Pokémon (preferred on their board), their Trainer (the user's, 2026-11-18; the teams mine). */
+export const GYM_LEADERS: { id: string; name: string; type: UnitType; trainer: TrainerName; team: string[] }[] = [
+  { id: 'brock', name: 'Brock', type: 'fighting', trainer: 'Defender', team: ['Geodude', 'Graveler', 'Golem', 'Onix', 'Rhyhorn', 'Rhydon', 'Kabuto', 'Kabutops'] },
+  { id: 'misty', name: 'Misty', type: 'water', trainer: 'Super Potion', team: ['Staryu', 'Starmie', 'Psyduck', 'Golduck', 'Goldeen', 'Seaking', 'Horsea', 'Seadra', 'Lapras'] },
+  { id: 'lt-surge', name: 'Lt. Surge', type: 'lightning', trainer: 'PlusPower', team: ['Pikachu', 'Raichu', 'Voltorb', 'Electrode', 'Electabuzz', 'Jolteon'] },
+  { id: 'erika', name: 'Erika', type: 'grass', trainer: 'Full Heal', team: ['Oddish', 'Gloom', 'Vileplume', 'Bellossom', 'Bellsprout', 'Weepinbell', 'Victreebel', 'Tangela', 'Exeggcute', 'Exeggutor'] },
+  { id: 'koga', name: 'Koga', type: 'grass', trainer: 'Gust of Wind', team: ['Koffing', 'Weezing', 'Grimer', 'Muk', 'Zubat', 'Golbat', 'Crobat', 'Venonat', 'Venomoth', 'Ekans', 'Arbok'] },
+  { id: 'sabrina', name: 'Sabrina', type: 'psychic', trainer: 'Imposter Professor Oak', team: ['Abra', 'Kadabra', 'Alakazam', 'Mr. Mime', 'Gastly', 'Haunter', 'Gengar', 'Jynx', 'Espeon'] },
+  { id: 'blaine', name: 'Blaine', type: 'fire', trainer: 'Scoop Up', team: ['Growlithe', 'Arcanine', 'Ponyta', 'Rapidash', 'Vulpix', 'Ninetales', 'Magmar', 'Charmander', 'Charmeleon', 'Charizard'] },
+  { id: 'giovanni', name: 'Giovanni', type: 'fighting', trainer: 'Super Energy Removal', team: ['Sandshrew', 'Sandslash', 'Diglett', 'Dugtrio', 'Rhyhorn', 'Rhydon', 'Cubone', 'Marowak', 'Onix'] },
 ];
 
 /** Blue's FireRed Champion team: these lines always, and one of the starters' (the user's, 2026-11-18). */
@@ -74,7 +73,7 @@ export interface Opponent {
   boss?: string;
   difficulty: Difficulty;
   /** The type shown: a leader's, else the board's most common. */
-  type: EnergyType;
+  type: UnitType;
   pay: number;
   /** Unit ids, left to right, and the Trainer they play. */
   board: string[];
@@ -82,11 +81,10 @@ export interface Opponent {
 }
 
 const clampTier = (t: number) => Math.min(TOP_TIER, Math.max(1, t));
-const isLegendaryName = (name: string) => ['Articuno', 'Zapdos', 'Moltres', 'Mewtwo', 'Mew'].some((n) => namesMatch(name, n));
 
 /** The type most of a board's units are (the first such on a tie). */
-export function mainType(units: readonly Unit[]): EnergyType {
-  const counts = new Map<EnergyType, number>();
+export function mainType(units: readonly Unit[]): UnitType {
+  const counts = new Map<UnitType, number>();
   for (const u of units) counts.set(u.type, (counts.get(u.type) ?? 0) + 1);
   return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'colorless';
 }
@@ -99,7 +97,7 @@ export function mainType(units: readonly Unit[]): EnergyType {
  * first battles is easier than a board of tier-1 units, and a gym leader of the last harder than one of the top tier.
  */
 export function rollBoard(rng: Rng, units: readonly Unit[], target: number, allowed: (u: Unit) => boolean, liked: (u: Unit) => boolean, size = BOARD_SIZE): Unit[] {
-  const usable = units.filter((u) => allowed(u) && !isLegendaryName(u.name));
+  const usable = units.filter((u) => allowed(u) && !u.legendary);
   const end = target <= 1 || target >= TOP_TIER;
   const board: Unit[] = [];
   while (board.length < size) {
@@ -119,30 +117,27 @@ export function rollBoard(rng: Rng, units: readonly Unit[], target: number, allo
   return board;
 }
 
-/** Champion Blue for a run: his team's strongest plain prints, one starter's line rolled. */
+/** Champion Blue for a run: his team's units, one starter's line rolled. */
 export function rollChampion(rng: Rng, units: readonly Unit[]): Opponent {
   const lines = [...BLUE_TEAM, pick(rng, BLUE_STARTERS)];
   const board = lines
     .map((name) => {
-      const prints = units.filter((u) => u.name === name);
-      const any = prints.length ? prints : units.filter((u) => namesMatch(u.name, name));
-      return [...any].sort((a, b) => unitScore(b) - unitScore(a))[0];
+      return units.find((u) => u.name === name);
     })
     .filter((u): u is Unit => !!u);
   return { name: 'Blue', boss: 'blue', difficulty: 'champion', type: mainType(board), pay: OPPONENT_PAY.champion, board: board.map((u) => u.id), trainer: BLUE_TRAINER };
 }
 
-/** A gym leader's board: 6 of their type around `target`, their own prints first. */
+/** A gym leader's board: 6 of their type around `target`, their own team's Pokémon first. */
 export function leaderOpponent(rng: Rng, units: readonly Unit[], leader: (typeof GYM_LEADERS)[number], target: number, size = BOARD_SIZE): Opponent {
-  const own = `${leader.name}'s `;
-  const board = rollBoard(rng, units, target, (u) => u.type === leader.type, (u) => u.name.startsWith(own), size);
+  const board = rollBoard(rng, units, target, (u) => u.type === leader.type, (u) => leader.team.includes(u.name), size);
   return { name: leader.name, boss: leader.id, difficulty: 'gymLeader', type: leader.type, pay: OPPONENT_PAY.gymLeader, board: board.map((u) => u.id), trainer: leader.trainer };
 }
 
 /** A trainer class's board: around `target`, their favourite Pokémon where they can. */
 export function trainerOpponent(rng: Rng, units: readonly Unit[], name: string, difficulty: Exclude<Difficulty, 'gymLeader' | 'champion' | 'legendary'>, target: number, size = BOARD_SIZE): Opponent {
   const favourites = trainerFavorites(name) ?? [];
-  const board = rollBoard(rng, units, target, () => true, (u) => favourites.some((f) => namesMatch(u.name, f)), size);
+  const board = rollBoard(rng, units, target, () => true, (u) => favourites.includes(u.name), size);
   return { name, difficulty, type: mainType(board), pay: OPPONENT_PAY[difficulty], board: board.map((u) => u.id) };
 }
 

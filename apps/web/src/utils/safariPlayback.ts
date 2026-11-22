@@ -2,16 +2,18 @@
 // BattleEvent, played on the server and sent with the run's view) turned into the frames the screen shows, one a beat.
 // Pure, so it's tested without the screen: the boards' lines as they stand after each event, what the event did (who
 // attacked whom, a number to pop, a banner), and the battle's result at the end.
-import type { BattleEvent, Board, SideId } from '@poke-tcg/safari';
+import type { Ability, BattleEvent, Board, SideId } from '@poke-tcg/safari';
 
-/** A Pokémon in a line as the playback shows it. `unit` is its card's id (a Family copy takes its namesake's picture). */
+/** A Pokémon in a line as the playback shows it. `unit` is its unit's id (a Family copy takes its namesake's picture). */
 export interface ShownFighter {
   uid: string;
   side: SideId;
   unit: string | undefined;
   name: string;
-  /** Its keyword (Taunt draws its border); a Family copy has none. */
-  keyword?: string;
+  /** Its keywords as the battle has them (Transform's and Sketch's taken ones too); a Family copy has none. */
+  abilities: Ability[];
+  /** A Shield up: the next hit on it does nothing. */
+  shield: boolean;
   attack: number;
   hp: number;
   maxHp: number;
@@ -36,14 +38,14 @@ export interface Frame {
   winner?: SideId | 'draw';
 }
 
-const STATUS_WORD: Record<string, string> = { asleep: 'Asleep', paralyzed: 'Paralyzed', confused: 'Confused', poisoned: 'Poisoned', blind: 'Blinded' };
-const SYNERGY_NAMES: Record<string, string> = { grass: 'Poison', fire: 'Blaze', water: 'Shell', lightning: 'Quick', psychic: 'Mind', fighting: 'Brawn', colorless: 'Versatile' };
+const STATUS_WORD: Record<string, string> = { paralyzed: 'Paralyzed', confused: 'Confused', burned: 'Burned' };
+const SYNERGY_NAMES: Record<string, string> = { grass: 'Leech', fire: 'Blaze', water: 'Current', lightning: 'Quick', psychic: 'Pressure', fighting: 'Duel', colorless: 'Versatile', darkness: 'Prey', metal: 'Plating' };
 const sideName = (side: SideId) => (side === 0 ? 'Your' : "The opponent's");
 
 /** The lines a battle starts with: each board's units left to right, uids as the battle gives them (a0…, b0…). */
 export function startLines(mine: Board, opponent: Board): [ShownFighter[], ShownFighter[]] {
   const line = (board: Board, side: SideId) =>
-    board.units.map((u, i): ShownFighter => ({ uid: `${'ab'[side]}${i}`, side, unit: u.id, name: u.name, ...(u.keyword && { keyword: u.keyword }), attack: u.attack, hp: u.hp, maxHp: u.hp, status: [], fainted: false }));
+    board.units.map((u, i): ShownFighter => ({ uid: `${'ab'[side]}${i}`, side, unit: u.id, name: u.name, abilities: u.abilities, shield: u.abilities.some((a) => a.k === 'Shield'), attack: u.attack, hp: u.hp, maxHp: u.hp, status: [], fainted: false }));
   return [line(mine, 0), line(opponent, 1)];
 }
 
@@ -86,7 +88,7 @@ export function playbackFrames(mine: Board, opponent: Board, events: readonly Ba
         break;
       case 'join': {
         const before = known.get(ev.uid);
-        const f: ShownFighter = { uid: ev.uid, side: ev.side, unit: before?.unit ?? lines.flat().concat([...known.values()]).find((g) => g.name === ev.name)?.unit, name: ev.name, ...(before?.keyword && { keyword: before.keyword }), attack: ev.attack, hp: ev.hp, maxHp: Math.max(before?.maxHp ?? 0, ev.hp), status: [], fainted: false };
+        const f: ShownFighter = { uid: ev.uid, side: ev.side, unit: before?.unit ?? lines.flat().concat([...known.values()]).find((g) => g.name === ev.name)?.unit, name: ev.name, abilities: before?.abilities ?? [], shield: false, attack: ev.attack, hp: ev.hp, maxHp: Math.max(before?.maxHp ?? 0, ev.hp), status: [], fainted: false };
         const line = [...lines[ev.side].filter((g) => g.uid !== ev.uid)];
         line.splice(Math.min(ev.at, line.length), 0, f);
         lines = ev.side === 0 ? [line, lines[1]] : [lines[0], line];
@@ -101,6 +103,14 @@ export function playbackFrames(mine: Board, opponent: Board, events: readonly Ba
       case 'grow':
         change(ev.uid, (f) => ({ ...f, hp: f.hp + ev.hp, maxHp: f.maxHp + ev.hp }));
         push({ kind: 'note', text: `${find(ev.uid)?.name}: +${ev.hp} HP (${ev.why})` });
+        break;
+      case 'become':
+        change(ev.uid, (f) => ({ ...f, attack: ev.attack, hp: ev.hp, maxHp: ev.hp, abilities: ev.abilities, shield: f.shield || ev.abilities.some((a) => a.k === 'Shield') }));
+        push({ kind: 'note', text: ev.why === 'Transform' ? `${find(ev.uid)?.name} transformed` : `${find(ev.uid)?.name} took keywords (${ev.why})` });
+        break;
+      case 'shield':
+        change(ev.uid, (f) => ({ ...f, shield: ev.on }));
+        if (ev.on) push({ kind: 'note', text: `${find(ev.uid)?.name} has a Shield` });
         break;
       case 'attack':
         push({ kind: 'attack', uid: ev.uid, target: ev.target });
@@ -121,14 +131,14 @@ export function playbackFrames(mine: Board, opponent: Board, events: readonly Ba
         break;
       case 'status':
         change(ev.uid, (f) => {
-          if (ev.status === 'cured') return { ...f, status: [] };
-          if (ev.status === 'awake') return { ...f, status: f.status.filter((s) => s !== 'Asleep') };
           const word = STATUS_WORD[ev.status]!;
-          // Asleep, Confused and Paralyzed replace each other; Poisoned and Blinded sit beside them.
-          const kept = ['Asleep', 'Confused', 'Paralyzed'].includes(word) ? f.status.filter((s) => !['Asleep', 'Confused', 'Paralyzed'].includes(s)) : f.status;
+          if (ev.off) return { ...f, status: f.status.filter((s) => s !== word) };
+          // Confused and Paralyzed replace each other; Burned sits beside them.
+          const kept = word === 'Burned' ? f.status : f.status.filter((s) => s === 'Burned');
           return { ...f, status: kept.includes(word) ? kept : [...kept, word] };
         });
-        push({ kind: 'note', text: `${find(ev.uid)?.name} is ${STATUS_WORD[ev.status] ?? (ev.status === 'cured' ? 'cured' : 'awake')}` });
+        // The end of one is shown by its tag going: no line of its own.
+        if (!ev.off) push({ kind: 'note', text: `${find(ev.uid)?.name} is ${STATUS_WORD[ev.status]}` });
         break;
       case 'move': {
         const f = find(ev.uid);

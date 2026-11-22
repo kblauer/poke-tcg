@@ -1,156 +1,79 @@
-// Safari Draft (issue #239, sections 2.4, 3 and 5): what the keywords, type synergies and Trainer buffs do in a battle,
-// keyed by trigger (Hooks: battle start, on attack, on hit, when hit, after its attack, on faint).
-// battle.ts calls them; the few that reach across the board (Taunt, Trainer buffs) are named in battle.ts where they
-// apply, and listed here with their words so every effect has one entry. The Pokémon Powers were removed (the user's,
-// 2026-11-18: one kind of effect, the keyword; units.ts gives a power's card a keyword in its place).
+// Safari Draft (issue #254, sections 3 to 5; #239's section 5 for the Trainers): what the keywords, type synergies and
+// Trainer buffs do in a battle. A keyword's entry has its words (for the card) and its hooks by trigger (start of battle,
+// on hit, when hit, after its attack, on fainting); battle.ts calls them. The keywords that are rules of the battle itself
+// (who is attacked, whether a hit is struck back, what a hit does beyond its target) have only their words here (`rule`)
+// and are named in battle.ts where they apply.
 //
-// The numbers are TUNING's. SPEC keeps the issue's placeholder numbers (approved "for the balance pass") beside them: the
-// balance report (tools/safari/balance.ts) plays both. Change a number in TUNING only, with the report's reason.
-import type { EnergyType } from '@poke-tcg/game-engine';
+// "Neighbours" are the Pokémon beside it in its line; "across" is the opposing Pokémon in the same place of its line,
+// counted from the left. The numbers that aren't a card's own are TUNING's.
 import type { Battle, Fighter } from './battle.js';
-import type { Keyword } from './units.js';
+import type { Ability, Keyword, UnitType } from './units.js';
 
-/** The issue's numbers, as approved. Levels are a synergy's first, second and third strength (2 / 4 / 6 of a type). */
-export const SPEC = {
-  /** Explode: damage to every opposing Pokémon when it faints. */
-  explode: 20,
-  /** Poison's damage after each of the target's side's attacks; Toxic's. */
-  poison: 10,
-  toxic: 20,
-  /** How many times a poisoning damages before it ends (the user's, 2026-11-18). */
-  poisonTicks: 3,
-  /** What a Confused Pokémon does to itself on tails; it's then no longer Confused (the user's, 2026-11-18). */
+export { abilityName } from './units.js';
+
+/** The numbers battles play by. Levels are a synergy's first, second and third strength (2 / 4 / 6 of a type). */
+export const TUNING = {
+  /** What a Confused Pokémon does to itself on tails; it's then no longer Confused. */
   confusion: 30,
-  mend: 20,
-  harden: 10,
-  weaken: 10,
-  splash: 10,
-  unburden: 10,
-  familyAttack: 10,
-  familyHp: 30,
-  enrage: 10,
-  finisher: 20,
-  recoilAttack: 10,
-  recoilSelf: 10,
   /** The round from which every hit does more, and how much more each round (the user's, 2026-11-18: every battle ends). */
   risingFrom: 10,
   rising: 10,
-  /** Grass, Poison: the poisoning's damage. */
-  grass: [10, 20, 30],
-  /** Fire, Blaze: damage to the target's neighbours. */
-  fire: [10, 20, 40],
-  /** Water, Shell: less from every hit. */
-  water: [10, 20, 30],
+  /** Grass, Leech: what a Grass Pokémon heals each time it hits. */
+  grass: [10, 10, 10],
+  /** Fire, Blaze: Fire Pokémon's hits Burn; what a Burned Pokémon takes more from every hit. */
+  fire: [10, 10, 20],
+  /** Water, Current: HP for each Water neighbour. */
+  water: [10, 10, 20],
   /** Lightning, Quick: how many attack before the normal order. */
-  lightning: [1, 2, 3],
-  /** Psychic, Mind: damage to every opposing Pokémon at the start. */
-  psychic: [10, 20, 30],
-  /** Fighting, Brawn: attack. */
-  fighting: [10, 20, 40],
-  /** Colorless, Versatile: attack and HP for each different type on the board, times the level's number. */
-  colorless: [1, 2, 3],
+  lightning: [1, 3, 6],
+  /** Psychic, Pressure: attack taken off the Pokémon across from each Psychic Pokémon. */
+  psychic: [10, 10, 10],
+  /** Fighting, Duel: damage more to the Pokémon across. */
+  fighting: [10, 10, 10],
+  /** Colorless, Versatile: HP for each other type on the board, times the level's number. */
+  colorless: [1, 1, 2],
   versatile: 10,
-  /** Whether Versatile counts Colorless itself among the board's types (the issue's words: "each different type"). */
-  versatileOwn: true,
+  /** Darkness, Prey: damage more to a Pokémon that's damaged or has a Special Condition. */
+  darkness: [20, 20, 40],
+  /** Metal, Plating: what Metal Pokémon's neighbours take less from every hit. */
+  metal: [10, 10, 20],
   plusPower: 10,
   defender: 10,
   potion: 30,
   superPotion: 20,
   energyRemoval: 20,
-  gust: 3,
-  gamblerHeads: 20,
-  gamblerTails: -10,
-  imposter: 2,
-  /** Whether a Pokémon that is Asleep or Paralyzed strikes back when it's attacked (the first build's rule, not the issue's). */
-  restingStrikesBack: true,
-  /** Whether Blind's coin is for the target's next attack only (false: its next hit, a strike back too). */
-  blindAttackOnly: true,
-  /** Whether Quick's attacks before the normal order are struck back. */
-  quickStruckBack: true,
-  /** Whether Versatile gives attack as well as HP. */
-  versatileAttack: true,
-  /** Whether the attacks Gust of Wind aims are struck back. */
-  gustStruckBack: true,
-  /** Whether the Pokémon Scoop Up takes out comes back at the end of its line, fully healed. */
-  scoopUpReturns: false,
-  // Step 7's balance pass (2026-11-18): proposals for the effects worth about nothing, each off as the issue has it, measured
-  // on and off by tools/safari/balance.ts before the user decides.
-  /** Flurry: its first hit always lands, only the second flips (false: each flips). */
-  flurrySure: false,
-  /** Whirlwind: its attacks aren't struck back (the target is blown away first). */
-  whirlwindUnanswered: false,
-  /** Charge: its doubled attack isn't struck back. */
-  chargeUnanswered: false,
-  /** Blind: its target is Blinded as it's hit, so its strike back flips a coin (tails, none). */
-  blindAtOnce: false,
-};
-export type Tuning = typeof SPEC;
-
-/**
- * The numbers battles play by: the issue's but where the balance pass of 2026-11-18 changed one (README: Safari Draft, the
- * balance pass; tools/safari/out/balance-report.md plays both).
- */
-export const TUNING: Tuning = {
-  ...SPEC,
-  // The user's (2026-11-18), from the pass's findings. Damage being simultaneous, an attack is worth no more than being
-  // attacked, so making a Pokémon miss was worth nothing: an Asleep or Paralyzed Pokémon doesn't strike back, and Blind's
-  // coin covers its target's next hit.
-  restingStrikesBack: false,
-  blindAttackOnly: false,
-  // Quick was worth nothing for the same reason: its attacks aren't struck back, and the leftmost 1/3/6 make them.
-  quickStruckBack: false,
-  lightning: [1, 3, 6],
-  // Versatile was worth five times any other synergy: +10 HP for each other type on the board, no attack.
-  versatileOwn: false,
-  versatileAttack: false,
-  // Mine, a placeholder number out of line with its like: Explode was worth three times any other keyword.
-  explode: 10,
-  // The Trainers worth nothing, buffed (the user's: buff or remove them): Gust of Wind's attacks aren't struck back, 2 of
-  // them; the Pokémon Scoop Up takes out comes back at the end of its line, fully healed. The Clefairy Doll, which
-  // nothing made worth playing (taking attacks is worth nothing when an attack is worth no more than being attacked), is
-  // removed.
-  gustStruckBack: false,
   gust: 2,
-  scoopUpReturns: true,
-  // Step 7's balance pass (the user's, 2026-11-18): the keywords (and the powers, since removed) worth about nothing, changed so each is worth
-  // something (tools/safari/out/balance-report.md), and Gambler with no downside. Whirlwind and Charge are kept as they
-  // are for now, their switches (whirlwindUnanswered, chargeUnanswered) off, for the user's testing by hand.
-  flurrySure: true,
-  blindAtOnce: true,
-  gamblerTails: 0,
+  gambler: 20,
+  imposter: 2,
 };
 
-/** The types with a synergy: Gen 1's seven. */
-export const SYNERGY_TYPES = ['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'colorless'] as const satisfies readonly EnergyType[];
+/** The types with a synergy: all nine. */
+export const SYNERGY_TYPES = ['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'colorless', 'darkness', 'metal'] as const satisfies readonly UnitType[];
 export type SynergyType = (typeof SYNERGY_TYPES)[number];
 
-/** A synergy's level, 0 to 3, for how many of its type a board has (issue #239, 3: 2 / 4 / 6). */
+/** A synergy's level, 0 to 3, for how many of its type a board has (2 / 4 / 6). */
 export const synergyLevel = (count: number) => (count >= 6 ? 3 : count >= 4 ? 2 : count >= 2 ? 1 : 0);
 
-/**
- * The synergies built (the issue's main column, Quick and Versatile as the user changed them in the balance pass); the
- * alternatives are documented in the issue only.
- */
+/** The synergies (issue #254, section 5). */
 export const SYNERGIES: Record<SynergyType, { name: string; text: string }> = {
-  grass: { name: 'Poison', text: 'A Pokémon hit by a Grass Pokémon is Poisoned, taking 10/20/30 after each of its side\'s attacks' },
-  fire: { name: 'Blaze', text: "Fire Pokémon's attacks also do 10/20/40 to the target's neighbours" },
-  water: { name: 'Shell', text: 'Water Pokémon take 10/20/30 less from every hit' },
+  grass: { name: 'Leech', text: 'Grass Pokémon heal 10 each time they hit' },
+  fire: { name: 'Blaze', text: "Fire Pokémon's hits Burn; a Burned Pokémon takes 10/10/20 more from every hit" },
+  water: { name: 'Current', text: 'Water Pokémon get +10/10/20 HP for each Water neighbour' },
   lightning: { name: 'Quick', text: 'The leftmost 1/3/6 Lightning Pokémon attack once before the normal order starts, with no strike back' },
-  psychic: { name: 'Mind', text: 'At the start of battle, 10/20/30 damage to every opposing Pokémon' },
-  fighting: { name: 'Brawn', text: 'Fighting Pokémon get +10/20/40 attack' },
-  colorless: { name: 'Versatile', text: 'Colorless Pokémon get +10 HP for each other type on the board, ×1/2/3' },
+  psychic: { name: 'Pressure', text: 'The Pokémon across from each Psychic Pokémon has −10 attack' },
+  fighting: { name: 'Duel', text: 'Fighting Pokémon attack the Pokémon across from them while it stands, for +10 damage' },
+  colorless: { name: 'Versatile', text: 'Colorless Pokémon get +10 HP for each other type on the board, ×1/1/2' },
+  darkness: { name: 'Prey', text: "Darkness Pokémon do +20/20/40 damage to a Pokémon that's damaged or has a Special Condition" },
+  metal: { name: 'Plating', text: "Metal Pokémon's neighbours take 10/10/20 less from every hit" },
 };
 
-/**
- * The Trainers a side may play, one a battle (issue #239, 5). battle.ts applies each where its words say. The issue's
- * Clefairy Doll was removed in the balance pass.
- */
+/** The Trainers a side may play, one a battle (issue #239, 5). battle.ts applies each where its words say. */
 export const TRAINERS = {
   PlusPower: 'Your Pokémon get +10 attack',
   Defender: 'Your Pokémon take 10 less from every hit',
   Potion: 'The first of your Pokémon to fall under half its HP heals 30',
   'Super Potion': "Each of your Pokémon heals 20 the first time it's hit",
-  'Full Heal': "Your Pokémon can't be Poisoned, Burned or Paralyzed",
+  'Full Heal': "Your Pokémon can't be Burned, Paralyzed or Confused",
   Revive: 'The first of your Pokémon to faint comes back with half its HP',
   'Pokémon Center': "Once, when you're down to 3 Pokémon, they heal fully",
   'Gust of Wind': 'Your first 2 attacks hit the opposing Pokémon with the most attack, with no strike back',
@@ -159,112 +82,211 @@ export const TRAINERS = {
   'Scoop Up': 'The first of your Pokémon that would faint goes to the end of your line fully healed instead, and your next Pokémon attacks at once',
   Gambler: 'Flip a coin: heads, your Pokémon get +20 attack',
   'Imposter Professor Oak': "The opponent's type synergies count 2 Pokémon fewer",
-  /** After the battle: the draft's (step 2), nothing in the battle itself. */
+  /** After the battle: the draft's, nothing in the battle itself. */
   Bill: '+₱ after the battle, won or lost',
   'Professor Oak': "The next shop's rerolls are free",
 } as const;
 export type TrainerName = keyof typeof TRAINERS;
 export const TRAINER_NAMES = Object.keys(TRAINERS) as TrainerName[];
 
-/** What an effect does, by when. `f` is the Pokémon that has it. */
+/** What a keyword does, by when. `f` is the Pokémon that has it, `a` the keyword as it has it (its number, its type). */
 export interface Hooks {
-  /** Its words, as the issue has them. */
-  text: string;
-  /** Named in battle.ts where it applies (Taunt): no hook of its own. */
+  /** Its words on a card. */
+  text(a: Ability): string;
+  /** A rule of the battle, named in battle.ts where it applies: no hook of its own. */
   rule?: true;
-  /** Attacks twice, each hit flipping a coin to land. */
-  flurry?: true;
-  /** Its attack on `target` isn't struck back. */
-  unanswered?(b: Battle, f: Fighter, target: Fighter): boolean;
-  /** Before the battle: its lasting changes to attack and HP. */
-  ready?(b: Battle, f: Fighter): void;
-  /** The damage of its own attack (never of its strike back). */
-  attackWith?(b: Battle, f: Fighter, target: Fighter, damage: number): number;
+  /** Before anything else: moving the boards (Roar). */
+  opening?(b: Battle, f: Fighter, a: Ability): void;
+  /** Then: becoming another Pokémon, taking keywords (Transform, Sketch). */
+  copies?(b: Battle, f: Fighter, a: Ability): void;
+  /** Start of battle: its lasting changes, on the boards as they then stand. */
+  ready?(b: Battle, f: Fighter, a: Ability): void;
+  /** Start of battle, once every change is made: damage. */
+  volley?(b: Battle, f: Fighter, a: Ability): void;
   /** The damage of any hit of its, its strike back too. */
-  hitFor?(b: Battle, f: Fighter, target: Fighter, damage: number): number;
-  /** A hit on it does nothing. */
-  prevents?(b: Battle, f: Fighter, by: Fighter, damage: number): boolean;
-  /** What a hit on it does, after its reduction. */
-  reduces?(b: Battle, f: Fighter, by: Fighter, damage: number): number;
+  hitFor?(b: Battle, f: Fighter, a: Ability, target: Fighter, damage: number): number;
+  /** What a hit on it does, after its reduction (not against Breaker). */
+  reduces?(b: Battle, f: Fighter, a: Ability, damage: number): number;
   /** Its hit landed. `attacking`: its own attack, not its strike back. */
-  hit?(b: Battle, f: Fighter, target: Fighter, dealt: number, attacking: boolean): void;
+  hit?(b: Battle, f: Fighter, a: Ability, target: Fighter, dealt: number, attacking: boolean): void;
   /** A hit landed on it. */
-  struck?(b: Battle, f: Fighter, by: Fighter, dealt: number): void;
-  /** Damage its attacks also do to the target's neighbours. */
-  splash?(b: Battle, f: Fighter): number;
+  struck?(b: Battle, f: Fighter, a: Ability, by: Fighter, dealt: number): void;
   /** After its attack. */
-  attacked?(b: Battle, f: Fighter, target: Fighter): void;
-  /** It fainted, `at` its place in the line. */
-  fainted?(b: Battle, f: Fighter, killer: Fighter | undefined, at: number): void;
+  attacked?(b: Battle, f: Fighter, a: Ability, target: Fighter): void;
+  /** It fainted, `at` its place in the line: `neighbours` those it had. */
+  fainted?(b: Battle, f: Fighter, a: Ability, killer: Fighter | undefined, at: number, neighbours: Fighter[]): void;
   /** It Knocked Out a Pokémon. */
-  knockedOut?(b: Battle, f: Fighter): void;
+  knockedOut?(b: Battle, f: Fighter, a: Ability): void;
+  /** An ally of its fainted. */
+  allyFainted?(b: Battle, f: Fighter, a: Ability): void;
 }
 
 const up10 = (n: number) => Math.ceil(n / 10) * 10;
-/** The ally that has lost the most HP, if any has. */
-const mostDamaged = (b: Battle, f: Fighter) => b.allies(f).reduce<Fighter | undefined>((best, g) => (g.maxHp - g.hp > (best ? best.maxHp - best.hp : 0) ? g : best), undefined);
+const typeName = (t: UnitType | undefined) => (t ? t[0]!.toUpperCase() + t.slice(1) : '');
+const n = (a: Ability) => a.n ?? 0;
+const rule = (text: string): Hooks => ({ text: () => text, rule: true });
 
 export const KEYWORDS: Record<Keyword, Hooks> = {
-  Explode: {
-    text: 'When it faints, 10 damage to every opposing Pokémon',
-    fainted: (b, f) => b.foes(f).forEach((g) => b.damage(g, TUNING.explode, f, 'Explode')),
-  },
-  'Destiny Bond': {
-    text: 'When it faints, the Pokémon that Knocked it Out faints too',
-    fainted: (b, f, killer) => killer && b.fell(killer, f, 'Destiny Bond'),
-  },
-  Toxic: { text: 'Its hits Poison for 20 instead of 10', hit: (b, f, target) => b.poison(target, TUNING.toxic, f) },
-  Poison: { text: "Its hits Poison: 10 damage after each of the target's side's attacks", hit: (b, f, target) => b.poison(target, TUNING.poison, f) },
-  Paralyze: { text: "Its hits flip a coin: heads, the target misses its next attack and doesn't strike back until then", hit: (b, f, target) => b.flip() && b.afflict(target, 'paralyzed', f) },
-  Sleep: { text: "Its hits put the target to sleep: it misses attacks and doesn't strike back until it flips heads", hit: (b, f, target) => b.afflict(target, 'asleep', f) },
-  Confuse: { text: "Its hits Confuse: the target's attacks flip a coin, tails doing 30 to itself instead", hit: (b, f, target) => b.afflict(target, 'confused', f) },
-  Drain: { text: 'Heals itself for half the damage it deals', hit: (b, f, _target, dealt) => b.heal(f, up10(dealt / 2), 'Drain') },
-  Mend: {
-    text: 'After it attacks, the most damaged ally heals 20',
-    attacked: (b, f) => {
-      const ally = mostDamaged(b, f);
-      if (ally) b.heal(ally, TUNING.mend, 'Mend');
+  // Aim (battle.ts, target).
+  Taunt: rule('Opposing Pokémon must attack it while it stands'),
+  Bodyguard: rule('Attacks aimed at its neighbours hit it instead'),
+  'Face-off': rule('It attacks the Pokémon across from it while one stands'),
+  Sniper: rule('It attacks the opposing Pokémon with the least HP'),
+  Flying: rule('Its attacks ignore Taunt and Bodyguard'),
+
+  // Tempo (battle.ts, run, act and strike).
+  Quick: rule("At the start of battle it makes an extra attack that isn't struck back"),
+  Reach: rule("Its attacks aren't struck back"),
+  'Double Strike': rule('It attacks twice'),
+  Truant: rule("It rests after each attack: it misses its next attack and doesn't strike back until then"),
+
+  // Damage.
+  Splash: { text: (a) => `Its attacks also do ${n(a)} to the target's neighbours`, rule: true },
+  Cleave: rule("Its attacks hit the target's neighbours too, for the same damage"),
+  Trample: rule("Damage beyond a Knock Out carries on to one of the target's neighbours"),
+  Finisher: { text: (a) => `+${n(a)} damage to a Pokémon that's already damaged`, hitFor: (_b, _f, a, target, damage) => (target.hp < target.maxHp ? damage + n(a) : damage) },
+  Bane: { text: (a) => `+${n(a)} damage to ${typeName(a.type)} Pokémon`, hitFor: (_b, _f, a, target, damage) => (target.type === a.type ? damage + n(a) : damage) },
+  Breaker: rule('Its hits ignore Shields and Armor'),
+  Barrage: { text: (a) => `Start of battle: ${n(a)} damage to every opposing Pokémon`, volley: (b, f, a) => b.foes(f).forEach((g) => b.damage(g, n(a), f, 'Barrage')) },
+  Recoil: { text: (a) => `It takes ${n(a)} after each of its attacks`, attacked: (b, f, a) => b.damage(f, n(a), undefined, 'Recoil') },
+
+  // Growing.
+  Enrage: { text: (a) => `+${n(a)} attack each time it's hit`, struck: (b, f, a) => b.buff(f, n(a), 'Enrage') },
+  Rampage: { text: (a) => `+${n(a)} attack each time it Knocks Out a Pokémon`, knockedOut: (b, f, a) => b.buff(f, n(a), 'Rampage') },
+  Grow: { text: (a) => `+${n(a)} attack after each of its attacks`, attacked: (b, f, a) => b.buff(f, n(a), 'Grow') },
+  Scavenger: { text: (a) => `+${n(a)} attack each time an ally faints`, allyFainted: (b, f, a) => b.buff(f, n(a), 'Scavenger') },
+
+  // Defence.
+  Shield: rule('The first hit on it does nothing'),
+  Armor: { text: (a) => `It takes ${n(a)} less from every hit`, reduces: (_b, _f, a, damage) => damage - n(a) },
+  Thorns: { text: (a) => `A Pokémon that hits it takes ${n(a)}`, struck: (b, f, a, by) => b.damage(by, n(a), f, 'Thorns') },
+  Sturdy: rule('The first time it would faint, it stays with 10 HP'),
+  Evasive: rule('Each hit on it flips a coin: heads, it does nothing'),
+  Regen: { text: (a) => `It heals ${n(a)} after each of its attacks`, attacked: (b, f, a) => b.heal(f, n(a), 'Regen') },
+  Drain: { text: () => 'It heals half the damage its hits deal', hit: (b, f, _a, _target, dealt) => b.heal(f, up10(dealt / 2), 'Drain') },
+  Counter: rule("It strikes back with its attacker's attack when that's higher"),
+
+  // Neighbours.
+  Rally: { text: (a) => `Start of battle: its neighbours get +${n(a)} attack`, ready: (b, f, a) => b.neighbours(f).forEach((g) => b.buff(g, n(a), 'Rally')) },
+  Fortify: { text: (a) => `Start of battle: its neighbours get +${n(a)} HP`, ready: (b, f, a) => b.neighbours(f).forEach((g) => b.grow(g, n(a), 'Fortify')) },
+  Screen: {
+    text: () => 'Start of battle: the ally on its right gets a Shield',
+    ready: (b, f) => {
+      const right = b.beside(f, 1);
+      if (right) b.shield(right, 'Screen');
     },
   },
-  Guard: {
-    text: 'Flips a coin when first hit: heads, no damage',
-    prevents: (b, f) => {
-      if (f.once.guard) return false;
-      f.once.guard = true;
-      return b.flip();
+  Pack: { text: (a) => `Start of battle: +${n(a)} attack for each neighbour of its type`, ready: (b, f, a) => b.buff(f, n(a) * b.neighbours(f).filter((g) => g.type === f.type).length, 'Pack') },
+  Guardian: { text: (a) => `While it stands, its neighbours take ${n(a)} less from every hit`, rule: true },
+  Safeguard: rule("It and its neighbours can't be Burned, Paralyzed or Confused"),
+  Mend: { text: (a) => `After it attacks, its neighbours heal ${n(a)}`, attacked: (b, f, a) => b.neighbours(f).forEach((g) => b.heal(g, n(a), 'Mend')) },
+  'Baton Pass': {
+    text: (a) => `After it attacks, the ally on its right gets +${n(a)} attack`,
+    attacked: (b, f, a) => {
+      const right = b.beside(f, 1);
+      if (right) b.buff(right, n(a), 'Baton Pass');
     },
   },
-  Harden: { text: 'Takes 10 less from every hit', reduces: (_b, _f, _by, damage) => damage - TUNING.harden },
-  Blind: {
-    text: "Its target's next hit, its strike back too, flips a coin: tails, it does nothing",
-    hit: (b, _f, target, _dealt, attacking) => attacking && b.blind(target),
-    unanswered: (b) => TUNING.blindAtOnce && !b.flip(),
-  },
-  Weaken: { text: 'Its target has −10 attack for the battle', hit: (b, _f, target, _dealt, attacking) => attacking && b.buff(target, -TUNING.weaken, 'Weaken') },
-  Splash: { text: "Its attacks also do 10 to the target's neighbours", splash: () => TUNING.splash },
-  Unburden: {
-    text: "Its first hit on a Pokémon takes 10 off that Pokémon's attack",
-    hit: (b, f, target) => {
-      if (target.once[`unburden ${f.uid}`]) return;
-      target.once[`unburden ${f.uid}`] = true;
-      b.buff(target, -TUNING.unburden, 'Unburden');
+  Legacy: { text: (a) => `When it faints, its neighbours get +${n(a)} attack`, fainted: (b, _f, a, _killer, _at, neighbours) => neighbours.forEach((g) => b.buff(g, n(a), 'Legacy')) },
+
+  // Place and type.
+  Vanguard: { text: (a) => `Start of battle: +${n(a)} attack if it's your first Pokémon`, ready: (b, f, a) => !b.beside(f, -1) && b.buff(f, n(a), 'Vanguard') },
+  Rearguard: { text: (a) => `Start of battle: +${n(a)} HP if it's your last Pokémon`, ready: (b, f, a) => !b.beside(f, 1) && b.grow(f, n(a), 'Rearguard') },
+  Leader: { text: (a) => `Start of battle: your other Pokémon of its type get +${n(a)} attack`, ready: (b, f, a) => b.allies(f).forEach((g) => g.type === f.type && b.buff(g, n(a), 'Leader')) },
+  Loner: {
+    text: (a) => `Start of battle: +${n(a)} attack and +${n(a)} HP if no ally shares its type`,
+    ready: (b, f, a) => {
+      if (b.allies(f).some((g) => g.type === f.type)) return;
+      b.buff(f, n(a), 'Loner');
+      b.grow(f, n(a), 'Loner');
     },
   },
-  Whirlwind: { text: "Its target moves to the end of its side's line", attacked: (b, _f, target) => b.moveToEnd(target, 'Whirlwind'), unanswered: () => TUNING.whirlwindUnanswered },
+
+  // Across.
+  Intimidate: {
+    text: (a) => `Start of battle: the Pokémon across from it has −${n(a)} attack`,
+    ready: (b, f, a) => {
+      const x = b.across(f);
+      if (x) b.buff(x, -n(a), 'Intimidate');
+    },
+  },
+  Pounce: {
+    text: (a) => `Start of battle: ${n(a)} damage to the Pokémon across from it`,
+    volley: (b, f, a) => {
+      const x = b.across(f);
+      if (x) b.damage(x, n(a), f, 'Pounce');
+    },
+  },
+  Glare: {
+    text: () => 'Start of battle: the Pokémon across from it is Paralyzed',
+    ready: (b, f) => {
+      const x = b.across(f);
+      if (x) b.afflict(x, 'paralyzed');
+    },
+  },
+  Supersonic: {
+    text: () => 'Start of battle: the Pokémon across from it is Confused',
+    ready: (b, f) => {
+      const x = b.across(f);
+      if (x) b.afflict(x, 'confused');
+    },
+  },
+  'Will-O-Wisp': {
+    text: () => 'Start of battle: the Pokémon across from it is Burned',
+    ready: (b, f) => {
+      const x = b.across(f);
+      if (x) b.burn(x);
+    },
+  },
+  Transform: {
+    text: () => 'Start of battle: it becomes a copy of the Pokémon across from it',
+    copies: (b, f) => {
+      const x = b.across(f);
+      if (x) b.become(f, { attack: x.base, hp: x.maxHp, type: x.type, abilities: x.abilities.filter((y) => y.k !== 'Transform') }, 'Transform');
+    },
+  },
+
+  // Moving.
+  Roar: {
+    text: () => 'Before anything else, the Pokémon across from it goes to the end of its line',
+    opening: (b, f) => {
+      const x = b.across(f);
+      if (x) b.moveToEnd(x, 'Roar');
+    },
+  },
+  Whirlwind: { text: () => 'Its target moves to the end of its line', attacked: (b, _f, _a, target) => b.moveToEnd(target, 'Whirlwind') },
+  'U-turn': { text: () => 'After it attacks, it goes to the end of its line', attacked: (b, f) => b.moveToEnd(f, 'U-turn') },
+
+  // Fainting.
+  Explode: { text: (a) => `When it faints, ${n(a)} damage to every opposing Pokémon`, fainted: (b, f, a) => b.foes(f).forEach((g) => b.damage(g, n(a), f, 'Explode')) },
+  'Destiny Bond': { text: () => 'When it faints, the Pokémon that Knocked it Out faints too', fainted: (b, f, _a, killer) => killer && b.fell(killer, f, 'Destiny Bond') },
   Family: {
-    text: 'When it faints, a 10-attack, 30-HP copy of it takes its place',
-    fainted: (b, f, _killer, at) => b.join(f.side, { name: f.name, type: f.type, stage: f.stage, attack: TUNING.familyAttack, hp: TUNING.familyHp }, at, 'Family'),
+    text: () => 'When it faints, a copy with half its attack and HP and no keywords takes its place',
+    fainted: (b, f, _a, _killer, at) => b.join(f.side, { name: f.name, type: f.type, stage: f.stage, attack: up10(f.base / 2), hp: up10(f.maxHp / 2) }, at, 'Family'),
   },
-  Copycat: { text: "Attacks with its target's attack when that's higher", attackWith: (b, _f, target, damage) => Math.max(damage, b.attackOf(target)) },
-  Enrage: { text: "+10 attack each time it's hit", struck: (b, f) => b.buff(f, TUNING.enrage, 'Enrage') },
-  Finisher: { text: "+20 damage to a Pokémon that's already damaged", hitFor: (_b, _f, target, damage) => (target.hp < target.maxHp ? damage + TUNING.finisher : damage) },
-  Charge: { text: 'Every second attack does double', attackWith: (_b, f, _target, damage) => (f.attacks % 2 === 0 ? damage * 2 : damage), unanswered: (_b, f) => TUNING.chargeUnanswered && f.attacks % 2 === 0 },
-  Flurry: { text: 'Attacks twice: the first hit always lands, the second flips a coin', flurry: true },
-  Recoil: {
-    text: '+10 attack, and takes 10 each time it attacks',
-    ready: (b, f) => b.buff(f, TUNING.recoilAttack, 'Recoil'),
-    attacked: (b, f) => b.damage(f, TUNING.recoilSelf, undefined, 'Recoil'),
+  Memento: { text: (a) => `When it faints, the Pokémon that Knocked it Out has −${n(a)} attack`, fainted: (b, _f, a, killer) => killer && b.buff(killer, -n(a), 'Memento') },
+
+  // Status.
+  Paralyze: { text: () => 'Its hits flip a coin: heads, the target is Paralyzed', hit: (b, _f, _a, target) => b.flip() && b.afflict(target, 'paralyzed') },
+  Confuse: { text: () => 'Its hits Confuse', hit: (b, _f, _a, target) => b.afflict(target, 'confused') },
+  // A Pokémon is Burned as the hit lands (battle.ts, strike), so its strike back to that hit is halved: this is its strike back's.
+  Burn: { text: () => 'Its hits Burn', hit: (b, _f, _a, target) => b.burn(target) },
+  Static: { text: () => "A Pokémon that hits it flips a coin: heads, it's Paralyzed", struck: (b, _f, _a, by) => b.flip() && b.afflict(by, 'paralyzed') },
+  'Flame Body': { text: () => 'A Pokémon that hits it is Burned', struck: (b, _f, _a, by) => b.burn(by) },
+  'Cute Charm': { text: () => 'A Pokémon that hits it is Confused', struck: (b, _f, _a, by) => b.afflict(by, 'confused') },
+
+  // Other.
+  Weaken: { text: (a) => `Its attacks take ${n(a)} off their target's attack for the battle`, hit: (b, _f, a, target, _dealt, attacking) => attacking && b.buff(target, -n(a), 'Weaken') },
+  Sketch: {
+    text: () => 'Start of battle: it has the keywords of the ally on its left',
+    copies: (b, f) => {
+      const left = b.beside(f, -1);
+      const taken = left?.abilities.filter((y) => y.k !== 'Sketch' && y.k !== 'Transform' && !f.abilities.some((mine) => mine.k === y.k)) ?? [];
+      if (taken.length) b.become(f, { attack: f.base, hp: f.maxHp, type: f.type, abilities: [...f.abilities, ...taken] }, 'Sketch');
+    },
   },
-  'Pay Day': { text: '+₱ each time it Knocks Out a Pokémon', knockedOut: (b, f) => b.pay(f) },
-  Taunt: { text: 'Opposing Pokémon must attack it while it stands', rule: true },
+  'Pay Day': { text: () => '+₱ each time it Knocks Out a Pokémon', knockedOut: (b, f) => b.pay(f) },
 };
+
+/** A keyword's words as a card has it. */
+export const abilityText = (a: Ability) => KEYWORDS[a.k].text(a);

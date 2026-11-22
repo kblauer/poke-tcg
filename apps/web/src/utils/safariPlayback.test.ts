@@ -1,10 +1,9 @@
 import { int, rngFrom, sample } from '@poke-tcg/campaign';
-import { simulateBattle, TRAINER_NAMES, type Board } from '@poke-tcg/safari';
+import { allUnits, simulateBattle, TRAINER_NAMES, type Board } from '@poke-tcg/safari';
 import { describe, expect, it } from 'vitest';
-import { gen1Units } from '../../../../packages/safari/src/gen1';
 import { playbackFrames, startLines } from './safariPlayback';
 
-const units = gen1Units();
+const units = allUnits();
 
 /** A random board of up to 6 units, a Trainer half the time. */
 function board(seed: number): Board {

@@ -1,291 +1,99 @@
-// Safari Draft (issue #239, section 2): a Pokémon card turned into a draft unit: an attack number, an HP number, a tier
-// (1–5) and its effect, one keyword (its Pokémon Power's, POWER_KEYWORDS, else the first its attacks' wording matches). A port of the planning
-// tool, tools/safari/unit_table.ts, which stays the reference: units.test.ts checks the two agree on every Gen 1 unit.
-//   - attack: the average damage a turn over 6 turns, alone, attaching 1 Energy a turn, starting with 1 Energy attached
-//     and 1 more for each stage, never under 10;
-//   - HP: the printed HP;
-//   - the evolution floor: an evolved unit's attack and HP together are at least 10 more than every print it evolves from;
-//   - tier: the units ranked by √(attack × HP), raised by what their keyword is worth (the user's, 2026-11-18, from the
-//     balance pass: the stronger effects are for the higher tiers), and cut in TIER_SHARES, an evolved card always above
-//     what it evolves from;
-//   - keyword: its Pokémon Power's (POWER_KEYWORDS: the powers were removed, the user's, 2026-11-18: one kind of effect),
-//     else the first of KEYWORD_WORDINGS one of its attacks matches.
-// No Weakness, Resistance, Energy or retreat: a unit's type is the card's printed type.
-import { evolvesFromName, type Attack, type EnergyType, type PokemonCardDef } from '@poke-tcg/game-engine';
+// Safari Draft (issue #254, the redesign of #239's section 2): a draft unit. One for each Pokémon species, #1–386, written
+// by hand in species.ts: a name, a type, a tier (1–5), an attack, an HP and 0 to 3 keywords, each of which may carry a
+// number ("Splash 20") or a type ("Bane water 20"). Nothing of a unit comes from a TCG print any more (the user's,
+// 2026-11-21): the package holds its own table and never reads the card catalog. The API picks each unit's picture.
+//   - types: the TCG's nine of the Gen 1–3 era, one a unit;
+//   - stages: the games' evolution lines (Pichu → Pikachu → Raichu), by `evolvesFrom`, a Pokémon's name;
+//   - an evolved unit is at least one tier above what it evolves from, and a Pokémon with two stages above it is at most
+//     tier 3 (units.test.ts);
+//   - legendaries are never in a shop (encounter rewards), nor the last Pokémon of a 3-stage line.
+// No Weakness, Resistance, Energy or retreat.
 
-/** The formula's knobs (the user's, 2026-11-18: 1 Energy to start with and 1 more for each stage). */
-const TURNS = 6;
-const START_ENERGY = 1;
-const STAGE_ENERGY: Record<string, number> = { basic: 0, stage1: 1, stage2: 2 };
-/** The share of the units in each tier, 1 to 5: slightly more at the bottom, a wide top tier (the user's). */
-export const TIER_SHARES = [0.25, 0.23, 0.2, 0.17, 0.15];
+export const UNIT_TYPES = ['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'colorless', 'darkness', 'metal'] as const;
+export type UnitType = (typeof UNIT_TYPES)[number];
 export const TOP_TIER = 5;
 
-/** The keywords (issue #239, 2.4), in the order their wordings are tried. */
-export type Keyword =
-  | 'Explode'
-  | 'Destiny Bond'
-  | 'Toxic'
-  | 'Poison'
-  | 'Paralyze'
-  | 'Sleep'
-  | 'Confuse'
-  | 'Drain'
-  | 'Mend'
-  | 'Guard'
-  | 'Harden'
-  | 'Blind'
-  | 'Weaken'
-  | 'Splash'
-  | 'Unburden'
-  | 'Whirlwind'
-  | 'Family'
-  | 'Copycat'
-  | 'Enrage'
-  | 'Finisher'
-  | 'Charge'
-  | 'Flurry'
-  | 'Recoil'
-  | 'Pay Day'
-  | 'Taunt';
+/** The keywords (issue #254, section 3). effects.ts has what each does. */
+export const KEYWORD_NAMES = [
+  // Aim.
+  'Taunt', 'Bodyguard', 'Face-off', 'Sniper', 'Flying',
+  // Tempo.
+  'Quick', 'Reach', 'Double Strike', 'Truant',
+  // Damage.
+  'Splash', 'Cleave', 'Trample', 'Finisher', 'Bane', 'Breaker', 'Barrage', 'Recoil',
+  // Growing.
+  'Enrage', 'Rampage', 'Grow', 'Scavenger',
+  // Defence.
+  'Shield', 'Armor', 'Thorns', 'Sturdy', 'Evasive', 'Regen', 'Drain', 'Counter',
+  // Neighbours.
+  'Rally', 'Fortify', 'Screen', 'Pack', 'Guardian', 'Safeguard', 'Mend', 'Baton Pass', 'Legacy',
+  // Place and type.
+  'Vanguard', 'Rearguard', 'Leader', 'Loner',
+  // Across.
+  'Intimidate', 'Pounce', 'Glare', 'Supersonic', 'Will-O-Wisp', 'Transform',
+  // Moving.
+  'Roar', 'Whirlwind', 'U-turn',
+  // Fainting.
+  'Explode', 'Destiny Bond', 'Family', 'Memento',
+  // Status.
+  'Paralyze', 'Confuse', 'Burn', 'Static', 'Flame Body', 'Cute Charm',
+  // Other.
+  'Weaken', 'Sketch', 'Pay Day',
+] as const;
+export type Keyword = (typeof KEYWORD_NAMES)[number];
+
+/** A keyword on a unit: its number where it has one ("Splash 20"), its type for Bane. */
+export interface Ability {
+  k: Keyword;
+  n?: number;
+  type?: UnitType;
+}
 
 export type UnitStage = 'basic' | 'stage1' | 'stage2';
 
-/** A draft unit: what a battle and the shop know of a card. */
+/** A draft unit: what a battle and the shop know of a Pokémon. */
 export interface Unit {
-  /** The card's id: every print is its own unit. */
+  /** Its Pokédex number, as a string: a run's state holds it. */
   id: string;
+  dex: number;
   name: string;
-  type: EnergyType;
+  type: UnitType;
   stage: UnitStage;
   hp: number;
   attack: number;
   tier: number;
-  keyword?: Keyword;
-  /** The names it's printed to evolve from, for merging by the TCG's rules. */
+  abilities: Ability[];
+  /** The Pokémon it evolves from, for merging. */
   evolvesFrom: string | null;
-  alsoEvolvesFrom?: string[];
+  /** Never in a shop: an encounter's reward. */
+  legendary?: true;
+  /** Its picture: a print of it (a card id), and of the Pokémon it evolves from. The API's; the package never reads cards. */
+  card?: string;
+  fromCard?: string;
 }
 
-/** A unit with how it was derived, for the planning tool's table and the balance report. */
-export interface DerivedUnit extends Unit {
-  /** The average damage a turn before rounding. */
-  raw: number;
-  /** The attack (or Pokémon Power) its keyword came from. */
-  keywordFrom?: string;
-  /** Its attack before the evolution floor raised it. */
-  raisedFrom?: number;
+/** "Splash 20", "Bane water 20", "Taunt": a keyword as species.ts writes it. */
+export function parseAbility(text: string): Ability {
+  const words = text.trim().split(' ');
+  const last = words.at(-1)!;
+  const n = /^\d+$/.test(last) ? Number(words.pop()) : undefined;
+  const type = (UNIT_TYPES as readonly string[]).includes(words.at(-1)!) ? (words.pop() as UnitType) : undefined;
+  const k = words.join(' ') as Keyword;
+  if (!KEYWORD_NAMES.includes(k)) throw new Error(`Unknown keyword "${text}"`);
+  return { k, ...(n !== undefined && { n }), ...(type && { type }) };
 }
 
-const round10 = (n: number) => Math.max(10, Math.round(n / 10) * 10);
-const num = (s: string | undefined) => (s ? ({ a: 1, an: 1, one: 1, two: 2, three: 3, four: 4 }[s.toLowerCase()] ?? Number(s)) : 0);
+/** A keyword's name as a card shows it: "Splash 20", "Bane Water 20". */
+export const abilityName = (a: Ability) => [a.k, a.type && a.type[0]!.toUpperCase() + a.type.slice(1), a.n].filter((x) => x !== undefined).join(' ');
 
-/** What one use of an attack is worth, with `energy` attached, and what using it costs. */
-function attackValue(def: PokemonCardDef, a: Attack, energy: number) {
-  const text = a.text ?? '';
-  let damage = a.damage;
-  const coins = /Flip (\d+|a|two|three|four) coins?\. This attack does (\d+) damage times the number of heads/i.exec(text);
-  const untilTails = /Flip a coin until you get tails\. This attack does (\d+) damage times the number of heads/i.exec(text);
-  const extraEnergy = /plus (\d+) more damage for each .*?Energy attached to .*? but not used to pay/i.exec(text);
-  const coinPlus = /Flip a coin\. If heads, this attack does (\d+) damage plus (\d+) more damage/i.exec(text);
-  const perEnergy = /Flip a number of coins equal to the (?:total )?number of .*?Energy cards? (?:attached|you discarded)[^.]*\. This attack does (\d+) damage times the number of heads/i.exec(text);
-  // The tool's own pattern, kept as it is (its `d+` never matches, so the printed damage stands): the two must agree.
-  const birthday = /If it's not your birthday, this attack does (d+) damage/i.exec(text);
-  if (birthday) damage = Number(birthday[1]); // it's never the player's birthday (the user's)
-  else if (perEnergy) damage = (energy * Number(perEnergy[1])) / 2;
-  else if (coins) damage = (num(coins[1]) * Number(coins[2])) / 2;
-  else if (untilTails) damage = Number(untilTails[1]);
-  else if (extraEnergy) damage += Math.min(Math.max(energy - a.cost.length, 0), 2) * Number(extraEnergy[1]);
-  else if (coinPlus) damage = Number(coinPlus[1]) + Number(coinPlus[2]) / 2;
-  else if (/damage counter on (?!the Defending)/i.test(text) && /[×x+]/.test(a.damageText ?? '')) damage = a.damage * (/×|x/.test(a.damageText ?? '') ? def.hp / 20 : 1) + (/\+/.test(a.damageText ?? '') ? def.hp / 20 : 0);
-  else if (/×|x$/.test(a.damageText ?? '')) damage = a.damage * 2; // any other "×": a typical 2
-  else if (/\+$/.test(a.damageText ?? '')) damage = a.damage + 10; // any other "+": a typical 10 more
-  if (/If tails, this attack does nothing/i.test(text)) damage /= 2;
-  if (/If 1 or both of them are tails, this attack does nothing/i.test(text)) damage /= 4;
-  // Damage to itself: half its worth off, a quarter when a flip decides it.
-  const self = /does (\d+) damage to (?:itself|[A-Z][\w'’.♀♂ -]*?)(?=[.,]| and)/.exec(text.replace(/to (the Defending|each|your opponent)[^.]*/gi, ''));
-  if (self && /to itself|damage to [A-Z]/.test(self[0]) && !/Benched/.test(self[0])) damage -= Number(self[1]) * (/If tails[^.]*damage to/i.test(text) ? 0.25 : 0.5);
-  const discard = /Discard (\d+|a|an|one|two|all)(?: of the)? .*?Energy cards? attached to (?!the Defending)/i.exec(text);
-  const discards = perEnergy && /Discard a number of Energy/i.test(text) ? Math.ceil(energy / 2) : discard ? (discard[1]!.toLowerCase() === 'all' ? energy : num(discard[1])) : 0;
-  const rests = /can't attack during your next turn/i.test(text);
-  return { damage: Math.max(damage, 0), discards, rests };
-}
+/** Whether a unit has a keyword. */
+export const hasKeyword = (u: Pick<Unit, 'abilities'>, k: Keyword) => u.abilities.some((a) => a.k === k);
 
-/** The 6 turns: each turn 1 Energy more, then the payable attack worth the most. */
-function derivedAttack(def: PokemonCardDef) {
-  let energy = START_ENERGY + (STAGE_ENERGY[def.stage] ?? 0);
-  let total = 0;
-  let resting = false;
-  for (let turn = 0; turn < TURNS; turn++) {
-    energy++;
-    if (resting) {
-      resting = false;
-      continue;
-    }
-    const best = def.attacks
-      .filter((a) => a.cost.length <= energy)
-      .map((a) => attackValue(def, a, energy))
-      .sort((x, y) => y.damage - x.damage)[0];
-    if (!best) continue;
-    total += best.damage;
-    energy -= best.discards;
-    resting = best.rests;
-  }
-  return total / TURNS;
-}
-
-/** The wording each keyword comes from, first match first (issue #239, 2.4). */
-const KEYWORD_WORDINGS: [keyword: Keyword, wording: RegExp][] = [
-  ['Explode', /damage to itself[^.]*\.[^.]*Bench|Selfdestruct|Explosion/i],
-  ['Destiny Bond', /Destiny Bond|Knocked Out during your opponent's next turn/i],
-  ['Toxic', /takes 20 Poison damage/i],
-  ['Poison', /Poisoned/i],
-  ['Paralyze', /Paralyzed/i],
-  ['Sleep', /Asleep/i],
-  ['Confuse', /Confused/i],
-  ['Drain', /Remove (?:a number of |\d+ |all )?damage counters? from (?!the Defending|1 of your)/i],
-  ['Mend', /Remove .*?damage counters? from (?:1|each) of your/i],
-  ['Guard', /prevent all (?:effects of attacks, including )?damage done to|Prevent all damage/i],
-  ['Harden', /damage done to .*? is reduced|whenever \d+ or less damage is done/i],
-  ['Blind', /tries to attack[^.]*flips? a coin|If tails, that attack does nothing/i],
-  ['Weaken', /attacks? .*?(?:do|does) \d+ less damage|can't (?:use that attack|attack)(?! during your next)/i],
-  ['Splash', /damage to each (?:of your opponent's )?Benched|to each Pokémon on each player's Bench|1 of your opponent's Benched Pokémon/i],
-  ['Unburden', /Discard \d+ .*?Energy cards? attached to the Defending|choose 1 Energy card attached to the Defending/i],
-  ['Whirlwind', /switch(?:es)? (?:it|the Defending Pokémon) with|your opponent switches/i],
-  ['Family', /Search your deck for .*?put (?:it|them) onto your Bench/i],
-  ['Copycat', /Metronome|Mirror Move|copies? (?:that|1 of the Defending)/i],
-  ['Enrage', /for each damage counter on (?!the Defending)/i],
-  ['Finisher', /for each damage counter on the Defending|If the Defending Pokémon (?:already )?has/i],
-  ['Charge', /during your next turn[^.]*(?:base damage|does? \d+ damage instead|double)/i],
-  ['Flurry', /times the number of heads/i],
-  ['Recoil', /does \d+ damage to itself/i],
-  ['Pay Day', /draw (?:a|\d+) cards?/i],
-];
+/** Whether `evolved` evolves from a Pokémon called `name`. */
+export const unitEvolvesFrom = (evolved: Pick<Unit, 'evolvesFrom'>, name: string) => evolved.evolvesFrom === name;
 
 /**
- * What each keyword is worth to a unit that has it, in points of win rate: the balance report's measurements of
- * 2026-11-18, after the Pokémon Powers were removed (tools/safari/out/balance-report.md, "Keywords"; Taunt's below 0: soaking attacks costs its side, an attack being worth no more than being attacked). A unit's rank for its tier counts them (unitScore).
- * Measure again with tools/safari/balance.ts after changing what an effect does, and put its new worth here.
+ * A unit's rank within its tier, for the opponents' boards (the weaker or the stronger half of a tier): what it deals
+ * times how long it lasts, a little more for each keyword. Its tier is written by hand (species.ts), not derived from this.
  */
-export const KEYWORD_WORTH: Record<Keyword, number> = {
-  Explode: 15, 'Destiny Bond': 13, Toxic: 11, Poison: 8, Paralyze: 6, Sleep: 16, Confuse: 7, Drain: 9, Mend: 4, Guard: 8, Harden: 11, Blind: 8,
-  Weaken: 4, Splash: 8, Unburden: 0, Whirlwind: 0, Family: 11, Copycat: 6, Enrage: 5, Finisher: 8, Charge: 1, Flurry: 4, Recoil: 3, 'Pay Day': 0, Taunt: -4,
-};
-
-/**
- * How much of its rank a point of worth is: a keyword worth 10 points ranks its unit as one with 40% more √(attack × HP).
- * Of 0, 0.01, 0.02, 0.03, 0.04 and 0.06, the weight that left the units' win rates within their tiers closest together
- * (their spread 7.4 points at 0, 6.1 here): the units with Sleep, Drain, Toxic, Explode or Family a tier higher on
- * average (2.8 to 3.6) and winning 53% of their tier's battles where they won 61%.
- */
-export const WORTH_WEIGHT = 0.04;
-
-/** A unit's rank for its tier: what it deals times how long it lasts, raised by what its keyword is worth. */
-export const unitScore = (u: Pick<Unit, 'attack' | 'hp' | 'keyword'>) => Math.sqrt(u.attack * u.hp) * (1 + WORTH_WEIGHT * (u.keyword ? KEYWORD_WORTH[u.keyword] : 0));
-
-/**
- * The keyword a Pokémon Power's card has in its place (the user's, 2026-11-18: the powers removed, "add keywords where
- * they were as required to keep the cards balanced"; the mapping mine, to check with the user): the keyword nearest
- * what the power did. A power not listed (a stat bonus, a synergy-like aura, a draft-only power, the copies) gives none,
- * and the card keeps its attacks' keyword; the tiers re-rank every card by what its keyword is worth.
- */
-export const POWER_KEYWORDS: Record<string, Keyword> = {
-  // The walls: they take the hits for their side.
-  'Bench Guard': 'Taunt', 'Invisible Wall': 'Taunt', 'Strange Behavior': 'Taunt', 'Thick Skinned': 'Taunt', 'Restless Sleep': 'Taunt', Guard: 'Taunt',
-  // Less damage taken.
-  'Kabuto Armor': 'Harden', 'Shell Armor': 'Harden', 'Strange Barrier': 'Harden', 'Neutral Shield': 'Harden',
-  // A hit that does nothing.
-  Transparency: 'Guard', Flee: 'Guard', Fortitude: 'Guard', Scram: 'Guard',
-  // Healing.
-  Heal: 'Mend', 'Healing Fire': 'Mend', 'Natural Healing': 'Mend', 'Damage Swap': 'Mend', 'Solar Power': 'Mend',
-  // Attack taken off the opponent.
-  'Energy Drain': 'Weaken', 'Sticky Goo': 'Weaken', 'Prehistoric Power': 'Weaken',
-  // Damage beyond the target.
-  Curse: 'Splash', Sinkhole: 'Splash', 'Sneak Attack': 'Splash',
-  // On fainting.
-  Buzzap: 'Explode', 'Final Beam': 'Destiny Bond', Rebirth: 'Family',
-  // Special Conditions.
-  'Long Distance Hypnosis': 'Sleep', 'Pollen Stench': 'Confuse', 'Pollen Defense': 'Confuse', 'Toxic Gas': 'Toxic',
-  // The rest by their likeness.
-  'Fragrance Trap': 'Finisher', Peek: 'Finisher', Frenzy: 'Enrage', 'Strikes Back': 'Enrage', 'Shock Blast': 'Recoil', Transform: 'Copycat', Shapeshift: 'Copycat',
-};
-
-export const KEYWORD_NAMES: readonly Keyword[] = [...KEYWORD_WORDINGS.map(([keyword]) => keyword), 'Taunt'];
-
-function keywordOf(def: PokemonCardDef): { keyword?: Keyword; keywordFrom?: string } {
-  const fromPower = def.power && POWER_KEYWORDS[def.power.name];
-  if (fromPower) return { keyword: fromPower, keywordFrom: def.power!.name };
-  for (const [keyword, wording] of KEYWORD_WORDINGS) {
-    const from = def.attacks.find((a) => wording.test(`${a.name}. ${a.text ?? ''}`));
-    if (from) return { keyword, keywordFrom: from.name };
-  }
-  return {};
-}
-
-/**
- * The cards that are units (issue #239, 2.1), of a generation's Pokémon cards: no word-for-word reprint (`reprints`: Base
- * Set 2's and Legendary Collection's, the caller's, so this package never loads the engine's effects), no Trainer card
- * played as a Pokémon, no Pokémon past #151 (`dexOf`: the snapshot's Pokédex numbers), and a card printed twice in its
- * set, holo and not, once: the holo.
- */
-export function safariPool(defs: readonly PokemonCardDef[], reprints: ReadonlySet<string>, dexOf: (id: string) => readonly number[] | undefined): PokemonCardDef[] {
-  const pokemon = defs.filter((d) => !reprints.has(d.id) && d.hp > 0 && !d.trainerText && (d.stage === 'basic' || d.stage === 'stage1' || d.stage === 'stage2')).filter((d) => !(dexOf(d.id) ?? []).some((n) => n > 151));
-  const print = (d: PokemonCardDef) => JSON.stringify([d.id.split('-')[0], d.name, d.hp, d.attacks, d.power]);
-  const holos = new Set(pokemon.filter((d) => d.holo).map(print));
-  return pokemon.filter((d) => d.holo || !holos.has(print(d)));
-}
-
-/** A generation's units from its Pokémon cards' definitions: safariPool's cards, derived (the API's and gen1.ts's one way). */
-export const unitsFrom = (defs: readonly PokemonCardDef[], reprints: ReadonlySet<string>, dexOf: (id: string) => readonly number[] | undefined) => deriveUnits(safariPool(defs, reprints, dexOf));
-
-/** Whether `evolved` is printed to evolve from a Pokémon called `name` (the TCG's rule, by name, never by card id). */
-export const unitEvolvesFrom = (evolved: Pick<Unit, 'evolvesFrom' | 'alsoEvolvesFrom'>, name: string) => evolvesFromName(evolved, name) || !!evolved.alsoEvolvesFrom?.includes(name);
-
-/** Every unit of a pool (safariPool's), in the pool's order: the ranking's ties fall by it, as the planning tool's do. */
-export function deriveUnits(pool: readonly PokemonCardDef[]): DerivedUnit[] {
-  const units: DerivedUnit[] = pool.map((def) => {
-    const raw = derivedAttack(def);
-    return {
-      id: def.id,
-      name: def.name,
-      type: def.type,
-      stage: def.stage as UnitStage,
-      hp: def.hp,
-      attack: round10(raw),
-      tier: 0,
-      ...keywordOf(def),
-      evolvesFrom: def.evolvesFrom,
-      ...(def.alsoEvolvesFrom ? { alsoEvolvesFrom: def.alsoEvolvesFrom } : {}),
-      raw,
-    };
-  });
-  const printsBelow = (u: Unit) => units.filter((p) => unitEvolvesFrom(u, p.name));
-
-  // The evolution floor: Stage 1s first, so a Stage 2 stands on the raised ones.
-  for (const stage of ['stage1', 'stage2']) {
-    for (const u of units.filter((x) => x.stage === stage)) {
-      const below = printsBelow(u);
-      const need = 10 + Math.max(0, ...below.map((p) => p.attack + p.hp));
-      if (!below.length || u.attack + u.hp >= need) continue;
-      u.raisedFrom = u.attack;
-      u.attack = need - u.hp;
-    }
-  }
-
-  // Tiers: shares of the ranking (unitScore), then a card that evolves leaves room above it (a Basic of a 3-stage line at
-  // most 3) and an evolved card is at least one above every print it evolves from.
-  const sorted = [...units].sort((a, b) => unitScore(a) - unitScore(b));
-  const tierEnds = TIER_SHARES.map((_, t) => TIER_SHARES.slice(0, t + 1).reduce((a, b) => a + b, 0) * sorted.length);
-  sorted.forEach((u, i) => (u.tier = 1 + tierEnds.findIndex((end) => i < end)));
-  const evolvesInto = (name: string) => units.filter((u) => unitEvolvesFrom(u, name));
-  const above = new Map<string, number>();
-  const stagesAbove = (name: string): number => {
-    if (!above.has(name)) above.set(name, Math.max(0, ...evolvesInto(name).map((u) => 1 + stagesAbove(u.name))));
-    return above.get(name)!;
-  };
-  for (const u of units) u.tier = Math.min(u.tier, TOP_TIER - stagesAbove(u.name));
-  for (const stage of ['stage1', 'stage2']) {
-    for (const u of units.filter((x) => x.stage === stage)) u.tier = Math.max(u.tier, 1 + Math.max(0, ...printsBelow(u).map((p) => p.tier)));
-  }
-  return units;
-}
+export const unitScore = (u: Pick<Unit, 'attack' | 'hp' | 'abilities'>) => Math.sqrt(Math.max(u.attack, 10) * u.hp) * (1 + 0.15 * u.abilities.length);

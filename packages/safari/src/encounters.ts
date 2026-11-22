@@ -17,16 +17,16 @@
 //
 // Mine, placeholders to check with the user: the 5 steps come after 5 different battles of the 1st to the 14th (so never
 // two in a row), each with a battle half the time; a step's two encounters are different kinds; Protein +20 attack, HP Up
-// +40 HP (UPGRADES); a keyword is one of UPGRADE_KEYWORDS, only for a Pokémon with none of its own; an upgrade's Pokémon is
+// +40 HP (UPGRADES); a keyword is one of UPGRADE_KEYWORDS the Pokémon hasn't, while it has fewer than 3 (MAX_KEYWORDS); an upgrade's Pokémon is
 // picked by how many battles it has been held (as the shop's favour); a legendary's board is the legendary and 5 of its
-// type at the hard tier, paying nothing but the legendary, a print of tier 3 or more (LEGENDARY_MIN_TIER); after an
+// type at the hard tier, paying nothing but the legendary, of tier 3 or more (LEGENDARY_MIN_TIER); after an
 // encounter the shop stays as it was (a new one only after a battle); an encounter, once chosen, can't be swapped for
 // another (LEAVE takes nothing).
 import { chance, pick, sample, weighted, type Rng } from '@poke-tcg/campaign';
 import { BOARD_SIZE } from './battle.js';
 import type { TrainerName } from './effects.js';
 import { DIFFICULTY_TIER, MEDIUM_TIERS, mainType, rollBoard, type Opponent } from './opponents.js';
-import type { Keyword, Unit } from './units.js';
+import type { Ability, Unit } from './units.js';
 
 export type EncounterKind = 'upgrade' | 'cardGift' | 'trainerGift' | 'specialShop' | 'legendary';
 
@@ -37,7 +37,7 @@ export const ENCOUNTER_AFTER = { from: 1, to: 14 };
 export const STEP_BATTLE_CHANCE = 0.5;
 /** The legendary's board comes from the 6th battle (5 fought), once a run. */
 export const LEGENDARY_FROM = 5;
-/** The legendaries offered: prints of this tier or more (the weaker prints aren't worth a fight). */
+/** The legendaries offered: units of this tier or more. */
 export const LEGENDARY_MIN_TIER = 3;
 /** A gift's choices, an upgrade's. */
 export const GIFT_CHOICES = 3;
@@ -47,8 +47,12 @@ export const UPGRADES = {
   protein: { name: 'Protein', attack: 20, hp: 0 },
   hpUp: { name: 'HP Up', attack: 0, hp: 40 },
 } as const;
-/** The keywords an upgrade can give (mine: the ones that work on their own, not the strongest, Toxic, Sleep and Explode). */
-export const UPGRADE_KEYWORDS: Keyword[] = ['Poison', 'Paralyze', 'Confuse', 'Guard', 'Harden', 'Splash', 'Finisher', 'Enrage', 'Weaken'];
+/** The keywords an upgrade can give (mine: ones that work on any Pokémon, wherever it stands), and how many a Pokémon can have. */
+export const UPGRADE_KEYWORDS: Ability[] = [
+  { k: 'Taunt' }, { k: 'Shield' }, { k: 'Armor', n: 10 }, { k: 'Thorns', n: 10 }, { k: 'Regen', n: 10 }, { k: 'Sturdy' }, { k: 'Quick' }, { k: 'Flying' }, { k: 'Sniper' },
+  { k: 'Splash', n: 10 }, { k: 'Finisher', n: 20 }, { k: 'Enrage', n: 10 }, { k: 'Rally', n: 10 }, { k: 'Paralyze' }, { k: 'Confuse' }, { k: 'Burn' },
+];
+export const MAX_KEYWORDS = 3;
 /** The special shop: cards a tier above the shop's, Trainer cards and their price (the user's, 2026-11-18). */
 export const SPECIAL_SHOP = { cards: 5, trainers: 2, trainerPrice: 100 };
 
@@ -65,7 +69,7 @@ export interface EncounterOffer {
 }
 
 /** An upgrade offered: to the card `key` (whose unit is `unit`, for the screen). */
-export type Upgrade = { kind: 'protein' | 'hpUp' | 'rareCandy'; key: number; unit: string } | { kind: 'keyword'; key: number; unit: string; keyword: Keyword };
+export type Upgrade = { kind: 'protein' | 'hpUp' | 'rareCandy'; key: number; unit: string } | { kind: 'keyword'; key: number; unit: string; ability: Ability };
 
 /** An encounter under way. A special shop's bought cards are null. */
 export type OpenEncounter =
@@ -82,7 +86,7 @@ export function rollEncounterSteps(rng: Rng): EncounterStep[] {
     .map((after) => ({ after, battle: chance(rng, STEP_BATTLE_CHANCE) }));
 }
 
-/** The legendary prints a legendary's board can bring. */
+/** The legendaries a legendary's board can bring. */
 export const legendaryUnits = (units: readonly Unit[], isLegendary: (u: Unit) => boolean) => units.filter((u) => isLegendary(u) && u.tier >= LEGENDARY_MIN_TIER);
 
 /** A step's `count` encounters, of different kinds; a legendary's board only when `legendaries` has some. */

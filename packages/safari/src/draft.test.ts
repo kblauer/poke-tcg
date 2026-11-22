@@ -1,17 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { int, rngFrom } from '@poke-tcg/campaign';
 import { BOARD_SIZE, type Board } from './battle.js';
-import { DRAFT, LEGENDARIES, applySafariAction, bankablePokedollars, battlePay, battleBoard, cardUnit, createSafari, draftPool, isLegendary, rerollPrice, sellPrice, shopSize, tierPrice, wantedCards, type Card, type PokemonCard, type SafariAction, type SafariState, type SafariSystemAction } from './draft.js';
-import { gen1Units } from './gen1.js';
+import { DRAFT, applySafariAction, bankablePokedollars, battlePay, battleBoard, cardUnit, createSafari, draftPool, isLegendary, rerollPrice, sellPrice, shopSize, tierPrice, wantedCards, type Card, type PokemonCard, type SafariAction, type SafariState, type SafariSystemAction } from './draft.js';
+import { allUnits } from './species.js';
 import type { Opponent } from './opponents.js';
 
-const units = gen1Units();
+const units = allUnits();
 const pool = draftPool(units);
 const unit = (id: string) => pool.units.get(id)!;
-/** 12 units that never merge with each other: no evolution line, all names different, none a test uses for itself. */
+/** 12 units that never merge with each other: no evolution line, all different Pokémon, none a test uses for itself. */
 const FILL = units
   .filter((u) => pool.lone(u) && !isLegendary(u) && !['Tauros', 'Kangaskhan'].includes(u.name))
-  .filter((u, i, all) => all.findIndex((v) => v.name === u.name) === i)
   .slice(0, 12)
   .map((u) => u.id);
 
@@ -41,9 +40,9 @@ function shop(board: string[], inventory: string[] = [], offers: string[] = [], 
   return s;
 }
 const ids = (cards: readonly (Card | null)[]) => cards.map((c) => (c?.kind === 'pokemon' ? c.unit : c?.kind === 'trainer' ? c.trainer : null));
-/** A board that loses to any full one, and the shop's 6 strongest units (they never merge with each other). */
+/** A board that loses to any full one, and 6 of the shop's strong units (Stage 1s, all different: they never merge with each other). */
 const weak = (): Board => ({ units: [units.filter((u) => u.tier === 1).sort((a, b) => a.attack + a.hp - b.attack - b.hp)[0]!] });
-const STRONG = pool.shop[4]!.filter((u) => u.stage === 'stage1').filter((u, i, all) => all.findIndex((v) => v.evolvesFrom === u.evolvesFrom) === i).slice(0, BOARD_SIZE).map((u) => u.id);
+const STRONG = pool.shop[3]!.filter((u) => u.stage === 'stage1').slice(0, BOARD_SIZE).map((u) => u.id);
 const strong: Board = { units: units.filter((u) => u.tier === 5).sort((a, b) => b.attack + b.hp - a.attack - a.hp).slice(0, BOARD_SIZE), trainer: 'Defender' };
 /** A battle lost for sure: only the weakest unit on the board against `strong` (the board put back after). */
 function lose(s: SafariState, pay: number): SafariState {
@@ -58,14 +57,14 @@ function fight(s: SafariState, board: Board, pay: number): SafariState {
 }
 
 describe('the pool', () => {
-  it('shows no Stage 2 and no legendary in a shop, every print of the legendaries out', () => {
+  it('shows no Stage 2 and no legendary in a shop', () => {
     for (const tier of pool.shop) for (const u of tier) expect(u.stage === 'stage2' || isLegendary(u), u.id).toBe(false);
-    expect(units.filter(isLegendary).map((u) => u.name)).toEqual(expect.arrayContaining(['Mewtwo', "Rocket's Mewtwo", "Blaine's Moltres", 'Mew', 'Articuno', 'Zapdos']));
-    expect(isLegendary({ name: 'Mewtwo' }) && isLegendary({ name: "Rocket's Zapdos" }) && !isLegendary({ name: 'Meowth' })).toBe(true);
-    expect(LEGENDARIES).toHaveLength(5);
-    // Stage 1s are sold, at the higher tiers only.
-    expect(pool.shop[0]!.some((u) => u.stage === 'stage1')).toBe(true); // Gen 1 has one tier-1 Stage 1
-    expect(pool.shop[3]!.filter((u) => u.stage === 'stage1').length).toBeGreaterThan(20);
+    expect(units.filter(isLegendary).map((u) => u.name)).toEqual(expect.arrayContaining(['Mewtwo', 'Mew', 'Articuno', 'Zapdos', 'Moltres', 'Lugia', 'Rayquaza']));
+    expect(units.filter(isLegendary)).toHaveLength(21);
+    expect(isLegendary(unit('150')) && !isLegendary(unit('52'))).toBe(true); // Mewtwo, Meowth
+    // Stage 1s are sold, at the higher tiers only: an evolved unit is at least a tier above what it evolves from.
+    expect(pool.shop[0]!.some((u) => u.stage === 'stage1')).toBe(false);
+    expect(pool.shop[2]!.filter((u) => u.stage === 'stage1').length).toBeGreaterThan(20);
   });
 
   it('offers 3 different tier-1 Basics to start, and the same seed the same run', () => {
@@ -81,7 +80,7 @@ describe('the pool', () => {
 describe('the start', () => {
   it('puts the starter on the board and opens a tier-1 shop of 3', () => {
     const start = createSafari(3, units);
-    expect(refused(start, { type: 'PICK_STARTER', unit: 'base1-4' })).toBe('Not one of the starters');
+    expect(refused(start, { type: 'PICK_STARTER', unit: '6' })).toBe('Not one of the starters');
     expect(refused(start, { type: 'BUY', index: 0 })).toBe('Pick a starter first');
     const s = must(start, { type: 'PICK_STARTER', unit: start.starters[1]! });
     expect(s.phase).toBe('shop');
@@ -95,7 +94,7 @@ describe('the start', () => {
 describe('the shop', () => {
   it('shows tier N and lower, more often the lower tiers, never the same unit twice', () => {
     const seen = [0, 0, 0, 0, 0];
-    let s = shop(['base1-4']); // Charizard: no partners, so the shop's favour shows nothing for it
+    let s = shop(['6']); // Charizard: no partners, so the shop's favour shows nothing for it
     s.shopTier = 5;
     s.pokedollars = 1e6;
     for (let i = 0; i < 400; i++) {
@@ -112,33 +111,33 @@ describe('the shop', () => {
   });
 
   it('places a bought card on the board, then in the inventory', () => {
-    let s = shop(FILL.slice(0, 5), [], ['base1-43', 'base5-50']);
+    let s = shop(FILL.slice(0, 5), [], ['43', '4']); // Oddish and Charmander, both tier 1
     s = must(s, { type: 'BUY', index: 0 });
-    expect(ids(s.board)[5]).toBe('base1-43');
+    expect(ids(s.board)[5]).toBe('43');
     expect(s.pokedollars).toBe(1000 - DRAFT.cardPrice[0]!);
-    expect(s.shop!.offers).toEqual([null, 'base5-50']);
+    expect(s.shop!.offers).toEqual([null, '4']);
     expect(refused(s, { type: 'BUY', index: 0 })).toBe('No card there');
     s = must(s, { type: 'BUY', index: 1 });
-    expect(ids(s.inventory)[0]).toBe('base5-50');
+    expect(ids(s.inventory)[0]).toBe('4');
     s.pokedollars = 10;
-    s.shop!.offers = ['base1-61'];
+    s.shop!.offers = ['19'];
     expect(refused(s, { type: 'BUY', index: 0 })).toBe('Not enough ₱');
   });
 
   it('with no room, buys only a card that completes a merge', () => {
-    const s = shop([...FILL.slice(0, 2), 'base1-26', ...FILL.slice(2, 5)], FILL.slice(5, 11), ['base1-46', 'base1-26']);
+    const s = shop([...FILL.slice(0, 2), '265', ...FILL.slice(2, 5)], FILL.slice(5, 11), ['4', '265']);
     expect(refused(s, { type: 'BUY', index: 0 })).toBe('No room: sell a card first');
-    // A second Dratini merges with the board's (into Dragonair or Dark Dragonair): room for it.
-    const after = must(must(s, { type: 'BUY', index: 1 }), { type: 'PICK', unit: 'base1-18' });
-    expect(ids(after.board)[2]).toBe('base1-18');
+    // A second Wurmple merges with the board's (into Silcoon or Cascoon): room for it.
+    const after = must(must(s, { type: 'BUY', index: 1 }), { type: 'PICK', unit: '266' });
+    expect(ids(after.board)[2]).toBe('266');
     expect([...after.board, ...after.inventory].filter(Boolean)).toHaveLength(12);
   });
 
   it('sells for 75% of the price, rounded down', () => {
-    const s = shop(['base1-61', 'base3-56', 'base1-32'], [], []);
+    const s = shop(['19', '72', '5'], [], []); // Rattata and Tentacool (tier 1), Charmeleon
     expect(sellPrice(s.board[0]!, pool)).toBe(45);
-    expect(sellPrice(s.board[1]!, pool)).toBe(45); // Tentacool: Cowardice's full price went with the powers
-    expect(sellPrice(s.board[2]!, pool)).toBe(Math.floor(DRAFT.cardPrice[unit('base1-32').tier - 1]! * 0.75));
+    expect(sellPrice(s.board[1]!, pool)).toBe(45);
+    expect(sellPrice(s.board[2]!, pool)).toBe(Math.floor(DRAFT.cardPrice[unit('5').tier - 1]! * 0.75));
     const sold = must(s, { type: 'SELL', place: { zone: 'board', at: 1 } });
     expect(sold.pokedollars).toBe(1045);
     expect(sold.board[1]).toBeNull();
@@ -172,19 +171,19 @@ describe('the shop', () => {
   });
 
   it("shows its tier's number of cards", () => {
-    const s = shop(['base5-33', 'base1-61']);
+    const s = shop(['20', '19']);
     expect(shopSize(s)).toBe(3);
     s.shopTier = 4;
     expect(shopSize(s)).toBe(5);
   });
 
   it('keeps a frozen shop\'s unbought cards for the next, filling the rest; a reroll unfreezes', () => {
-    let s = shop(['base1-61'], [], ['base1-43', 'base3-55', 'base1-26']);
+    let s = shop(['19'], [], ['43', '72', '147']);
     s = must(s, { type: 'BUY', index: 0 });
     s = must(s, { type: 'FREEZE' });
     expect(s.shop!.frozen).toBe(true);
     s = fight(s, weak(), 450);
-    expect(s.shop!.offers.slice(0, 2)).toEqual(['base3-55', 'base1-26']);
+    expect(s.shop!.offers.slice(0, 2)).toEqual(['72', '147']);
     expect(s.shop!.offers).toHaveLength(3);
     expect(s.shop!.frozen).toBe(false);
     s = must(must(s, { type: 'FREEZE' }), { type: 'REROLL' });
@@ -193,105 +192,113 @@ describe('the shop', () => {
 });
 
 describe('merging', () => {
-  it('merges 2 Basics into the Stage 1, the player picking between 2 the TCG allows', () => {
-    // Charmander evolves into Charmeleon or Dark Charmeleon: both are offered.
-    let s = shop([FILL[0]!, 'base1-46'], [], ['base5-50']);
+  it('merges 2 Basics into the Stage 1, the player picking between 2 where the line branches', () => {
+    // Wurmple evolves into Silcoon or Cascoon: both are offered.
+    let s = shop([FILL[0]!, '265'], [], ['265']);
     s = must(s, { type: 'BUY', index: 0 });
-    expect(s.pick).toMatchObject({ kind: 'merge', from: ['Charmander', 'Charmander'], place: { zone: 'board', at: 1 } });
-    expect([...s.pick!.options].sort()).toEqual(['base1-24', 'base5-32']);
+    expect(s.pick).toMatchObject({ kind: 'merge', from: ['Wurmple', 'Wurmple'], place: { zone: 'board', at: 1 } });
+    expect([...s.pick!.options].sort()).toEqual(['266', '268']);
     expect(refused(s, { type: 'REROLL' })).toBe('Pick the card first');
-    expect(refused(s, { type: 'PICK', unit: 'base1-4' })).toBe('Not one of the choices');
-    s = must(s, { type: 'PICK', unit: 'base5-32' });
-    expect(ids(s.board)).toEqual([FILL[0], 'base5-32', null, null, null, null]);
+    expect(refused(s, { type: 'PICK', unit: '6' })).toBe('Not one of the choices');
+    s = must(s, { type: 'PICK', unit: '268' });
+    expect(ids(s.board)).toEqual([FILL[0], '268', null, null, null, null]);
     expect(s.pick).toBeNull();
+    // Eevee evolves into 5 Pokémon: 2 of them at random, never the same one twice.
+    const eevee = must(shop(['133'], [], ['133']), { type: 'BUY', index: 0 });
+    expect(eevee.pick!.options).toHaveLength(2);
+    expect(new Set(eevee.pick!.options).size).toBe(2);
+    for (const id of eevee.pick!.options) expect(['134', '135', '136', '196', '197']).toContain(id);
   });
 
   it('merges the board and the inventory together, the result in the board part\'s place', () => {
-    let s = shop([FILL[0]!, 'base1-26'], [FILL[1]!]);
-    s = must(s, { type: 'GIFT', unit: 'base5-53' }); // a Dratini, to the inventory: 2 Dratini make Dragonair or Dark Dragonair
+    let s = shop([FILL[0]!, '79'], [FILL[1]!, '79']); // a Slowpoke in each: 2 Slowpoke make Slowbro or Slowking
+    s = must(s, { type: 'GIFT', unit: FILL[2]! }); // anything: settles the merge that was set up by hand
     expect(s.pick!.place).toEqual({ zone: 'board', at: 1 });
-    s = must(s, { type: 'PICK', unit: 'base1-18' });
-    expect(ids(s.board)).toEqual([FILL[0], 'base1-18', null, null, null, null]);
+    expect([...s.pick!.options].sort()).toEqual(['199', '80']);
+    s = must(s, { type: 'PICK', unit: '80' });
+    expect(ids(s.board)).toEqual([FILL[0], '80', FILL[2], null, null, null]);
     expect(ids(s.inventory)).toEqual([FILL[1], null, null, null, null, null]);
   });
 
   it('gives the only card a merge can give with no pick, and merges on up to the Stage 2', () => {
-    // Two Dark Charmeleon make Dark Charizard, its only Stage 2.
-    let s = shop(['base5-32'], [FILL[0]!]);
-    s = must(s, { type: 'GIFT', unit: 'base5-32' });
+    // Two Charmeleon make Charizard, its only Stage 2.
+    let s = shop(['5'], [FILL[0]!]);
+    s = must(s, { type: 'GIFT', unit: '5' });
     expect(s.pick).toBeNull();
-    expect(ids(s.board)[0]).toBe('base5-4');
-    expect(s.log.at(-1)).toBe('Dark Charmeleon and Dark Charmeleon merged into Dark Charizard.');
+    expect(ids(s.board)[0]).toBe('6');
+    expect(s.log.at(-1)).toBe('Charmeleon and Charmeleon merged into Charizard.');
     // Two Charmander merging into a Charmeleon beside another make Charizard.
-    s = shop(['base1-24', 'base1-46'], []);
-    s = must(s, { type: 'GIFT', unit: 'base5-50' });
-    s = must(s, { type: 'PICK', unit: 'base1-24' });
-    expect(ids(s.board)).toEqual(['base1-4', null, null, null, null, null]);
+    s = shop(['5', '4'], []);
+    s = must(s, { type: 'GIFT', unit: '4' });
+    expect(s.pick).toBeNull();
+    expect(ids(s.board)).toEqual(['6', null, null, null, null, null]);
   });
 
-  it('follows the TCG\'s lines: owners\' Pokémon only with their owner\'s, Dark Pokémon from their plain Basic', () => {
-    let s = shop(['base3-47'], []);
-    s = must(s, { type: 'GIFT', unit: 'gym1-38' });
-    expect(ids(s.board)).toEqual(['base3-47', 'gym1-38', null, null, null, null]);
-    s = must(s, { type: 'GIFT', unit: 'gym2-68' }); // a second Brock's Geodude, another print: Brock's Graveler
-    expect(s.pick!.options.every((id) => unit(id).name === "Brock's Graveler")).toBe(true);
-    // Charmeleon and Dark Charmeleon evolve into different cards: no merge.
-    s = shop(['base1-24'], []);
-    s = must(s, { type: 'GIFT', unit: 'base5-32' });
-    expect(ids(s.board)).toEqual(['base1-24', 'base5-32', null, null, null, null]);
+  it('follows the games\' lines: only 2 of the same Pokémon merge, a branching one into its own evolutions only', () => {
+    // Charmander, Squirtle and Charmeleon: three different Pokémon, a line's two stages among them.
+    let s = shop(['4'], []);
+    s = must(must(s, { type: 'GIFT', unit: '7' }), { type: 'GIFT', unit: '5' });
+    expect(s.pick).toBeNull();
+    expect(ids(s.board)).toEqual(['4', '7', '5', null, null, null]);
+    // Silcoon and Cascoon, both from Wurmple, evolve into different Pokémon: no merge.
+    s = shop(['266'], []);
+    s = must(s, { type: 'GIFT', unit: '268' });
+    expect(ids(s.board)).toEqual(['266', '268', null, null, null, null]);
+    // Every pair of a Pokémon gives only what evolves from it, a stage up.
+    for (const u of units.filter((v) => v.stage !== 'stage2' && pool.into(v.name).length)) {
+      const merged = must(shop([u.id], []), { type: 'GIFT', unit: u.id });
+      const made = merged.pick ? merged.pick.options : [ids(merged.board)[0]!];
+      for (const id of made) expect(unit(id).evolvesFrom, `${u.name} into ${unit(id).name}`).toBe(u.name);
+      expect(ids(merged.board).filter(Boolean), u.name).toHaveLength(merged.pick ? 0 : 1);
+    }
   });
 
   it('keeps the parts\' bonuses, one both had once', () => {
-    let s = shop(['base5-32'], []);
+    let s = shop(['5'], []);
     (s.board[0] as PokemonCard).bonuses = [{ from: 'up', attack: 10, hp: 0 }, { from: 'tough', attack: 0, hp: 20 }];
-    s.board[1] = card('base5-32', 1, { bonuses: [{ from: 'up', attack: 10, hp: 0 }] });
+    s.board[1] = card('5', 1, { bonuses: [{ from: 'up', attack: 10, hp: 0 }] });
     s = must(s, { type: 'GIFT', unit: FILL[0]! }); // anything: settles the merge that was set up by hand
-    const made = s.board.find((c) => c?.kind === 'pokemon' && c.unit === 'base5-4') as PokemonCard;
+    const made = s.board.find((c) => c?.kind === 'pokemon' && c.unit === '6') as PokemonCard;
     expect(made.bonuses.map((b) => b.from)).toEqual(['up', 'tough']);
-    expect(cardUnit(made, pool)).toMatchObject({ attack: unit('base5-4').attack + 10, hp: unit('base5-4').hp + 20 });
+    expect(cardUnit(made, pool)).toMatchObject({ attack: unit('6').attack + 10, hp: unit('6').hp + 20 });
   });
 });
 
 describe('golden copies', () => {
-  const lone = units.filter((u) => pool.lone(u));
-  const twoPrints = lone.find((u) => !isLegendary(u) && lone.filter((v) => v.name === u.name).length >= 2)!;
-
   it('only a Pokémon with no evolution line goes golden', () => {
-    expect(pool.lone(unit('base2-47'))).toBe(true); // Tauros
-    expect(pool.lone(unit('base1-61'))).toBe(false); // Rattata: Raticate
-    expect(pool.lone(unit('base1-26'))).toBe(false); // Dratini
-    expect(pool.lone(unit('base1-24'))).toBe(false); // Charmeleon
-    expect(pool.lone(unit('base1-4'))).toBe(false); // Charizard
+    expect(pool.lone(unit('128'))).toBe(true); // Tauros
+    expect(pool.lone(unit('19'))).toBe(false); // Rattata: Raticate
+    expect(pool.lone(unit('147'))).toBe(false); // Dratini
+    expect(pool.lone(unit('5'))).toBe(false); // Charmeleon
+    expect(pool.lone(unit('6'))).toBe(false); // Charizard
   });
 
-  it('makes 3 of a name golden, +20 attack and +20 HP, the player picking the print', () => {
-    let s = shop(['base2-47', 'base2-47'], []);
-    s = must(s, { type: 'GIFT', unit: 'base2-47' });
+  it('makes 3 of a Pokémon golden, +20 attack and +20 HP, with no pick', () => {
+    let s = shop(['128', '128'], []);
+    s = must(s, { type: 'GIFT', unit: '128' });
+    expect(s.pick).toBeNull();
     const golden = s.board[0] as PokemonCard;
-    expect(golden).toMatchObject({ unit: 'base2-47', golden: true });
-    expect(cardUnit(golden, pool)).toMatchObject({ attack: unit('base2-47').attack + 20, hp: unit('base2-47').hp + 20 });
+    expect(golden).toMatchObject({ unit: '128', golden: true });
+    expect(cardUnit(golden, pool)).toMatchObject({ attack: unit('128').attack + 20, hp: unit('128').hp + 20 });
     expect(ids(s.board).filter(Boolean)).toHaveLength(1);
+    expect(s.log.at(-1)).toBe('3 Tauros made a golden Tauros.');
     // A golden copy is never part of another.
-    s = must(must(s, { type: 'GIFT', unit: 'base2-47' }), { type: 'GIFT', unit: 'base2-47' });
+    s = must(must(s, { type: 'GIFT', unit: '128' }), { type: 'GIFT', unit: '128' });
     expect(ids(s.board).filter(Boolean)).toHaveLength(3);
-
-    const other = lone.find((u) => u.name === twoPrints.name && u.id !== twoPrints.id)!;
-    s = shop([twoPrints.id, other.id], []);
-    s = must(s, { type: 'GIFT', unit: twoPrints.id });
-    expect(s.pick).toMatchObject({ kind: 'golden' });
-    expect([...s.pick!.options].sort()).toEqual([twoPrints.id, other.id].sort());
-    s = must(s, { type: 'PICK', unit: other.id });
-    expect(s.board[0]).toMatchObject({ unit: other.id, golden: true });
+    // 3 of a Pokémon with an evolution line never go golden: 2 merge, the third waits.
+    s = must(must(shop(['4'], []), { type: 'GIFT', unit: '4' }), { type: 'GIFT', unit: '4' });
+    expect(ids(s.board)).toEqual(['5', '4', null, null, null, null]);
   });
 });
 
 describe('the shop\'s favour for cards held', () => {
-  it('knows each unit\'s partners: the same stage evolving into the same card, or a golden copy\'s name', () => {
+  it('knows each unit\'s partner: another of the same Pokémon, for a merge or a golden copy', () => {
     const mates = (id: string) => pool.mates(id).map((u) => u.id).sort();
-    expect(mates('base5-50')).toEqual(['base1-46', 'base5-50']); // Charmander, either print (Blaine's isn't his line)
-    expect(mates('base1-24')).toEqual(['base1-24']); // Charmeleon: Dark Charmeleon evolves into another card
-    expect(mates('base2-47')).toEqual(['base2-47']); // Tauros
-    expect(mates('base1-4')).toEqual([]); // Charizard: nothing above it
+    expect(mates('4')).toEqual(['4']); // Charmander
+    expect(mates('5')).toEqual(['5']); // Charmeleon
+    expect(mates('133')).toEqual(['133']); // Eevee, whichever Pokémon it evolves into
+    expect(mates('128')).toEqual(['128']); // Tauros
+    expect(mates('6')).toEqual([]); // Charizard: nothing above it
   });
 
   it('shows a held card\'s partners about DRAFT.favour more often', () => {
@@ -301,11 +308,11 @@ describe('the shop\'s favour for cards held', () => {
       let seen = 0;
       for (let i = 0; i < 1500; i++) {
         s = must(s, { type: 'REROLL' });
-        seen += s.shop!.offers.filter((id) => id === 'base5-50').length;
+        seen += s.shop!.offers.filter((id) => id === '4').length;
       }
       return seen / 1500;
     };
-    const lift = share(['base5-50']) - share([FILL[0]!]);
+    const lift = share(['4']) - share([FILL[0]!]);
     expect(lift).toBeGreaterThan(DRAFT.favour * 0.6);
     expect(lift).toBeLessThan(DRAFT.favour * 3 * 1.5);
   });
@@ -314,22 +321,22 @@ describe('the shop\'s favour for cards held', () => {
     const s = shop([], []);
     s.battles = 6;
     s.shopTier = 5;
-    s.board[0] = card('base5-50', 1, { since: 0 });
-    s.board[1] = card('base2-47', 2, { since: 5 });
+    s.board[0] = card('4', 1, { since: 0 });
+    s.board[1] = card('128', 2, { since: 5 });
     expect(wantedCards(s, pool).map((w) => w.weight)).toEqual([7, 2]);
-    const merged = must({ ...s, board: [card('base5-32', 1, { since: 2 }), null, null, null, null, null] }, { type: 'GIFT', unit: 'base5-32' });
-    expect(merged.board[0]).toMatchObject({ unit: 'base5-4', since: 2 });
+    const merged = must({ ...s, board: [card('5', 1, { since: 2 }), null, null, null, null, null] }, { type: 'GIFT', unit: '5' });
+    expect(merged.board[0]).toMatchObject({ unit: '6', since: 2 });
   });
 });
 
 describe('gifts', () => {
   it('gives a card to a free place, and loses a gift with no room', () => {
     let s = shop([FILL[0]!], []);
-    s = must(s, { type: 'GIFT', unit: 'base5-12' }); // Dark Slowbro: Reel In's gift went with the powers
+    s = must(s, { type: 'GIFT', unit: '80' }); // Slowbro
     expect([...s.board, ...s.inventory].filter(Boolean)).toHaveLength(2);
 
     s = shop(FILL.slice(0, 6), FILL.slice(6, 12));
-    s = must(s, { type: 'GIFT', unit: 'base5-5' });
+    s = must(s, { type: 'GIFT', unit: '6' });
     expect(s.log.filter((l) => l.startsWith('No room for'))).toHaveLength(1);
   });
 
@@ -412,7 +419,7 @@ describe('battles and the run', () => {
   });
 
   it('conceding loses the run, even with a pick waiting', () => {
-    let s = shop(['base1-46'], [], ['base5-50']);
+    let s = shop(['133'], [], ['133']); // 2 Eevee: a pick between 2 of its evolutions
     s = must(s, { type: 'BUY', index: 0 });
     expect(s.pick).not.toBeNull();
     s = must(s, { type: 'CONCEDE' });
@@ -434,7 +441,7 @@ describe('battles and the run', () => {
           { type: 'REROLL' },
           { type: 'FREEZE' },
           { type: 'TIER_UP' },
-          { type: 'PICK', unit: s.pick?.options[int(rng, s.pick.options.length)] ?? 'base1-4' },
+          { type: 'PICK', unit: s.pick?.options[int(rng, s.pick.options.length)] ?? '6' },
           { type: 'SET_TRAINER', key: s.inventory.find((c) => c?.kind === 'trainer')?.key ?? null },
           { type: 'GIFT', unit: units[int(rng, units.length)]!.id },
           { type: 'GIFT', trainer: 'PlusPower' },

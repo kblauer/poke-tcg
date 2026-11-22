@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { botRun, botRuns } from './economy.js';
-import { gen1Units } from './gen1.js';
+import { allUnits } from './species.js';
 
-const units = gen1Units();
+const units = allUnits();
 
 describe('the economy check', () => {
   it('plays whole runs to their end through the draft, the same way from the same seed', () => {
