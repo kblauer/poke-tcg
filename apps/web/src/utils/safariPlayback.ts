@@ -80,7 +80,7 @@ export function playbackFrames(mine: Board, opponent: Board, events: readonly Ba
         push({ kind: 'note', text: `${sideName(ev.side)} ${ev.type[0]!.toUpperCase()}${ev.type.slice(1)} synergy: ${SYNERGY_NAMES[ev.type] ?? ev.type} ${'I'.repeat(ev.level)}` });
         break;
       case 'trainer':
-        push({ kind: 'note', text: `${sideName(ev.side)} ${ev.trainer}${ev.flip === undefined ? '' : ev.flip ? ': heads!' : ': tails…'}` });
+        push({ kind: 'note', text: `${sideName(ev.side)} ${ev.trainer}` });
         break;
       case 'round':
         round = ev.round;

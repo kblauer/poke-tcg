@@ -150,8 +150,8 @@ export interface SafariBattle {
   bill: number;
 }
 
-/** The rules a run is played by: 2 is issue #254's units (one a species). A saved run of other rules can't be played on. */
-export const RULES = 2;
+/** The rules a run is played by: 2 is issue #254's units (one a species), 3 its Trainer cards and keywords by generation (2026-11-22). A saved run of other rules can't be played on. */
+export const RULES = 3;
 
 export interface SafariState {
   /** The rules it was started under (RULES). */

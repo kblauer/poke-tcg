@@ -1,387 +1,387 @@
 dex,name,tier,stage,type,attack,hp,keywords,games,winRate
-154,"Meganium",4,stage2,grass,40,110,"Safeguard; Rally 20; Mend 20",1131,0.6415
-383,"Groudon",5,basic,fighting,70,120,"Cleave; Armor 10; Burn",1175,0.6345
-248,"Tyranitar",5,stage2,darkness,70,110,"Barrage 20; Armor 10; Intimidate 20",1193,0.6320
-344,"Claydol",3,stage1,psychic,30,70,"Shield; Splash 10; Explode 10",687,0.6310
-362,"Glalie",3,stage1,water,50,60,"Paralyze; Explode 10; Intimidate 10",692,0.6279
-211,"Qwilfish",2,basic,water,20,40,"Thorns 20; Explode 10",713,0.6269
-295,"Exploud",4,stage2,colorless,40,110,"Cleave; Intimidate 10",1079,0.6265
-382,"Kyogre",5,basic,water,70,130,"Barrage 10; Leader 20; Splash 20",1222,0.6240
-327,"Spinda",1,basic,colorless,20,30,"Supersonic",551,0.6216
-204,"Pineco",1,basic,grass,10,30,"Explode 10; Armor 10",476,0.6197
-105,"Marowak",3,stage1,fighting,40,60,"Scavenger 10; Reach",723,0.6196
-285,"Shroomish",1,basic,grass,10,50,"Cute Charm",510,0.6196
-96,"Drowzee",1,basic,psychic,20,30,"Drain",478,0.6182
-153,"Bayleef",2,stage1,grass,20,60,"Safeguard; Rally 10",751,0.6172
-287,"Slakoth",1,basic,colorless,30,50,"Truant",522,0.6140
-234,"Stantler",2,basic,colorless,30,50,"Supersonic; Intimidate 10",783,0.6117
-151,"Mew",5,basic,psychic,50,110,"Evasive; Rally 20; Fortify 20",1177,0.6117
-40,"Wigglytuff",3,stage2,colorless,30,100,"Supersonic; Fortify 20",736,0.6114
-145,"Zapdos",5,basic,lightning,80,100,"Flying; Quick; Splash 30",1192,0.6095
-331,"Cacnea",1,basic,grass,10,30,"Thorns 20",477,0.6048
-201,"Unown",1,basic,psychic,0,10,"Rally 10; Legacy 10",502,0.6046
-301,"Delcatty",2,stage1,colorless,30,50,"Cute Charm; Baton Pass 10",761,0.6038
-69,"Bellsprout",1,basic,grass,20,30,"Drain",463,0.6026
-322,"Numel",1,basic,fire,20,40,"Explode 10",506,0.6018
-311,"Plusle",2,basic,lightning,20,40,"Rally 20",796,0.6018
-291,"Ninjask",3,stage1,grass,40,30,"Quick; Evasive; Baton Pass 20",684,0.5994
-280,"Ralts",1,basic,psychic,10,20,"Rally 10",478,0.5994
-306,"Aggron",4,stage2,metal,50,110,"Armor 20; Trample; Vanguard 20",1073,0.5974
-218,"Slugma",1,basic,fire,20,50,"Flame Body",498,0.5974
-378,"Regice",5,basic,water,50,150,"Shield; Paralyze; Guardian 20",1230,0.5959
-235,"Smeargle",2,basic,colorless,30,60,"Sketch",775,0.5948
-109,"Koffing",1,basic,grass,10,40,"Explode 10",513,0.5936
-20,"Raticate",2,stage1,colorless,30,40,"Quick; Finisher 20",741,0.5897
-292,"Shedinja",3,stage1,psychic,40,10,"Shield; Evasive; Sturdy",682,0.5894
-335,"Zangoose",4,basic,colorless,60,70,"Quick; Bane Grass 20",1081,0.5874
-305,"Lairon",2,stage1,metal,30,70,"Armor 10; Taunt",803,0.5859
-100,"Voltorb",1,basic,lightning,20,10,"Explode 10",509,0.5845
-79,"Slowpoke",1,basic,water,30,70,"Truant",480,0.5844
-340,"Whiscash",3,stage1,water,40,100,"Splash 20",753,0.5843
-364,"Sealeo",2,stage1,water,20,70,"Grow 10; Armor 10",798,0.5840
-281,"Kirlia",2,stage1,psychic,10,40,"Rally 20; Mend 10",806,0.5819
-146,"Moltres",5,basic,fire,70,110,"Flying; Burn; Cleave",1241,0.5786
-85,"Dodrio",3,stage1,colorless,30,60,"Double Strike; Quick",739,0.5778
-268,"Cascoon",2,stage1,grass,0,70,"Armor 10; Thorns 20",746,0.5777
-21,"Spearow",1,basic,colorless,30,20,"Flying",536,0.5765
-221,"Piloswine",3,stage1,water,40,100,"Armor 10; Trample",718,0.5752
-303,"Mawile",2,basic,metal,30,50,"Intimidate 10; Finisher 20",753,0.5744
-83,"Farfetch'd",2,basic,colorless,30,50,"Double Strike",794,0.5743
-144,"Articuno",5,basic,water,60,120,"Flying; Barrage 20; Paralyze",1190,0.5739
-262,"Mightyena",2,stage1,darkness,30,50,"Roar; Intimidate 20",748,0.5735
-293,"Whismur",1,basic,colorless,10,50,"Splash 10",484,0.5733
-284,"Masquerain",2,stage1,grass,30,40,"Intimidate 20; Flying",761,0.5729
-104,"Cubone",1,basic,fighting,20,40,"Scavenger 10",516,0.5717
-103,"Exeggutor",4,stage1,grass,50,100,"Confuse; Barrage 10",1104,0.5688
-323,"Camerupt",3,stage1,fire,40,70,"Explode 10; Splash 10",741,0.5675
-150,"Mewtwo",5,basic,psychic,80,120,"Loner 30; Intimidate 30; Breaker",1187,0.5666
-27,"Sandshrew",1,basic,fighting,10,50,"Armor 10",471,0.5658
-199,"Slowking",4,stage1,water,30,100,"Leader 20; Rally 20; Intimidate 10",1146,0.5650
-252,"Treecko",1,basic,grass,20,30,"Quick",534,0.5637
-272,"Ludicolo",4,stage2,water,40,100,"Baton Pass 30; Drain; Rally 10",1156,0.5636
-19,"Rattata",1,basic,colorless,20,20,"Quick",464,0.5625
-58,"Growlithe",1,basic,fire,20,30,"Intimidate 10",483,0.5621
-217,"Ursaring",4,stage1,colorless,60,90,"Enrage 20; Intimidate 10",1095,0.5616
-330,"Flygon",4,stage2,colorless,50,90,"Flying; Supersonic; Splash 20",1157,0.5609
-294,"Loudred",2,stage1,colorless,30,60,"Splash 10",748,0.5608
-92,"Gastly",1,basic,psychic,20,20,"Evasive",485,0.5608
-277,"Swellow",3,stage1,colorless,50,40,"Flying; Quick; Enrage 10",702,0.5598
-196,"Espeon",3,stage1,psychic,50,50,"Confuse; Shield",759,0.5586
-219,"Magcargo",3,stage1,fire,30,80,"Flame Body; Armor 10; Taunt",726,0.5585
-205,"Forretress",3,stage1,metal,20,80,"Explode 10; Armor 10; Taunt",667,0.5562
-141,"Kabutops",4,stage1,fighting,60,60,"Finisher 30; Drain; Quick",1078,0.5561
-70,"Weepinbell",2,stage1,grass,30,40,"Drain; Weaken 10",725,0.5559
-310,"Manectric",4,stage1,lightning,60,80,"Bodyguard; Quick; Static",1082,0.5555
-162,"Furret",2,stage1,colorless,30,60,"Bodyguard; Quick",781,0.5551
-86,"Seel",1,basic,water,20,40,"Fortify 10",548,0.5547
-245,"Suicune",5,basic,water,60,130,"Shield; Leader 20; Safeguard",1131,0.5544
-81,"Magnemite",1,basic,metal,10,40,"Rally 10",499,0.5541
-87,"Dewgong",3,stage1,water,30,90,"Fortify 20; Screen",705,0.5532
-72,"Tentacool",1,basic,water,20,50,"Paralyze",495,0.5525
-213,"Shuckle",2,basic,grass,10,120,"Taunt; Thorns 10",822,0.5517
-26,"Raichu",4,stage2,lightning,60,70,"Paralyze; Quick; Bane Water 20",1140,0.5513
-250,"Ho-Oh",5,basic,fire,70,120,"Burn; Sturdy; Regen 30",1171,0.5512
-135,"Jolteon",3,stage1,lightning,50,50,"Quick; Thorns 20",742,0.5499
-48,"Venonat",1,basic,grass,10,50,"Supersonic",456,0.5493
-115,"Kangaskhan",4,basic,colorless,50,100,"Family",1078,0.5492
-29,"Nidoran♀",1,basic,grass,10,40,"Thorns 10",514,0.5486
-53,"Persian",3,stage1,colorless,40,50,"Pay Day; Quick; Finisher 20",724,0.5477
-89,"Muk",3,stage1,grass,40,110,"Weaken 10; Taunt",694,0.5476
-64,"Kadabra",3,stage1,psychic,50,40,"Reach; Confuse",739,0.5474
-258,"Mudkip",1,basic,water,10,50,"Guardian 10",508,0.5472
-326,"Grumpig",3,stage1,psychic,30,70,"Confuse; Armor 10; Rally 10",717,0.5467
-54,"Psyduck",1,basic,water,10,40,"Enrage 20",506,0.5464
-7,"Squirtle",1,basic,water,20,40,"Shield",483,0.5455
-30,"Nidorina",2,stage1,grass,20,60,"Thorns 10; Fortify 10",840,0.5446
-131,"Lapras",5,basic,water,50,160,"Guardian 20; Fortify 20",1196,0.5443
-337,"Lunatone",3,basic,psychic,30,80,"Intimidate 20; Supersonic",764,0.5438
-202,"Wobbuffet",3,stage1,psychic,0,130,"Counter; Taunt",726,0.5434
-31,"Nidoqueen",4,stage2,grass,40,100,"Thorns 20; Guardian 10; Family",1169,0.5423
-94,"Gengar",5,stage2,psychic,70,70,"Evasive; Destiny Bond; Finisher 20",1221,0.5422
-76,"Golem",4,stage2,fighting,30,100,"Sturdy; Explode 10; Taunt",1100,0.5418
-365,"Walrein",4,stage2,water,40,130,"Grow 10; Armor 10; Paralyze",1127,0.5417
-210,"Granbull",3,stage1,colorless,40,60,"Intimidate 20; Breaker",734,0.5409
-264,"Linoone",2,stage1,colorless,30,50,"U-turn; Quick; Pay Day",776,0.5406
-300,"Skitty",1,basic,colorless,10,30,"Cute Charm",482,0.5405
-59,"Arcanine",5,stage1,fire,70,100,"Intimidate 10; Quick; Burn",1203,0.5399
-114,"Tangela",2,basic,grass,20,70,"Weaken 10; Regen 10",755,0.5397
-231,"Phanpy",1,basic,fighting,10,60,"Grow 10",519,0.5385
-194,"Wooper",1,basic,water,20,60,"",486,0.5381
-209,"Snubbull",1,basic,colorless,10,50,"Intimidate 10",507,0.5375
-158,"Totodile",1,basic,water,30,30,"Rampage 10",528,0.5369
-170,"Chinchou",1,basic,lightning,20,50,"Mend 10",494,0.5364
-325,"Spoink",1,basic,psychic,10,40,"Confuse",537,0.5363
-233,"Porygon2",4,stage1,colorless,40,90,"Shield; Sketch",1121,0.5361
-341,"Corphish",1,basic,water,30,30,"Finisher 10",500,0.5360
-78,"Rapidash",4,stage1,fire,60,70,"Quick; Flame Body",1167,0.5351
-28,"Sandslash",3,stage1,fighting,30,70,"Armor 10; Thorns 20",661,0.5348
-156,"Quilava",2,stage1,fire,30,50,"Splash 10; Burn",753,0.5345
-377,"Regirock",5,basic,fighting,50,160,"Taunt; Armor 20; Sturdy",1207,0.5344
-316,"Gulpin",1,basic,grass,20,30,"Rampage 10",466,0.5333
-157,"Typhlosion",5,stage2,fire,70,90,"Splash 30; Burn; Barrage 10",1209,0.5306
-139,"Omastar",4,stage1,water,50,80,"Armor 20; Splash 20",1082,0.5305
-244,"Entei",5,basic,fire,80,110,"Roar; Burn; Barrage 10",1166,0.5300
-212,"Scizor",5,stage1,metal,70,100,"Quick; Armor 10; Finisher 20",1189,0.5299
-189,"Jumpluff",3,stage2,grass,30,60,"Evasive; Flying; Weaken 10",697,0.5294
-33,"Nidorino",2,stage1,grass,30,50,"Pack 10; Enrage 10",736,0.5285
-216,"Teddiursa",1,basic,colorless,10,30,"Enrage 10",496,0.5282
-167,"Spinarak",1,basic,grass,10,40,"Weaken 10",521,0.5278
-120,"Staryu",1,basic,water,20,40,"Regen 10",524,0.5277
-37,"Vulpix",1,basic,fire,20,40,"Will-O-Wisp",473,0.5275
-190,"Aipom",1,basic,colorless,20,30,"Pay Day",499,0.5271
-90,"Shellder",1,basic,water,10,20,"Armor 20",463,0.5270
-133,"Eevee",1,basic,colorless,10,40,"Baton Pass 10",528,0.5265
-93,"Haunter",3,stage1,psychic,40,40,"Evasive; Confuse",685,0.5263
-121,"Starmie",4,stage1,water,60,80,"Regen 10; Quick",1148,0.5261
-225,"Delibird",2,basic,water,30,50,"Baton Pass 20; Mend 10",737,0.5244
-260,"Swampert",5,stage2,water,50,130,"Guardian 20; Splash 20; Armor 10",1230,0.5244
-82,"Magneton",3,stage1,metal,30,60,"Rally 20; Paralyze",729,0.5240
-112,"Rhydon",4,stage1,fighting,60,100,"Trample; Armor 10",1149,0.5235
-276,"Taillow",1,basic,colorless,20,20,"Flying; Enrage 10",461,0.5228
-106,"Hitmonlee",3,stage1,fighting,50,50,"Reach",726,0.5213
-147,"Dratini",1,basic,colorless,10,40,"Grow 10",502,0.5209
-91,"Cloyster",3,stage1,water,30,60,"Armor 20; Double Strike",710,0.5204
-179,"Mareep",1,basic,lightning,20,50,"Static",491,0.5204
-16,"Pidgey",1,basic,colorless,20,30,"Whirlwind",462,0.5195
-329,"Vibrava",2,stage1,colorless,30,50,"Supersonic; Flying",779,0.5193
-247,"Pupitar",3,stage1,fighting,30,80,"Armor 20",707,0.5191
-159,"Croconaw",2,stage1,water,40,50,"Rampage 10; Finisher 10",774,0.5181
-32,"Nidoran♂",1,basic,grass,20,30,"Pack 10",477,0.5168
-334,"Altaria",4,stage1,colorless,40,110,"Flying; Safeguard; Fortify 20",1110,0.5162
-232,"Donphan",4,stage1,fighting,50,110,"Grow 10; Armor 10; Trample",1089,0.5161
-379,"Registeel",5,basic,metal,40,150,"Armor 30; Rally 20",1187,0.5152
-77,"Ponyta",1,basic,fire,20,30,"Quick",514,0.5146
-266,"Silcoon",2,stage1,grass,10,80,"Armor 10; Fortify 20",798,0.5144
-24,"Arbok",3,stage1,grass,30,70,"Glare; Intimidate 20",666,0.5143
-224,"Octillery",3,stage1,water,40,60,"Reach; Sniper",741,0.5135
-386,"Deoxys",5,basic,psychic,100,60,"Quick; Breaker; Loner 20",1179,0.5123
-61,"Poliwhirl",2,stage1,water,30,60,"Supersonic",773,0.5123
-188,"Skiploom",2,stage1,grass,20,40,"Evasive; Mend 10",735,0.5122
-317,"Swalot",3,stage1,grass,40,100,"Rampage 10; Regen 10",689,0.5116
-369,"Relicanth",3,basic,water,30,100,"Armor 10; Sturdy",756,0.5112
-307,"Meditite",1,basic,psychic,20,30,"Grow 10",497,0.5101
-315,"Roselia",2,basic,grass,30,40,"Thorns 20",762,0.5098
-319,"Sharpedo",4,stage1,darkness,80,40,"Thorns 20; Quick",1076,0.5098
-75,"Graveler",2,stage1,fighting,20,70,"Sturdy; Explode 10",806,0.5081
-44,"Gloom",2,stage1,grass,20,60,"Mend 10; Cute Charm",777,0.5077
-271,"Lombre",2,stage1,water,20,60,"Baton Pass 20; Drain",820,0.5073
-289,"Slaking",5,stage2,colorless,120,160,"Truant; Trample",1232,0.5073
-38,"Ninetales",4,stage1,fire,50,90,"Will-O-Wisp; Burn; Memento 20",1066,0.5070
-238,"Smoochum",1,basic,psychic,10,30,"Confuse",507,0.5069
-177,"Natu",1,basic,psychic,20,30,"Sniper",485,0.5062
-99,"Kingler",3,stage1,water,60,50,"Breaker; Armor 10",703,0.5057
-226,"Mantine",3,basic,water,30,110,"Guardian 10; Flying",720,0.5056
-206,"Dunsparce",2,basic,colorless,20,80,"Glare; Paralyze",772,0.5052
-88,"Grimer",1,basic,grass,0,60,"Weaken 10",479,0.5042
-186,"Politoed",4,stage2,water,40,100,"Leader 20; Rally 10; Mend 10",1093,0.5041
-187,"Hoppip",1,basic,grass,10,30,"Evasive",493,0.5041
-237,"Hitmontop",3,stage1,fighting,30,70,"Cleave",756,0.5040
-60,"Poliwag",1,basic,water,20,30,"Supersonic",516,0.5039
-117,"Seadra",3,stage1,water,40,50,"Reach; Thorns 10",706,0.5028
-367,"Huntail",3,stage1,water,50,60,"Finisher 20; Intimidate 10",741,0.5027
-18,"Pidgeot",4,stage2,colorless,50,80,"Flying; Quick; Whirlwind",1122,0.5027
-73,"Tentacruel",3,stage1,water,30,80,"Paralyze; Thorns 20",730,0.5021
-181,"Ampharos",4,stage2,lightning,50,110,"Static; Leader 20; Paralyze",1082,0.5018
-243,"Raikou",5,basic,lightning,80,100,"Quick; Paralyze; Roar",1161,0.5013
-283,"Surskit",1,basic,grass,20,20,"U-turn; Quick",499,0.5010
-1,"Bulbasaur",1,basic,grass,10,50,"Regen 10",506,0.5010
-101,"Electrode",3,stage1,lightning,30,40,"Explode 10; Quick",699,0.5007
-128,"Tauros",4,basic,colorless,60,80,"Trample; Enrage 10",1114,0.5000
-267,"Beautifly",3,stage2,grass,40,50,"Drain; Flying; Rally 10",736,0.5000
-357,"Tropius",3,basic,grass,30,100,"Flying; Mend 20; Fortify 10",685,0.5000
-195,"Quagsire",3,stage1,water,30,110,"Armor 10; Safeguard",713,0.4993
-220,"Swinub",1,basic,water,20,40,"",490,0.4990
-45,"Vileplume",4,stage2,grass,50,100,"Confuse; Thorns 10; Mend 20",1168,0.4987
-66,"Machop",1,basic,fighting,20,40,"Face-off",516,0.4981
-8,"Wartortle",3,stage1,water,40,60,"Shield; Armor 10",734,0.4973
-251,"Celebi",5,basic,grass,50,100,"Evasive; Mend 20; Safeguard",1197,0.4971
-174,"Igglybuff",1,basic,colorless,0,50,"Cute Charm",485,0.4969
-313,"Volbeat",2,basic,grass,20,50,"Baton Pass 20",800,0.4969
-259,"Marshtomp",3,stage1,water,30,80,"Guardian 10; Armor 10",712,0.4965
-51,"Dugtrio",3,stage1,fighting,40,30,"Reach; Splash 20",766,0.4961
-193,"Yanma",2,basic,grass,30,40,"Quick; Flying; U-turn",756,0.4954
-356,"Dusclops",4,stage1,psychic,30,140,"Taunt; Will-O-Wisp; Memento 20",1118,0.4946
-275,"Shiftry",4,stage2,darkness,60,70,"Whirlwind; Quick; Finisher 20",1110,0.4946
-185,"Sudowoodo",3,basic,fighting,30,90,"Taunt; Sketch",682,0.4934
-318,"Carvanha",1,basic,darkness,40,20,"Thorns 10",519,0.4933
-142,"Aerodactyl",5,basic,colorless,70,90,"Flying; Quick; Intimidate 10",1215,0.4922
-253,"Grovyle",3,stage1,grass,30,50,"Quick; Double Strike",661,0.4909
-290,"Nincada",1,basic,grass,10,40,"Family",491,0.4908
-249,"Lugia",5,basic,psychic,60,150,"Flying; Guardian 20; Whirlwind",1172,0.4906
-358,"Chimecho",2,basic,psychic,20,70,"Mend 20; Safeguard",770,0.4903
-84,"Doduo",1,basic,colorless,10,40,"Double Strike",491,0.4898
-56,"Mankey",1,basic,fighting,20,30,"Enrage 10",532,0.4897
-347,"Anorith",2,basic,fighting,30,50,"Sniper; Armor 10",759,0.4895
-274,"Nuzleaf",2,stage1,darkness,40,50,"Whirlwind",794,0.4893
-25,"Pikachu",2,stage1,lightning,40,40,"Paralyze; Static",779,0.4891
-381,"Latios",5,basic,psychic,80,100,"Flying; Reach; Sniper",1241,0.4887
-169,"Crobat",4,stage2,grass,50,70,"Drain; Flying; Quick",1134,0.4885
-9,"Blastoise",5,stage2,water,50,120,"Shield; Armor 10; Leader 20",1211,0.4884
-345,"Lileep",2,basic,grass,20,70,"Taunt; Drain",783,0.4879
-171,"Lanturn",3,stage1,lightning,30,100,"Mend 10; Static",714,0.4874
-328,"Trapinch",1,basic,fighting,20,30,"Glare",465,0.4871
-375,"Metang",3,stage1,metal,40,80,"Armor 10; Pack 10",747,0.4866
-119,"Seaking",2,stage1,water,40,50,"Vanguard 20",757,0.4855
-223,"Remoraid",1,basic,water,20,20,"Reach; Sniper",507,0.4852
-288,"Vigoroth",3,stage1,colorless,50,70,"Rampage 10",729,0.4849
-324,"Torkoal",2,basic,fire,20,70,"Armor 10; Will-O-Wisp",757,0.4848
-163,"Hoothoot",1,basic,colorless,10,40,"Supersonic",485,0.4845
-332,"Cacturne",3,stage1,darkness,50,60,"Thorns 20; Finisher 20",748,0.4840
-4,"Charmander",1,basic,fire,20,30,"Burn",495,0.4838
-222,"Corsola",2,basic,water,20,60,"Regen 20; Thorns 10",811,0.4827
-363,"Spheal",1,basic,water,10,50,"Grow 10",506,0.4822
-102,"Exeggcute",1,basic,grass,10,30,"Family; Pack 10",495,0.4818
-342,"Crawdaunt",3,stage1,darkness,60,60,"Finisher 20; Breaker; Rampage 10",708,0.4816
-200,"Misdreavus",2,basic,psychic,20,50,"Memento 20; Supersonic",762,0.4816
-265,"Wurmple",1,basic,grass,20,20,"Weaken 10",544,0.4816
-47,"Parasect",2,stage1,grass,20,50,"Static; Drain",754,0.4814
-376,"Metagross",5,stage2,metal,70,130,"Armor 10; Leader 20; Trample",1149,0.4813
-113,"Chansey",3,basic,colorless,20,170,"Mend 20",727,0.4807
-304,"Aron",1,basic,metal,10,40,"Armor 10",475,0.4800
-182,"Bellossom",4,stage2,grass,30,90,"Rally 20; Mend 20",1090,0.4789
-108,"Lickitung",2,basic,colorless,20,80,"Paralyze",794,0.4780
-354,"Banette",3,stage1,psychic,50,50,"Scavenger 20; Memento 20",713,0.4776
-215,"Sneasel",2,basic,darkness,40,30,"Quick; Sniper",773,0.4774
-240,"Magby",1,basic,fire,20,30,"Flame Body",499,0.4770
-36,"Clefable",4,stage2,colorless,40,90,"Cute Charm; Mend 20; Safeguard",1059,0.4769
-371,"Bagon",2,basic,colorless,40,50,"Recoil 10",755,0.4768
-178,"Xatu",3,stage1,psychic,50,70,"Sniper; Flying",711,0.4768
-98,"Krabby",1,basic,water,30,20,"Breaker",519,0.4759
-155,"Cyndaquil",1,basic,fire,10,40,"Splash 10",478,0.4749
-34,"Nidoking",4,stage2,grass,60,90,"Trample; Rampage 10; Pack 20",1151,0.4748
-43,"Oddish",1,basic,grass,10,40,"Mend 10",492,0.4746
-35,"Clefairy",2,stage1,colorless,20,50,"Cute Charm; Mend 10",784,0.4745
-132,"Ditto",2,basic,colorless,10,40,"Transform",777,0.4736
-282,"Gardevoir",5,stage2,psychic,50,100,"Bodyguard; Shield; Rally 20",1265,0.4704
-353,"Shuppet",1,basic,psychic,20,20,"Scavenger 10",485,0.4691
-42,"Golbat",2,stage1,grass,30,40,"Drain; Flying",785,0.4682
-241,"Miltank",4,basic,colorless,40,120,"Regen 20; Grow 10",1093,0.4680
-273,"Seedot",1,basic,grass,0,30,"Enrage 20",525,0.4676
-67,"Machoke",3,stage1,fighting,40,70,"Face-off; Rally 10",731,0.4672
-5,"Charmeleon",3,stage1,fire,50,60,"Burn; Enrage 10",690,0.4667
-50,"Diglett",1,basic,fighting,30,10,"Reach",494,0.4666
-270,"Lotad",1,basic,water,10,50,"Baton Pass 10",469,0.4659
-23,"Ekans",1,basic,grass,10,40,"Glare",493,0.4655
-14,"Kakuna",2,stage1,grass,10,70,"Taunt; Thorns 10",778,0.4647
-373,"Salamence",5,stage2,colorless,80,100,"Flying; Intimidate 20; Rampage 20",1242,0.4646
-46,"Paras",1,basic,grass,10,40,"Static",478,0.4644
-269,"Dustox",3,stage2,grass,20,80,"Shield; Weaken 20",687,0.4643
-118,"Goldeen",1,basic,water,20,30,"Vanguard 10",516,0.4641
-308,"Medicham",3,stage1,psychic,50,60,"Grow 10; Face-off",706,0.4632
-71,"Victreebel",4,stage2,grass,60,80,"Drain; Sniper; Weaken 10",1106,0.4629
-346,"Cradily",4,stage1,grass,40,140,"Taunt; Drain; Regen 10",1092,0.4620
-10,"Caterpie",1,basic,grass,20,30,"",510,0.4618
-65,"Alakazam",5,stage2,psychic,70,70,"Reach; Sniper; Intimidate 20",1133,0.4607
-136,"Flareon",3,stage1,fire,60,50,"Burn; Trample",698,0.4606
-372,"Shelgon",3,stage1,colorless,20,100,"Armor 20",722,0.4605
-254,"Sceptile",5,stage2,grass,50,90,"Quick; Double Strike; Sniper",1203,0.4605
-208,"Steelix",5,stage1,metal,50,160,"Taunt; Armor 20",1198,0.4604
-343,"Baltoy",1,basic,psychic,10,40,"Shield",513,0.4600
-166,"Ledian",2,stage1,grass,20,50,"Flying; Double Strike",743,0.4596
-368,"Gorebyss",3,stage1,water,30,60,"Drain; Baton Pass 30",703,0.4595
-140,"Kabuto",2,basic,fighting,20,50,"Armor 10; Finisher 10",759,0.4585
-296,"Makuhita",1,basic,fighting,10,60,"Face-off",480,0.4583
-255,"Torchic",1,basic,fire,10,40,"Grow 10",490,0.4582
-333,"Swablu",1,basic,colorless,10,40,"Safeguard",475,0.4579
-321,"Wailord",5,stage1,water,50,250,"",1215,0.4576
-309,"Electrike",1,basic,lightning,20,30,"Bodyguard",493,0.4574
-74,"Geodude",1,basic,fighting,10,50,"Sturdy",478,0.4561
-338,"Solrock",3,basic,fighting,40,70,"Burn; Vanguard 20",686,0.4555
-172,"Pichu",1,basic,lightning,30,30,"Paralyze; Recoil 10",503,0.4543
-351,"Castform",2,basic,colorless,20,50,"Loner 20",710,0.4542
-297,"Hariyama",4,stage1,fighting,50,130,"Face-off; Whirlwind",1168,0.4542
-143,"Snorlax",5,basic,colorless,80,170,"Truant; Taunt",1225,0.4539
-173,"Cleffa",1,basic,colorless,10,40,"Mend 10",496,0.4536
-361,"Snorunt",1,basic,water,20,30,"Paralyze",487,0.4517
-230,"Kingdra",5,stage2,water,60,90,"Reach; Sniper; Armor 10",1197,0.4515
-229,"Houndoom",4,stage1,darkness,60,80,"Pack 20; Burn; Finisher 10",1088,0.4513
-228,"Houndour",1,basic,darkness,30,20,"Pack 10",513,0.4513
-286,"Breloom",3,stage1,grass,50,60,"Face-off; Paralyze",727,0.4512
-152,"Chikorita",1,basic,grass,10,40,"Safeguard",530,0.4509
-125,"Electabuzz",4,stage1,lightning,60,80,"Static; Paralyze",1048,0.4504
-63,"Abra",1,basic,psychic,10,20,"Evasive",493,0.4503
-123,"Scyther",3,basic,grass,40,50,"Quick; Finisher 20",693,0.4502
-39,"Jigglypuff",2,stage1,colorless,20,60,"Supersonic",792,0.4501
-191,"Sunkern",1,basic,grass,0,30,"Grow 20",512,0.4492
-180,"Flaaffy",2,stage1,lightning,20,70,"Static; Fortify 10",746,0.4491
-198,"Murkrow",2,basic,darkness,40,40,"Flying; Finisher 20",754,0.4489
-52,"Meowth",1,basic,colorless,10,40,"Pay Day",523,0.4484
-130,"Gyarados",5,stage1,water,70,120,"Intimidate 20; Rampage 20",1257,0.4483
-116,"Horsea",1,basic,water,10,30,"Reach",529,0.4471
-6,"Charizard",5,stage2,fire,70,100,"Burn; Flying; Splash 20",1196,0.4461
-110,"Weezing",4,stage1,grass,40,100,"Explode 10; Weaken 10",1092,0.4455
-134,"Vaporeon",3,stage1,water,30,110,"Regen 20",705,0.4454
-256,"Combusken",3,stage1,fire,50,70,"Grow 10; Face-off",722,0.4453
-261,"Poochyena",1,basic,darkness,20,30,"Roar",483,0.4441
-302,"Sableye",2,basic,darkness,20,50,"Shield; Pay Day",744,0.4435
-3,"Venusaur",5,stage2,grass,50,130,"Regen 20; Mend 20; Fortify 20",1171,0.4432
-380,"Latias",5,basic,psychic,60,120,"Flying; Guardian 20; Mend 20",1205,0.4432
-370,"Luvdisc",1,basic,water,10,30,"Quick; Mend 10",471,0.4427
-57,"Primeape",3,stage1,fighting,50,60,"Enrage 20; Face-off",711,0.4416
-312,"Minun",2,basic,lightning,10,50,"Fortify 30",771,0.4410
-385,"Jirachi",5,basic,metal,40,100,"Mend 20; Rally 20; Sturdy",1236,0.4409
-246,"Larvitar",2,basic,fighting,40,50,"Rampage 10",757,0.4399
-62,"Poliwrath",4,stage2,water,50,100,"Face-off; Breaker; Armor 10",1125,0.4387
-80,"Slowbro",3,stage1,water,30,110,"Taunt; Regen 10",689,0.4383
-384,"Rayquaza",5,basic,colorless,90,110,"Flying; Breaker; Rampage 20",1191,0.4383
-227,"Skarmory",4,basic,metal,40,100,"Flying; Armor 10; Thorns 10",1132,0.4368
-352,"Kecleon",2,basic,colorless,20,70,"Counter",783,0.4368
-279,"Pelipper",2,stage1,water,20,70,"Flying; Screen",782,0.4367
-236,"Tyrogue",1,basic,fighting,30,20,"Face-off",465,0.4355
-126,"Magmar",4,stage1,fire,60,80,"Flame Body; Burn",1100,0.4341
-350,"Milotic",5,stage1,water,50,140,"Cute Charm; Regen 20; Safeguard",1202,0.4339
-192,"Sunflora",2,stage1,grass,20,50,"Grow 10; Regen 10",798,0.4336
-359,"Absol",4,basic,darkness,80,60,"Loner 20; Sniper",1090,0.4335
-203,"Girafarig",3,basic,psychic,40,70,"Vanguard 20; Rearguard 20",734,0.4332
-360,"Wynaut",1,basic,psychic,0,60,"Counter",499,0.4329
-49,"Venomoth",3,stage1,grass,40,70,"Flying; Confuse; Weaken 10",684,0.4327
-176,"Togetic",3,stage1,colorless,20,70,"Flying; Screen; Safeguard",700,0.4321
-111,"Rhyhorn",2,basic,fighting,30,60,"Trample",776,0.4317
-17,"Pidgeotto",2,stage1,colorless,30,50,"Whirlwind; Flying",758,0.4314
-184,"Azumarill",4,stage2,water,60,100,"Rearguard 50; Breaker",1084,0.4308
-320,"Wailmer",2,basic,water,20,100,"",757,0.4306
-374,"Beldum",2,basic,metal,40,50,"Recoil 10",787,0.4301
-314,"Illumise",2,basic,grass,10,60,"Taunt; Cute Charm",745,0.4289
-41,"Zubat",1,basic,grass,10,30,"Drain; Flying",533,0.4287
-207,"Gligar",2,basic,fighting,30,50,"Flying; Finisher 10",771,0.4287
-168,"Ariados",3,stage1,grass,30,70,"Weaken 10; Glare; Sniper",695,0.4273
-242,"Blissey",5,stage1,colorless,20,260,"Mend 30; Safeguard",1251,0.4273
-97,"Hypno",4,stage1,psychic,40,100,"Drain; Supersonic",1139,0.4267
-175,"Togepi",1,basic,colorless,10,40,"Screen",504,0.4266
-138,"Omanyte",2,basic,water,20,60,"Armor 10",755,0.4258
-336,"Seviper",3,basic,grass,40,70,"Bane Colorless 30; Weaken 10",737,0.4254
-164,"Noctowl",3,stage1,colorless,30,80,"Flying; Supersonic",717,0.4247
-95,"Onix",2,basic,fighting,20,90,"Taunt",748,0.4245
-339,"Barboach",1,basic,water,20,30,"U-turn",516,0.4244
-263,"Zigzagoon",1,basic,colorless,10,40,"U-turn",517,0.4217
-278,"Wingull",1,basic,water,20,30,"Flying; Whirlwind",527,0.4203
-137,"Porygon",2,basic,colorless,20,50,"Shield",762,0.4193
-239,"Elekid",1,basic,lightning,20,30,"Static",532,0.4192
-55,"Golduck",3,stage1,water,40,70,"Confuse; Breaker",673,0.4183
-22,"Fearow",3,stage1,colorless,50,50,"Flying; Sniper; Bane Grass 20",731,0.4179
-15,"Beedrill",4,stage2,grass,60,90,"Double Strike; Sniper",1136,0.4159
-160,"Feraligatr",5,stage2,water,70,110,"Rampage 20; Trample; Intimidate 10",1214,0.4147
-183,"Marill",2,stage1,water,30,60,"Rearguard 30",769,0.4129
-13,"Weedle",1,basic,grass,20,20,"Sniper",527,0.4118
-197,"Umbreon",3,stage1,darkness,30,110,"Taunt; Regen 10",694,0.4114
-11,"Metapod",2,stage1,grass,10,90,"Taunt; Armor 10",743,0.4112
-148,"Dragonair",3,stage1,colorless,30,70,"Grow 10; Safeguard",706,0.4108
-12,"Butterfree",4,stage2,grass,50,90,"Flying; Confuse; Mend 10",1081,0.4107
-149,"Dragonite",5,stage2,colorless,70,120,"Flying; Grow 20",1191,0.4081
-355,"Duskull",1,basic,psychic,10,40,"Will-O-Wisp",475,0.4063
-214,"Heracross",5,basic,grass,80,110,"Trample; Vanguard 30",1185,0.4051
-107,"Hitmonchan",3,stage1,fighting,30,70,"Double Strike; Counter",713,0.4046
-298,"Azurill",1,basic,water,10,50,"Rearguard 20",541,0.4011
-257,"Blaziken",5,stage2,fire,70,110,"Grow 20; Face-off; Burn",1217,0.4010
-348,"Armaldo",4,stage1,fighting,60,90,"Armor 10; Sniper; Breaker",1062,0.3997
-122,"Mr. Mime",3,basic,psychic,20,60,"Shield; Screen",720,0.3958
-161,"Sentret",1,basic,colorless,10,50,"Bodyguard",525,0.3952
-68,"Machamp",5,stage2,fighting,60,120,"Double Strike; Face-off; Breaker",1132,0.3944
-165,"Ledyba",1,basic,grass,10,30,"Flying; Pack 10",516,0.3847
-124,"Jynx",4,stage1,psychic,50,90,"Confuse; Cute Charm",1176,0.3831
-299,"Nosepass",2,basic,fighting,10,80,"Bodyguard; Static",764,0.3750
-127,"Pinsir",4,basic,grass,60,80,"Face-off; Breaker",1143,0.3705
-2,"Ivysaur",3,stage1,grass,30,70,"Regen 10; Mend 10",764,0.3698
-349,"Feebas",1,basic,water,10,10,"",508,0.3307
-366,"Clamperl",1,basic,water,0,40,"Armor 20",536,0.3162
-129,"Magikarp",1,basic,water,0,30,"",499,0.2756
+386,"Deoxys",5,basic,psychic,90,50,"Quick; Finisher 30; Shield",1179,0.6688
+150,"Mewtwo",5,basic,psychic,80,100,"Intimidate 20; Shield; Finisher 10",1187,0.6668
+384,"Rayquaza",5,basic,colorless,90,110,"Flying; Splash 20; Intimidate 20",1191,0.6272
+109,"Koffing",1,basic,grass,10,40,"Explode 10",513,0.6238
+305,"Lairon",2,stage1,metal,30,70,"Sturdy",803,0.6202
+221,"Piloswine",3,stage1,water,50,90,"Armor 10",718,0.6177
+366,"Clamperl",1,basic,water,10,40,"Armor 20",536,0.6175
+303,"Mawile",2,basic,metal,30,40,"Intimidate 20",753,0.6169
+206,"Dunsparce",2,basic,colorless,30,70,"Paralyze",772,0.6159
+232,"Donphan",4,stage1,fighting,50,120,"Armor 10; Sturdy",1089,0.6157
+287,"Slakoth",1,basic,colorless,30,50,"Truant",522,0.6130
+371,"Bagon",2,basic,colorless,50,40,"",755,0.6099
+193,"Yanma",2,basic,grass,40,40,"Quick; Flying",756,0.6091
+181,"Ampharos",4,stage2,lightning,50,110,"Static; Rally 20",1082,0.6091
+201,"Unown",1,basic,psychic,0,10,"Rally 20",502,0.6056
+100,"Voltorb",1,basic,lightning,20,10,"Explode 10",509,0.6051
+235,"Smeargle",2,basic,colorless,30,60,"Sketch",775,0.6039
+284,"Masquerain",2,stage1,grass,30,40,"Intimidate 20; Flying",761,0.6012
+323,"Camerupt",3,stage1,fire,40,70,"Explode 10; Splash 10",741,0.6005
+311,"Plusle",2,basic,lightning,20,40,"Rally 20",796,0.6005
+306,"Aggron",4,stage2,metal,50,90,"Sturdy; Armor 20",1073,0.6002
+170,"Chinchou",1,basic,lightning,20,50,"Regen 10",494,0.5992
+362,"Glalie",3,stage1,water,50,60,"Paralyze; Explode 10",692,0.5983
+379,"Registeel",5,basic,metal,40,150,"Armor 30; Rally 20",1187,0.5977
+360,"Wynaut",1,basic,psychic,0,50,"Thorns 20",499,0.5962
+196,"Espeon",3,stage1,psychic,50,50,"Confuse; Shield",759,0.5962
+20,"Raticate",2,stage1,colorless,30,30,"Quick; Finisher 20",741,0.5938
+83,"Farfetch'd",2,basic,colorless,40,40,"Finisher 20",794,0.5932
+210,"Granbull",3,stage1,colorless,50,60,"Intimidate 20",734,0.5926
+26,"Raichu",4,stage2,lightning,70,70,"Quick; Paralyze",1140,0.5921
+376,"Metagross",5,stage2,metal,80,130,"Armor 10; Splash 20",1149,0.5918
+216,"Teddiursa",1,basic,colorless,20,40,"",496,0.5917
+218,"Slugma",1,basic,fire,20,50,"Flame Body",498,0.5914
+79,"Slowpoke",1,basic,water,30,70,"Truant",480,0.5906
+85,"Dodrio",3,stage1,colorless,50,50,"Quick",739,0.5900
+295,"Exploud",4,stage2,colorless,50,110,"Splash 30",1079,0.5885
+294,"Loudred",2,stage1,colorless,30,50,"Splash 10",748,0.5882
+24,"Arbok",3,stage1,grass,40,70,"Intimidate 20; Paralyze",666,0.5863
+19,"Rattata",1,basic,colorless,20,20,"Quick",464,0.5851
+319,"Sharpedo",4,stage1,darkness,90,40,"Thorns 20; Quick",1076,0.5846
+327,"Spinda",1,basic,colorless,20,30,"Confuse",551,0.5844
+344,"Claydol",3,stage1,psychic,30,70,"Shield; Explode 10",687,0.5837
+340,"Whiscash",3,stage1,water,40,90,"Splash 20",753,0.5830
+234,"Stantler",2,basic,colorless,20,50,"Intimidate 10; Confuse",783,0.5824
+75,"Graveler",2,stage1,fighting,20,70,"Sturdy; Explode 10",806,0.5819
+247,"Pupitar",3,stage1,fighting,30,90,"Armor 20",707,0.5813
+233,"Porygon2",4,stage1,colorless,40,90,"Shield; Sketch",1121,0.5812
+59,"Arcanine",5,stage1,fire,70,100,"Intimidate 20; Quick",1203,0.5802
+369,"Relicanth",3,basic,water,30,100,"Sturdy; Armor 10",756,0.5794
+212,"Scizor",5,stage1,metal,80,100,"Quick; Armor 10",1189,0.5791
+324,"Torkoal",2,basic,fire,20,60,"Armor 10; Burn",757,0.5786
+382,"Kyogre",5,basic,water,70,120,"Splash 30; Rally 10",1222,0.5769
+331,"Cacnea",1,basic,grass,10,30,"Thorns 20",477,0.5765
+316,"Gulpin",1,basic,grass,20,40,"",466,0.5762
+63,"Abra",1,basic,psychic,30,10,"Shield",493,0.5751
+277,"Swellow",3,stage1,colorless,50,40,"Flying; Quick",702,0.5748
+204,"Pineco",1,basic,grass,10,30,"Explode 10",476,0.5746
+301,"Delcatty",2,stage1,colorless,30,50,"Cute Charm",761,0.5736
+21,"Spearow",1,basic,colorless,30,20,"Flying",536,0.5728
+264,"Linoone",2,stage1,colorless,30,50,"Quick; Pay Day",776,0.5722
+372,"Shelgon",3,stage1,colorless,20,110,"Armor 20",722,0.5720
+115,"Kangaskhan",4,basic,colorless,50,100,"Family",1078,0.5710
+173,"Cleffa",1,basic,colorless,10,40,"Cute Charm",496,0.5706
+347,"Anorith",2,basic,fighting,40,40,"Armor 10",759,0.5692
+142,"Aerodactyl",5,basic,colorless,80,90,"Flying; Quick",1215,0.5687
+211,"Qwilfish",2,basic,water,20,40,"Thorns 10; Explode 10",713,0.5673
+335,"Zangoose",4,basic,colorless,60,70,"Quick; Finisher 20",1081,0.5666
+158,"Totodile",1,basic,water,30,30,"Finisher 10",528,0.5663
+243,"Raikou",5,basic,lightning,80,100,"Quick; Paralyze",1161,0.5659
+237,"Hitmontop",3,stage1,fighting,40,70,"Splash 20; Intimidate 10",756,0.5655
+219,"Magcargo",3,stage1,fire,30,90,"Flame Body; Armor 10",726,0.5627
+383,"Groudon",5,basic,fighting,80,120,"Burn; Armor 20",1175,0.5626
+48,"Venonat",1,basic,grass,10,40,"Confuse",456,0.5614
+28,"Sandslash",3,stage1,fighting,30,70,"Armor 10; Thorns 20",661,0.5613
+14,"Kakuna",2,stage1,grass,10,70,"Thorns 20",778,0.5611
+194,"Wooper",1,basic,water,20,60,"",486,0.5607
+183,"Marill",2,stage1,water,30,60,"Armor 10",769,0.5592
+262,"Mightyena",2,stage1,darkness,30,40,"Intimidate 20",748,0.5588
+135,"Jolteon",3,stage1,lightning,50,50,"Quick; Thorns 20",742,0.5586
+280,"Ralts",1,basic,psychic,10,20,"Rally 10",478,0.5575
+29,"Nidoran♀",1,basic,grass,10,40,"Thorns 10",514,0.5574
+15,"Beedrill",4,stage2,grass,70,70,"Quick; Finisher 20",1136,0.5572
+7,"Squirtle",1,basic,water,20,40,"Shield",483,0.5569
+317,"Swalot",3,stage1,grass,40,110,"Regen 10",689,0.5566
+195,"Quagsire",3,stage1,water,40,100,"Armor 10",713,0.5561
+147,"Dratini",1,basic,colorless,20,30,"Safeguard",502,0.5548
+27,"Sandshrew",1,basic,fighting,10,50,"Armor 10",471,0.5541
+209,"Snubbull",1,basic,colorless,10,50,"Intimidate 10",507,0.5533
+337,"Lunatone",3,basic,psychic,30,90,"Intimidate 20",764,0.5530
+281,"Kirlia",2,stage1,psychic,10,50,"Rally 20",806,0.5521
+330,"Flygon",4,stage2,colorless,60,90,"Flying; Splash 20",1157,0.5514
+58,"Growlithe",1,basic,fire,20,30,"Intimidate 10",483,0.5507
+112,"Rhydon",4,stage1,fighting,60,100,"Splash 20; Armor 10",1149,0.5505
+8,"Wartortle",3,stage1,water,40,70,"Shield",734,0.5504
+78,"Rapidash",4,stage1,fire,60,70,"Quick; Flame Body",1167,0.5497
+23,"Ekans",1,basic,grass,10,40,"Intimidate 10",493,0.5497
+252,"Treecko",1,basic,grass,20,30,"Quick",534,0.5496
+16,"Pidgey",1,basic,colorless,20,30,"Whirlwind",462,0.5487
+288,"Vigoroth",3,stage1,colorless,60,70,"",729,0.5487
+96,"Drowzee",1,basic,psychic,20,30,"Paralyze",478,0.5481
+179,"Mareep",1,basic,lightning,20,50,"Static",491,0.5468
+88,"Grimer",1,basic,grass,0,70,"Thorns 10",479,0.5449
+231,"Phanpy",1,basic,fighting,20,50,"",519,0.5443
+217,"Ursaring",4,stage1,colorless,80,100,"",1095,0.5438
+1,"Bulbasaur",1,basic,grass,10,50,"Regen 10",506,0.5435
+202,"Wobbuffet",3,stage1,psychic,0,140,"Taunt; Thorns 20",726,0.5434
+111,"Rhyhorn",2,basic,fighting,30,60,"Splash 10",776,0.5425
+154,"Meganium",4,stage2,grass,40,110,"Safeguard; Rally 20",1131,0.5420
+275,"Shiftry",4,stage2,darkness,70,70,"Whirlwind; Quick",1110,0.5414
+293,"Whismur",1,basic,colorless,10,50,"Splash 10",484,0.5413
+245,"Suicune",5,basic,water,60,130,"Shield; Safeguard",1131,0.5402
+77,"Ponyta",1,basic,fire,20,30,"Quick",514,0.5399
+363,"Spheal",1,basic,water,10,50,"Armor 10",506,0.5395
+120,"Staryu",1,basic,water,20,40,"Regen 10",524,0.5382
+186,"Politoed",4,stage2,water,50,100,"Rally 20",1093,0.5380
+82,"Magneton",3,stage1,metal,30,60,"Rally 20; Paralyze",729,0.5370
+91,"Cloyster",3,stage1,water,40,60,"Armor 20",710,0.5359
+224,"Octillery",3,stage1,water,50,60,"Splash 20",741,0.5351
+99,"Kingler",3,stage1,water,70,50,"Armor 10",703,0.5349
+110,"Weezing",4,stage1,grass,40,100,"Explode 20",1092,0.5334
+140,"Kabuto",2,basic,fighting,30,50,"Armor 10",759,0.5329
+84,"Doduo",1,basic,colorless,20,30,"",491,0.5316
+116,"Horsea",1,basic,water,20,30,"Splash 10",529,0.5312
+51,"Dugtrio",3,stage1,fighting,50,30,"Quick; Splash 10",766,0.5307
+322,"Numel",1,basic,fire,10,40,"Explode 10",506,0.5306
+42,"Golbat",2,stage1,grass,30,50,"Flying; Confuse",785,0.5306
+208,"Steelix",5,stage1,metal,50,170,"Taunt; Armor 20",1198,0.5305
+89,"Muk",3,stage1,grass,40,110,"Taunt",694,0.5303
+365,"Walrein",4,stage2,water,50,130,"Armor 10; Paralyze",1127,0.5302
+248,"Tyranitar",5,stage2,darkness,80,120,"Armor 10; Intimidate 20",1193,0.5285
+373,"Salamence",5,stage2,colorless,90,100,"Flying; Intimidate 20",1242,0.5282
+69,"Bellsprout",1,basic,grass,20,30,"Finisher 10",463,0.5281
+205,"Forretress",3,stage1,metal,20,80,"Taunt; Explode 10",667,0.5277
+81,"Magnemite",1,basic,metal,10,40,"Rally 10",499,0.5271
+76,"Golem",4,stage2,fighting,40,100,"Sturdy; Explode 10",1100,0.5268
+73,"Tentacruel",3,stage1,water,30,80,"Paralyze; Thorns 20",730,0.5267
+244,"Entei",5,basic,fire,80,110,"Burn; Intimidate 20",1166,0.5266
+39,"Jigglypuff",2,stage1,colorless,20,70,"Confuse",792,0.5265
+304,"Aron",1,basic,metal,20,40,"Sturdy",475,0.5263
+351,"Castform",2,basic,colorless,20,50,"Burn; Paralyze",710,0.5261
+289,"Slaking",5,stage2,colorless,130,160,"Truant",1232,0.5260
+354,"Banette",3,stage1,psychic,60,50,"Destiny Bond",713,0.5238
+118,"Goldeen",1,basic,water,30,30,"",516,0.5233
+121,"Starmie",4,stage1,water,60,80,"Regen 10; Quick",1148,0.5231
+332,"Cacturne",3,stage1,darkness,50,60,"Thorns 20; Finisher 20",748,0.5221
+108,"Lickitung",2,basic,colorless,20,80,"Paralyze",794,0.5220
+325,"Spoink",1,basic,psychic,10,40,"Confuse",537,0.5214
+139,"Omastar",4,stage1,water,50,80,"Armor 20; Splash 20",1082,0.5213
+31,"Nidoqueen",4,stage2,grass,40,110,"Thorns 20; Family",1169,0.5210
+104,"Cubone",1,basic,fighting,30,30,"Finisher 10",516,0.5174
+9,"Blastoise",5,stage2,water,60,120,"Shield; Armor 10",1211,0.5173
+141,"Kabutops",4,stage1,fighting,70,60,"Finisher 30; Quick",1078,0.5172
+151,"Mew",5,basic,psychic,50,110,"Sketch; Rally 20; Safeguard",1177,0.5170
+356,"Dusclops",4,stage1,psychic,30,150,"Taunt; Burn",1118,0.5161
+190,"Aipom",1,basic,colorless,20,30,"Pay Day",499,0.5160
+378,"Regice",5,basic,water,50,150,"Shield; Paralyze",1230,0.5159
+163,"Hoothoot",1,basic,colorless,10,40,"Confuse",485,0.5155
+93,"Haunter",3,stage1,psychic,50,40,"Destiny Bond",685,0.5153
+65,"Alakazam",5,stage2,psychic,90,70,"Confuse; Shield",1133,0.5137
+285,"Shroomish",1,basic,grass,10,50,"Static",510,0.5127
+182,"Bellossom",4,stage2,grass,40,100,"Rally 20; Regen 10",1090,0.5124
+90,"Shellder",1,basic,water,10,20,"Armor 20",463,0.5119
+40,"Wigglytuff",3,stage2,colorless,30,110,"Confuse",736,0.5115
+298,"Azurill",1,basic,water,10,50,"Cute Charm",541,0.5111
+357,"Tropius",3,basic,grass,30,100,"Flying; Rally 10",685,0.5109
+101,"Electrode",3,stage1,lightning,30,40,"Explode 10; Quick",699,0.5107
+128,"Tauros",4,basic,colorless,60,80,"Intimidate 20",1114,0.5094
+315,"Roselia",2,basic,grass,30,40,"Thorns 20",762,0.5085
+107,"Hitmonchan",3,stage1,fighting,40,70,"Quick",713,0.5084
+286,"Breloom",3,stage1,grass,60,60,"Static; Face-off",727,0.5083
+352,"Kecleon",2,basic,colorless,20,70,"Sketch",783,0.5070
+215,"Sneasel",2,basic,darkness,40,30,"Quick; Finisher 10",773,0.5058
+43,"Oddish",1,basic,grass,10,40,"Paralyze",492,0.5051
+336,"Seviper",3,basic,grass,60,70,"Finisher 20",737,0.5047
+3,"Venusaur",5,stage2,grass,50,140,"Regen 20; Rally 20",1171,0.5047
+30,"Nidorina",2,stage1,grass,20,60,"Thorns 10",840,0.5018
+199,"Slowking",4,stage1,water,30,120,"Rally 20; Safeguard",1146,0.5017
+35,"Clefairy",2,stage1,colorless,20,60,"Cute Charm",784,0.5013
+328,"Trapinch",1,basic,fighting,30,30,"Face-off",465,0.5011
+348,"Armaldo",4,stage1,fighting,70,90,"Armor 10; Finisher 10",1062,0.5009
+162,"Furret",2,stage1,colorless,30,60,"Bodyguard",781,0.5006
+292,"Shedinja",3,stage1,psychic,40,10,"Shield; Sturdy",682,0.5000
+338,"Solrock",3,basic,fighting,50,70,"Burn",686,0.4993
+159,"Croconaw",2,stage1,water,40,50,"Finisher 10",774,0.4987
+299,"Nosepass",2,basic,fighting,20,80,"Bodyguard; Sturdy",764,0.4987
+377,"Regirock",5,basic,fighting,50,170,"Taunt; Sturdy",1207,0.4983
+268,"Cascoon",2,stage1,grass,0,80,"Thorns 20",746,0.4980
+72,"Tentacool",1,basic,water,20,40,"Paralyze",495,0.4980
+34,"Nidoking",4,stage2,grass,60,90,"Face-off; Splash 20",1151,0.4961
+321,"Wailord",5,stage1,water,50,260,"",1215,0.4955
+132,"Ditto",2,basic,colorless,10,40,"Transform",777,0.4949
+261,"Poochyena",1,basic,darkness,20,30,"Intimidate 10",483,0.4948
+13,"Weedle",1,basic,grass,30,20,"",527,0.4943
+157,"Typhlosion",5,stage2,fire,70,90,"Splash 30; Flame Body",1209,0.4942
+66,"Machop",1,basic,fighting,20,40,"Face-off",516,0.4942
+67,"Machoke",3,stage1,fighting,40,70,"Face-off; Rally 10",731,0.4938
+4,"Charmander",1,basic,fire,20,30,"Burn",495,0.4929
+220,"Swinub",1,basic,water,20,40,"",490,0.4918
+326,"Grumpig",3,stage1,psychic,30,80,"Confuse; Armor 10",717,0.4916
+283,"Surskit",1,basic,grass,20,20,"Quick",499,0.4910
+184,"Azumarill",4,stage2,water,70,100,"Armor 10",1084,0.4908
+290,"Nincada",1,basic,grass,10,40,"Family",491,0.4898
+149,"Dragonite",5,stage2,colorless,80,120,"Flying; Armor 10",1191,0.4891
+282,"Gardevoir",5,stage2,psychic,50,110,"Bodyguard; Rally 30",1265,0.4889
+203,"Girafarig",3,basic,psychic,40,70,"Baton Pass 20",734,0.4884
+318,"Carvanha",1,basic,darkness,40,20,"Thorns 10",519,0.4875
+54,"Psyduck",1,basic,water,10,40,"Confuse",506,0.4862
+192,"Sunflora",2,stage1,grass,30,50,"Regen 10",798,0.4856
+123,"Scyther",3,basic,grass,50,50,"Quick",693,0.4856
+174,"Igglybuff",1,basic,colorless,0,50,"Cute Charm",485,0.4856
+250,"Ho-Oh",5,basic,fire,70,120,"Flying; Burn; Regen 30",1171,0.4855
+343,"Baltoy",1,basic,psychic,10,40,"Shield",513,0.4854
+341,"Corphish",1,basic,water,20,40,"Finisher 10",500,0.4850
+178,"Xatu",3,stage1,psychic,50,70,"Flying",711,0.4845
+113,"Chansey",3,basic,colorless,20,170,"Safeguard",727,0.4842
+119,"Seaking",2,stage1,water,40,50,"",757,0.4841
+70,"Weepinbell",2,stage1,grass,40,40,"Finisher 10",725,0.4841
+171,"Lanturn",3,stage1,lightning,30,100,"Regen 10; Static",714,0.4839
+308,"Medicham",3,stage1,psychic,70,50,"Face-off",706,0.4837
+165,"Ledyba",1,basic,grass,10,40,"Baton Pass 10",516,0.4835
+53,"Persian",3,stage1,colorless,40,60,"Pay Day; Quick",724,0.4820
+143,"Snorlax",5,basic,colorless,80,170,"Truant; Taunt",1225,0.4820
+92,"Gastly",1,basic,psychic,30,10,"Confuse",485,0.4814
+176,"Togetic",3,stage1,colorless,30,70,"Flying; Shield",700,0.4814
+37,"Vulpix",1,basic,fire,10,40,"Confuse",473,0.4810
+152,"Chikorita",1,basic,grass,10,40,"Safeguard",530,0.4802
+133,"Eevee",1,basic,colorless,10,40,"Baton Pass 10",528,0.4801
+55,"Golduck",3,stage1,water,50,70,"Confuse",673,0.4799
+134,"Vaporeon",3,stage1,water,30,110,"Regen 20",705,0.4787
+10,"Caterpie",1,basic,grass,20,30,"",510,0.4784
+114,"Tangela",2,basic,grass,20,70,"Regen 10",755,0.4781
+156,"Quilava",2,stage1,fire,30,50,"Splash 10",753,0.4774
+267,"Beautifly",3,stage2,grass,50,50,"Flying; Rally 10",736,0.4769
+187,"Hoppip",1,basic,grass,20,30,"Whirlwind",493,0.4767
+254,"Sceptile",5,stage2,grass,70,90,"Quick; Finisher 30",1203,0.4759
+329,"Vibrava",2,stage1,colorless,30,50,"Flying",779,0.4756
+61,"Poliwhirl",2,stage1,water,30,60,"Confuse",773,0.4754
+291,"Ninjask",3,stage1,grass,40,30,"Quick; Baton Pass 20",684,0.4751
+228,"Houndour",1,basic,darkness,30,30,"Burn",513,0.4747
+242,"Blissey",5,stage1,colorless,30,270,"Safeguard; Regen 20",1251,0.4740
+307,"Meditite",1,basic,psychic,20,30,"Face-off",497,0.4738
+166,"Ledian",2,stage1,grass,20,50,"Flying; Baton Pass 20",743,0.4738
+385,"Jirachi",5,basic,metal,40,100,"Rally 30; Safeguard",1236,0.4737
+207,"Gligar",2,basic,fighting,30,50,"Flying; Finisher 10",771,0.4734
+270,"Lotad",1,basic,water,10,50,"Baton Pass 10",469,0.4733
+353,"Shuppet",1,basic,psychic,10,20,"Destiny Bond",485,0.4732
+155,"Cyndaquil",1,basic,fire,10,40,"Splash 10",478,0.4728
+169,"Crobat",4,stage2,grass,60,70,"Flying; Quick",1134,0.4718
+313,"Volbeat",2,basic,grass,20,50,"Baton Pass 20",800,0.4713
+300,"Skitty",1,basic,colorless,10,30,"Cute Charm",482,0.4710
+246,"Larvitar",2,basic,fighting,40,50,"",757,0.4709
+60,"Poliwag",1,basic,water,20,30,"Confuse",516,0.4709
+364,"Sealeo",2,stage1,water,20,70,"Armor 10",798,0.4706
+36,"Clefable",4,stage2,colorless,40,100,"Cute Charm; Safeguard",1059,0.4703
+276,"Taillow",1,basic,colorless,20,20,"Flying",461,0.4696
+225,"Delibird",2,basic,water,30,50,"Baton Pass 20",737,0.4695
+177,"Natu",1,basic,psychic,20,30,"Flying",485,0.4691
+131,"Lapras",5,basic,water,50,170,"Safeguard; Armor 10",1196,0.4691
+125,"Electabuzz",4,stage1,lightning,70,80,"Static",1048,0.4690
+50,"Diglett",1,basic,fighting,30,10,"Quick",494,0.4686
+355,"Duskull",1,basic,psychic,10,40,"Burn",475,0.4684
+130,"Gyarados",5,stage1,water,80,120,"Intimidate 20",1257,0.4678
+17,"Pidgeotto",2,stage1,colorless,30,50,"Whirlwind",758,0.4677
+74,"Geodude",1,basic,fighting,10,50,"Sturdy",478,0.4676
+198,"Murkrow",2,basic,darkness,40,40,"Flying; Finisher 20",754,0.4675
+334,"Altaria",4,stage1,colorless,40,120,"Flying; Safeguard",1110,0.4671
+136,"Flareon",3,stage1,fire,70,50,"Burn",698,0.4670
+367,"Huntail",3,stage1,water,60,60,"Finisher 20",741,0.4663
+302,"Sableye",2,basic,darkness,20,50,"Shield; Pay Day",744,0.4657
+6,"Charizard",5,stage2,fire,70,100,"Flying; Splash 30",1196,0.4657
+168,"Ariados",3,stage1,grass,40,70,"Paralyze; Finisher 10",695,0.4655
+98,"Krabby",1,basic,water,30,10,"Armor 10",519,0.4653
+148,"Dragonair",3,stage1,colorless,40,70,"Safeguard",706,0.4653
+145,"Zapdos",5,basic,lightning,80,100,"Flying; Splash 30",1192,0.4652
+122,"Mr. Mime",3,basic,psychic,30,70,"Shield; Bodyguard",720,0.4646
+279,"Pelipper",2,stage1,water,30,70,"Flying",782,0.4636
+342,"Crawdaunt",3,stage1,darkness,70,60,"Finisher 20",708,0.4633
+297,"Hariyama",4,stage1,fighting,50,140,"Face-off; Whirlwind",1168,0.4606
+240,"Magby",1,basic,fire,20,30,"Flame Body",499,0.4599
+375,"Metang",3,stage1,metal,40,80,"Armor 10",747,0.4592
+32,"Nidoran♂",1,basic,grass,20,30,"Face-off",477,0.4591
+274,"Nuzleaf",2,stage1,darkness,40,50,"Whirlwind",794,0.4591
+94,"Gengar",5,stage2,psychic,80,70,"Destiny Bond; Confuse",1221,0.4590
+273,"Seedot",1,basic,grass,10,40,"Sturdy",525,0.4590
+241,"Miltank",4,basic,colorless,40,130,"Regen 20",1093,0.4588
+374,"Beldum",2,basic,metal,40,50,"",787,0.4587
+230,"Kingdra",5,stage2,water,70,100,"Splash 20; Armor 10",1197,0.4586
+238,"Smoochum",1,basic,psychic,10,30,"Cute Charm",507,0.4586
+153,"Bayleef",2,stage1,grass,20,60,"Safeguard",751,0.4581
+41,"Zubat",1,basic,grass,20,30,"Flying",533,0.4559
+25,"Pikachu",2,stage1,lightning,40,40,"Static",779,0.4551
+137,"Porygon",2,basic,colorless,20,50,"Shield",762,0.4547
+57,"Primeape",3,stage1,fighting,60,60,"Face-off",711,0.4543
+160,"Feraligatr",5,stage2,water,80,110,"Finisher 20; Intimidate 10",1214,0.4530
+2,"Ivysaur",3,stage1,grass,40,80,"Regen 10",764,0.4529
+22,"Fearow",3,stage1,colorless,60,50,"Flying",731,0.4528
+265,"Wurmple",1,basic,grass,20,20,"Thorns 10",544,0.4522
+312,"Minun",2,basic,lightning,30,50,"Static",771,0.4514
+320,"Wailmer",2,basic,water,20,100,"",757,0.4511
+296,"Makuhita",1,basic,fighting,10,60,"Face-off",480,0.4510
+345,"Lileep",2,basic,grass,20,80,"Taunt",783,0.4508
+333,"Swablu",1,basic,colorless,10,40,"Safeguard",475,0.4505
+38,"Ninetales",4,stage1,fire,50,90,"Confuse; Burn",1066,0.4503
+263,"Zigzagoon",1,basic,colorless,10,50,"Pay Day",517,0.4478
+97,"Hypno",4,stage1,psychic,50,100,"Paralyze; Regen 10",1139,0.4469
+56,"Mankey",1,basic,fighting,20,30,"Face-off",532,0.4455
+49,"Venomoth",3,stage1,grass,40,70,"Flying; Confuse",684,0.4452
+71,"Victreebel",4,stage2,grass,70,80,"Finisher 20; Paralyze",1106,0.4444
+95,"Onix",2,basic,fighting,20,90,"Taunt",748,0.4439
+269,"Dustox",3,stage2,grass,20,90,"Shield; Thorns 10",687,0.4432
+47,"Parasect",2,stage1,grass,20,60,"Static",754,0.4423
+257,"Blaziken",5,stage2,fire,80,110,"Face-off; Burn",1217,0.4417
+126,"Magmar",4,stage1,fire,70,80,"Flame Body",1100,0.4414
+86,"Seel",1,basic,water,10,70,"",548,0.4407
+229,"Houndoom",4,stage1,darkness,70,80,"Burn; Finisher 10",1088,0.4393
+103,"Exeggutor",4,stage1,grass,50,100,"Confuse; Splash 10",1104,0.4393
+350,"Milotic",5,stage1,water,60,150,"Cute Charm; Regen 20",1202,0.4393
+255,"Torchic",1,basic,fire,10,40,"Baton Pass 10",490,0.4388
+62,"Poliwrath",4,stage2,water,60,100,"Face-off; Armor 10",1125,0.4387
+310,"Manectric",4,stage1,lightning,60,80,"Bodyguard; Static",1082,0.4385
+185,"Sudowoodo",3,basic,fighting,30,90,"Taunt; Sketch",682,0.4384
+361,"Snorunt",1,basic,water,20,30,"Paralyze",487,0.4384
+44,"Gloom",2,stage1,grass,20,60,"Paralyze",777,0.4376
+223,"Remoraid",1,basic,water,20,20,"Quick",507,0.4369
+249,"Lugia",5,basic,psychic,60,150,"Flying; Whirlwind; Safeguard",1172,0.4364
+370,"Luvdisc",1,basic,water,10,30,"Cute Charm",471,0.4363
+175,"Togepi",1,basic,colorless,10,30,"Shield",504,0.4355
+259,"Marshtomp",3,stage1,water,40,90,"Bodyguard",712,0.4354
+236,"Tyrogue",1,basic,fighting,30,20,"Face-off",465,0.4344
+45,"Vileplume",4,stage2,grass,50,100,"Paralyze; Regen 10",1168,0.4336
+339,"Barboach",1,basic,water,30,20,"",516,0.4331
+271,"Lombre",2,stage1,water,20,60,"Baton Pass 20",820,0.4317
+5,"Charmeleon",3,stage1,fire,50,60,"Burn",690,0.4297
+346,"Cradily",4,stage1,grass,40,140,"Taunt; Regen 10",1092,0.4290
+172,"Pichu",1,basic,lightning,30,20,"Paralyze",503,0.4284
+314,"Illumise",2,basic,grass,10,60,"Taunt; Cute Charm",745,0.4282
+191,"Sunkern",1,basic,grass,20,20,"",512,0.4277
+52,"Meowth",1,basic,colorless,10,40,"Pay Day",523,0.4273
+359,"Absol",4,basic,darkness,90,70,"Finisher 20",1090,0.4271
+12,"Butterfree",4,stage2,grass,60,90,"Flying; Confuse",1081,0.4260
+381,"Latios",5,basic,psychic,90,100,"Flying; Finisher 20",1241,0.4255
+309,"Electrike",1,basic,lightning,20,30,"Bodyguard",493,0.4249
+200,"Misdreavus",2,basic,psychic,10,40,"Destiny Bond",762,0.4226
+272,"Ludicolo",4,stage2,water,50,100,"Baton Pass 30; Regen 10",1156,0.4221
+68,"Machamp",5,stage2,fighting,80,120,"Face-off; Finisher 20",1132,0.4214
+253,"Grovyle",3,stage1,grass,40,50,"Quick; Finisher 10",661,0.4198
+222,"Corsola",2,basic,water,20,70,"Regen 20",811,0.4192
+127,"Pinsir",4,basic,grass,80,80,"Face-off",1143,0.4182
+124,"Jynx",4,stage1,psychic,60,90,"Cute Charm",1176,0.4179
+227,"Skarmory",4,basic,metal,40,100,"Flying; Armor 20",1132,0.4165
+87,"Dewgong",3,stage1,water,30,100,"Safeguard",705,0.4163
+105,"Marowak",3,stage1,fighting,50,60,"Finisher 20",723,0.4156
+164,"Noctowl",3,stage1,colorless,30,80,"Flying; Confuse",717,0.4149
+106,"Hitmonlee",3,stage1,fighting,70,50,"Face-off",726,0.4139
+188,"Skiploom",2,stage1,grass,30,50,"Whirlwind; Flying",735,0.4129
+102,"Exeggcute",1,basic,grass,10,30,"Family",495,0.4121
+239,"Elekid",1,basic,lightning,20,30,"Static",532,0.4117
+180,"Flaaffy",2,stage1,lightning,20,70,"Static",746,0.4109
+117,"Seadra",3,stage1,water,40,50,"Splash 20",706,0.4108
+256,"Combusken",3,stage1,fire,50,70,"Face-off",722,0.4107
+146,"Moltres",5,basic,fire,70,110,"Flying; Burn",1241,0.4089
+214,"Heracross",5,basic,grass,90,110,"Face-off; Finisher 20",1185,0.4084
+278,"Wingull",1,basic,water,20,30,"Flying",527,0.4080
+138,"Omanyte",2,basic,water,20,60,"Armor 10",755,0.4079
+197,"Umbreon",3,stage1,darkness,30,110,"Taunt; Regen 10",694,0.4078
+33,"Nidorino",2,stage1,grass,30,50,"Face-off",736,0.4069
+46,"Paras",1,basic,grass,10,40,"Static",478,0.4069
+380,"Latias",5,basic,psychic,70,130,"Flying; Bodyguard",1205,0.4062
+64,"Kadabra",3,stage1,psychic,60,40,"Confuse",739,0.4060
+80,"Slowbro",3,stage1,water,30,110,"Taunt; Regen 10",689,0.4057
+167,"Spinarak",1,basic,grass,20,20,"Paralyze",521,0.4050
+18,"Pidgeot",4,stage2,colorless,60,80,"Flying; Whirlwind",1122,0.4033
+260,"Swampert",5,stage2,water,60,150,"Bodyguard; Armor 10",1230,0.4033
+266,"Silcoon",2,stage1,grass,10,80,"Armor 10",798,0.4029
+144,"Articuno",5,basic,water,70,120,"Flying; Paralyze",1190,0.4025
+358,"Chimecho",2,basic,psychic,20,70,"Safeguard",770,0.4006
+161,"Sentret",1,basic,colorless,10,50,"Bodyguard",525,0.4000
+258,"Mudkip",1,basic,water,10,50,"Bodyguard",508,0.3976
+189,"Jumpluff",3,stage2,grass,50,60,"Whirlwind; Flying",697,0.3974
+251,"Celebi",5,basic,grass,60,120,"Regen 20; Safeguard",1197,0.3972
+226,"Mantine",3,basic,water,30,110,"Flying; Bodyguard",720,0.3937
+368,"Gorebyss",3,stage1,water,30,70,"Baton Pass 30",703,0.3912
+213,"Shuckle",2,basic,grass,10,130,"Taunt",822,0.3753
+11,"Metapod",2,stage1,grass,10,110,"Taunt",743,0.3567
+349,"Feebas",1,basic,water,10,10,"",508,0.2707
+129,"Magikarp",1,basic,water,0,30,"",499,0.2505

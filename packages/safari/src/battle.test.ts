@@ -364,11 +364,24 @@ describe('type synergies', () => {
 });
 
 describe('Trainers', () => {
-  it('PlusPower, Defender and the Energy Removals change the numbers', () => {
-    expect(buffs(fight([unit(10, 100)], [wall()], 1, ['PlusPower']), 'a0', 'PlusPower')).toEqual([TUNING.plusPower]);
-    expect(damages(fight([wall()], [unit(30, 500)], 1, ['Defender']), 'a0', 'attack')[0]).toBe(30 - TUNING.defender);
+  it('PlusPower, Defender and Clefairy Doll read places; the Energy Removals the most attack', () => {
+    const plus = fight([unit(10, 100), unit(10, 100), unit(10, 100)], [wall()], 1, ['PlusPower']);
+    expect([buffs(plus, 'a0', 'PlusPower'), buffs(plus, 'a1', 'PlusPower'), buffs(plus, 'a2', 'PlusPower')]).toEqual([[TUNING.plusPower], [TUNING.plusPower], []]);
+    const defender = fight([wall(), wall(), wall()], [unit(30, 500)], 1, ['Defender']);
+    expect(events(defender, 'shield', (x) => x.on).map((x) => x.uid)).toEqual(['a0', 'a2']);
+    const doll = fight([wall(100), wall(100)], [unit(10, 500)], 1, ['Clefairy Doll']);
+    expect(events(doll, 'become')[0]).toMatchObject({ uid: 'a1', hp: 100 + TUNING.clefairyDoll, why: 'Clefairy Doll' });
+    expect(attacksBy(doll, 'b0').slice(0, 3)).toEqual(['a1', 'a1', 'a1']);
     const removal = fight([wall()], [unit(30, 100), unit(50, 100), unit(40, 100)], 1, ['Super Energy Removal']);
     expect([buffs(removal, 'b0', 'Super Energy Removal'), buffs(removal, 'b1', 'Super Energy Removal'), buffs(removal, 'b2', 'Super Energy Removal')]).toEqual([[], [-20], [-20]]);
+  });
+
+  it('Potion and Super Potion heal neighbours', () => {
+    // The Taunt Pokémon falls under half on the second hit: it heals 30, its neighbour 30 too (it had been hit).
+    const potion = fight([unit(0, 100), unit(0, 100, 'Taunt')], [unit(30, 900, 'Splash 10')], 1, ['Potion']);
+    expect(events(potion, 'heal', (x) => x.why === 'Potion').map((x) => [x.uid, x.amount])).toEqual([['a1', 30], ['a0', 30]]);
+    const superPotion = fight([unit(0, 100), unit(0, 20, 'Taunt'), unit(0, 100)], [unit(30, 900, 'Splash 10')], 1, ['Super Potion']);
+    expect(events(superPotion, 'heal', (x) => x.why === 'Super Potion').slice(0, 2).map((x) => [x.uid, x.amount])).toEqual([['a0', 10], ['a2', 10]]);
   });
 
   it('Gust of Wind aims the first 2 attacks at the most attack, with no strike back, past a Taunt', () => {

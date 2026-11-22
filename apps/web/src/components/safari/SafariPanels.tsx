@@ -323,7 +323,7 @@ export function RunOverDialog({ run, busy, onStart, onWatch }: { run: ClientSafa
           <ul className="list-disc space-y-1 pl-5 text-slate-300">
             <li>Pick a starter, then buy Pokémon cards in the shop after every battle. Up to 6 fight on your board, 6 more wait in your inventory.</li>
             <li>Battles play themselves: each side attacks left to right, every attack at a random opposing Pokémon (a Taunt one first), which strikes back.</li>
-            <li>Each Pokémon has its attack, its HP and up to 3 keywords, written on its card. Many read where it stands: its neighbours are the Pokémon beside it, and the Pokémon across from it is the opponent&apos;s in the same place.</li>
+            <li>Each Pokémon has its attack, its HP and its keywords, written on its card: most have 1, a few 2, only some legendaries 3. Many read where it stands: its neighbours are the Pokémon beside it, and the Pokémon across from it is the opponent&apos;s in the same place.</li>
             <li>2 of a Pokémon that evolve into the same card merge into it; 3 of a Pokémon with no evolutions make a golden copy. 2, 4 or 6 of a type give a synergy.</li>
             <li>15 battles, then Champion Blue, on 3 HP. Beat him to bank the run's ₱.</li>
           </ul>

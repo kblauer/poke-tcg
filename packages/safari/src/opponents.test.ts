@@ -4,7 +4,7 @@ import { BOARD_SIZE } from './battle.js';
 import { DRAFT, applySafariAction, createSafari, isLegendary, type SafariAction, type SafariState } from './draft.js';
 import { allUnits } from './species.js';
 import { unitScore } from './units.js';
-import { BLUE_STARTERS, BLUE_TEAM, BLUE_TRAINER, DIFFICULTY_TIER, GYM_LEADERS, MEDIUM_TIERS, OPENING_SIZES, OPPONENT_PAY, leaderOpponent, opponentChoice, rollBoard, rollChampion, rollOpponents, trainerOpponent, type Opponent } from './opponents.js';
+import { BLUE_STARTERS, BLUE_TEAM, BLUE_TRAINER, CORE_SIZE, DIFFICULTY_TIER, GYM_LEADERS, MEDIUM_TIERS, OPENING_SIZES, OPPONENT_PAY, arrange, leaderOpponent, opponentChoice, placementScore, rollBoard, rollChampion, rollOpponents, trainerOpponent, type Opponent } from './opponents.js';
 
 const units = allUnits();
 const byId = new Map(units.map((u) => [u.id, u]));
@@ -86,22 +86,50 @@ describe('a step\'s opponents', () => {
 });
 
 describe('the gym leaders', () => {
-  it('play 6 of their type, their own team\'s Pokémon first, with their Trainer', () => {
+  it('play their own team\'s Pokémon first, of their type otherwise, with their Trainer', () => {
     const rng = rngFrom(9);
-    expect(GYM_LEADERS.map((l) => l.trainer)).toEqual(['Defender', 'Super Potion', 'PlusPower', 'Full Heal', 'Gust of Wind', 'Imposter Professor Oak', 'Scoop Up', 'Super Energy Removal']);
+    expect(GYM_LEADERS.map((l) => l.trainer)).toEqual(['Defender', 'Super Potion', 'PlusPower', 'Potion', 'Gust of Wind', 'Imposter Professor Oak', 'Revive', 'Super Energy Removal']);
     for (const leader of GYM_LEADERS) {
       const boards = Array.from({ length: 100 }, () => leaderOpponent(rng, units, leader, 3));
       for (const o of boards) {
         expect(o).toMatchObject({ name: leader.name, boss: leader.id, difficulty: 'gymLeader', type: leader.type, trainer: leader.trainer, pay: 850 });
-        for (const id of o.board) expect(byId.get(id)!.type).toBe(leader.type);
+        for (const id of o.board) expect(byId.get(id)!.type === leader.type || leader.team.includes(byId.get(id)!.name)).toBe(true);
       }
-      // Every Pokémon of their team is a unit of their type, and on their boards more often than a board of the type holds them.
-      for (const name of leader.team) expect(units.find((u) => u.name === name)?.type, `${leader.name}: ${name}`).toBe(leader.type);
+      // Every Pokémon of their team is a unit, and on their boards more often than a board of the type holds them.
+      for (const name of leader.team) expect(units.find((u) => u.name === name), `${leader.name}: ${name}`).toBeDefined();
       const onTeam = (ids: string[]) => ids.filter((id) => leader.team.includes(byId.get(id)!.name)).length;
       const own = onTeam(boards.flatMap((o) => o.board));
       const plain = onTeam(Array.from({ length: 100 }, () => rollBoard(rng, units, 3, (u) => u.type === leader.type, () => false)).flat().map((u) => u.id));
-      expect(own / 600, leader.name).toBeGreaterThan(0.3);
+      expect(own / 600, leader.name).toBeGreaterThan(0.4);
       expect(own, leader.name).toBeGreaterThan(plain * 1.1);
+    }
+  });
+});
+
+describe('a board built round a type, and placed', () => {
+  it('a trainer\'s board holds CORE_SIZE of the type shown', () => {
+    const rng = rngFrom(21);
+    for (const difficulty of ['easy', 'medium', 'hard'] as const) {
+      for (let i = 0; i < 60; i++) {
+        const o = trainerOpponent(rng, units, 'Hiker Otis', difficulty, 3);
+        expect(o.board.filter((id) => byId.get(id)!.type === o.type).length, difficulty).toBeGreaterThanOrEqual(CORE_SIZE[difficulty]);
+      }
+    }
+  });
+
+  it('arrange keeps the board\'s Pokémon and finds the best line', () => {
+    const rng = rngFrom(22);
+    const named = (...names: string[]) => names.map((name) => units.find((u) => u.name === name)!);
+    // Machoke's Rally reaches two neighbours inside the line, one at an end.
+    const line = arrange(rng, named('Machoke', 'Vigoroth', 'Ursaring', 'Wailmer'));
+    expect(line.map((u) => u.name).sort()).toEqual(['Machoke', 'Ursaring', 'Vigoroth', 'Wailmer']);
+    expect([1, 2]).toContain(line.findIndex((u) => u.name === 'Machoke'));
+    // Smeargle's Sketch takes the keywords of the Pokémon on its left.
+    const sketch = arrange(rng, named('Smeargle', 'Sandslash', 'Wailmer'));
+    expect(sketch.findIndex((u) => u.name === 'Smeargle')).toBe(sketch.findIndex((u) => u.name === 'Sandslash') + 1);
+    for (let i = 0; i < 20; i++) {
+      const rolled = rollBoard(rng, units, 3, () => true, () => false);
+      expect(placementScore(arrange(rng, rolled))).toBeGreaterThanOrEqual(placementScore(rolled));
     }
   });
 });
@@ -113,13 +141,17 @@ describe('Champion Blue', () => {
       const blue = rollChampion(rngFrom(s), units);
       expect(blue).toMatchObject({ name: 'Blue', boss: 'blue', difficulty: 'champion', pay: 1000, trainer: BLUE_TRAINER });
       const names = blue.board.map((id) => byId.get(id)!.name);
-      expect(names.slice(0, 5)).toEqual(BLUE_TEAM);
-      expect(BLUE_STARTERS).toContain(names[5]);
-      seen.add(names[5]!);
+      const starter = names.filter((name) => !BLUE_TEAM.includes(name));
+      expect(names).toHaveLength(6);
+      expect(starter).toHaveLength(1);
+      expect(BLUE_STARTERS).toContain(starter[0]);
+      seen.add(starter[0]!);
+      // His line is placed: no other order of it scores more.
+      expect(placementScore(blue.board.map((id) => byId.get(id)!))).toBeGreaterThanOrEqual(placementScore([...blue.board].reverse().map((id) => byId.get(id)!)));
     }
     expect(seen.size).toBe(3);
     expect(BLUE_TRAINER).toBe('Defender');
-    expect(rollChampion(rngFrom(1), units).board.slice(0, 5)).toEqual(['18', '65', '112', '130', '59']); // Pidgeot, Alakazam, Rhydon, Gyarados, Arcanine
+    expect(rollChampion(rngFrom(1), units).board.filter((id) => !['3', '6', '9'].includes(id)).sort()).toEqual(['112', '130', '18', '59', '65']); // Rhydon, Gyarados, Pidgeot, Arcanine, Alakazam
   });
 });
 

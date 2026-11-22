@@ -6,13 +6,13 @@
 
 | Tier | Units | Draws | First attacker wins | Rounds | Reached rising damage |
 |---|---|---|---|---|---|
-| 1 | 120 | 6.7% | 51.7% | 4.5 | 8.3% |
-| 2 | 78 | 9.2% | 51.1% | 4.2 | 1.7% |
-| 3 | 84 | 10.2% | 53.5% | 3.7 | 0.4% |
-| 4 | 54 | 12.7% | 52.8% | 3.1 | 0.0% |
-| 5 | 50 | 9.1% | 52.9% | 3.4 | 0.0% |
+| 1 | 120 | 6.6% | 51.2% | 4.1 | 4.7% |
+| 2 | 78 | 10.5% | 51.8% | 4.0 | 1.4% |
+| 3 | 84 | 13.5% | 52.2% | 3.3 | 0.2% |
+| 4 | 54 | 16.5% | 52.5% | 3.1 | 0.0% |
+| 5 | 50 | 13.4% | 51.2% | 3.3 | 0.0% |
 
-A board of a tier against one of the tier below wins: tier 2 100.0%, tier 3 99.7%, tier 4 98.4%, tier 5 99.9%.
+A board of a tier against one of the tier below wins: tier 2 100.0%, tier 3 99.8%, tier 4 99.8%, tier 5 99.0%.
 
 ## Type synergies
 
@@ -20,33 +20,33 @@ What having 2, 4 or 6 of the type is worth (the same battles with the synergy an
 
 | Type | Synergy | 2 | 4 | 6 |
 |---|---|---|---|---|
-| grass | Leech | +11.0 | +21.1 | +33.7 |
-| fire | Blaze | +11.5 | +15.9 | +24.2 |
-| water | Current | +2.0 | +13.4 | +36.9 |
-| lightning | Quick | +5.6 | +22.4 | +27.9 |
-| psychic | Pressure | +14.7 | +27.4 | +39.5 |
-| fighting | Duel | +9.4 | +20.9 | +29.8 |
-| colorless | Versatile | +17.5 | +21.2 | +0.0 |
-| darkness | Prey | +5.8 | +15.3 |  |
-| metal | Plating | +20.6 | +19.1 |  |
+| grass | Leech | +9.1 | +17.3 | +28.1 |
+| fire | Blaze | +9.4 | +18.3 | +32.3 |
+| water | Current | +2.8 | +15.0 | +52.2 |
+| lightning | Quick | +9.7 | +32.1 | +29.1 |
+| psychic | Pressure | +16.1 | +30.5 | +43.9 |
+| fighting | Duel | +9.0 | +22.0 | +31.0 |
+| colorless | Versatile | +22.0 | +24.8 | +0.0 |
+| darkness | Prey | +5.7 | +11.8 |  |
+| metal | Plating | +21.2 | +19.1 |  |
 
 ## Trainers
 
 | Trainer | Worth | |
 |---|---|---|
-| PlusPower | +29.8 | Your Pokémon get +10 attack |
-| Defender | +37.0 | Your Pokémon take 10 less from every hit |
-| Potion | +8.0 | The first of your Pokémon to fall under half its HP heals 30 |
-| Super Potion | +24.7 | Each of your Pokémon heals 20 the first time it's hit |
-| Full Heal | +8.2 | Your Pokémon can't be Burned, Paralyzed or Confused |
-| Revive | +18.9 | The first of your Pokémon to faint comes back with half its HP |
-| Pokémon Center | +24.1 | Once, when you're down to 3 Pokémon, they heal fully |
-| Gust of Wind | +18.9 | Your first 2 attacks hit the opposing Pokémon with the most attack, with no strike back |
-| Energy Removal | +10.8 | The opposing Pokémon with the most attack has −20 attack |
-| Super Energy Removal | +21.9 | The 2 opposing Pokémon with the most attack have −20 attack |
-| Scoop Up | +25.3 | The first of your Pokémon that would faint goes to the end of your line fully healed instead, and your next Pokémon attacks at once |
-| Gambler | +21.4 | Flip a coin: heads, your Pokémon get +20 attack |
-| Imposter Professor Oak | +11.9 | The opponent's type synergies count 2 Pokémon fewer |
+| PlusPower | +23.8 | Your first 2 Pokémon get +20 attack |
+| Defender | +25.8 | Your first and last Pokémon start with a Shield |
+| Potion | +12.0 | The first of your Pokémon to fall under half its HP heals 30, and so do its neighbours |
+| Super Potion | +27.8 | When one of your Pokémon faints, its neighbours heal 20 |
+| Full Heal | +7.1 | Your Pokémon can't be Burned, Paralyzed or Confused |
+| Revive | +21.6 | The first of your Pokémon to faint comes back with half its HP |
+| Pokémon Center | +27.5 | Once, when you're down to 3 Pokémon, they heal fully |
+| Gust of Wind | +26.3 | Your first 2 attacks hit the opposing Pokémon with the most attack, with no strike back |
+| Energy Removal | +10.6 | The opposing Pokémon with the most attack has −20 attack |
+| Super Energy Removal | +22.7 | The 2 opposing Pokémon with the most attack have −20 attack |
+| Scoop Up | +28.9 | The first of your Pokémon that would faint goes to the end of your line fully healed instead, and your next Pokémon attacks at once |
+| Clefairy Doll | +11.0 | Your last Pokémon has Taunt and +30 HP |
+| Imposter Professor Oak | +14.7 | The opponent's type synergies count 2 Pokémon fewer |
 
 ## Keywords
 
@@ -54,90 +54,90 @@ What a keyword is worth to the units that have it: the same battles with it and 
 
 | Keyword | Units | Worth |
 |---|---|---|
-| Taunt | 20 | +3.9 |
-| Bodyguard | 6 | +2.5 |
-| Face-off | 13 | -0.6 |
-| Sniper | 17 | -1.9 |
-| Flying | 41 | +0.3 |
-| Quick | 35 | +12.3 |
-| Reach | 12 | +14.3 |
-| Double Strike | 10 | +11.0 |
-| Truant | 4 | -11.6 |
-| Splash | 15 | +10.1 |
-| Cleave | 4 | +21.1 |
-| Trample | 12 | +4.3 |
-| Finisher | 17 | +4.5 |
-| Bane | 4 | +1.9 |
-| Breaker | 13 | +1.5 |
-| Barrage | 6 | +17.0 |
-| Recoil | 3 | -5.5 |
-| Enrage | 11 | +8.2 |
-| Rampage | 12 | +1.3 |
-| Grow | 16 | +5.9 |
-| Scavenger | 4 | +7.4 |
-| Shield | 15 | +9.1 |
-| Armor | 46 | +7.8 |
-| Thorns | 19 | +12.8 |
-| Sturdy | 8 | +8.2 |
-| Evasive | 11 | +13.9 |
-| Regen | 16 | +3.9 |
-| Drain | 16 | +8.1 |
-| Counter | 4 | +11.2 |
-| Rally | 19 | +15.9 |
-| Fortify | 12 | +9.1 |
-| Screen | 5 | +7.9 |
-| Pack | 8 | +2.3 |
-| Guardian | 9 | +12.9 |
-| Safeguard | 14 | +5.3 |
-| Mend | 25 | +4.0 |
-| Baton Pass | 9 | +10.8 |
-| Legacy | 1 | +10.5 |
-| Vanguard | 6 | +1.9 |
-| Rearguard | 4 | +1.5 |
-| Leader | 7 | +6.9 |
-| Loner | 4 | +5.7 |
-| Intimidate | 22 | +10.1 |
+| Taunt | 16 | +0.8 |
+| Shield | 20 | +13.1 |
+| Quick | 35 | +16.2 |
+| Flying | 42 | +0.1 |
+| Splash | 25 | +11.9 |
+| Rally | 20 | +17.4 |
+| Face-off | 21 | +0.1 |
+| Explode | 13 | +19.0 |
+| Whirlwind | 10 | +0.4 |
+| Paralyze | 23 | +4.8 |
+| Confuse | 24 | +5.9 |
+| Burn | 16 | +6.5 |
+| Transform | 1 | +26.8 |
+| Pay Day | 6 | +0.0 |
+| Armor | 43 | +11.5 |
+| Finisher | 32 | +3.0 |
+| Baton Pass | 12 | +9.4 |
+| Safeguard | 19 | +5.1 |
+| Sketch | 5 | +8.9 |
+| Destiny Bond | 5 | +13.8 |
+| Family | 4 | +11.5 |
+| Regen | 24 | +4.2 |
+| Intimidate | 21 | +13.4 |
+| Sturdy | 12 | +10.2 |
+| Truant | 4 | -13.5 |
+| Static | 13 | +5.2 |
+| Flame Body | 6 | +5.3 |
+| Cute Charm | 12 | +10.6 |
+| Thorns | 19 | +15.4 |
+| Bodyguard | 12 | -0.3 |
+| U-turn | 0 |  |
+| Barrage | 0 |  |
+| Sniper | 0 |  |
+| Recoil | 0 |  |
+| Double Strike | 0 |  |
+| Breaker | 0 |  |
+| Guardian | 0 |  |
+| Mend | 0 |  |
+| Screen | 0 |  |
+| Rampage | 0 |  |
+| Enrage | 0 |  |
+| Grow | 0 |  |
+| Pack | 0 |  |
+| Leader | 0 |  |
+| Fortify | 0 |  |
+| Bane | 0 |  |
+| Cleave | 0 |  |
+| Drain | 0 |  |
+| Legacy | 0 |  |
+| Scavenger | 0 |  |
+| Memento | 0 |  |
+| Weaken | 0 |  |
+| Loner | 0 |  |
+| Trample | 0 |  |
+| Vanguard | 0 |  |
+| Rearguard | 0 |  |
+| Reach | 0 |  |
+| Counter | 0 |  |
+| Roar | 0 |  |
 | Pounce | 0 |  |
-| Glare | 5 | +5.7 |
-| Supersonic | 14 | +7.5 |
-| Will-O-Wisp | 5 | +4.6 |
-| Transform | 1 | +24.9 |
-| Roar | 4 | +0.0 |
-| Whirlwind | 8 | -0.7 |
-| U-turn | 5 | +0.3 |
-| Explode | 13 | +15.8 |
-| Destiny Bond | 1 | +8.3 |
-| Family | 4 | +8.7 |
-| Memento | 4 | +4.7 |
-| Paralyze | 17 | +3.5 |
-| Confuse | 12 | +5.5 |
-| Burn | 16 | +5.1 |
-| Static | 11 | +5.7 |
-| Flame Body | 5 | +5.7 |
-| Cute Charm | 10 | +10.1 |
-| Weaken | 13 | +6.7 |
-| Sketch | 3 | +10.2 |
-| Pay Day | 5 | +0.0 |
+| Glare | 0 |  |
+| Supersonic | 0 |  |
+| Will-O-Wisp | 0 |  |
+| Evasive | 0 |  |
 
 ## By type and stage
 
 | Type | Units | Mean rate |
 |---|---|---|
-| colorless | 71 | 50.7% |
-| darkness | 16 | 48.2% |
-| fighting | 38 | 48.8% |
-| fire | 26 | 51.0% |
-| grass | 82 | 49.6% |
-| lightning | 19 | 50.8% |
-| metal | 15 | 51.0% |
-| psychic | 41 | 50.8% |
-| water | 78 | 49.6% |
+| colorless | 71 | 52.4% |
+| darkness | 16 | 48.9% |
+| fighting | 38 | 50.3% |
+| fire | 26 | 49.7% |
+| grass | 82 | 48.4% |
+| lightning | 19 | 50.7% |
+| metal | 15 | 53.8% |
+| psychic | 41 | 50.5% |
+| water | 78 | 48.5% |
 
 | Stage | Units | Mean rate |
 |---|---|---|
-| basic | 202 | 49.9% |
-| stage1 | 139 | 50.3% |
-| stage2 | 45 | 49.7% |
+| basic | 202 | 50.1% |
+| stage1 | 139 | 50.1% |
+| stage2 | 45 | 49.5% |
 
 ## The units furthest from their tier's mean
 
@@ -145,103 +145,103 @@ What a keyword is worth to the units that have it: the same battles with it and 
 
 | # | Name | Tier | Type | Attack | HP | Keywords | Rate |
 |---|---|---|---|---|---|---|---|
-| 327 | Spinda | 1 | colorless | 20 | 30 | Supersonic | 62.2% |
-| 204 | Pineco | 1 | grass | 10 | 30 | Explode 10; Armor 10 | 62.0% |
-| 285 | Shroomish | 1 | grass | 10 | 50 | Cute Charm | 62.0% |
-| 96 | Drowzee | 1 | psychic | 20 | 30 | Drain | 61.8% |
-| 287 | Slakoth | 1 | colorless | 30 | 50 | Truant | 61.4% |
-| 331 | Cacnea | 1 | grass | 10 | 30 | Thorns 20 | 60.5% |
-| 201 | Unown | 1 | psychic | 0 | 10 | Rally 10; Legacy 10 | 60.5% |
-| 69 | Bellsprout | 1 | grass | 20 | 30 | Drain | 60.3% |
-| 13 | Weedle | 1 | grass | 20 | 20 | Sniper | 41.2% |
-| 355 | Duskull | 1 | psychic | 10 | 40 | Will-O-Wisp | 40.6% |
-| 298 | Azurill | 1 | water | 10 | 50 | Rearguard 20 | 40.1% |
-| 161 | Sentret | 1 | colorless | 10 | 50 | Bodyguard | 39.5% |
-| 165 | Ledyba | 1 | grass | 10 | 30 | Flying; Pack 10 | 38.5% |
-| 349 | Feebas | 1 | water | 10 | 10 |  | 33.1% |
-| 366 | Clamperl | 1 | water | 0 | 40 | Armor 20 | 31.6% |
-| 129 | Magikarp | 1 | water | 0 | 30 |  | 27.6% |
+| 109 | Koffing | 1 | grass | 10 | 40 | Explode 10 | 62.4% |
+| 366 | Clamperl | 1 | water | 10 | 40 | Armor 20 | 61.8% |
+| 287 | Slakoth | 1 | colorless | 30 | 50 | Truant | 61.3% |
+| 201 | Unown | 1 | psychic | 0 | 10 | Rally 20 | 60.6% |
+| 100 | Voltorb | 1 | lightning | 20 | 10 | Explode 10 | 60.5% |
+| 170 | Chinchou | 1 | lightning | 20 | 50 | Regen 10 | 59.9% |
+| 360 | Wynaut | 1 | psychic | 0 | 50 | Thorns 20 | 59.6% |
+| 216 | Teddiursa | 1 | colorless | 20 | 40 |  | 59.2% |
+| 239 | Elekid | 1 | lightning | 20 | 30 | Static | 41.2% |
+| 278 | Wingull | 1 | water | 20 | 30 | Flying | 40.8% |
+| 46 | Paras | 1 | grass | 10 | 40 | Static | 40.7% |
+| 167 | Spinarak | 1 | grass | 20 | 20 | Paralyze | 40.5% |
+| 161 | Sentret | 1 | colorless | 10 | 50 | Bodyguard | 40.0% |
+| 258 | Mudkip | 1 | water | 10 | 50 | Bodyguard | 39.8% |
+| 349 | Feebas | 1 | water | 10 | 10 |  | 27.1% |
+| 129 | Magikarp | 1 | water | 0 | 30 |  | 25.1% |
 
 ### Tier 2
 
 | # | Name | Tier | Type | Attack | HP | Keywords | Rate |
 |---|---|---|---|---|---|---|---|
-| 211 | Qwilfish | 2 | water | 20 | 40 | Thorns 20; Explode 10 | 62.7% |
-| 153 | Bayleef | 2 | grass | 20 | 60 | Safeguard; Rally 10 | 61.7% |
-| 234 | Stantler | 2 | colorless | 30 | 50 | Supersonic; Intimidate 10 | 61.2% |
-| 301 | Delcatty | 2 | colorless | 30 | 50 | Cute Charm; Baton Pass 10 | 60.4% |
-| 311 | Plusle | 2 | lightning | 20 | 40 | Rally 20 | 60.2% |
-| 235 | Smeargle | 2 | colorless | 30 | 60 | Sketch | 59.5% |
-| 20 | Raticate | 2 | colorless | 30 | 40 | Quick; Finisher 20 | 59.0% |
-| 305 | Lairon | 2 | metal | 30 | 70 | Armor 10; Taunt | 58.6% |
-| 314 | Illumise | 2 | grass | 10 | 60 | Taunt; Cute Charm | 42.9% |
-| 207 | Gligar | 2 | fighting | 30 | 50 | Flying; Finisher 10 | 42.9% |
-| 138 | Omanyte | 2 | water | 20 | 60 | Armor 10 | 42.6% |
-| 95 | Onix | 2 | fighting | 20 | 90 | Taunt | 42.4% |
-| 137 | Porygon | 2 | colorless | 20 | 50 | Shield | 41.9% |
-| 183 | Marill | 2 | water | 30 | 60 | Rearguard 30 | 41.3% |
-| 11 | Metapod | 2 | grass | 10 | 90 | Taunt; Armor 10 | 41.1% |
-| 299 | Nosepass | 2 | fighting | 10 | 80 | Bodyguard; Static | 37.5% |
+| 305 | Lairon | 2 | metal | 30 | 70 | Sturdy | 62.0% |
+| 303 | Mawile | 2 | metal | 30 | 40 | Intimidate 20 | 61.7% |
+| 206 | Dunsparce | 2 | colorless | 30 | 70 | Paralyze | 61.6% |
+| 371 | Bagon | 2 | colorless | 50 | 40 |  | 61.0% |
+| 193 | Yanma | 2 | grass | 40 | 40 | Quick; Flying | 60.9% |
+| 235 | Smeargle | 2 | colorless | 30 | 60 | Sketch | 60.4% |
+| 284 | Masquerain | 2 | grass | 30 | 40 | Intimidate 20; Flying | 60.1% |
+| 311 | Plusle | 2 | lightning | 20 | 40 | Rally 20 | 60.1% |
+| 188 | Skiploom | 2 | grass | 30 | 50 | Whirlwind; Flying | 41.3% |
+| 180 | Flaaffy | 2 | lightning | 20 | 70 | Static | 41.1% |
+| 138 | Omanyte | 2 | water | 20 | 60 | Armor 10 | 40.8% |
+| 33 | Nidorino | 2 | grass | 30 | 50 | Face-off | 40.7% |
+| 266 | Silcoon | 2 | grass | 10 | 80 | Armor 10 | 40.3% |
+| 358 | Chimecho | 2 | psychic | 20 | 70 | Safeguard | 40.1% |
+| 213 | Shuckle | 2 | grass | 10 | 130 | Taunt | 37.5% |
+| 11 | Metapod | 2 | grass | 10 | 110 | Taunt | 35.7% |
 
 ### Tier 3
 
 | # | Name | Tier | Type | Attack | HP | Keywords | Rate |
 |---|---|---|---|---|---|---|---|
-| 344 | Claydol | 3 | psychic | 30 | 70 | Shield; Splash 10; Explode 10 | 63.1% |
-| 362 | Glalie | 3 | water | 50 | 60 | Paralyze; Explode 10; Intimidate 10 | 62.8% |
-| 105 | Marowak | 3 | fighting | 40 | 60 | Scavenger 10; Reach | 62.0% |
-| 40 | Wigglytuff | 3 | colorless | 30 | 100 | Supersonic; Fortify 20 | 61.1% |
-| 291 | Ninjask | 3 | grass | 40 | 30 | Quick; Evasive; Baton Pass 20 | 59.9% |
-| 292 | Shedinja | 3 | psychic | 40 | 10 | Shield; Evasive; Sturdy | 58.9% |
-| 340 | Whiscash | 3 | water | 40 | 100 | Splash 20 | 58.4% |
-| 85 | Dodrio | 3 | colorless | 30 | 60 | Double Strike; Quick | 57.8% |
-| 164 | Noctowl | 3 | colorless | 30 | 80 | Flying; Supersonic | 42.5% |
-| 55 | Golduck | 3 | water | 40 | 70 | Confuse; Breaker | 41.8% |
-| 22 | Fearow | 3 | colorless | 50 | 50 | Flying; Sniper; Bane Grass 20 | 41.8% |
-| 197 | Umbreon | 3 | darkness | 30 | 110 | Taunt; Regen 10 | 41.1% |
-| 148 | Dragonair | 3 | colorless | 30 | 70 | Grow 10; Safeguard | 41.1% |
-| 107 | Hitmonchan | 3 | fighting | 30 | 70 | Double Strike; Counter | 40.5% |
-| 122 | Mr. Mime | 3 | psychic | 20 | 60 | Shield; Screen | 39.6% |
-| 2 | Ivysaur | 3 | grass | 30 | 70 | Regen 10; Mend 10 | 37.0% |
+| 221 | Piloswine | 3 | water | 50 | 90 | Armor 10 | 61.8% |
+| 323 | Camerupt | 3 | fire | 40 | 70 | Explode 10; Splash 10 | 60.1% |
+| 362 | Glalie | 3 | water | 50 | 60 | Paralyze; Explode 10 | 59.8% |
+| 196 | Espeon | 3 | psychic | 50 | 50 | Confuse; Shield | 59.6% |
+| 210 | Granbull | 3 | colorless | 50 | 60 | Intimidate 20 | 59.3% |
+| 85 | Dodrio | 3 | colorless | 50 | 50 | Quick | 59.0% |
+| 24 | Arbok | 3 | grass | 40 | 70 | Intimidate 20; Paralyze | 58.6% |
+| 344 | Claydol | 3 | psychic | 30 | 70 | Shield; Explode 10 | 58.4% |
+| 117 | Seadra | 3 | water | 40 | 50 | Splash 20 | 41.1% |
+| 256 | Combusken | 3 | fire | 50 | 70 | Face-off | 41.1% |
+| 197 | Umbreon | 3 | darkness | 30 | 110 | Taunt; Regen 10 | 40.8% |
+| 64 | Kadabra | 3 | psychic | 60 | 40 | Confuse | 40.6% |
+| 80 | Slowbro | 3 | water | 30 | 110 | Taunt; Regen 10 | 40.6% |
+| 189 | Jumpluff | 3 | grass | 50 | 60 | Whirlwind; Flying | 39.7% |
+| 226 | Mantine | 3 | water | 30 | 110 | Flying; Bodyguard | 39.4% |
+| 368 | Gorebyss | 3 | water | 30 | 70 | Baton Pass 30 | 39.1% |
 
 ### Tier 4
 
 | # | Name | Tier | Type | Attack | HP | Keywords | Rate |
 |---|---|---|---|---|---|---|---|
-| 154 | Meganium | 4 | grass | 40 | 110 | Safeguard; Rally 20; Mend 20 | 64.1% |
-| 295 | Exploud | 4 | colorless | 40 | 110 | Cleave; Intimidate 10 | 62.7% |
-| 306 | Aggron | 4 | metal | 50 | 110 | Armor 20; Trample; Vanguard 20 | 59.7% |
-| 335 | Zangoose | 4 | colorless | 60 | 70 | Quick; Bane Grass 20 | 58.7% |
-| 103 | Exeggutor | 4 | grass | 50 | 100 | Confuse; Barrage 10 | 56.9% |
-| 199 | Slowking | 4 | water | 30 | 100 | Leader 20; Rally 20; Intimidate 10 | 56.5% |
-| 272 | Ludicolo | 4 | water | 40 | 100 | Baton Pass 30; Drain; Rally 10 | 56.4% |
-| 217 | Ursaring | 4 | colorless | 60 | 90 | Enrage 20; Intimidate 10 | 56.2% |
-| 359 | Absol | 4 | darkness | 80 | 60 | Loner 20; Sniper | 43.3% |
-| 184 | Azumarill | 4 | water | 60 | 100 | Rearguard 50; Breaker | 43.1% |
-| 97 | Hypno | 4 | psychic | 40 | 100 | Drain; Supersonic | 42.7% |
-| 15 | Beedrill | 4 | grass | 60 | 90 | Double Strike; Sniper | 41.6% |
-| 12 | Butterfree | 4 | grass | 50 | 90 | Flying; Confuse; Mend 10 | 41.1% |
-| 348 | Armaldo | 4 | fighting | 60 | 90 | Armor 10; Sniper; Breaker | 40.0% |
-| 124 | Jynx | 4 | psychic | 50 | 90 | Confuse; Cute Charm | 38.3% |
-| 127 | Pinsir | 4 | grass | 60 | 80 | Face-off; Breaker | 37.1% |
+| 232 | Donphan | 4 | fighting | 50 | 120 | Armor 10; Sturdy | 61.6% |
+| 181 | Ampharos | 4 | lightning | 50 | 110 | Static; Rally 20 | 60.9% |
+| 306 | Aggron | 4 | metal | 50 | 90 | Sturdy; Armor 20 | 60.0% |
+| 26 | Raichu | 4 | lightning | 70 | 70 | Quick; Paralyze | 59.2% |
+| 295 | Exploud | 4 | colorless | 50 | 110 | Splash 30 | 58.9% |
+| 319 | Sharpedo | 4 | darkness | 90 | 40 | Thorns 20; Quick | 58.5% |
+| 233 | Porygon2 | 4 | colorless | 40 | 90 | Shield; Sketch | 58.1% |
+| 115 | Kangaskhan | 4 | colorless | 50 | 100 | Family | 57.1% |
+| 346 | Cradily | 4 | grass | 40 | 140 | Taunt; Regen 10 | 42.9% |
+| 359 | Absol | 4 | darkness | 90 | 70 | Finisher 20 | 42.7% |
+| 12 | Butterfree | 4 | grass | 60 | 90 | Flying; Confuse | 42.6% |
+| 272 | Ludicolo | 4 | water | 50 | 100 | Baton Pass 30; Regen 10 | 42.2% |
+| 127 | Pinsir | 4 | grass | 80 | 80 | Face-off | 41.8% |
+| 124 | Jynx | 4 | psychic | 60 | 90 | Cute Charm | 41.8% |
+| 227 | Skarmory | 4 | metal | 40 | 100 | Flying; Armor 20 | 41.7% |
+| 18 | Pidgeot | 4 | colorless | 60 | 80 | Flying; Whirlwind | 40.3% |
 
 ### Tier 5
 
 | # | Name | Tier | Type | Attack | HP | Keywords | Rate |
 |---|---|---|---|---|---|---|---|
-| 383 | Groudon | 5 | fighting | 70 | 120 | Cleave; Armor 10; Burn | 63.4% |
-| 248 | Tyranitar | 5 | darkness | 70 | 110 | Barrage 20; Armor 10; Intimidate 20 | 63.2% |
-| 382 | Kyogre | 5 | water | 70 | 130 | Barrage 10; Leader 20; Splash 20 | 62.4% |
-| 151 | Mew | 5 | psychic | 50 | 110 | Evasive; Rally 20; Fortify 20 | 61.2% |
-| 145 | Zapdos | 5 | lightning | 80 | 100 | Flying; Quick; Splash 30 | 60.9% |
-| 378 | Regice | 5 | water | 50 | 150 | Shield; Paralyze; Guardian 20 | 59.6% |
-| 146 | Moltres | 5 | fire | 70 | 110 | Flying; Burn; Cleave | 57.9% |
-| 144 | Articuno | 5 | water | 60 | 120 | Flying; Barrage 20; Paralyze | 57.4% |
-| 384 | Rayquaza | 5 | colorless | 90 | 110 | Flying; Breaker; Rampage 20 | 43.8% |
-| 350 | Milotic | 5 | water | 50 | 140 | Cute Charm; Regen 20; Safeguard | 43.4% |
-| 242 | Blissey | 5 | colorless | 20 | 260 | Mend 30; Safeguard | 42.7% |
-| 160 | Feraligatr | 5 | water | 70 | 110 | Rampage 20; Trample; Intimidate 10 | 41.5% |
-| 149 | Dragonite | 5 | colorless | 70 | 120 | Flying; Grow 20 | 40.8% |
-| 214 | Heracross | 5 | grass | 80 | 110 | Trample; Vanguard 30 | 40.5% |
-| 257 | Blaziken | 5 | fire | 70 | 110 | Grow 20; Face-off; Burn | 40.1% |
-| 68 | Machamp | 5 | fighting | 60 | 120 | Double Strike; Face-off; Breaker | 39.4% |
+| 386 | Deoxys | 5 | psychic | 90 | 50 | Quick; Finisher 30; Shield | 66.9% |
+| 150 | Mewtwo | 5 | psychic | 80 | 100 | Intimidate 20; Shield; Finisher 10 | 66.7% |
+| 384 | Rayquaza | 5 | colorless | 90 | 110 | Flying; Splash 20; Intimidate 20 | 62.7% |
+| 379 | Registeel | 5 | metal | 40 | 150 | Armor 30; Rally 20 | 59.8% |
+| 376 | Metagross | 5 | metal | 80 | 130 | Armor 10; Splash 20 | 59.2% |
+| 59 | Arcanine | 5 | fire | 70 | 100 | Intimidate 20; Quick | 58.0% |
+| 212 | Scizor | 5 | metal | 80 | 100 | Quick; Armor 10 | 57.9% |
+| 382 | Kyogre | 5 | water | 70 | 120 | Splash 30; Rally 10 | 57.7% |
+| 381 | Latios | 5 | psychic | 90 | 100 | Flying; Finisher 20 | 42.5% |
+| 68 | Machamp | 5 | fighting | 80 | 120 | Face-off; Finisher 20 | 42.1% |
+| 146 | Moltres | 5 | fire | 70 | 110 | Flying; Burn | 40.9% |
+| 214 | Heracross | 5 | grass | 90 | 110 | Face-off; Finisher 20 | 40.8% |
+| 380 | Latias | 5 | psychic | 70 | 130 | Flying; Bodyguard | 40.6% |
+| 260 | Swampert | 5 | water | 60 | 150 | Bodyguard; Armor 10 | 40.3% |
+| 144 | Articuno | 5 | water | 70 | 120 | Flying; Paralyze | 40.3% |
+| 251 | Celebi | 5 | grass | 60 | 120 | Regen 20; Safeguard | 39.7% |

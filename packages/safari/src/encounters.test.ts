@@ -136,7 +136,7 @@ describe('upgrades', () => {
   });
 
   it('a keyword is one more for the Pokémon, with its own', () => {
-    let s = must(step(['128'], [{ kind: 'upgrade' }]), { type: 'ENCOUNTER', index: 0 }); // Tauros: Trample and Enrage 10
+    let s = must(step(['128'], [{ kind: 'upgrade' }]), { type: 'ENCOUNTER', index: 0 }); // Tauros: Intimidate 20
     s.encounter = { kind: 'upgrade', upgrades: [{ kind: 'keyword', key: 100, unit: '128', ability: { k: 'Armor', n: 10 } }] };
     s = must(s, { type: 'TAKE', index: 0 });
     expect(cardUnit(s.board[0] as PokemonCard, pool).abilities).toEqual([...unit('128').abilities, { k: 'Armor', n: 10 }]);
@@ -145,10 +145,10 @@ describe('upgrades', () => {
     // A golden copy made with it keeps the keyword.
     s = must(must(s, { type: 'GIFT', unit: '128' }), { type: 'GIFT', unit: '128' });
     expect(s.board[0]).toMatchObject({ unit: '128', golden: true });
-    expect(cardUnit(s.board[0] as PokemonCard, pool).abilities.map((a) => a.k)).toEqual(['Trample', 'Enrage', 'Armor']);
+    expect(cardUnit(s.board[0] as PokemonCard, pool).abilities.map((a) => a.k)).toEqual(['Intimidate', 'Armor']);
   });
 
-  it('offers a keyword the Pokémon hasn\'t, never to one with 3', () => {
+  it('offers a keyword the Pokémon hasn\'t, never to one with 2', () => {
     const full = units.find((u) => u.abilities.length === MAX_KEYWORDS && pool.lone(u) && !isLegendary(u))!;
     let offered = 0;
     for (let seed = 0; seed < 60; seed++) {
@@ -262,8 +262,8 @@ describe('the legendary\'s board', () => {
     s = must(s, { type: 'ENCOUNTER', index: 0 });
     expect(s.phase).toBe('ready');
     expect(s.opponent).toMatchObject({ difficulty: 'legendary', pay: 0 });
-    expect(s.opponent!.board[0]).toBe(legend.id);
-    for (const id of s.opponent!.board.slice(1)) expect(isLegendary(unit(id))).toBe(false);
+    expect(s.opponent!.board).toContain(legend.id);
+    expect(s.opponent!.board.filter((id) => isLegendary(unit(id)))).toEqual([legend.id]);
     expect(s.legendaryMet).toBe(true);
     s = must(s, { type: 'BATTLE' });
     expect(s.battles).toBe(LEGENDARY_FROM);

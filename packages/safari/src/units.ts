@@ -1,5 +1,5 @@
 // Safari Draft (issue #254, the redesign of #239's section 2): a draft unit. One for each Pokémon species, #1–386, written
-// by hand in species.ts: a name, a type, a tier (1–5), an attack, an HP and 0 to 3 keywords, each of which may carry a
+// by hand in species.ts: a name, a type, a tier (1–5), an attack, an HP and 0 to 3 keywords (most have 1, a select few 3), each of which may carry a
 // number ("Splash 20") or a type ("Bane water 20"). Nothing of a unit comes from a TCG print any more (the user's,
 // 2026-11-21): the package holds its own table and never reads the card catalog. The API picks each unit's picture.
 //   - types: the TCG's nine of the Gen 1–3 era, one a unit;
@@ -13,34 +13,41 @@ export const UNIT_TYPES = ['grass', 'fire', 'water', 'lightning', 'psychic', 'fi
 export type UnitType = (typeof UNIT_TYPES)[number];
 export const TOP_TIER = 5;
 
-/** The keywords (issue #254, section 3). effects.ts has what each does. */
-export const KEYWORD_NAMES = [
-  // Aim.
-  'Taunt', 'Bodyguard', 'Face-off', 'Sniper', 'Flying',
-  // Tempo.
-  'Quick', 'Reach', 'Double Strike', 'Truant',
-  // Damage.
-  'Splash', 'Cleave', 'Trample', 'Finisher', 'Bane', 'Breaker', 'Barrage', 'Recoil',
-  // Growing.
-  'Enrage', 'Rampage', 'Grow', 'Scavenger',
-  // Defence.
-  'Shield', 'Armor', 'Thorns', 'Sturdy', 'Evasive', 'Regen', 'Drain', 'Counter',
-  // Neighbours.
-  'Rally', 'Fortify', 'Screen', 'Pack', 'Guardian', 'Safeguard', 'Mend', 'Baton Pass', 'Legacy',
-  // Place and type.
-  'Vanguard', 'Rearguard', 'Leader', 'Loner',
-  // Across.
-  'Intimidate', 'Pounce', 'Glare', 'Supersonic', 'Will-O-Wisp', 'Transform',
-  // Moving.
-  'Roar', 'Whirlwind', 'U-turn',
-  // Fainting.
-  'Explode', 'Destiny Bond', 'Family', 'Memento',
-  // Status.
-  'Paralyze', 'Confuse', 'Burn', 'Static', 'Flame Body', 'Cute Charm',
-  // Other.
-  'Weaken', 'Sketch', 'Pay Day',
-] as const;
-export type Keyword = (typeof KEYWORD_NAMES)[number];
+/**
+ * The keywords, by the generation each is kept for (the user's, 2026-11-22: 64 are a whole game's, split over the nine
+ * generations; the split and its themes are mine, packages/safari/CLAUDE.md). Only the generations in play (GENERATIONS_IN_PLAY)
+ * are on a unit, an upgrade or an opponent; the later ones are written and tested (effects.ts, battle.test.ts) and wait.
+ */
+export const KEYWORDS_BY_GENERATION = {
+  // The basics, after Red and Blue's moves: who is attacked, a Shield, hitting neighbours, the three Special Conditions.
+  1: ['Taunt', 'Shield', 'Quick', 'Flying', 'Splash', 'Rally', 'Face-off', 'Explode', 'Whirlwind', 'Paralyze', 'Confuse', 'Burn', 'Transform', 'Pay Day'],
+  // Gold and Silver's moves and arrivals: Steel, Dark, breeding, held items.
+  2: ['Armor', 'Finisher', 'Baton Pass', 'Safeguard', 'Sketch', 'Destiny Bond', 'Family', 'Regen'],
+  // Ruby and Sapphire's Abilities, and Follow Me from its double battles.
+  3: ['Intimidate', 'Sturdy', 'Truant', 'Static', 'Flame Body', 'Cute Charm', 'Thorns', 'Bodyguard'],
+  // Diamond and Pearl: U-turn, Stealth Rock, Sniper, Reckless, Skill Link, Mold Breaker.
+  4: ['U-turn', 'Barrage', 'Sniper', 'Recoil', 'Double Strike', 'Breaker'],
+  // Black and White: triple battles' neighbours (Friend Guard, Healer, Wide Guard), Moxie, Justified, Speed Boost.
+  5: ['Guardian', 'Mend', 'Screen', 'Rampage', 'Enrage', 'Grow'],
+  // X and Y: hordes, Mega Evolution, the type chart redrawn.
+  6: ['Pack', 'Leader', 'Fortify', 'Bane', 'Cleave', 'Drain'],
+  // Sun and Moon: what a faint leaves behind (Receiver, Soul-Heart, Innards Out), Ultra Beasts, Z-Moves.
+  7: ['Legacy', 'Scavenger', 'Memento', 'Weaken', 'Loner', 'Trample'],
+  // Sword and Shield: Intrepid Sword, Dauntless Shield, Unseen Fist, Body Press, Court Change.
+  8: ['Vanguard', 'Rearguard', 'Reach', 'Counter', 'Roar'],
+  // Scarlet and Violet: the first move on the Pokémon across.
+  9: ['Pounce', 'Glare', 'Supersonic', 'Will-O-Wisp', 'Evasive'],
+} as const;
+/** The generations whose Pokémon and keywords are in the game now. */
+export const GENERATIONS_IN_PLAY = 3;
+export const KEYWORD_NAMES = Object.values(KEYWORDS_BY_GENERATION).flat();
+export type Keyword = (typeof KEYWORDS_BY_GENERATION)[keyof typeof KEYWORDS_BY_GENERATION][number];
+/** The generation a keyword is kept for. */
+export const keywordGeneration = (k: Keyword) => Number(Object.entries(KEYWORDS_BY_GENERATION).find(([, ks]) => (ks as readonly string[]).includes(k))![0]);
+/** Whether a keyword is in the game now. */
+export const keywordInPlay = (k: Keyword) => keywordGeneration(k) <= GENERATIONS_IN_PLAY;
+/** The keywords in the game now. */
+export const KEYWORDS_IN_PLAY = KEYWORD_NAMES.filter(keywordInPlay);
 
 /** A keyword on a unit: its number where it has one ("Splash 20"), its type for Bane. */
 export interface Ability {

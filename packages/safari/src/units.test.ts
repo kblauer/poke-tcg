@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { allUnits } from './species.js';
-import { KEYWORD_NAMES, TOP_TIER, UNIT_TYPES, abilityName, parseAbility, unitEvolvesFrom } from './units.js';
+import { GENERATIONS_IN_PLAY, KEYWORDS_BY_GENERATION, KEYWORDS_IN_PLAY, KEYWORD_NAMES, TOP_TIER, UNIT_TYPES, abilityName, keywordGeneration, keywordInPlay, parseAbility, unitEvolvesFrom } from './units.js';
 
 const units = allUnits();
 const byName = new Map(units.map((u) => [u.name, u]));
@@ -71,9 +71,25 @@ describe('the units', () => {
     // Everything a merge makes exists above it: a last Pokémon's tier is 3 or more.
     for (const u of units.filter((x) => x.stage === 'stage2')) expect(u.tier, u.name).toBeGreaterThanOrEqual(3);
     for (const type of UNIT_TYPES) expect(shown.filter((u) => u.type === type).length, type).toBeGreaterThanOrEqual(8);
-    // Most keywords are on several cards, none of them on most.
+  });
+
+  it('use every keyword of the generations in play, and none kept for a later one', () => {
+    expect(KEYWORD_NAMES).toHaveLength(64);
+    expect(new Set(KEYWORD_NAMES).size).toBe(64);
+    expect(Object.keys(KEYWORDS_BY_GENERATION)).toHaveLength(9);
+    expect(GENERATIONS_IN_PLAY).toBe(3);
+    expect(KEYWORDS_IN_PLAY).toHaveLength(30);
+    expect([keywordGeneration('Taunt'), keywordGeneration('Armor'), keywordGeneration('Intimidate'), keywordGeneration('Pounce')]).toEqual([1, 2, 3, 9]);
     const used = new Set(units.flatMap((u) => u.abilities.map((a) => a.k)));
-    expect(KEYWORD_NAMES.filter((k) => !used.has(k))).toEqual(['Pounce']);
+    expect(KEYWORD_NAMES.filter((k) => used.has(k) !== keywordInPlay(k))).toEqual([]);
+  });
+
+  it('have 1 keyword mostly, 2 on fewer than half, 3 on a select few legendaries', () => {
+    const count = (n: number) => units.filter((u) => u.abilities.length === n);
+    expect(count(3).length).toBeLessThanOrEqual(6);
+    expect(count(3).every((u) => u.legendary)).toBe(true);
+    expect(count(1).length).toBeGreaterThan(count(2).length);
+    expect(count(2).length + count(3).length).toBeLessThan(units.length * 0.4);
   });
 });
 

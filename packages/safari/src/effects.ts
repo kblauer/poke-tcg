@@ -1,5 +1,5 @@
-// Safari Draft (issue #254, sections 3 to 5; #239's section 5 for the Trainers): what the keywords, type synergies and
-// Trainer buffs do in a battle. A keyword's entry has its words (for the card) and its hooks by trigger (start of battle,
+// Safari Draft (issue #254, sections 3 to 5; the Trainers redesigned with them, 2026-11-22): what the keywords, type
+// synergies and Trainer cards do in a battle. A keyword's entry has its words (for the card) and its hooks by trigger (start of battle,
 // on hit, when hit, after its attack, on fainting); battle.ts calls them. The keywords that are rules of the battle itself
 // (who is attacked, whether a hit is struck back, what a hit does beyond its target) have only their words here (`rule`)
 // and are named in battle.ts where they apply.
@@ -37,13 +37,12 @@ export const TUNING = {
   darkness: [20, 20, 40],
   /** Metal, Plating: what Metal Pokémon's neighbours take less from every hit. */
   metal: [10, 10, 20],
-  plusPower: 10,
-  defender: 10,
+  plusPower: 20,
   potion: 30,
   superPotion: 20,
+  clefairyDoll: 30,
   energyRemoval: 20,
   gust: 2,
-  gambler: 20,
   imposter: 2,
 };
 
@@ -67,12 +66,16 @@ export const SYNERGIES: Record<SynergyType, { name: string; text: string }> = {
   metal: { name: 'Plating', text: "Metal Pokémon's neighbours take 10/10/20 less from every hit" },
 };
 
-/** The Trainers a side may play, one a battle (issue #239, 5). battle.ts applies each where its words say. */
+/**
+ * The Trainers a side may play, one a battle. battle.ts applies each where its words say. Redesigned with the units (the
+ * user's, 2026-11-22; the cards mine): most read places, as the keywords do (the first and last Pokémon of a line, a
+ * Pokémon's neighbours), so where a Pokémon stands matters to them too. "First" is the left end of a line.
+ */
 export const TRAINERS = {
-  PlusPower: 'Your Pokémon get +10 attack',
-  Defender: 'Your Pokémon take 10 less from every hit',
-  Potion: 'The first of your Pokémon to fall under half its HP heals 30',
-  'Super Potion': "Each of your Pokémon heals 20 the first time it's hit",
+  PlusPower: 'Your first 2 Pokémon get +20 attack',
+  Defender: 'Your first and last Pokémon start with a Shield',
+  Potion: 'The first of your Pokémon to fall under half its HP heals 30, and so do its neighbours',
+  'Super Potion': 'When one of your Pokémon faints, its neighbours heal 20',
   'Full Heal': "Your Pokémon can't be Burned, Paralyzed or Confused",
   Revive: 'The first of your Pokémon to faint comes back with half its HP',
   'Pokémon Center': "Once, when you're down to 3 Pokémon, they heal fully",
@@ -80,7 +83,7 @@ export const TRAINERS = {
   'Energy Removal': 'The opposing Pokémon with the most attack has −20 attack',
   'Super Energy Removal': 'The 2 opposing Pokémon with the most attack have −20 attack',
   'Scoop Up': 'The first of your Pokémon that would faint goes to the end of your line fully healed instead, and your next Pokémon attacks at once',
-  Gambler: 'Flip a coin: heads, your Pokémon get +20 attack',
+  'Clefairy Doll': 'Your last Pokémon has Taunt and +30 HP',
   'Imposter Professor Oak': "The opponent's type synergies count 2 Pokémon fewer",
   /** After the battle: the draft's, nothing in the battle itself. */
   Bill: '+₱ after the battle, won or lost',

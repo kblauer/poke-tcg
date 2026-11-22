@@ -10,7 +10,7 @@
 // start-of-battle effects are worked out once, on the boards as the battle starts.
 //
 // The start of a battle, in order: the type synergies are counted on the boards as they stand; Roar; Transform and
-// Sketch; the Trainers' and the synergies' lasting changes; the keywords' (ready); the Energy Removals; the
+// Sketch; the Trainers' (PlusPower, Defender, Clefairy Doll) and the synergies' lasting changes; the keywords' (ready); the Energy Removals; the
 // start-of-battle damage (Pounce, Barrage); then the attacks before the normal order (Lightning's Quick, the keyword
 // Quick), which aren't struck back.
 //
@@ -106,7 +106,7 @@ interface Side {
 export type BattleEvent =
   | { e: 'first'; side: SideId }
   | { e: 'synergy'; side: SideId; type: SynergyType; level: number }
-  | { e: 'trainer'; side: SideId; trainer: TrainerName; flip?: boolean }
+  | { e: 'trainer'; side: SideId; trainer: TrainerName }
   | { e: 'join'; uid: string; side: SideId; at: number; name: string; attack: number; hp: number; why: string }
   | { e: 'buff'; uid: string; attack: number; why: string }
   | { e: 'grow'; uid: string; hp: number; why: string }
@@ -262,7 +262,7 @@ export class Battle {
     const side = this.sides[f.side];
     if (side.trainer === 'Potion' && !side.once.potion && f.hp > 0 && f.hp < f.maxHp / 2) {
       side.once.potion = true;
-      this.heal(f, TUNING.potion, 'Potion');
+      for (const g of [f, ...this.neighbours(f)]) this.heal(g, TUNING.potion, 'Potion');
     }
   }
 
@@ -433,17 +433,15 @@ export class Battle {
     for (const s of order) {
       const side = this.sides[s];
       if (side.trainer === 'Gust of Wind') side.gust = TUNING.gust;
-      let attack = side.trainer === 'PlusPower' ? TUNING.plusPower : 0;
-      if (side.trainer === 'Gambler') {
-        const heads = this.flip();
-        attack = heads ? TUNING.gambler : 0;
-        this.events?.push({ e: 'trainer', side: s, trainer: 'Gambler', flip: heads });
-      }
+      // The Trainers that read places: the line as it stands once Transform and Sketch are done.
+      if (side.trainer === 'PlusPower') for (const f of side.line.slice(0, 2)) this.buff(f, TUNING.plusPower, 'PlusPower');
+      if (side.trainer === 'Defender') for (const f of new Set([side.line[0], side.line.at(-1)])) if (f) this.shield(f, 'Defender');
+      const last = side.line.at(-1);
+      if (side.trainer === 'Clefairy Doll' && last) this.become(last, { attack: last.base, hp: last.maxHp + TUNING.clefairyDoll, type: last.type, abilities: has(last, 'Taunt') ? last.abilities : [...last.abilities, { k: 'Taunt' }] }, 'Clefairy Doll');
       const versatile = (TUNING.colorless[side.levels.colorless - 1] ?? 0) * TUNING.versatile * (types[order.indexOf(s)]!.size - 1);
       const current = TUNING.water[side.levels.water - 1] ?? 0;
       const pressure = TUNING.psychic[side.levels.psychic - 1] ?? 0;
       for (const f of [...side.line]) {
-        if (attack) this.buff(f, attack, side.trainer!);
         if (versatile > 0 && f.type === 'colorless') this.grow(f, versatile, 'Versatile');
         if (current && f.type === 'water') this.grow(f, current * this.neighbours(f).filter((g) => g.type === 'water').length, 'Current');
         const x = pressure && f.type === 'psychic' ? this.across(f) : undefined;
@@ -606,7 +604,6 @@ export class Battle {
     const beside = this.neighbours(target);
     for (const g of beside) damage -= numberOf(g, 'Guardian');
     if (side.levels.metal && beside.some((g) => g.type === 'metal')) damage -= TUNING.metal[side.levels.metal - 1]!;
-    if (side.trainer === 'Defender') damage -= TUNING.defender;
     damage = Math.max(0, damage);
     this.damage(target, damage + rising, by, why);
     return damage + rising;
@@ -619,10 +616,6 @@ export class Battle {
     if (leech) this.heal(by, leech, 'Leech');
     if (target.gone) return;
     for (const [h, a] of this.hooks(target)) h.struck?.(this, target, a, by, dealt);
-    if (this.sides[target.side].trainer === 'Super Potion' && !target.once.superPotion && target.hp > 0) {
-      target.once.superPotion = true;
-      this.heal(target, TUNING.superPotion, 'Super Potion');
-    }
   }
 
   /** Every Pokémon at 0 HP faints, `first`'s side first, left to right, until none is left to. */
@@ -663,6 +656,7 @@ export class Battle {
     if (killer && !killer.gone) for (const [h, a] of this.hooks(killer)) h.knockedOut?.(this, killer, a);
     for (const [h, a] of hooks) h.fainted?.(this, f, a, killer && !killer.gone && killer.hp > 0 ? killer : undefined, at, neighbours);
     for (const g of side.line) if (g.hp > 0) for (const [h, a] of this.hooks(g)) h.allyFainted?.(this, g, a);
+    if (side.trainer === 'Super Potion') for (const g of neighbours) this.heal(g, TUNING.superPotion, 'Super Potion');
 
     // Coming back: Revive, where it stood, once, with half its HP.
     if (side.trainer === 'Revive' && !side.once.revive && f.unit) {

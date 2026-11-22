@@ -17,7 +17,7 @@
 //
 // Mine, placeholders to check with the user: the 5 steps come after 5 different battles of the 1st to the 14th (so never
 // two in a row), each with a battle half the time; a step's two encounters are different kinds; Protein +20 attack, HP Up
-// +40 HP (UPGRADES); a keyword is one of UPGRADE_KEYWORDS the Pokémon hasn't, while it has fewer than 3 (MAX_KEYWORDS); an upgrade's Pokémon is
+// +40 HP (UPGRADES); a keyword is one of UPGRADE_KEYWORDS the Pokémon hasn't, of the generations in play, while it has fewer than 2 (MAX_KEYWORDS: the user's, 2026-11-22, 3 keywords are for a select few cards); an upgrade's Pokémon is
 // picked by how many battles it has been held (as the shop's favour); a legendary's board is the legendary and 5 of its
 // type at the hard tier, paying nothing but the legendary, of tier 3 or more (LEGENDARY_MIN_TIER); after an
 // encounter the shop stays as it was (a new one only after a battle); an encounter, once chosen, can't be swapped for
@@ -25,7 +25,7 @@
 import { chance, pick, sample, weighted, type Rng } from '@poke-tcg/campaign';
 import { BOARD_SIZE } from './battle.js';
 import type { TrainerName } from './effects.js';
-import { DIFFICULTY_TIER, MEDIUM_TIERS, mainType, rollBoard, type Opponent } from './opponents.js';
+import { DIFFICULTY_TIER, MEDIUM_TIERS, arrange, mainType, rollBoard, type Opponent } from './opponents.js';
 import type { Ability, Unit } from './units.js';
 
 export type EncounterKind = 'upgrade' | 'cardGift' | 'trainerGift' | 'specialShop' | 'legendary';
@@ -49,10 +49,11 @@ export const UPGRADES = {
 } as const;
 /** The keywords an upgrade can give (mine: ones that work on any Pokémon, wherever it stands), and how many a Pokémon can have. */
 export const UPGRADE_KEYWORDS: Ability[] = [
-  { k: 'Taunt' }, { k: 'Shield' }, { k: 'Armor', n: 10 }, { k: 'Thorns', n: 10 }, { k: 'Regen', n: 10 }, { k: 'Sturdy' }, { k: 'Quick' }, { k: 'Flying' }, { k: 'Sniper' },
-  { k: 'Splash', n: 10 }, { k: 'Finisher', n: 20 }, { k: 'Enrage', n: 10 }, { k: 'Rally', n: 10 }, { k: 'Paralyze' }, { k: 'Confuse' }, { k: 'Burn' },
+  { k: 'Taunt' }, { k: 'Shield' }, { k: 'Armor', n: 10 }, { k: 'Thorns', n: 10 }, { k: 'Regen', n: 10 }, { k: 'Sturdy' }, { k: 'Quick' }, { k: 'Flying' },
+  { k: 'Splash', n: 10 }, { k: 'Finisher', n: 20 }, { k: 'Rally', n: 10 }, { k: 'Paralyze' }, { k: 'Confuse' }, { k: 'Burn' },
 ];
-export const MAX_KEYWORDS = 3;
+/** An upgrade never makes a third keyword (the user's, 2026-11-22: 3 on a card is for a select few). */
+export const MAX_KEYWORDS = 2;
 /** The special shop: cards a tier above the shop's, Trainer cards and their price (the user's, 2026-11-18). */
 export const SPECIAL_SHOP = { cards: 5, trainers: 2, trainerPrice: 100 };
 
@@ -100,10 +101,10 @@ export function rollEncounterOffers(rng: Rng, count: number, legendaries: readon
   return out;
 }
 
-/** A legendary's board: the legendary and 5 of its type at the hard tier for the battle, paying nothing but the legendary. */
+/** A legendary's board: the legendary and 5 of its type at the hard tier for the battle, placed (opponents.ts's arrange), paying nothing but the legendary. */
 export function legendaryOpponent(rng: Rng, units: readonly Unit[], legendary: Unit, battles: number): Opponent {
   const target = MEDIUM_TIERS[Math.min(battles, MEDIUM_TIERS.length - 1)]! + DIFFICULTY_TIER.hard;
   const rest = rollBoard(rng, units, target, (u) => u.type === legendary.type && u.id !== legendary.id, () => false).slice(0, BOARD_SIZE - 1);
-  const board = [legendary, ...rest];
+  const board = arrange(rng, [legendary, ...rest]);
   return { name: legendary.name, difficulty: 'legendary', type: mainType(board), pay: 0, board: board.map((u) => u.id) };
 }

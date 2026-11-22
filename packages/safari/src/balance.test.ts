@@ -26,13 +26,13 @@ describe('the balance harness', () => {
 
   it('measures an effect against the same battles without it', () => {
     // Stripping nothing changes nothing.
-    const drainers = units.filter((u) => u.abilities.some((a) => a.k === 'Drain'));
+    const drainers = units.filter((u) => u.abilities.some((a) => a.k === 'Armor'));
     expect(drainers.length).toBeGreaterThan(0);
     const same = effectLift(units, drainers, (u) => u, 300, 3);
     expect(same.with.games).toBe(300);
     expect(lift(same)).toBe(0);
     // Things that plainly help.
-    expect(lift(effectLift(units, drainers, (u) => ({ ...u, abilities: u.abilities.filter((a) => a.k !== 'Drain') }), 1500, 3))).toBeGreaterThan(0.04);
+    expect(lift(effectLift(units, drainers, (u) => ({ ...u, abilities: u.abilities.filter((a) => a.k !== 'Armor') }), 1500, 3))).toBeGreaterThan(0.02);
     expect(lift(synergyLift(units, 'fighting', 4, 800, 4))).toBeGreaterThan(0.1);
     expect(lift(trainerLift(units, 'PlusPower', 3, 800, 5))).toBeGreaterThan(0.1);
     // Bill pays after the battle: nothing in it.
