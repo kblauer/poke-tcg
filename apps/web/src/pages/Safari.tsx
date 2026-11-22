@@ -10,6 +10,7 @@ import { BattleBar, BattleLine, TrainerWords, useBattlePlayback, type LastBattle
 import { CARD, CardRow, EmptyPlace, PlayerSide, SynergyChips } from '../components/safari/SafariBoard';
 import { EncounterOverlay, LogPanel, NextStepOverlay, PickDialog, RunOverDialog, ShopOverlay, StarterDialog } from '../components/safari/SafariPanels';
 import { UnitCard } from '../components/safari/UnitCard';
+import { UnitInspectProvider } from '../components/safari/UnitInspector';
 import { DIFFICULTY_COLOR, DIFFICULTY_LABEL, opponentSprite } from '../components/safari/safariArt';
 import { useCosmetics } from '../hooks/useCosmetics';
 import { useSafariActions, useSafariOverview, useSafariUnits, type ClientSafari, type SafariUnit, type SafariViewData } from '../hooks/useSafari';
@@ -103,6 +104,7 @@ export function SafariPage() {
 
   return (
     // Fills the window below the header, as the battle page does (-mt/-mb undo the layout's spacing).
+    <UnitInspectProvider>
     <div ref={fill.ref} className="-mb-4 -mt-6 flex select-none" style={fill.style}>
       <div className={`flex min-w-0 flex-1 flex-col gap-2 py-2 ${PAGE_WIDTH}`}>
         <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -175,6 +177,7 @@ export function SafariPage() {
       )}
       <Toasts toasts={toasts.toasts} />
     </div>
+    </UnitInspectProvider>
   );
 }
 

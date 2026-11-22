@@ -1,3 +1,5 @@
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ShieldIcon from '@mui/icons-material/Shield';
 import { TRAINERS, abilityName, abilityText, type TrainerName } from '@poke-tcg/safari/effects';
 import { forwardRef, useContext, type ReactNode } from 'react';
@@ -5,6 +7,7 @@ import { CardImage } from '../CardImage';
 import { EnergyIcon } from '../EnergyIcon';
 import { CatalogContext, useInspectOnRightClick } from '../InspectContext';
 import type { SafariUnit } from '../../hooks/useSafari';
+import { KEYWORD_MARKS, UnitInspectContext } from './keywordMarks';
 import { TRAINER_CARDS } from './safariArt';
 
 /** A unit's numbers as it fights: its print's, with its bonuses (upgrades, golden). */
@@ -12,8 +15,10 @@ export interface UnitStats {
   attack: number;
   hp: number;
   abilities?: UnitAbility[];
-  /** A Shield up in a battle. */
+  /** In a battle: whether its Shield is up (elsewhere a Pokémon with the keyword is shown with it). */
   shield?: boolean;
+  /** Keywords used up in a battle (Sturdy): their badges fade. */
+  spent?: string[];
 }
 export type UnitAbility = SafariUnit['abilities'][number];
 
@@ -21,6 +26,8 @@ export type UnitAbility = SafariUnit['abilities'][number];
 export const TAUNT = 'Taunt';
 /** A taunting Pokémon's border: a thick stone outline round the card, apart from the golden ring and the picked-up one. */
 const TAUNT_RING = 'outline outline-4 outline-offset-2 outline-stone-300 shadow-[0_0_14px_6px_rgba(214,211,209,0.45)]';
+/** A Bodyguard's border (keywordMarks.tsx): a dashed blue outline, with an arrow to each side it covers. Taunt's outline comes first on a card with both. */
+const BODYGUARD_RING = 'outline-dashed outline-[3px] outline-offset-2 outline-indigo-300 shadow-[0_0_12px_4px_rgba(165,180,252,0.4)]';
 
 /** What a keyword does, for its title (hover) and the board's notes. */
 export const keywordText = (a: UnitAbility): string => `${abilityName(a)}: ${abilityText(a)}`;
@@ -102,7 +109,9 @@ function TypeSymbol({ type, size }: { type: string | undefined; size: number }) 
  * the printed card's picture of what it evolves from in the badge's window), the card's artwork in the art window, its
  * tier's stars on the strip under it, its keyword as the attack's name with what it does, its attack as the attack's
  * damage, and its stage in the flavour text's box. Golden copies ringed in
- * gold, a Taunt with a stone border. Right-click opens the printed card in the inspector, as everywhere. `width` is the
+ * gold. The keywords that change no number are marked by how much they need knowing (keywordMarks.tsx): Taunt a stone
+ * border, a Shield glass over the card, Bodyguard a blue border with arrows, the others a badge by the artwork.
+ * Right-click opens the card as the game has it (UnitInspector), not its TCG print. `width` is the
  * card's, in CSS (the frame keeps the card's 63:88); its words scale with it (cqw).
  */
 export const UnitCard = forwardRef<HTMLDivElement, { id: string; unit: SafariUnit | undefined; stats?: UnitStats; golden?: boolean; width: string; dim?: boolean; lit?: boolean; children?: ReactNode; onClick?: () => void; title?: string }>(function UnitCard(
@@ -111,12 +120,18 @@ export const UnitCard = forwardRef<HTMLDivElement, { id: string; unit: SafariUni
 ) {
   const catalog = useContext(CatalogContext);
   const inspect = useInspectOnRightClick();
+  const showUnit = useContext(UnitInspectContext);
   const card = catalog?.get(unit?.card ?? '');
   const fromCard = catalog?.get(unit?.fromCard ?? '');
   const attack = stats?.attack ?? unit?.attack ?? 0;
   const hp = stats?.hp ?? unit?.hp ?? 0;
   const abilities = stats?.abilities ?? unit?.abilities ?? [];
   const taunts = abilities.some((a) => a.k === TAUNT);
+  const guards = abilities.some((a) => a.k === 'Bodyguard');
+  const shielded = stats?.shield ?? abilities.some((a) => a.k === 'Shield');
+  const badges = abilities.filter((a) => KEYWORD_MARKS[a.k]?.level === 'badge');
+  // A right-click shows the card as the game has it (the user's, 2026-11-22), not its TCG print; outside the mode's page, the print.
+  const rightClick = showUnit && unit ? { onContextMenu: (e: React.MouseEvent) => (e.preventDefault(), e.stopPropagation(), showUnit({ kind: 'unit', unit, attack, hp, abilities, golden: !!golden })) } : inspect(card);
   const name = unit?.name ?? '';
   const art = FRAME.art;
   const evolved = !!unit && unit.stage !== 'basic';
@@ -141,9 +156,9 @@ export const UnitCard = forwardRef<HTMLDivElement, { id: string; unit: SafariUni
       onClick={onClick}
       onKeyDown={onClick ? (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onClick()) : undefined}
       title={title ?? [name, ...abilities.map(keywordText)].filter(Boolean).join('\n')}
-      className={`relative shrink-0 select-none overflow-hidden rounded-[4.5%/3.3%] bg-yellow-300 text-left shadow shadow-black/50 transition ${taunts ? TAUNT_RING : ''} ${golden ? 'ring-[3px] ring-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.7)]' : ''} ${lit ? '!ring-[3px] !ring-yellow-300 -translate-y-1' : ''} ${dim ? 'opacity-40 grayscale' : ''} ${onClick ? 'cursor-pointer hover:-translate-y-0.5 active:scale-95' : ''}`}
+      className={`relative shrink-0 select-none overflow-hidden rounded-[4.5%/3.3%] bg-yellow-300 text-left shadow shadow-black/50 transition ${taunts ? TAUNT_RING : guards ? BODYGUARD_RING : ''} ${golden ? 'ring-[3px] ring-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.7)]' : ''} ${lit ? '!ring-[3px] !ring-yellow-300 -translate-y-1' : ''} ${dim ? 'opacity-40 grayscale' : ''} ${onClick ? 'cursor-pointer hover:-translate-y-0.5 active:scale-95' : ''}`}
       style={{ width, aspectRatio: '600 / 825', ...CARD_FONT }}
-      {...inspect(card)}
+      {...rightClick}
     >
       <img src={blankCard(unit?.type, evolved)} alt="" draggable={false} className="absolute inset-0 h-full w-full" />
       {/* The card's own artwork in the window (every WOTC frame's art box is the same), and an evolved one's badge picture. */}
@@ -182,7 +197,7 @@ export const UnitCard = forwardRef<HTMLDivElement, { id: string; unit: SafariUni
                     {a.k === TAUNT && <ShieldIcon sx={{ fontSize: '0.9em' }} />}
                     {abilityName(a)}
                   </span>
-                  <span className={`leading-[1.1] ${abilities.length > 1 ? 'line-clamp-2' : 'line-clamp-4'}`} style={{ fontSize: `${[5.6, 4.6, 4][abilities.length - 1] ?? 4}cqw` }}>
+                  <span className={`leading-[1.1] ${abilities.length > 2 ? 'line-clamp-1' : abilities.length > 1 ? 'line-clamp-2' : 'line-clamp-4'}`} style={{ fontSize: `${[5.6, 4.6, 4][abilities.length - 1] ?? 4}cqw` }}>
                     {abilityText(a)}
                   </span>
                 </div>
@@ -191,10 +206,35 @@ export const UnitCard = forwardRef<HTMLDivElement, { id: string; unit: SafariUni
             <span className="text-[12cqw] font-semibold leading-none">{attack}</span>
           </div>
         )}
-        {stats?.shield && (
-          <span className="absolute right-[4%] top-[13%] flex items-center rounded-full bg-sky-200/90 p-[1.5%] text-sky-800 shadow" title="Shield: the next hit on it does nothing">
-            <ShieldIcon sx={{ fontSize: '9cqw' }} />
-          </span>
+        {/* The keywords that change no number, each marked by how much it needs knowing (keywordMarks.tsx). Badges: down the art's right side. */}
+        {badges.length > 0 && (
+          <div className="absolute right-[3.5%] top-[12.5%] flex flex-col gap-[1.6cqw]">
+            {badges.map((a) => {
+              const mark = KEYWORD_MARKS[a.k]!;
+              return (
+                <span key={a.k} title={keywordText(a)} className={`flex h-[12cqw] w-[12cqw] items-center justify-center rounded-full bg-gray-900/85 shadow ring-1 ring-white/40 ${mark.tone} ${stats?.spent?.includes(a.k) ? 'opacity-30' : ''}`}>
+                  <mark.Icon sx={{ fontSize: '8.6cqw' }} />
+                </span>
+              );
+            })}
+          </div>
+        )}
+        {/* A Bodyguard's reach: an arrow to the neighbour on each side. */}
+        {guards && (
+          <>
+            <span className="absolute left-0 top-[27%] flex h-[13cqw] w-[7cqw] items-center justify-center rounded-r-full bg-indigo-500/90 text-gray-50 shadow">
+              <ChevronLeftIcon sx={{ fontSize: '8cqw' }} />
+            </span>
+            <span className="absolute right-0 top-[27%] flex h-[13cqw] w-[7cqw] items-center justify-center rounded-l-full bg-indigo-500/90 text-gray-50 shadow">
+              <ChevronRightIcon sx={{ fontSize: '8cqw' }} />
+            </span>
+          </>
+        )}
+        {/* A Shield while it's up: glass over the whole card, a shield on its artwork. Gone once a hit breaks it. */}
+        {shielded && (
+          <div className="pointer-events-none absolute inset-0 rounded-[4.5%/3.3%] bg-[linear-gradient(135deg,rgba(186,230,253,0.32),rgba(125,211,252,0)_38%,rgba(125,211,252,0)_62%,rgba(186,230,253,0.26))] shadow-[inset_0_0_0_1.6cqw_rgba(56,189,248,1),inset_0_0_9cqw_rgba(56,189,248,0.8)]" title="Shield: the next hit on it does nothing">
+            <ShieldIcon className="absolute left-1/2 top-[32%] -translate-x-1/2 -translate-y-1/2 text-sky-300 opacity-85 drop-shadow-[0_0_1cqw_rgba(8,47,73,1)] [stroke:white] [stroke-width:0.9]" sx={{ fontSize: '30cqw' }} />
+          </div>
         )}
         {unit && <span className="absolute inset-x-[10%] top-[90.4%] flex h-[4.2%] items-center justify-center text-[4.6cqw] font-semibold italic leading-none">{STAGE_NAME[unit.stage] ?? ''}</span>}
       </div>
@@ -207,7 +247,9 @@ export const UnitCard = forwardRef<HTMLDivElement, { id: string; unit: SafariUni
 export function TrainerCard({ trainer, width, lit, onClick, children }: { trainer: TrainerName; width: string; lit?: boolean; onClick?: () => void; children?: ReactNode }) {
   const catalog = useContext(CatalogContext);
   const inspect = useInspectOnRightClick();
+  const showUnit = useContext(UnitInspectContext);
   const card = catalog?.get(TRAINER_CARDS[trainer]);
+  const rightClick = showUnit ? { onContextMenu: (e: React.MouseEvent) => (e.preventDefault(), e.stopPropagation(), showUnit({ kind: 'trainer', trainer })) } : inspect(card);
   return (
     <div
       role={onClick ? 'button' : undefined}
@@ -217,7 +259,7 @@ export function TrainerCard({ trainer, width, lit, onClick, children }: { traine
       title={`${trainer}: ${TRAINERS[trainer]}`}
       className={`relative shrink-0 select-none rounded-[6%/4.5%] bg-slate-800 text-left ring-1 ring-slate-500 transition ${lit ? '!ring-[3px] !ring-yellow-300 -translate-y-1' : ''} ${onClick ? 'cursor-pointer hover:-translate-y-0.5 active:scale-95' : ''}`}
       style={{ width, aspectRatio: '63 / 88' }}
-      {...inspect(card)}
+      {...rightClick}
     >
       <div className="absolute inset-0 flex flex-col gap-[3%] p-[5%] [container-type:size]">
         <span className="truncate text-[11cqw] font-bold leading-tight text-slate-50">{trainer}</span>
