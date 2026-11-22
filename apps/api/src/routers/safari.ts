@@ -10,10 +10,8 @@ export const safariRouter = router({
     return { run: run && clientSafari(run, await safariUnits()) };
   }),
 
-  /** Every draft unit (Gen 1's): what the screen shows of a card id. The same for every account. */
-  units: protectedProcedure.query(async () =>
-    (await safariUnits()).map(({ id, name, type, stage, hp, attack, tier, keyword, evolvesFrom }) => ({ id, name, type, stage, hp, attack, tier, keyword, evolvesFrom })),
-  ),
+  /** Every draft unit (one a Pokémon, #1–386, with its picture's card id): what the screen shows of a unit id. The same for every account. */
+  units: protectedProcedure.query(() => safariUnits()),
 
   /** Starts a run (startSafari: not while one is under way). */
   start: protectedProcedure.mutation(async ({ ctx }) => clientSafari(await startSafari(ctx.user.id), await safariUnits())),

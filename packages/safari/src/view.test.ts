@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { int, rngFrom } from '@poke-tcg/campaign';
 import { applySafariAction, createSafari, type SafariAction, type SafariState } from './draft.js';
-import { gen1Units } from './gen1.js';
+import { allUnits } from './species.js';
 import { simulateBattle } from './battle.js';
-import { DRAFT } from './draft.js';
+import { DRAFT, type PokemonCard } from './draft.js';
 import { safariView } from './view.js';
 
-const units = gen1Units();
+const units = allUnits();
 
 /** A run played some way by random actions, its states along the way. */
 function played(seed: number, steps: number): SafariState[] {
@@ -64,5 +64,20 @@ describe('what the browser gets of a run', () => {
     expect(prices.shop).toEqual(shopping.shop!.offers.map((id) => id && DRAFT.cardPrice[tierOf(id) - 1]));
     for (const c of shopping.board) if (c?.kind === 'pokemon') expect([Math.floor(DRAFT.cardPrice[tierOf(c.unit) - 1]! * DRAFT.sellShare), DRAFT.cardPrice[tierOf(c.unit) - 1]]).toContain(prices.sell[c.key]);
     expect([0, DRAFT.reroll]).toContain(prices.reroll);
+  });
+
+  it("shows each Pokémon card held as it fights: its attack, HP and keywords, with its bonuses and golden's", () => {
+    const state = structuredClone(played(5, 300).find((s) => s.phase === 'shop' && s.board.some((c) => c?.kind === 'pokemon'))!);
+    const held = [...state.board, ...state.inventory].filter((c): c is PokemonCard => c?.kind === 'pokemon');
+    const unitOf = (c: PokemonCard) => units.find((u) => u.id === c.unit)!;
+    const plain = safariView(state, units).stats;
+    expect(Object.keys(plain).map(Number).sort((a, b) => a - b)).toEqual(held.map((c) => c.key).sort((a, b) => a - b));
+    for (const c of held) if (!c.bonuses.length && !c.golden) expect(plain[c.key]).toEqual({ attack: unitOf(c).attack, hp: unitOf(c).hp, abilities: unitOf(c).abilities });
+    // A golden copy that learned a keyword it hasn't.
+    const first = held[0]!;
+    const learned = (['Taunt', 'Shield'] as const).find((k) => !unitOf(first).abilities.some((a) => a.k === k))!;
+    first.golden = true;
+    first.bonuses = [{ from: 'TM 1', attack: 0, hp: 0, ability: { k: learned } }];
+    expect(safariView(state, units).stats[first.key]).toEqual({ attack: unitOf(first).attack + DRAFT.golden.attack, hp: unitOf(first).hp + DRAFT.golden.hp, abilities: [...unitOf(first).abilities, { k: learned }] });
   });
 });

@@ -143,7 +143,7 @@ function BattleFighter({ f, playback, units }: { f: ShownFighter; playback: Play
     <div className={`relative ${attacking ? 'z-30' : ''}`} data-fighter={f.uid}>
       <div ref={ref} className="relative">
         <div ref={card}>
-        <UnitCard id={f.unit ?? ''} unit={f.unit ? units.get(f.unit) : undefined} stats={{ attack: f.attack, hp: f.hp, keyword: f.keyword ?? '' }} width="var(--safari-card)" lit={attacking || targeted}>
+        <UnitCard id={f.unit ?? ''} unit={f.unit ? units.get(f.unit) : undefined} stats={{ attack: f.attack, hp: f.hp, abilities: f.abilities, shield: f.shield }} width="var(--safari-card)" lit={attacking || targeted}>
           <span className="absolute bottom-[11.6%] left-[25%] right-[25%] h-[2%] overflow-hidden rounded-full bg-slate-950/80">
             <span className={`block h-full transition-[width] duration-300 ${pct > 50 ? 'bg-emerald-400' : pct > 20 ? 'bg-amber-400' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
           </span>
@@ -228,16 +228,16 @@ function noteOf(frame: Frame, frames: Frame[], index: number): string {
 
 /**
  * A fighter's Special Conditions as the battle page's cards show them (`conditionTags`): the round icons, or the text tags
- * with the Settings page's text status tags on (useTextStatus), in the card's top left corner below its name. Blind isn't a
- * Special Condition: always a text tag.
+ * with the Settings page's text status tags on (useTextStatus), in the card's top left corner below its name. Burned is
+ * Safari Draft's own (its attack halved until its next attack), so its words are its own here.
  */
 function FighterConditions({ status }: { status: readonly string[] }) {
   const [textStatus] = useTextStatus();
   if (!status.length) return null;
-  const condition = status.includes('Asleep') ? 'asleep' : status.includes('Confused') ? 'confused' : status.includes('Paralyzed') ? 'paralyzed' : null;
-  const tags = conditionTags({ condition, poison: status.includes('Poisoned') ? 10 : 0 });
-  const blind = status.includes('Blinded') ? [{ label: 'BLD', title: "Blinded: its next hit flips a coin (tails, it does nothing)", className: 'bg-gray-600' }] : [];
-  const text = [...(textStatus ? tags : []), ...blind];
+  const condition = status.includes('Confused') ? 'confused' : status.includes('Paralyzed') ? 'paralyzed' : null;
+  const TITLES: Record<string, string> = { CNF: 'Confused: its attacks flip a coin (tails: 30 damage to itself, and it ends)', PAR: "Paralyzed: it misses its next attack and doesn't strike back until then", BRN: 'Burned: its attack is halved until it has made its next attack' };
+  const tags = conditionTags({ condition, burned: status.includes('Burned'), poison: 0 }).map((t) => ({ ...t, title: TITLES[t.label] ?? t.title }));
+  const text = textStatus ? tags : [];
   return (
     <span className="pointer-events-auto absolute left-[12%] top-[12.8%] flex flex-wrap items-start gap-0.5">
       {!textStatus &&

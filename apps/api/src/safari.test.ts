@@ -1,36 +1,44 @@
-// Safari Draft's server side (apps/api/src/safari.ts, routers/safari.ts): the units the API builds from the catalog are
-// the safari package's own, the inputs are bounded, a won run banks once, and the response holds nothing the player
-// shouldn't know yet (the package's view.test.ts plays whole runs for that; here the API's own wrapper).
-import { readFileSync } from 'node:fs';
-import { POOL_SETS } from '@poke-tcg/campaign';
-import type { Card } from '@poke-tcg/db';
-import { cardImplemented } from '@poke-tcg/game-engine';
-import { applySafariAction, createSafari } from '@poke-tcg/safari';
+// Safari Draft's server side (apps/api/src/safari.ts, routers/safari.ts): the units are the safari package's own with a
+// picture each from the catalog, the inputs are bounded, a won run banks once, a run of older rules is never played on,
+// and the response holds nothing the player shouldn't know yet (the package's view.test.ts plays whole runs for that;
+// here the API's own wrapper).
+import { RULES, allUnits, applySafariAction, createSafari } from '@poke-tcg/safari';
 import { safariActInput } from '@poke-tcg/shared';
 import { describe, expect, it } from 'vitest';
-import { toCatalog, type Row } from '../../../packages/campaign/src/test-pool.js';
-import { gen1Units } from '../../../packages/safari/src/gen1.js';
-import { toCardDef } from './cards.js';
-import { clientSafari, safariStatus, toBank, unitsFromDefs, type LoadedSafari } from './safari.js';
-
-const rows = (JSON.parse(readFileSync(new URL('../../../packages/db/prisma/data/tcgdex-wotc.json', import.meta.url), 'utf8')) as { cards: (Row & { dexId?: number[] | null })[] }).cards;
+import { clientSafari, currentRules, safariStatus, toBank, unitPictures, unitsWithPictures, type LoadedSafari } from './safari.js';
 
 describe("Safari Draft's units on the server", () => {
-  it('are the package\'s: Gen 1\'s pool through the API\'s card definitions and the catalog\'s Pokédex numbers', () => {
-    // The API's cardPool(1), as loadPool builds it, from rows shaped as the seed writes them.
-    const defs = rows
-      .filter((r) => POOL_SETS.includes(r.id.split('-')[0]!))
-      .flatMap((r) => {
-        try {
-          const def = toCardDef({ ...toCatalog(r), setId: r.id.split('-')[0]!, localId: r.localId ?? r.id.split('-')[1]! } as unknown as Card);
-          return cardImplemented(def) ? [def] : [];
-        } catch {
-          return [];
-        }
-      });
-    const dex = new Map(rows.map((r) => [r.id, r.dexId ?? []]));
-    const fields = (u: { id: string; attack: number; hp: number; tier: number; keyword?: string }) => [u.id, u.attack, u.hp, u.tier, u.keyword];
-    expect(unitsFromDefs(defs, (id) => dex.get(id)).map(fields)).toEqual(gen1Units().map(fields));
+  const row = (id: string, name: string, dexId: number[] | null, extra: object = {}) => ({ id, setId: id.split('-')[0]!, name, kind: 'POKEMON' as const, imageUrl: 'https://example.test/card', data: { dexId }, ...extra });
+  const rows = [
+    row('ex6-113', 'Charmander', [4]),
+    row('base5-50', 'Charmander', [4]),
+    row('base1-46', 'Charmander', [4]),
+    row('gym1-61', "Blaine's Charmander", [4]),
+    row('base1-46-reverse', 'Charmander', [4]),
+    row('base5-32', 'Dark Charmeleon', [5]),
+    row('ex6-31', 'Charmeleon', [5]),
+    row('base1-4', 'Charizard', [6], { imageUrl: null }),
+    row('ex3-100', 'Charizard', [6]),
+    row('dp1-1', 'Bulbasaur', [1]),
+    row('neo1-99', 'Two Pokémon', [2, 3]),
+    row('base3-33', 'Nidoran ♀', [29]),
+    row('base1-91', 'Bill', null, { kind: 'TRAINER' as const }),
+  ];
+
+  it("are the package's, one a Pokémon, each with a print of it for its picture", () => {
+    const pictures = unitPictures(rows, allUnits());
+    // The plain name first, then the earliest set: Base Set's Charmander, not Team Rocket's, the owner's or a reverse print.
+    expect(pictures.get(4)).toBe('base1-46');
+    // A plain-named print of a later set before a Dark one of an earlier.
+    expect(pictures.get(5)).toBe('ex6-31');
+    // No image, no picture; a set outside Gen 1–3, a card of two Pokémon and a Trainer card are never one.
+    expect(pictures.get(6)).toBe('ex3-100');
+    expect([pictures.get(1), pictures.get(2), pictures.get(3)]).toEqual([undefined, undefined, undefined]);
+    expect(pictures.get(29)).toBe('base3-33');
+    const units = unitsWithPictures(rows);
+    expect(units.map((u) => [u.id, u.attack, u.hp, u.tier, u.abilities])).toEqual(allUnits().map((u) => [u.id, u.attack, u.hp, u.tier, u.abilities]));
+    expect(units.find((u) => u.name === 'Charmeleon')).toMatchObject({ card: 'ex6-31', fromCard: 'base1-46' });
+    expect(units.find((u) => u.name === 'Bulbasaur')!.card).toBeUndefined();
   });
 });
 
@@ -39,14 +47,14 @@ describe("Safari Draft's inputs", () => {
 
   it('take every action the player has, bounded', () => {
     for (const action of [
-      { type: 'PICK_STARTER', unit: 'base1-58' },
+      { type: 'PICK_STARTER', unit: '58' },
       { type: 'BUY', index: 4 },
       { type: 'SELL', place: { zone: 'inventory', at: 5 } },
       { type: 'MOVE', from: { zone: 'board', at: 0 }, to: { zone: 'inventory', at: 2 } },
       { type: 'REROLL' },
       { type: 'FREEZE' },
       { type: 'TIER_UP' },
-      { type: 'PICK', unit: 'base1-24' },
+      { type: 'PICK', unit: '5' },
       { type: 'SET_TRAINER', key: null },
       { type: 'CHOOSE', index: 2 },
       { type: 'BATTLE' },
@@ -65,7 +73,7 @@ describe("Safari Draft's inputs", () => {
       { type: 'PICK', unit: 'x'.repeat(65) },
       { type: 'SET_TRAINER', key: -1 },
       // The server's own actions are never the player's.
-      { type: 'GIFT', unit: 'base1-4' },
+      { type: 'GIFT', unit: '6' },
       { type: 'FIGHT' },
     ]) expect(act(action), JSON.stringify(action)).toBe(false);
     expect(safariActInput.safeParse({ runId: 'not-a-uuid', expectedVersion: 0, action: { type: 'REROLL' } }).success).toBe(false);
@@ -74,7 +82,7 @@ describe("Safari Draft's inputs", () => {
 });
 
 describe('a Safari Draft run on the server', () => {
-  const units = gen1Units();
+  const units = allUnits();
   const start = createSafari(7, units);
 
   it('banks a won run\'s ₱ once, and nothing for a run under way, lost or conceded', () => {
@@ -83,6 +91,14 @@ describe('a Safari Draft run on the server', () => {
     expect(toBank(true, { ...start, phase: 'won', pokedollars: 3210 })).toBe(0);
     expect(toBank(false, { ...start, phase: 'lost', pokedollars: 900 })).toBe(0);
     expect([safariStatus(start), safariStatus({ ...start, phase: 'won' }), safariStatus({ ...start, phase: 'lost' })]).toEqual(['ACTIVE', 'WON', 'LOST']);
+  });
+
+  it('knows a run of older rules, whose units no longer exist', () => {
+    expect(start.rules).toBe(RULES);
+    expect(currentRules(start)).toBe(true);
+    // A run saved before the rules had a number has none.
+    expect(currentRules({} as { rules: number })).toBe(false);
+    expect(currentRules({ rules: RULES - 1 })).toBe(false);
   });
 
   it('sends its view, never its state', () => {

@@ -54,7 +54,7 @@ export const TRAINER_CARDS: Record<TrainerName, string> = {
   'Energy Removal': 'base1-92',
   'Super Energy Removal': 'base1-79',
   'Scoop Up': 'base1-78',
-  Gambler: 'base3-60',
+  'Clefairy Doll': 'base1-70',
   'Imposter Professor Oak': 'base1-73',
   Bill: 'base1-91',
   'Professor Oak': 'base1-88',

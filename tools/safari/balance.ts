@@ -1,145 +1,101 @@
-// Safari Draft (issue #239, section 10): the balance report. Plays the balance harness (packages/safari/src/balance.ts)
-// over Gen 1's units, once by the issue's numbers (SPEC) and once by the numbers battles play by now (TUNING), and
-// writes tools/safari/out/balance-report.md: how battles go, each keyword's, type synergy's and
-// Trainer's worth, and the units out of line with their tier; and balance-units.csv, every unit's win rate.
-// Run from the repo's root: npx tsx tools/safari/balance.ts          (BATTLES=20000 for less noise; the default is 6000)
+// Safari Draft's balance report (issue #254; README: Safari Draft, The redesign): plays the units against each other and
+// writes tools/safari/out/balance-report.md and balance-units.csv: how battles go, each unit's win rate on random boards
+// of its tier, the tiers as a ladder, what each type synergy and Trainer is worth, and the units furthest from their
+// tier's mean, which is what species.ts's rows are tuned by.
+//
+//   npx tsx tools/safari/balance.ts            (BATTLES=3000 a tier by default; BATTLES=10000 for a steadier report)
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { effectLift, lift, synergyLift, tierLadder, trainerLift, unitRates, winRate, type Lift, type Tally } from '../../packages/safari/src/balance.ts';
-import { KEYWORDS, SPEC, SYNERGIES, SYNERGY_TYPES, TRAINER_NAMES, TUNING, type Tuning } from '../../packages/safari/src/effects.ts';
-import { gen1Units } from '../../packages/safari/src/gen1.ts';
-import { KEYWORD_NAMES, type Unit } from '../../packages/safari/src/units.ts';
+import { effectLift, lift, synergyLift, tierLadder, trainerLift, unitRates, winRate } from '../../packages/safari/src/balance.ts';
+import { SYNERGIES, SYNERGY_TYPES, TRAINERS, TRAINER_NAMES, TUNING } from '../../packages/safari/src/effects.ts';
+import { allUnits } from '../../packages/safari/src/species.ts';
+import { KEYWORD_NAMES, TOP_TIER, abilityName, type Unit } from '../../packages/safari/src/units.ts';
 
-const BATTLES = Number(process.env.BATTLES ?? 6000);
-const units = gen1Units();
-const pct = (n: number) => `${(100 * n).toFixed(1)}%`;
-const pp = (l: Lift | undefined) => (l && l.with.games ? `${lift(l) >= 0 ? '+' : ''}${(100 * lift(l)).toFixed(1)}` : '');
+const BATTLES = Number(process.env.BATTLES ?? 3000);
+const units = allUnits();
+const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
+const pp = (n: number) => `${n >= 0 ? '+' : ''}${(n * 100).toFixed(1)}`;
 
-/** Everything measured, by one set of numbers. */
-function measure(numbers: Tuning) {
-  const kept = { ...TUNING };
-  Object.assign(TUNING, numbers);
-  try {
-    let seed = 1000;
-    return {
-      rates: unitRates(units, BATTLES * 5, 1, TUNING.risingFrom),
-      ladder: tierLadder(units, BATTLES, 2),
-      keywords: new Map(KEYWORD_NAMES.map((k) => [k, effectLift(units, units.filter((u) => u.keyword === k), (u) => ({ ...u, keyword: undefined }), BATTLES, seed++)])),
-      synergies: new Map(SYNERGY_TYPES.map((type) => [type, [2, 4, 6].map((count) => synergyLift(units, type, count, BATTLES, seed++))])),
-      trainers: new Map(TRAINER_NAMES.map((t) => [t, [1, 3, 5].map((tier) => trainerLift(units, t, tier, BATTLES, seed++))])),
-    };
-  } finally {
-    Object.assign(TUNING, kept);
-  }
-}
+let seed = 1;
+const rates = unitRates(units, BATTLES, seed++, TUNING.risingFrom);
+const ladder = tierLadder(units, BATTLES, seed++);
+const synergies = SYNERGY_TYPES.map((type) => ({ type, lifts: [2, 4, 6].map((count) => synergyLift(units, type, count, BATTLES, seed++)) }));
+const trainers = TRAINER_NAMES.filter((t) => t !== 'Bill' && t !== 'Professor Oak').map((t) => ({ t, lift: trainerLift(units, t, 3, BATTLES, seed++) }));
+const keywords = KEYWORD_NAMES.map((k) => {
+  const carriers = units.filter((u) => u.abilities.some((a) => a.k === k));
+  return { k, carriers: carriers.length, lift: effectLift(units, carriers, (u) => ({ ...u, abilities: u.abilities.filter((a) => a.k !== k) }), BATTLES, seed++) };
+});
 
-const t0 = Date.now();
-const changed = (Object.keys(SPEC) as (keyof Tuning)[]).filter((k) => JSON.stringify(SPEC[k]) !== JSON.stringify(TUNING[k]));
-const spec = measure(SPEC);
-const both = changed.length > 0;
-const tuned = both ? measure(TUNING) : spec;
-const head = (cols: string[]) => `| ${cols.join(' | ')} |\n|${cols.map(() => '---').join('|')}|`;
-
-// A unit's win rate against its tier's mean (50%), in standard errors: the boards are random and a unit is 1 of 12 in
-// each battle, so its rate moves little; 3 or more is out of line.
 interface Ranked {
   u: Unit;
   rate: number;
-  z: number;
+  games: number;
 }
-const rank = (rates: Map<string, Tally>): Ranked[] =>
-  units
-    .map((u) => {
-      const t = rates.get(u.id)!;
-      return { u, rate: winRate(t), z: (winRate(t) - 0.5) / Math.sqrt(0.25 / Math.max(1, t.games)) };
-    })
-    .sort((a, b) => b.z - a.z);
-const unitLine = ({ u, rate, z }: Ranked) => `| ${u.id} | ${u.name} | ${u.tier} | ${u.stage} | ${u.attack} | ${u.hp} | ${u.keyword ?? ''} | ${pct(rate)} | ${z >= 0 ? '+' : ''}${z.toFixed(1)} |`;
-const ranked = rank(tuned.rates.units);
+const ranked: Ranked[] = units.map((u) => ({ u, rate: winRate(rates.units.get(u.id)!), games: rates.units.get(u.id)!.games })).sort((a, b) => b.rate - a.rate);
+const words = (u: Unit) => u.abilities.map(abilityName).join('; ');
+const unitLine = ({ u, rate }: Ranked) => `| ${u.dex} | ${u.name} | ${u.tier} | ${u.type} | ${u.attack} | ${u.hp} | ${words(u)} | ${pct(rate)} |`;
 const byGroup = (key: (u: Unit) => string) => {
-  const groups = new Map<string, { n: number; sum: number }>();
-  for (const { u, rate } of ranked) {
-    const g = groups.get(key(u)) ?? groups.set(key(u), { n: 0, sum: 0 }).get(key(u))!;
-    g.n++;
-    g.sum += rate;
-  }
-  return [...groups].sort((a, b) => b[1].sum / b[1].n - a[1].sum / a[1].n).map(([k, g]) => `| ${k} | ${g.n} | ${pct(g.sum / g.n)} |`);
+  const groups = new Map<string, Ranked[]>();
+  for (const r of ranked) groups.set(key(r.u), [...(groups.get(key(r.u)) ?? []), r]);
+  return [...groups].sort((a, b) => a[0].localeCompare(b[0])).map(([k, rs]) => `| ${k} | ${rs.length} | ${pct(rs.reduce((s, r) => s + r.rate, 0) / rs.length)} |`);
 };
-const MOVE_UP = 0.6;
-const MOVE_DOWN = 0.4;
-const up = ranked.filter((r) => r.rate >= MOVE_UP && r.u.tier < 5);
-const down = ranked.filter((r) => r.rate <= MOVE_DOWN && r.u.tier > 1).reverse();
-const unitHead = head(['Id', 'Name', 'Tier', 'Stage', 'Attack', 'HP', 'Keyword', 'Win rate', 'SEs']);
+const tierOf = (t: number) => ranked.filter((r) => r.u.tier === t);
 
-const report = `# Safari Draft: balance report (generated by tools/safari/balance.ts)
+const report = `# Safari Draft: balance report
 
-${units.length} Gen 1 units, ${BATTLES} battles a measurement (${BATTLES * 5} a tier for the units' win rates). Boards are 6 different units of one tier in a random order against 6 of the same tier: a stand-in until the draft exists, so read the numbers against each other, not as a run's odds. "Worth" is a win rate's change in percentage points: the same boards and seed played with the effect and without it. With ${BATTLES} battles a worth is good to about ±${(100 * Math.sqrt(0.5 / BATTLES)).toFixed(1)} points.
+${units.length} units, ${BATTLES} battles a measurement. A unit's rate is how often a random board of its tier holding it wins (50% is the tier's mean).
 
-${both ? `Two columns where the numbers differ: **issue** plays the issue's placeholder numbers (SPEC), **now** the numbers battles play by (TUNING). Changed: ${changed.map((k) => `\`${k}\` ${JSON.stringify(SPEC[k])} → ${JSON.stringify(TUNING[k])}`).join(', ')}. Under the issue's numbers Versatile decided most battles (random boards often hold 2 Colorless), which pulls every other worth in the issue column towards 0.` : "Battles play by the issue's numbers: nothing is changed."}
+## Battles
 
-## How battles go${both ? ' (now)' : ''}
+| Tier | Units | Draws | First attacker wins | Rounds | Reached rising damage |
+|---|---|---|---|---|---|
+${rates.tiers.map((t) => `| ${t.tier} | ${tierOf(t.tier).length} | ${pct(t.draws / t.battles)} | ${pct(t.firstWins / (t.battles - t.draws))} | ${(t.rounds / t.battles).toFixed(1)} | ${pct(t.rising / t.battles)} |`).join('\n')}
 
-${head(['Tier', 'Draws', 'First attacker wins (of decided)', 'Rounds', 'Reach rising damage', 'Hit the round cap'])}
-${tuned.rates.tiers.map((t) => `| ${t.tier} | ${pct(t.draws / t.battles)} | ${pct(t.firstWins / (t.battles - t.draws))} | ${(t.rounds / t.battles).toFixed(2)} | ${pct(t.rising / t.battles)} | ${t.capped} |`).join('\n')}
-
-A random board of a tier against one of the tier below wins: ${tuned.ladder.map((t, i) => `tier ${i + 2} over ${i + 1} ${pct(winRate(t))}`).join(', ')}.
-
-## Keywords
-
-What its keyword is worth to a unit that has it (one such unit on the board).
-
-${head(['Keyword', 'Units', ...(both ? ['Issue', 'Now'] : ['Worth']), 'What it does'])}
-${KEYWORD_NAMES.map((k) => `| ${k} | ${units.filter((u) => u.keyword === k).length} | ${both ? `${pp(spec.keywords.get(k))} | ` : ''}${pp(tuned.keywords.get(k))} | ${KEYWORDS[k].text} |`).join('\n')}
+A board of a tier against one of the tier below wins: ${ladder.map((t, i) => `tier ${i + 2} ${pct(winRate(t))}`).join(', ')}.
 
 ## Type synergies
 
-What a type's synergy is worth to a board with 2, 4 or 6 of the type (the rest of other types), against a random board.
+What having 2, 4 or 6 of the type is worth (the same battles with the synergy and without).
 
-${head(['Type', 'Synergy', ...(both ? ['2 (issue)', '4 (issue)', '6 (issue)'] : []), '2', '4', '6', 'What it does'])}
-${SYNERGY_TYPES.map((type) => `| ${type} | ${SYNERGIES[type].name} | ${both ? `${spec.synergies.get(type)!.map(pp).join(' | ')} | ` : ''}${tuned.synergies.get(type)!.map(pp).join(' | ')} | ${SYNERGIES[type].text} |`).join('\n')}
+| Type | Synergy | 2 | 4 | 6 |
+|---|---|---|---|---|
+${synergies.map(({ type, lifts }) => `| ${type} | ${SYNERGIES[type].name} | ${lifts.map((l) => (l.with.games ? pp(lift(l)) : '')).join(' | ')} |`).join('\n')}
 
 ## Trainers
 
-What a Trainer is worth against a side that plays none, on boards of tier 1, 3 and 5.
+| Trainer | Worth | |
+|---|---|---|
+${trainers.map(({ t, lift: l }) => `| ${t} | ${pp(lift(l))} | ${TRAINERS[t]} |`).join('\n')}
 
-${head(['Trainer', ...(both ? ['Tier 1 (issue)', 'Tier 3 (issue)', 'Tier 5 (issue)'] : []), 'Tier 1', 'Tier 3', 'Tier 5'])}
-${TRAINER_NAMES.map((t) => `| ${t} | ${both ? `${spec.trainers.get(t)!.map(pp).join(' | ')} | ` : ''}${tuned.trainers.get(t)!.map(pp).join(' | ')} |`).join('\n')}
+## Keywords
 
-## Units${both ? ' (now)' : ''}
+What a keyword is worth to the units that have it: the same battles with it and with it taken off (one such unit on a random board of its tier).
 
-Mean win rate of a board holding one, by type, stage and keyword (50% is the tier's mean):
+| Keyword | Units | Worth |
+|---|---|---|
+${keywords.map(({ k, carriers, lift: l }) => `| ${k} | ${carriers} | ${carriers ? pp(lift(l)) : ''} |`).join('\n')}
 
-${head(['Type', 'Units', 'Win rate'])}
+## By type and stage
+
+| Type | Units | Mean rate |
+|---|---|---|
 ${byGroup((u) => u.type).join('\n')}
 
-${head(['Stage', 'Units', 'Win rate'])}
+| Stage | Units | Mean rate |
+|---|---|---|
 ${byGroup((u) => u.stage).join('\n')}
 
-${head(['Keyword', 'Units', 'Win rate'])}
-${byGroup((u) => u.keyword ?? '(none)').join('\n')}
+## The units furthest from their tier's mean
 
-Units 3 standard errors or more from their tier's mean: ${ranked.filter((r) => r.z >= 3).length} above, ${ranked.filter((r) => r.z <= -3).length} below, of ${units.length}. A unit's tier counts what its keyword is worth (units.ts's KEYWORD_WORTH, from this report's measurements before they counted); what is left is mostly how a unit's attack and HP are split, and effects worth more or less on that unit than on the others that have them. balance-units.csv has every unit.
-
-### Units still out of line
-
-A board holding the unit wins ${pct(MOVE_UP)} or more of its tier's battles or ${pct(MOVE_DOWN)} or fewer. An evolved card must stay above every print it evolves from, which holds some of them where they are.
-
-Strong for their tier (${up.length}):
-
-${unitHead}
-${up.map(unitLine).join('\n')}
-
-Weak for their tier (${down.length}):
-
-${unitHead}
-${down.map(unitLine).join('\n')}
+${Array.from({ length: TOP_TIER }, (_, i) => i + 1)
+  .map((t) => {
+    const rs = tierOf(t);
+    return `### Tier ${t}\n\n| # | Name | Tier | Type | Attack | HP | Keywords | Rate |\n|---|---|---|---|---|---|---|---|\n${[...rs.slice(0, 8), ...rs.slice(-8)].map(unitLine).join('\n')}`;
+  })
+  .join('\n\n')}
 `;
-const out = new URL('./out/', import.meta.url);
+
+const out = new URL('out/', import.meta.url);
 mkdirSync(out, { recursive: true });
 writeFileSync(new URL('balance-report.md', out), report);
-// Every unit's rate, for sorting and filtering.
-writeFileSync(
-  new URL('balance-units.csv', out),
-  ['id,name,tier,stage,type,attack,hp,keyword,games,winRate,standardErrors', ...ranked.map(({ u, rate, z }) => [u.id, `"${u.name}"`, u.tier, u.stage, u.type, u.attack, u.hp, u.keyword ?? '', tuned.rates.units.get(u.id)!.games, rate.toFixed(4), z.toFixed(2)].join(','))].join('\n') + '\n',
-);
-console.log(report.split('## Units')[0]);
-console.log(`${((Date.now() - t0) / 1000).toFixed(0)} s`);
+writeFileSync(new URL('balance-units.csv', out), ['dex,name,tier,stage,type,attack,hp,keywords,games,winRate', ...ranked.map(({ u, rate, games }) => [u.dex, `"${u.name}"`, u.tier, u.stage, u.type, u.attack, u.hp, `"${words(u)}"`, games, rate.toFixed(4)].join(','))].join('\n') + '\n');
+console.log(`Wrote tools/safari/out/balance-report.md (${units.length} units, ${BATTLES} battles a measurement).`);

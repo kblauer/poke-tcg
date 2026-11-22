@@ -9,7 +9,7 @@ import { simulateBattle, type BattleEvent } from './battle.js';
 import { SPECIAL_SHOP } from './encounters.js';
 import { cardPrice, cardUnit, draftPool, rerollPrice, sellPrice, tierPrice, type SafariBattle, type SafariState } from './draft.js';
 import { opponentChoice } from './opponents.js';
-import type { Unit } from './units.js';
+import type { Ability, Unit } from './units.js';
 
 export interface SafariPrices {
   /** A reroll now: 0 while free (Professor Oak). */
@@ -28,8 +28,8 @@ export type SafariView = Omit<SafariState, 'rngState' | 'opponents' | 'champion'
   /** The last battle, with its events (the screen plays them back). */
   last: (SafariBattle & { events: BattleEvent[] }) | null;
   prices: SafariPrices;
-  /** Each Pokémon card held as it fights, by its key: its print's numbers with its bonuses and golden's (cardUnit). */
-  stats: Record<number, { attack: number; hp: number; keyword?: string }>;
+  /** Each Pokémon card held as it fights, by its key: its unit's numbers and keywords with its bonuses and golden's (cardUnit). */
+  stats: Record<number, { attack: number; hp: number; abilities: Ability[] }>;
 };
 
 /** The prices the screen shows, by the draft's rules. */
@@ -54,7 +54,7 @@ export function heldStats(state: SafariState, units: readonly Unit[]): SafariVie
   return Object.fromEntries(
     cards.map((c) => {
       const u = cardUnit(c, pool);
-      return [c.key, { attack: u.attack, hp: u.hp, ...(u.keyword && { keyword: u.keyword }) }];
+      return [c.key, { attack: u.attack, hp: u.hp, abilities: u.abilities }];
     }),
   );
 }

@@ -1,40 +1,44 @@
-// Safari Draft (issue #239, section 5): a battle, a pure function of two boards and a seed. No player input: the server
-// plays it and the browser plays the event log back.
+// Safari Draft (issue #239, section 5, with #254's redesign): a battle, a pure function of two boards and a seed. No
+// player input: the server plays it and the browser plays the event log back.
 //
-// The rules the issue fixes: 6 Pokémon a side; a coin flip decides which side attacks first; the sides alternate, each
-// side's Pokémon attacking left to right, each attack at a random opposing Pokémon (a random Taunt one while one stands,
-// the user's, 2026-11-18); damage is simultaneous (attacker and
-// target each deal their attack to the other); a side with no Pokémon left loses, both at once is a draw.
+// The rules #239 fixes: 6 Pokémon a side; a coin flip decides which side attacks first; the sides alternate, each side's
+// Pokémon attacking left to right; damage is simultaneous (attacker and target each deal their attack to the other); a
+// side with no Pokémon left loses, both at once is a draw.
 //
-// The fine rules, the user's (2026-11-18, the issue's "Not specified yet"):
+// Places (#254): a Pokémon's "neighbours" are those beside it in its line, the Pokémon "across" from it the opposing one
+// in the same place of its line, counted from the left. Lines close up as Pokémon faint, so both change through a battle;
+// start-of-battle effects are worked out once, on the boards as the battle starts.
+//
+// The start of a battle, in order: the type synergies are counted on the boards as they stand; Roar; Transform and
+// Sketch; the Trainers' (PlusPower, Defender, Clefairy Doll) and the synergies' lasting changes; the keywords' (ready); the Energy Removals; the
+// start-of-battle damage (Pounce, Barrage); then the attacks before the normal order (Lightning's Quick, the keyword
+// Quick), which aren't struck back.
+//
+// An attack's target: Gust of Wind's first; then a Taunt Pokémon while one stands (not for Flying); then the attacker's
+// own aim (Sniper: the least HP; Face-off and Fighting's Duel: the Pokémon across from it), else a random one; then a
+// Bodyguard beside the target takes it (not for Flying, nor Gust of Wind).
+//
+// The fine rules, the user's (2026-11-18, #239):
 //   - Every battle ends: from round TUNING.risingFrom on, every hit does TUNING.rising more each round, past every
-//     reduction and prevention. A round is over once both sides' order has come back round to its left end.
+//     reduction and prevention. A round is over once both sides' order has come back round to its left end (or each has
+//     had a turn for every Pokémon it has: Whirlwind and U-turn can keep an order from its end).
 //   - Battlegrounds' pointer: a side's next attack is by the next living Pokémon to the right of its last attacker,
 //     wrapping to the left end. One moved to the end of the line attacks when the pointer reaches it there.
-//   - Special Conditions the TCG's way: Asleep, Confused and Paralyzed replace each other, Poisoned sits beside them.
-//     Poison doesn't stack (the strongest amount stays) and ends after TUNING.poisonTicks ticks; Paralysis ends with the
-//     one missed attack; Sleep on its heads; Confusion the first time its tails hurts the Pokémon.
-//   - An Asleep or Paralyzed Pokémon doesn't strike back, and Blind's coin covers its target's next hit, attack or strike
-//     back (the balance pass: a missed attack alone was worth nothing, damage being simultaneous).
-//   - Quick's attacks before the normal order aren't struck back (the balance pass, the same reason).
-//   - A strike back counts as a hit: it carries its Pokémon's on-hit effects (Poison, Paralyze, Sleep, Confuse, Drain,
-//     Finisher…). Effects worded for its attack work only on its own attack (Flurry, Charge, Copycat, Splash, Whirlwind,
-//     Blind, Weaken, Recoil's damage to itself).
-//   - Order: the attacker's effects, then the target's, then faints (the attacker's side first, left to right), then the
-//     attacker's side's Poison.
+//   - A strike back counts as a hit: it carries its Pokémon's on-hit effects. Effects worded for its attack work only on
+//     its own attack (Double Strike, Splash, Cleave, Trample, Whirlwind, Weaken, Recoil).
+//   - Order: the attacker's effects, then the target's, then faints (the attacker's side first, left to right).
+//   - A hit that is prevented (Shield, Evasive) carries no effects; one reduced to 0 still does; damage that isn't a hit
+//     (Splash, Cleave, Trample, Thorns, Explode, Barrage, Pounce, Recoil) is never reduced nor prevented.
 //
-// The rest of the fine rules, first the implementer's, agreed by the user (2026-11-18; issue #239, section 5):
-//   - a hit that is prevented (Guard) carries no effects; one reduced to 0 still does; damage that isn't a hit (Splash,
-//     Blaze, Explode, Poison) is never reduced;
-//   - a Confused Pokémon strikes back, with no coin;
-//   - type synergies are counted on the boards as they stand before the battle and last it;
-//   - Weaken takes its 10 off each time it attacks, Unburden once a Pokémon;
-//   - a Pokémon Knocked Out by Poison or by its own Confusion has no Pokémon that did it (Destiny Bond, Pay Day);
-//   - Gust of Wind's aim comes before Taunt (its words name the Pokémon it hits).
+// Special Conditions (the user's, 2026-11-21: these three only):
+//   - Paralyzed: it misses its next attack and doesn't strike back until then;
+//   - Confused: its attacks flip a coin, tails doing TUNING.confusion to itself instead, which ends it;
+//   - Burned: its attack is halved (rounded up to 10), its strikes back too, until it has made its next attack. A Pokémon
+//     is Burned as the hit lands, so its strike back to that very hit is halved (mine, to check with the user);
+//   - Paralyzed and Confused replace each other, Burned sits beside them (the TCG's way).
 import { int, random, rngFrom, type Rng } from '@poke-tcg/campaign';
-import type { EnergyType } from '@poke-tcg/game-engine';
 import { KEYWORDS, SYNERGY_TYPES, TUNING, synergyLevel, type Hooks, type SynergyType, type TrainerName } from './effects.js';
-import type { Keyword, Unit, UnitStage } from './units.js';
+import type { Ability, Keyword, Unit, UnitStage, UnitType } from './units.js';
 
 export type SideId = 0 | 1;
 export const BOARD_SIZE = 6;
@@ -47,29 +51,30 @@ export interface Board {
   trainer?: TrainerName;
 }
 
-export type Condition = 'asleep' | 'paralyzed' | 'confused';
+export type Condition = 'paralyzed' | 'confused';
 
 /** A Pokémon in a battle. */
 export interface Fighter {
   /** Its side's letter and its number: 'a0'…'a5' as the board stood, later ones joined in the battle. */
   uid: string;
   side: SideId;
-  /** The unit it came from (what a copy of it copies). */
+  /** The unit it came from. */
   unit: Unit | undefined;
   name: string;
-  type: EnergyType;
+  type: UnitType;
   stage: UnitStage;
-  keyword: Keyword | undefined;
+  abilities: Ability[];
   /** Its attack before the battle's changes, and their sum. Read its attack with `attackOf`. */
   base: number;
   buff: number;
   maxHp: number;
   hp: number;
   condition: Condition | null;
-  poison: number;
-  poisonTicks: number;
-  /** Its next attack flips a coin: tails, it does nothing (Blind). */
-  blind: boolean;
+  burned: boolean;
+  /** The next hit on it does nothing (Shield, Screen). */
+  shield: boolean;
+  /** It misses its next attack and doesn't strike back until then (Truant). */
+  resting: boolean;
   /** Attacks made. */
   attacks: number;
   /** The Pokémon whose damage it last took, if a Pokémon's. */
@@ -85,8 +90,10 @@ interface Side {
   line: Fighter[];
   /** The place in the line of its next attacker. */
   next: number;
-  /** Its order has come back to the left end this round. */
+  /** Its order has come back to the left end this round, or it has had a turn for each of its Pokémon (moves can keep the order from its end). */
   wrapped: boolean;
+  /** Its turns this round. */
+  turns: number;
   trainer: TrainerName | undefined;
   levels: Record<SynergyType, number>;
   /** Attacks left that Gust of Wind aims. */
@@ -99,17 +106,20 @@ interface Side {
 export type BattleEvent =
   | { e: 'first'; side: SideId }
   | { e: 'synergy'; side: SideId; type: SynergyType; level: number }
-  | { e: 'trainer'; side: SideId; trainer: TrainerName; flip?: boolean }
+  | { e: 'trainer'; side: SideId; trainer: TrainerName }
   | { e: 'join'; uid: string; side: SideId; at: number; name: string; attack: number; hp: number; why: string }
   | { e: 'buff'; uid: string; attack: number; why: string }
   | { e: 'grow'; uid: string; hp: number; why: string }
+  /** It became another Pokémon's copy, or took keywords (Transform, Sketch). */
+  | { e: 'become'; uid: string; attack: number; hp: number; type: UnitType; abilities: Ability[]; why: string }
   | { e: 'round'; round: number; rising: number }
   | { e: 'attack'; uid: string; target: string }
   | { e: 'miss'; uid: string; why: string }
   | { e: 'blocked'; uid: string; why: string }
+  | { e: 'shield'; uid: string; on: boolean }
   | { e: 'damage'; uid: string; amount: number; hp: number; why: string }
   | { e: 'heal'; uid: string; amount: number; hp: number; why: string }
-  | { e: 'status'; uid: string; status: Condition | 'poisoned' | 'blind' | 'awake' | 'cured' }
+  | { e: 'status'; uid: string; status: Condition | 'burned'; off?: true }
   | { e: 'move'; uid: string; why: string }
   | { e: 'faint'; uid: string }
   | { e: 'leave'; uid: string; why: string }
@@ -138,7 +148,8 @@ export interface BattleOptions {
 }
 
 const up10 = (n: number) => Math.ceil(n / 10) * 10;
-const NONE: Hooks[] = [];
+const has = (f: Fighter, k: Keyword) => f.abilities.some((a) => a.k === k);
+const numberOf = (f: Fighter, k: Keyword) => f.abilities.find((a) => a.k === k)?.n ?? 0;
 
 export class Battle {
   private readonly rng: Rng;
@@ -159,17 +170,17 @@ export class Battle {
 
   private side(id: SideId, board: Board): Side {
     if (board.units.length > BOARD_SIZE) throw new Error(`A board holds ${BOARD_SIZE} Pokémon`);
-    const side: Side = { id, line: [], next: 0, wrapped: false, trainer: board.trainer, levels: { grass: 0, fire: 0, water: 0, lightning: 0, psychic: 0, fighting: 0, colorless: 0 }, gust: 0, once: {}, joined: 0, payDays: 0 };
+    const side: Side = { id, line: [], next: 0, wrapped: false, turns: 0, trainer: board.trainer, levels: { grass: 0, fire: 0, water: 0, lightning: 0, psychic: 0, fighting: 0, colorless: 0, darkness: 0, metal: 0 }, gust: 0, once: {}, joined: 0, payDays: 0 };
     side.line = board.units.map((unit) => this.fighter(side, unit));
     return side;
   }
 
   private fighter(side: Side, unit: Unit): Fighter {
-    return { ...this.blank(side), unit, name: unit.name, type: unit.type, stage: unit.stage, keyword: unit.keyword, base: unit.attack, maxHp: unit.hp, hp: unit.hp };
+    return { ...this.blank(side), unit, name: unit.name, type: unit.type, stage: unit.stage, abilities: unit.abilities, base: unit.attack, maxHp: unit.hp, hp: unit.hp, shield: unit.abilities.some((a) => a.k === 'Shield') };
   }
 
   private blank(side: Side): Fighter {
-    return { uid: `${'ab'[side.id]}${side.joined++}`, side: side.id, unit: undefined, name: '', type: 'colorless', stage: 'basic', keyword: undefined, base: 0, buff: 0, maxHp: 0, hp: 0, condition: null, poison: 0, poisonTicks: 0, blind: false, attacks: 0, hitBy: undefined, gone: false, once: {} };
+    return { uid: `${'ab'[side.id]}${side.joined++}`, side: side.id, unit: undefined, name: '', type: 'colorless', stage: 'basic', abilities: [], base: 0, buff: 0, maxHp: 0, hp: 0, condition: null, burned: false, shield: false, resting: false, attacks: 0, hitBy: undefined, gone: false, once: {} };
   }
 
   // What the effects read and do (effects.ts).
@@ -198,18 +209,33 @@ export class Battle {
     return this.sides[this.otherSide(f.side)].line.filter((g) => g.hp > 0);
   }
 
-  /** A side's first Pokémon. */
-  first(side: SideId): Fighter | undefined {
-    return this.sides[side].line.find((g) => g.hp > 0);
+  /** The living Pokémon one place to its left (−1) or right (1). */
+  beside(f: Fighter, step: -1 | 1): Fighter | undefined {
+    const line = this.sides[f.side].line;
+    const g = line[line.indexOf(f) + step];
+    return g && g.hp > 0 && line.includes(f) ? g : undefined;
   }
 
-  private hooks(f: Fighter): Hooks[] {
-    return f.keyword ? [KEYWORDS[f.keyword]] : NONE;
+  /** Its living neighbours, left then right. */
+  neighbours(f: Fighter): Fighter[] {
+    return [this.beside(f, -1), this.beside(f, 1)].filter((g): g is Fighter => !!g);
   }
 
-  /** A Pokémon's attack now. */
+  /** The living opposing Pokémon in the same place of its line. */
+  across(f: Fighter): Fighter | undefined {
+    const at = this.sides[f.side].line.indexOf(f);
+    const g = at < 0 ? undefined : this.sides[this.otherSide(f.side)].line[at];
+    return g && g.hp > 0 ? g : undefined;
+  }
+
+  private hooks(f: Fighter): [Hooks, Ability][] {
+    return f.abilities.map((a) => [KEYWORDS[a.k], a]);
+  }
+
+  /** A Pokémon's attack now: halved while it's Burned. */
   attackOf(f: Fighter): number {
-    return Math.max(0, f.base + f.buff);
+    const attack = Math.max(0, f.base + f.buff);
+    return f.burned ? up10(attack / 2) : attack;
   }
 
   /** A lasting change to its attack. */
@@ -236,7 +262,7 @@ export class Battle {
     const side = this.sides[f.side];
     if (side.trainer === 'Potion' && !side.once.potion && f.hp > 0 && f.hp < f.maxHp / 2) {
       side.once.potion = true;
-      this.heal(f, TUNING.potion, 'Potion');
+      for (const g of [f, ...this.neighbours(f)]) this.heal(g, TUNING.potion, 'Potion');
     }
   }
 
@@ -255,31 +281,37 @@ export class Battle {
     f.hitBy = by;
   }
 
-  private immune(f: Fighter, condition: Condition | 'poisoned') {
+  /** Whether nothing can give it a Special Condition: Full Heal, or Safeguard (its own or a neighbour's). */
+  private immune(f: Fighter) {
     if (f.gone || f.hp <= 0) return true;
-    return this.sides[f.side].trainer === 'Full Heal' && (condition === 'poisoned' || condition === 'paralyzed');
+    return this.sides[f.side].trainer === 'Full Heal' || has(f, 'Safeguard') || this.neighbours(f).some((g) => has(g, 'Safeguard'));
   }
 
-  /** Asleep, Confused or Paralyzed: the newest stays. */
-  afflict(f: Fighter, condition: Condition, _by: Fighter) {
-    if (this.immune(f, condition)) return;
+  /** Paralyzed or Confused: the newest stays. */
+  afflict(f: Fighter, condition: Condition) {
+    if (this.immune(f) || f.condition === condition) return;
     f.condition = condition;
     this.events?.push({ e: 'status', uid: f.uid, status: condition });
   }
 
-  /** Poisoned: the strongest amount stays, and its ticks start again. */
-  poison(f: Fighter, amount: number, _by: Fighter) {
-    if (amount <= 0 || this.immune(f, 'poisoned')) return;
-    f.poison = Math.max(f.poison, amount);
-    f.poisonTicks = TUNING.poisonTicks;
-    this.events?.push({ e: 'status', uid: f.uid, status: 'poisoned' });
+  /** Burned: beside the other two. */
+  burn(f: Fighter) {
+    if (this.immune(f) || f.burned) return;
+    f.burned = true;
+    this.events?.push({ e: 'status', uid: f.uid, status: 'burned' });
   }
 
-  /** Its next attack flips a coin (Blind). Not a Special Condition. */
-  blind(f: Fighter) {
-    if (f.gone || f.hp <= 0) return;
-    f.blind = true;
-    this.events?.push({ e: 'status', uid: f.uid, status: 'blind' });
+  /** A Shield: the next hit on it does nothing. */
+  shield(f: Fighter, _why: string) {
+    if (f.gone || f.hp <= 0 || f.shield) return;
+    f.shield = true;
+    this.events?.push({ e: 'shield', uid: f.uid, on: true });
+  }
+
+  /** It takes another Pokémon's numbers, type and keywords (Transform), or more keywords (Sketch). Before the battle's changes. */
+  become(f: Fighter, as: { attack: number; hp: number; type: UnitType; abilities: Ability[] }, why: string) {
+    Object.assign(f, { base: as.attack, maxHp: as.hp, hp: as.hp, type: as.type, abilities: as.abilities, shield: f.shield || as.abilities.some((a) => a.k === 'Shield') });
+    this.events?.push({ e: 'become', uid: f.uid, attack: as.attack, hp: as.hp, type: as.type, abilities: as.abilities, why });
   }
 
   private remove(f: Fighter): number {
@@ -306,7 +338,7 @@ export class Battle {
   }
 
   /** A new Pokémon in a side's line (Family's copy): no keyword. */
-  join(sideId: SideId, of: { name: string; type: EnergyType; stage: UnitStage; attack: number; hp: number }, at: number, why: string) {
+  join(sideId: SideId, of: { name: string; type: UnitType; stage: UnitStage; attack: number; hp: number }, at: number, why: string) {
     const side = this.sides[sideId];
     const f: Fighter = { ...this.blank(side), name: of.name, type: of.type, stage: of.stage, base: of.attack, maxHp: of.hp, hp: of.hp };
     this.insert(f, Math.min(at, side.line.length));
@@ -328,13 +360,14 @@ export class Battle {
     this.setUp(order);
     this.settle(first);
 
-    // Quick: the leftmost Lightning Pokémon attack once before the normal order, with no strike back.
+    // Before the normal order, with no strike back: the leftmost Lightning Pokémon (Quick, the synergy) and the Pokémon
+    // with the keyword Quick, each once, left to right.
     for (const s of order) {
-      const quick = this.sides[s].line.filter((f) => f.type === 'lightning').slice(0, TUNING.lightning[this.sides[s].levels.lightning - 1] ?? 0);
-      for (const f of quick) {
+      const side = this.sides[s];
+      const leftmost = side.line.filter((f) => f.type === 'lightning').slice(0, TUNING.lightning[side.levels.lightning - 1] ?? 0);
+      for (const f of side.line.filter((g) => leftmost.includes(g) || has(g, 'Quick'))) {
         if (this.over()) break;
-        this.act(f, TUNING.quickStruckBack);
-        this.afterTurn(s);
+        this.act(f, false);
         this.extras();
       }
     }
@@ -344,11 +377,12 @@ export class Battle {
       const side = this.sides[s];
       const f = this.nextAttacker(side);
       if (f) this.act(f);
-      this.afterTurn(s);
       this.extras();
+      if (++side.turns >= Math.max(1, side.line.length)) side.wrapped = true;
       s = this.otherSide(s);
       if (this.sides[0].wrapped && this.sides[1].wrapped) {
         this.sides[0].wrapped = this.sides[1].wrapped = false;
+        this.sides[0].turns = this.sides[1].turns = 0;
         if (++this.round > ROUND_CAP) {
           this.capped = true;
           break;
@@ -372,14 +406,16 @@ export class Battle {
     return this.round >= TUNING.risingFrom ? TUNING.rising * (this.round - TUNING.risingFrom + 1) : 0;
   }
 
-  /** Before the first attack: Trainers, synergies, lasting changes, then the start of battle's damage. */
+  /** Before the first attack (the order in this file's header). */
   private setUp(order: readonly [SideId, SideId]) {
     const everyone = () => order.flatMap((s) => [...this.sides[s].line]);
+    const each = (run: (h: Hooks, f: Fighter, a: Ability) => void) => {
+      for (const f of everyone()) for (const [h, a] of this.hooks(f)) run(h, f, a);
+    };
     for (const s of order) if (this.sides[s].trainer) this.events?.push({ e: 'trainer', side: s, trainer: this.sides[s].trainer! });
 
-    // Type synergies, counted on the boards as they stand: a unit counts for its printed type; Imposter Professor Oak
-    // takes 2 off the opponent's counts.
-    const types = order.map((s) => new Set<EnergyType>(this.sides[s].line.map((f) => f.type)));
+    // Type synergies, counted on the boards as they stand; Imposter Professor Oak takes 2 off the opponent's counts.
+    const types = order.map((s) => new Set<UnitType>(this.sides[s].line.map((f) => f.type)));
     for (const s of order) {
       const side = this.sides[s];
       const fewer = this.sides[this.otherSide(s)].trainer === 'Imposter Professor Oak' ? TUNING.imposter : 0;
@@ -391,27 +427,28 @@ export class Battle {
       }
     }
 
+    each((h, f, a) => h.opening?.(this, f, a));
+    each((h, f, a) => h.copies?.(this, f, a));
+
     for (const s of order) {
       const side = this.sides[s];
       if (side.trainer === 'Gust of Wind') side.gust = TUNING.gust;
-      let attack = side.trainer === 'PlusPower' ? TUNING.plusPower : 0;
-      if (side.trainer === 'Gambler') {
-        const heads = this.flip();
-        attack = heads ? TUNING.gamblerHeads : TUNING.gamblerTails;
-        this.events?.push({ e: 'trainer', side: s, trainer: 'Gambler', flip: heads });
-      }
-      const brawn = TUNING.fighting[side.levels.fighting - 1] ?? 0;
-      const versatile = (TUNING.colorless[side.levels.colorless - 1] ?? 0) * TUNING.versatile * (types[order.indexOf(s)]!.size - (TUNING.versatileOwn ? 0 : 1));
-      for (const f of side.line) {
-        if (attack) this.buff(f, attack, side.trainer!);
-        if (brawn && f.type === 'fighting') this.buff(f, brawn, 'Brawn');
-        if (versatile > 0 && f.type === 'colorless') {
-          if (TUNING.versatileAttack) this.buff(f, versatile, 'Versatile');
-          this.grow(f, versatile, 'Versatile');
-        }
+      // The Trainers that read places: the line as it stands once Transform and Sketch are done.
+      if (side.trainer === 'PlusPower') for (const f of side.line.slice(0, 2)) this.buff(f, TUNING.plusPower, 'PlusPower');
+      if (side.trainer === 'Defender') for (const f of new Set([side.line[0], side.line.at(-1)])) if (f) this.shield(f, 'Defender');
+      const last = side.line.at(-1);
+      if (side.trainer === 'Clefairy Doll' && last) this.become(last, { attack: last.base, hp: last.maxHp + TUNING.clefairyDoll, type: last.type, abilities: has(last, 'Taunt') ? last.abilities : [...last.abilities, { k: 'Taunt' }] }, 'Clefairy Doll');
+      const versatile = (TUNING.colorless[side.levels.colorless - 1] ?? 0) * TUNING.versatile * (types[order.indexOf(s)]!.size - 1);
+      const current = TUNING.water[side.levels.water - 1] ?? 0;
+      const pressure = TUNING.psychic[side.levels.psychic - 1] ?? 0;
+      for (const f of [...side.line]) {
+        if (versatile > 0 && f.type === 'colorless') this.grow(f, versatile, 'Versatile');
+        if (current && f.type === 'water') this.grow(f, current * this.neighbours(f).filter((g) => g.type === 'water').length, 'Current');
+        const x = pressure && f.type === 'psychic' ? this.across(f) : undefined;
+        if (x) this.buff(x, -pressure, 'Pressure');
       }
     }
-    for (const f of everyone()) for (const h of this.hooks(f)) h.ready?.(this, f);
+    each((h, f, a) => h.ready?.(this, f, a));
 
     // The Energy Removals, once every attack stands.
     for (const s of order) {
@@ -420,10 +457,7 @@ export class Battle {
       for (const f of foes.map((g) => ({ g, attack: this.attackOf(g) })).sort((x, y) => y.attack - x.attack).slice(0, count)) this.buff(f.g, -TUNING.energyRemoval, this.sides[s].trainer!);
     }
 
-    for (const s of order) {
-      const mind = TUNING.psychic[this.sides[s].levels.psychic - 1] ?? 0;
-      if (mind) for (const f of [...this.sides[this.otherSide(s)].line]) this.damage(f, mind, undefined, 'Mind');
-    }
+    each((h, f, a) => h.volley?.(this, f, a));
   }
 
   /** The side's next attacker: the next living Pokémon to the right of its last one, wrapping. */
@@ -445,7 +479,6 @@ export class Battle {
       const s = this.extra.shift()!;
       const f = this.nextAttacker(this.sides[s]);
       if (f) this.act(f);
-      this.afterTurn(s);
     }
   }
 
@@ -453,21 +486,19 @@ export class Battle {
   private act(f: Fighter, struckBack = true) {
     if (f.gone || f.hp <= 0) return;
     const miss = (why: string) => this.events?.push({ e: 'miss', uid: f.uid, why });
-    if (f.condition === 'asleep') {
-      if (!this.flip()) return void miss('Asleep');
-      f.condition = null;
-      this.events?.push({ e: 'status', uid: f.uid, status: 'awake' });
-    } else if (f.condition === 'paralyzed') {
-      f.condition = null;
-      return void miss('Paralyzed');
+    if (f.resting) {
+      f.resting = false;
+      return void miss('Truant');
     }
-    if (f.blind) {
-      f.blind = false;
-      if (!this.flip()) return void miss('Blind');
+    if (f.condition === 'paralyzed') {
+      f.condition = null;
+      this.events?.push({ e: 'status', uid: f.uid, status: 'paralyzed', off: true });
+      return void miss('Paralyzed');
     }
     if (f.condition === 'confused' && !this.flip()) {
       miss('Confused');
       f.condition = null;
+      this.events?.push({ e: 'status', uid: f.uid, status: 'confused', off: true });
       this.damage(f, TUNING.confusion, undefined, 'Confused');
       this.settle(f.side);
       return;
@@ -475,22 +506,35 @@ export class Battle {
     const target = this.target(f);
     if (!target) return;
     f.attacks++;
+    // Burned until it has made its next attack: a burn it gets in this one lasts to the one after.
+    const burned = f.burned;
     this.events?.push({ e: 'attack', uid: f.uid, target: target.uid });
 
-    const hooks = this.hooks(f);
-    const line = this.sides[target.side].line;
-    const at = line.indexOf(target);
-    const neighbours = [line[at - 1], line[at + 1]];
-    const landed = this.strike(f, target, struckBack && (TUNING.gustStruckBack || !this.gusted) && !hooks.some((h) => h.unanswered?.(this, f, target)));
+    const neighbours = this.neighbours(target);
+    const landed = this.strike(f, target, struckBack && !this.gusted && !has(f, 'Reach'));
     if (landed) {
-      const splash = hooks.reduce((sum, h) => sum + (h.splash?.(this, f) ?? 0), 0) + (f.type === 'fire' ? (TUNING.fire[this.sides[f.side].levels.fire - 1] ?? 0) : 0);
-      if (splash) for (const g of neighbours) if (g) this.damage(g, splash, f, 'Splash');
+      const splash = has(f, 'Cleave') ? this.attackOf(f) : numberOf(f, 'Splash');
+      if (splash) for (const g of neighbours) this.damage(g, splash, f, has(f, 'Cleave') ? 'Cleave' : 'Splash');
+      // Trample: what the hit did beyond the Knock Out, to one of the target's neighbours still standing.
+      const over = has(f, 'Trample') && target.hp < 0 ? -target.hp : 0;
+      const standing = neighbours.filter((g) => g.hp > 0);
+      if (over && standing.length) this.damage(standing[this.roll(standing.length)]!, over, f, 'Trample');
     }
-    if (f.hp > 0) for (const h of hooks) h.attacked?.(this, f, target);
+    if (f.hp > 0) for (const [h, a] of this.hooks(f)) h.attacked?.(this, f, a, target);
+    if (burned && f.burned) {
+      f.burned = false;
+      this.events?.push({ e: 'status', uid: f.uid, status: 'burned', off: true });
+    }
+    if (has(f, 'Truant')) f.resting = true;
     this.settle(f.side);
   }
 
-  /** The attack's target: Gust of Wind's, then a random Taunt Pokémon while one stands, then a random one. */
+  /** Whether Fighting's Duel aims `f` at the Pokémon across from it. */
+  private duels(f: Fighter) {
+    return f.type === 'fighting' && this.sides[f.side].levels.fighting > 0;
+  }
+
+  /** The attack's target (the order in this file's header). */
   private target(f: Fighter): Fighter | undefined {
     const foes = this.foes(f);
     this.gusted = false;
@@ -502,34 +546,32 @@ export class Battle {
       this.gusted = true;
       return foes.reduce((best, g) => (this.attackOf(g) > this.attackOf(best) ? g : best));
     }
-    const taunting = foes.filter((g) => g.keyword === 'Taunt');
+    const flying = has(f, 'Flying');
+    const taunting = flying ? [] : foes.filter((g) => has(g, 'Taunt'));
     const from = taunting.length ? taunting : foes;
-    return from[this.roll(from.length)];
+    const across = this.across(f);
+    const aimed = has(f, 'Sniper') ? from.reduce((best, g) => (g.hp < best.hp ? g : best)) : across && from.includes(across) && (has(f, 'Face-off') || this.duels(f)) ? across : from[this.roll(from.length)]!;
+    const guard = flying || has(aimed, 'Bodyguard') ? undefined : this.neighbours(aimed).find((g) => has(g, 'Bodyguard'));
+    return guard ?? aimed;
   }
 
-  /** The exchange: the attacker's hit (two for Flurry) and the target's strike back, at once. Whether a hit landed. */
+  /** Whether `f`'s hits Burn: the keyword, or Fire's Blaze. */
+  private burns(f: Fighter) {
+    return has(f, 'Burn') || (f.type === 'fire' && this.sides[f.side].levels.fire > 0);
+  }
+
+  /** The exchange: the attacker's hit (two for Double Strike) and the target's strike back, at once. Whether a hit landed. */
   private strike(f: Fighter, target: Fighter, struckBack: boolean): boolean {
-    let back = !struckBack || (!TUNING.restingStrikesBack && (target.condition === 'asleep' || target.condition === 'paralyzed')) ? 0 : this.attackOf(target);
-    if (back > 0 && target.blind && !TUNING.blindAttackOnly) {
-      target.blind = false;
-      if (!this.flip()) {
-        this.events?.push({ e: 'miss', uid: target.uid, why: 'Blind' });
-        back = 0;
-      }
-    }
-    let damage = this.attackOf(f);
-    const hooks = this.hooks(f);
-    for (const h of hooks) if (h.attackWith) damage = h.attackWith(this, f, target, damage);
+    const answers = struckBack && target.condition !== 'paralyzed' && !target.resting;
     const landed: number[] = [];
-    const flurry = hooks.some((h) => h.flurry);
-    for (let i = 0; i < (flurry ? 2 : 1); i++) {
-      if (flurry && !(TUNING.flurrySure && i === 0) && !this.flip()) {
-        this.events?.push({ e: 'miss', uid: f.uid, why: 'Flurry' });
-        continue;
-      }
-      const dealt = this.hit(f, target, damage, 'attack');
-      if (dealt >= 0) landed.push(dealt);
+    for (let i = 0; i < (has(f, 'Double Strike') ? 2 : 1); i++) {
+      const dealt = this.hit(f, target, this.attackOf(f), 'attack');
+      if (dealt < 0) continue;
+      landed.push(dealt);
+      // Burned as the hit lands: its strike back to this hit is halved (and Double Strike's second hit finds it Burned).
+      if (this.burns(f)) this.burn(target);
     }
+    const back = !answers ? 0 : has(target, 'Counter') ? Math.max(this.attackOf(target), this.attackOf(f)) : this.attackOf(target);
     const dealtBack = back > 0 ? this.hit(target, f, back, 'strike back') : -1;
     for (const dealt of landed) this.landed(f, target, dealt, true);
     if (dealtBack >= 0) this.landed(target, f, dealtBack, false);
@@ -539,18 +581,29 @@ export class Battle {
   /** One hit's damage, through what prevents and reduces it. −1: prevented. */
   private hit(by: Fighter, target: Fighter, base: number, why: string): number {
     let damage = base;
-    for (const h of this.hooks(by)) if (h.hitFor) damage = h.hitFor(this, by, target, damage);
+    for (const [h, a] of this.hooks(by)) if (h.hitFor) damage = h.hitFor(this, by, a, target, damage);
+    const mine = this.sides[by.side];
+    if (this.duels(by) && this.across(by) === target) damage += TUNING.fighting[mine.levels.fighting - 1]!;
+    if (by.type === 'darkness' && mine.levels.darkness && (target.hp < target.maxHp || target.condition || target.burned)) damage += TUNING.darkness[mine.levels.darkness - 1]!;
+    if (target.burned) damage += TUNING.fire[mine.levels.fire - 1] ?? 0;
     const rising = this.rising();
-    for (const h of this.hooks(target)) {
-      if (!h.prevents?.(this, target, by, damage)) continue;
-      this.events?.push({ e: 'blocked', uid: target.uid, why: target.keyword ?? '' });
+    const breaker = has(by, 'Breaker');
+    const blocked = (blocks: string) => {
+      this.events?.push({ e: 'blocked', uid: target.uid, why: blocks });
       this.damage(target, rising, by, 'rising');
       return -1;
+    };
+    if (target.shield && !breaker) {
+      target.shield = false;
+      this.events?.push({ e: 'shield', uid: target.uid, on: false });
+      return blocked('Shield');
     }
-    for (const h of this.hooks(target)) if (h.reduces) damage = h.reduces(this, target, by, damage);
+    if (has(target, 'Evasive') && this.flip()) return blocked('Evasive');
+    if (!breaker) for (const [h, a] of this.hooks(target)) if (h.reduces) damage = h.reduces(this, target, a, damage);
     const side = this.sides[target.side];
-    if (target.type === 'water') damage -= TUNING.water[side.levels.water - 1] ?? 0;
-    if (side.trainer === 'Defender') damage -= TUNING.defender;
+    const beside = this.neighbours(target);
+    for (const g of beside) damage -= numberOf(g, 'Guardian');
+    if (side.levels.metal && beside.some((g) => g.type === 'metal')) damage -= TUNING.metal[side.levels.metal - 1]!;
     damage = Math.max(0, damage);
     this.damage(target, damage + rising, by, why);
     return damage + rising;
@@ -558,25 +611,11 @@ export class Battle {
 
   /** A hit landed: the hitter's on-hit effects, then what being hit sets off. */
   private landed(by: Fighter, target: Fighter, dealt: number, attacking: boolean) {
-    for (const h of this.hooks(by)) h.hit?.(this, by, target, dealt, attacking);
-    const grass = by.type === 'grass' ? (TUNING.grass[this.sides[by.side].levels.grass - 1] ?? 0) : 0;
-    if (grass) this.poison(target, grass, by);
+    for (const [h, a] of this.hooks(by)) h.hit?.(this, by, a, target, dealt, attacking);
+    const leech = by.type === 'grass' ? (TUNING.grass[this.sides[by.side].levels.grass - 1] ?? 0) : 0;
+    if (leech) this.heal(by, leech, 'Leech');
     if (target.gone) return;
-    for (const h of this.hooks(target)) h.struck?.(this, target, by, dealt);
-    if (this.sides[target.side].trainer === 'Super Potion' && !target.once.superPotion && target.hp > 0) {
-      target.once.superPotion = true;
-      this.heal(target, TUNING.superPotion, 'Super Potion');
-    }
-  }
-
-  /** After a side's turn, its attack made or missed: its Poisoned Pokémon take their Poison. */
-  private afterTurn(s: SideId) {
-    for (const f of [...this.sides[s].line]) {
-      if (!f.poison || f.hp <= 0) continue;
-      this.damage(f, f.poison, undefined, 'Poison');
-      if (--f.poisonTicks <= 0) f.poison = 0;
-    }
-    this.settle(s);
+    for (const [h, a] of this.hooks(target)) h.struck?.(this, target, a, by, dealt);
   }
 
   /** Every Pokémon at 0 HP faints, `first`'s side first, left to right, until none is left to. */
@@ -595,20 +634,29 @@ export class Battle {
 
   private faint(f: Fighter) {
     const side = this.sides[f.side];
+    if (has(f, 'Sturdy') && !f.once.sturdy) {
+      f.once.sturdy = true;
+      f.hp = 10;
+      this.events?.push({ e: 'heal', uid: f.uid, amount: 10, hp: 10, why: 'Sturdy' });
+      return;
+    }
     if (side.trainer === 'Scoop Up' && !side.once.scoopUp) {
       side.once.scoopUp = true;
       this.leave(f);
       this.events?.push({ e: 'leave', uid: f.uid, why: 'Scoop Up' });
-      if (TUNING.scoopUpReturns) this.comeBack(f, side.line.length, 'Scoop Up', f.maxHp);
+      this.comeBack(f, side.line.length, 'Scoop Up', f.maxHp);
       this.extra.push(f.side);
       return;
     }
     const hooks = this.hooks(f);
     const killer = f.hitBy;
+    const neighbours = this.neighbours(f);
     const at = this.leave(f);
     this.events?.push({ e: 'faint', uid: f.uid });
-    if (killer && !killer.gone) for (const h of this.hooks(killer)) h.knockedOut?.(this, killer);
-    for (const h of hooks) h.fainted?.(this, f, killer && !killer.gone && killer.hp > 0 ? killer : undefined, at);
+    if (killer && !killer.gone) for (const [h, a] of this.hooks(killer)) h.knockedOut?.(this, killer, a);
+    for (const [h, a] of hooks) h.fainted?.(this, f, a, killer && !killer.gone && killer.hp > 0 ? killer : undefined, at, neighbours);
+    for (const g of side.line) if (g.hp > 0) for (const [h, a] of this.hooks(g)) h.allyFainted?.(this, g, a);
+    if (side.trainer === 'Super Potion') for (const g of neighbours) this.heal(g, TUNING.superPotion, 'Super Potion');
 
     // Coming back: Revive, where it stood, once, with half its HP.
     if (side.trainer === 'Revive' && !side.once.revive && f.unit) {
@@ -630,7 +678,7 @@ export class Battle {
   }
 
   private comeBack(f: Fighter, at: number, why: string, hp = up10(f.maxHp / 2)) {
-    Object.assign(f, { gone: false, hp, condition: null, poison: 0, poisonTicks: 0, blind: false, hitBy: undefined });
+    Object.assign(f, { gone: false, hp, condition: null, burned: false, resting: false, hitBy: undefined });
     this.insert(f, Math.min(at, this.sides[f.side].line.length));
     this.events?.push({ e: 'join', uid: f.uid, side: f.side, at, name: f.name, attack: this.attackOf(f), hp: f.hp, why });
   }

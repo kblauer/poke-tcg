@@ -56,7 +56,7 @@ export interface BotRun {
 }
 
 /** The Trainer cards by what the balance report measured them worth (their average over tiers 1, 3 and 5), the best first. */
-export const TRAINER_RANK: TrainerName[] = ['Defender', 'PlusPower', 'Imposter Professor Oak', 'Super Potion', 'Super Energy Removal', 'Pokémon Center', 'Gust of Wind', 'Scoop Up', 'Gambler', 'Full Heal', 'Revive', 'Energy Removal', 'Potion', 'Bill', 'Professor Oak'];
+export const TRAINER_RANK: TrainerName[] = ['Defender', 'PlusPower', 'Imposter Professor Oak', 'Super Potion', 'Super Energy Removal', 'Pokémon Center', 'Gust of Wind', 'Scoop Up', 'Clefairy Doll', 'Full Heal', 'Revive', 'Energy Removal', 'Potion', 'Bill', 'Professor Oak'];
 /** The encounters the bot takes, the likeliest to help first (never a legendary's board). */
 const ENCOUNTER_RANK: EncounterKind[] = ['upgrade', 'cardGift', 'specialShop', 'trainerGift'];
 

@@ -3,14 +3,14 @@ import { rngFrom } from '@poke-tcg/campaign';
 import { BOARD_SIZE } from './battle.js';
 import { TRAINER_NAMES } from './effects.js';
 import { DRAFT, applySafariAction, cardUnit, createSafari, draftPool, isLegendary, type Card, type PokemonCard, type SafariAction, type SafariState, type SafariSystemAction } from './draft.js';
-import { ENCOUNTER_STEPS, LEGENDARY_FROM, LEGENDARY_MIN_TIER, SPECIAL_SHOP, UPGRADES, UPGRADE_KEYWORDS, rollEncounterOffers, rollEncounterSteps, type EncounterOffer } from './encounters.js';
-import { gen1Units } from './gen1.js';
+import { ENCOUNTER_STEPS, LEGENDARY_FROM, LEGENDARY_MIN_TIER, MAX_KEYWORDS, SPECIAL_SHOP, UPGRADES, UPGRADE_KEYWORDS, rollEncounterOffers, rollEncounterSteps, type EncounterOffer } from './encounters.js';
+import { allUnits } from './species.js';
 
-const units = gen1Units();
+const units = allUnits();
 const pool = draftPool(units);
 const unit = (id: string) => pool.units.get(id)!;
-/** Units that never merge with each other and can't evolve: no evolution line, all names different. */
-const FILL = units.filter((u) => pool.lone(u) && !isLegendary(u) && !['Tauros'].includes(u.name)).filter((u, i, all) => all.findIndex((v) => v.name === u.name) === i).map((u) => u.id);
+/** Units that never merge with each other and can't evolve: no evolution line, all different Pokémon. */
+const FILL = units.filter((u) => pool.lone(u) && !isLegendary(u) && !['Tauros'].includes(u.name)).map((u) => u.id);
 
 function must(state: SafariState, action: SafariAction | SafariSystemAction): SafariState {
   const result = applySafariAction(state, action, units);
@@ -114,7 +114,7 @@ describe('upgrades', () => {
     }
     const kinds = new Set<string>();
     for (let seed = 0; seed < 60; seed++) {
-      const open = must(step(['base1-46'], [{ kind: 'upgrade' }], seed), { type: 'ENCOUNTER', index: 0 });
+      const open = must(step(['4'], [{ kind: 'upgrade' }], seed), { type: 'ENCOUNTER', index: 0 });
       if (open.encounter!.kind === 'upgrade') for (const u of open.encounter!.upgrades) kinds.add(u.kind);
     }
     expect(kinds.has('rareCandy')).toBe(true);
@@ -122,47 +122,85 @@ describe('upgrades', () => {
   });
 
   it('Protein and HP Up stay on the card, through merges too', () => {
-    let s = must(step(['base1-46'], [{ kind: 'upgrade' }]), { type: 'ENCOUNTER', index: 0 });
-    s.encounter = { kind: 'upgrade', upgrades: [{ kind: 'protein', key: 100, unit: 'base1-46' }, { kind: 'hpUp', key: 100, unit: 'base1-46' }] };
+    let s = must(step(['4'], [{ kind: 'upgrade' }]), { type: 'ENCOUNTER', index: 0 });
+    s.encounter = { kind: 'upgrade', upgrades: [{ kind: 'protein', key: 100, unit: '4' }, { kind: 'hpUp', key: 100, unit: '4' }] };
     s = must(s, { type: 'TAKE', index: 0 });
     expect(s.phase).toBe('shop');
     expect(s.encounterSteps).toEqual([]);
-    expect(cardUnit(s.board[0] as PokemonCard, pool).attack).toBe(unit('base1-46').attack + UPGRADES.protein.attack);
-    // A second Charmander: the merge keeps the Protein.
-    s = must(s, { type: 'GIFT', unit: 'base5-50' });
-    s = must(s, { type: 'PICK', unit: s.pick!.options[0]! });
+    expect(cardUnit(s.board[0] as PokemonCard, pool).attack).toBe(unit('4').attack + UPGRADES.protein.attack);
+    // A second Charmander: the merge into Charmeleon keeps the Protein.
+    s = must(s, { type: 'GIFT', unit: '4' });
+    expect(s.board[0]).toMatchObject({ unit: '5' });
     expect((s.board[0] as PokemonCard).bonuses.map((b) => b.from)).toEqual([expect.stringMatching(/^Protein /)]);
+    expect(cardUnit(s.board[0] as PokemonCard, pool).attack).toBe(unit('5').attack + UPGRADES.protein.attack);
   });
 
-  it('a keyword is the Pokémon\'s when it has none', () => {
-    const plain = units.find((u) => !u.keyword && pool.lone(u) && !isLegendary(u))!;
-    let s = must(step([plain.id], [{ kind: 'upgrade' }]), { type: 'ENCOUNTER', index: 0 });
-    s.encounter = { kind: 'upgrade', upgrades: [{ kind: 'keyword', key: 100, unit: plain.id, keyword: 'Guard' }] };
+  it('a keyword is one more for the Pokémon, with its own', () => {
+    let s = must(step(['128'], [{ kind: 'upgrade' }]), { type: 'ENCOUNTER', index: 0 }); // Tauros: Intimidate 20
+    s.encounter = { kind: 'upgrade', upgrades: [{ kind: 'keyword', key: 100, unit: '128', ability: { k: 'Armor', n: 10 } }] };
     s = must(s, { type: 'TAKE', index: 0 });
-    expect(cardUnit(s.board[0] as PokemonCard, pool).keyword).toBe('Guard');
-    expect(UPGRADE_KEYWORDS).toContain('Guard');
+    expect(cardUnit(s.board[0] as PokemonCard, pool).abilities).toEqual([...unit('128').abilities, { k: 'Armor', n: 10 }]);
+    expect(UPGRADE_KEYWORDS).toContainEqual({ k: 'Armor', n: 10 });
+    expect(s.log.at(-1)).toBe('Tauros learned Armor 10.');
+    // A golden copy made with it keeps the keyword.
+    s = must(must(s, { type: 'GIFT', unit: '128' }), { type: 'GIFT', unit: '128' });
+    expect(s.board[0]).toMatchObject({ unit: '128', golden: true });
+    expect(cardUnit(s.board[0] as PokemonCard, pool).abilities.map((a) => a.k)).toEqual(['Intimidate', 'Armor']);
   });
 
-  it('Rare Candy evolves it now, a pick of 2, keeping its bonuses', () => {
-    let s = must(step(['base1-46'], [{ kind: 'upgrade' }]), { type: 'ENCOUNTER', index: 0 });
+  it('offers a keyword the Pokémon hasn\'t, never to one with 2', () => {
+    const full = units.find((u) => u.abilities.length === MAX_KEYWORDS && pool.lone(u) && !isLegendary(u))!;
+    let offered = 0;
+    for (let seed = 0; seed < 60; seed++) {
+      // A Pokémon with 3 keywords and no evolution: only Protein and HP Up.
+      const none = must(step([full.id], [{ kind: 'upgrade' }], seed), { type: 'ENCOUNTER', index: 0 });
+      if (none.encounter!.kind === 'upgrade') expect(none.encounter!.upgrades.map((u) => u.kind).sort()).toEqual(['hpUp', 'protein']);
+      const open = must(step(['128'], [{ kind: 'upgrade' }], seed), { type: 'ENCOUNTER', index: 0 });
+      for (const u of open.encounter!.kind === 'upgrade' ? open.encounter!.upgrades : []) {
+        if (u.kind !== 'keyword') continue;
+        offered++;
+        expect(UPGRADE_KEYWORDS).toContainEqual(u.ability);
+        expect(unit('128').abilities.some((a) => a.k === u.ability.k), u.ability.k).toBe(false);
+      }
+    }
+    expect(offered).toBeGreaterThan(0);
+    // A third keyword is the last.
+    const two = step(['128'], [{ kind: 'upgrade' }]);
+    (two.board[0] as PokemonCard).bonuses = [{ from: 'TM 1', attack: 0, hp: 0, ability: { k: 'Shield' } }];
+    for (let seed = 0; seed < 30; seed++) {
+      const open = must({ ...two, rngState: seed }, { type: 'ENCOUNTER', index: 0 });
+      if (open.encounter!.kind === 'upgrade') expect(open.encounter!.upgrades.some((u) => u.kind === 'keyword')).toBe(false);
+    }
+  });
+
+  it('Rare Candy evolves it now, a pick of 2 where its line branches, keeping its bonuses', () => {
+    // Wurmple evolves into Silcoon or Cascoon.
+    let s = must(step(['265'], [{ kind: 'upgrade' }]), { type: 'ENCOUNTER', index: 0 });
     (s.board[0] as PokemonCard).bonuses = [{ from: 'HP Up 1', attack: 0, hp: 40 }];
-    s.encounter = { kind: 'upgrade', upgrades: [{ kind: 'rareCandy', key: 100, unit: 'base1-46' }] };
+    s.encounter = { kind: 'upgrade', upgrades: [{ kind: 'rareCandy', key: 100, unit: '265' }] };
     s = must(s, { type: 'TAKE', index: 0 });
-    expect(s.pick).toMatchObject({ kind: 'evolve', from: ['Charmander'] });
-    expect([...s.pick!.options].sort()).toEqual(['base1-24', 'base5-32']);
-    s = must(s, { type: 'PICK', unit: 'base5-32' });
-    expect(s.board[0]).toMatchObject({ unit: 'base5-32', bonuses: [{ from: 'HP Up 1' }] });
-    expect(s.log.at(-1)).toBe('Charmander evolved into Dark Charmeleon.');
+    expect(s.pick).toMatchObject({ kind: 'evolve', from: ['Wurmple'] });
+    expect([...s.pick!.options].sort()).toEqual(['266', '268']);
+    s = must(s, { type: 'PICK', unit: '268' });
+    expect(s.board[0]).toMatchObject({ unit: '268', bonuses: [{ from: 'HP Up 1' }] });
+    expect(s.log.at(-1)).toBe('Wurmple evolved into Cascoon.');
+    // Charmander only into Charmeleon: no pick.
+    s = must(step(['4'], [{ kind: 'upgrade' }]), { type: 'ENCOUNTER', index: 0 });
+    s.encounter = { kind: 'upgrade', upgrades: [{ kind: 'rareCandy', key: 100, unit: '4' }] };
+    s = must(s, { type: 'TAKE', index: 0 });
+    expect(s.pick).toBeNull();
+    expect(s.board[0]).toMatchObject({ unit: '5' });
+    expect(s.log.at(-1)).toBe('Charmander evolved into Charmeleon.');
   });
 });
 
 describe('gifts and the special shop', () => {
   it('a card gift is a pick of 3 of the shop\'s tiers, one a partner of a card held', () => {
     for (let seed = 0; seed < 40; seed++) {
-      const open = must(step(['base1-46'], [{ kind: 'cardGift' }], seed), { type: 'ENCOUNTER', index: 0 });
+      const open = must(step(['4'], [{ kind: 'cardGift' }], seed), { type: 'ENCOUNTER', index: 0 });
       const cards = open.encounter!.kind === 'cardGift' ? open.encounter!.cards : [];
       expect(cards).toHaveLength(3);
-      expect(cards.some((id) => pool.mates('base1-46').some((m) => m.id === id))).toBe(true);
+      expect(cards).toContain('4'); // another Charmander, its only partner
       for (const id of cards) expect(unit(id).tier).toBeLessThanOrEqual(open.shopTier);
     }
     const s = must(must(step([FILL[0]!], [{ kind: 'cardGift' }]), { type: 'ENCOUNTER', index: 0 }), { type: 'TAKE', index: 1 });
@@ -219,13 +257,13 @@ describe('the legendary\'s board', () => {
     let s = step([], [{ kind: 'legendary', legendary: legend.id }]);
     s.battles = LEGENDARY_FROM;
     s.encounterSteps = [{ after: LEGENDARY_FROM, battle: false }];
-    // The strongest board the shop can make: the legendary's fight is won.
-    s.board = pool.shop[4]!.filter((u) => u.stage === 'stage1').filter((u, i, all) => all.findIndex((v) => v.evolvesFrom === u.evolvesFrom) === i).slice(0, BOARD_SIZE).map((u, i) => card(u.id, 300 + i));
+    // A strong board of the shop's (tier-4 Stage 1s): when the legendary's fight is won, it joins.
+    s.board = pool.shop[3]!.filter((u) => u.stage === 'stage1').slice(0, BOARD_SIZE).map((u, i) => card(u.id, 300 + i));
     s = must(s, { type: 'ENCOUNTER', index: 0 });
     expect(s.phase).toBe('ready');
     expect(s.opponent).toMatchObject({ difficulty: 'legendary', pay: 0 });
-    expect(s.opponent!.board[0]).toBe(legend.id);
-    for (const id of s.opponent!.board.slice(1)) expect(isLegendary(unit(id))).toBe(false);
+    expect(s.opponent!.board).toContain(legend.id);
+    expect(s.opponent!.board.filter((id) => isLegendary(unit(id)))).toEqual([legend.id]);
     expect(s.legendaryMet).toBe(true);
     s = must(s, { type: 'BATTLE' });
     expect(s.battles).toBe(LEGENDARY_FROM);

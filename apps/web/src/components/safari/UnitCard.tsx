@@ -1,5 +1,5 @@
 import ShieldIcon from '@mui/icons-material/Shield';
-import { KEYWORDS, TRAINERS, type TrainerName } from '@poke-tcg/safari/effects';
+import { TRAINERS, abilityName, abilityText, type TrainerName } from '@poke-tcg/safari/effects';
 import { forwardRef, useContext, type ReactNode } from 'react';
 import { CardImage } from '../CardImage';
 import { EnergyIcon } from '../EnergyIcon';
@@ -11,8 +11,11 @@ import { TRAINER_CARDS } from './safariArt';
 export interface UnitStats {
   attack: number;
   hp: number;
-  keyword?: string;
+  abilities?: UnitAbility[];
+  /** A Shield up in a battle. */
+  shield?: boolean;
 }
+export type UnitAbility = SafariUnit['abilities'][number];
 
 /** The keyword that makes opposing Pokémon attack its Pokémon (drawn with TAUNT_RING). */
 export const TAUNT = 'Taunt';
@@ -20,9 +23,7 @@ export const TAUNT = 'Taunt';
 const TAUNT_RING = 'outline outline-4 outline-offset-2 outline-stone-300 shadow-[0_0_14px_6px_rgba(214,211,209,0.45)]';
 
 /** What a keyword does, for its title (hover) and the board's notes. */
-export function keywordText(keyword: string | null | undefined): string {
-  return keyword ? `${keyword}: ${KEYWORDS[keyword as keyof typeof KEYWORDS]?.text ?? ''}` : '';
-}
+export const keywordText = (a: UnitAbility): string => `${abilityName(a)}: ${abilityText(a)}`;
 
 /**
  * The card's art window: its picture (TCGdex's) cropped to the WOTC-era art box, so none of the TCG card's text (attacks,
@@ -38,8 +39,8 @@ function CardArt({ src, alt, trainer = false }: { src: string | undefined; alt: 
   );
 }
 
-/** The types with a blank card (tools/safari/blank_cards.py: Base Set's frame, its words painted out): Gen 1's seven. */
-const BLANK_TYPES = new Set(['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'colorless']);
+/** The types with a blank card (tools/safari/blank_cards.py: Base Set's frame, its words painted out; Neo Genesis's for Darkness and Metal). */
+const BLANK_TYPES = new Set(['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'colorless', 'darkness', 'metal']);
 /** A type's blank: a Basic Pokémon's frame, or an evolved one's (`evolved`: the Stage badge with its window). */
 const blankCard = (type: string | undefined, evolved = false) => `/safari/cards/${type && BLANK_TYPES.has(type) ? type : 'colorless'}${evolved ? '-evolved' : ''}.webp`;
 /** Where things sit on Base Set's frame, in percent of the card (measured at 600 x 825 on the blanks). */
@@ -52,6 +53,27 @@ const FRAME = {
   symbol: { left: 507 / 6, top: 44 / 8.25, size: 46 / 6 },
 };
 /** Base Set's typeface (Gill Sans), with the nearest a browser has. */
+interface Box {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+/**
+ * Where the artwork is on a printed card, by its set's frame, in percent of the card: the WOTC frame's (Base Set to Neo),
+ * the e-Card sets', the EX sets'. A unit's picture is a print of its Pokémon (the API's pick, a WOTC one where there is one).
+ */
+const artBox = (cardId: string): Box => (cardId.startsWith('ecard') ? ECARD_ART : /^ex\d/.test(cardId) ? EX_ART : FRAME.art);
+// Measured on the printed cards (tools/safari's note in the README): both are wider than the WOTC window, so `fitted` cuts their middle.
+const ECARD_ART: Box = { left: 10, top: 13, width: 80, height: 35 };
+const EX_ART: Box = { left: 9.3, top: 12, width: 82, height: 34.5 };
+/** The middle of `box` with the shape of `to` (both in percent of a 600 x 825 card): a picture cut to a window of another shape. */
+function fitted(box: Box, to: Box): Box {
+  const shape = (to.width * 600) / (to.height * 825);
+  const width = Math.min(box.width, (box.height * 825 * shape) / 600);
+  const height = (width * 600) / shape / 825;
+  return { left: box.left + (box.width - width) / 2, top: box.top + (box.height - height) / 2, width, height };
+}
 const CARD_FONT = { fontFamily: "'Gill Sans', 'Gill Sans MT', Calibri, 'Segoe UI', sans-serif" };
 const STAGE_NAME: Record<string, string> = { basic: 'Basic Pokémon', stage1: 'Stage 1 Pokémon', stage2: 'Stage 2 Pokémon' };
 
@@ -89,23 +111,25 @@ export const UnitCard = forwardRef<HTMLDivElement, { id: string; unit: SafariUni
 ) {
   const catalog = useContext(CatalogContext);
   const inspect = useInspectOnRightClick();
-  const card = catalog?.get(id);
+  const card = catalog?.get(unit?.card ?? '');
+  const fromCard = catalog?.get(unit?.fromCard ?? '');
   const attack = stats?.attack ?? unit?.attack ?? 0;
   const hp = stats?.hp ?? unit?.hp ?? 0;
-  const keyword = stats?.keyword || unit?.keyword;
-  const name = unit?.name ?? card?.name ?? '';
+  const abilities = stats?.abilities ?? unit?.abilities ?? [];
+  const taunts = abilities.some((a) => a.k === TAUNT);
+  const name = unit?.name ?? '';
   const art = FRAME.art;
   const evolved = !!unit && unit.stage !== 'basic';
-  /** The printed card's own picture behind a window of the frame's (`box`, in percent of the card): its art, its badge's picture. */
-  const cutout = (box: { left: number; top: number; width: number; height: number }) =>
-    card?.imageUrl && (
+  /** A printed card's artwork (`from`, its part `src` in percent of that card) behind a window of the frame's (`box`): its art, its badge's picture. */
+  const cutout = (box: Box, from: typeof card, src: Box) =>
+    from?.imageUrl && (
       <div className="absolute overflow-hidden" style={{ left: `${box.left}%`, top: `${box.top}%`, width: `${box.width}%`, height: `${box.height}%` }}>
         <CardImage
-          src={`${card.imageUrl}/low.webp`}
+          src={`${from.imageUrl}/low.webp`}
           alt=""
           draggable={false}
           className="absolute max-w-none"
-          style={{ width: `${10000 / box.width}%`, height: `${10000 / box.height}%`, left: `${(-box.left * 100) / box.width}%`, top: `${(-box.top * 100) / box.height}%` }}
+          style={{ width: `${10000 / src.width}%`, height: `${10000 / src.height}%`, left: `${(-src.left * 100) / src.width}%`, top: `${(-src.top * 100) / src.height}%` }}
         />
       </div>
     );
@@ -116,16 +140,16 @@ export const UnitCard = forwardRef<HTMLDivElement, { id: string; unit: SafariUni
       tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
       onKeyDown={onClick ? (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onClick()) : undefined}
-      title={title ?? [name, keywordText(keyword)].filter(Boolean).join('\n')}
-      className={`relative shrink-0 select-none overflow-hidden rounded-[4.5%/3.3%] bg-yellow-300 text-left shadow shadow-black/50 transition ${keyword === TAUNT ? TAUNT_RING : ''} ${golden ? 'ring-[3px] ring-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.7)]' : ''} ${lit ? '!ring-[3px] !ring-yellow-300 -translate-y-1' : ''} ${dim ? 'opacity-40 grayscale' : ''} ${onClick ? 'cursor-pointer hover:-translate-y-0.5 active:scale-95' : ''}`}
+      title={title ?? [name, ...abilities.map(keywordText)].filter(Boolean).join('\n')}
+      className={`relative shrink-0 select-none overflow-hidden rounded-[4.5%/3.3%] bg-yellow-300 text-left shadow shadow-black/50 transition ${taunts ? TAUNT_RING : ''} ${golden ? 'ring-[3px] ring-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.7)]' : ''} ${lit ? '!ring-[3px] !ring-yellow-300 -translate-y-1' : ''} ${dim ? 'opacity-40 grayscale' : ''} ${onClick ? 'cursor-pointer hover:-translate-y-0.5 active:scale-95' : ''}`}
       style={{ width, aspectRatio: '600 / 825', ...CARD_FONT }}
       {...inspect(card)}
     >
       <img src={blankCard(unit?.type, evolved)} alt="" draggable={false} className="absolute inset-0 h-full w-full" />
       {/* The card's own artwork in the window (every WOTC frame's art box is the same), and an evolved one's badge picture. */}
-      {cutout(art)}
-      {evolved && cutout(FRAME.portrait)}
-      <div className="absolute inset-0 text-gray-900 [container-type:size]">
+      {card && cutout(art, card, fitted(artBox(card.id), art))}
+      {evolved && fromCard && cutout(FRAME.portrait, fromCard, fitted(artBox(fromCard.id), FRAME.portrait))}
+      <div className={`absolute inset-0 [container-type:size] ${unit?.type === 'darkness' ? 'text-gray-50' : 'text-gray-900'}`}>
         {evolved && unit.evolvesFrom && <span className="absolute left-[21%] right-[4%] top-[2.3%] truncate text-[3.9cqw] font-semibold italic leading-none">Evolves from {unit.evolvesFrom}</span>}
         {/* Above the artwork's frame; long names ("Erika's Bellsprout") smaller, as the printed cards squeeze them, clear of the HP. */}
         <span
@@ -146,19 +170,31 @@ export const UnitCard = forwardRef<HTMLDivElement, { id: string; unit: SafariUni
           </span>
         )}
         {unit && (
-          // The attack, as the card prints one: its cost (the type's symbol), its name (the keyword's, or "Attack"),
-          // what it does, its damage on the right.
-          <div className="absolute inset-x-[6%] top-[60%] flex items-center gap-[3%]">
+          // The attack, as the card prints one: its cost (the type's symbol), its keywords each with what it does (the
+          // fewer, the larger), its damage on the right.
+          <div className="absolute inset-x-[6%] top-[58.5%] flex h-[30.5%] items-center gap-[3%]">
             <TypeSymbol type={unit.type} size={9} />
-            <div className="min-w-0 flex-1 leading-tight">
-              <span className="flex items-center gap-[2%] text-[8.6cqw] font-bold">
-                {keyword === TAUNT && <ShieldIcon sx={{ fontSize: '0.9em' }} />}
-                {keyword ?? 'Attack'}
-              </span>
-              {keyword && <span className="line-clamp-4 text-[5.6cqw] leading-tight">{KEYWORDS[keyword as keyof typeof KEYWORDS]?.text}</span>}
+            <div className="flex min-w-0 flex-1 flex-col justify-center gap-[2.5cqw] leading-tight">
+              {abilities.length === 0 && <span className="text-[8.6cqw] font-bold">Attack</span>}
+              {abilities.map((a) => (
+                <div key={a.k} className="min-w-0">
+                  <span className="flex items-center gap-[2%] font-bold leading-none" style={{ fontSize: `${[8.6, 7, 6][abilities.length - 1] ?? 6}cqw` }}>
+                    {a.k === TAUNT && <ShieldIcon sx={{ fontSize: '0.9em' }} />}
+                    {abilityName(a)}
+                  </span>
+                  <span className={`leading-[1.1] ${abilities.length > 1 ? 'line-clamp-2' : 'line-clamp-4'}`} style={{ fontSize: `${[5.6, 4.6, 4][abilities.length - 1] ?? 4}cqw` }}>
+                    {abilityText(a)}
+                  </span>
+                </div>
+              ))}
             </div>
             <span className="text-[12cqw] font-semibold leading-none">{attack}</span>
           </div>
+        )}
+        {stats?.shield && (
+          <span className="absolute right-[4%] top-[13%] flex items-center rounded-full bg-sky-200/90 p-[1.5%] text-sky-800 shadow" title="Shield: the next hit on it does nothing">
+            <ShieldIcon sx={{ fontSize: '9cqw' }} />
+          </span>
         )}
         {unit && <span className="absolute inset-x-[10%] top-[90.4%] flex h-[4.2%] items-center justify-center text-[4.6cqw] font-semibold italic leading-none">{STAGE_NAME[unit.stage] ?? ''}</span>}
       </div>

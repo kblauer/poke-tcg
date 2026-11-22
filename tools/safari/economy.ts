@@ -6,11 +6,11 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { DRAFT } from '../../packages/safari/src/draft.ts';
 import { botRuns, type BotRun } from '../../packages/safari/src/economy.ts';
 import { DIFFICULTY_TIER, LEADER_CHANCE, MEDIUM_TIERS, OPPONENT_PAY, type Difficulty } from '../../packages/safari/src/opponents.ts';
-import { gen1Units } from '../../packages/safari/src/gen1.ts';
+import { allUnits } from '../../packages/safari/src/species.ts';
 
 const RUNS = Number(process.env.RUNS ?? 1000);
 const t0 = Date.now();
-const runs = botRuns(gen1Units(), RUNS, 1);
+const runs = botRuns(allUnits(), RUNS, 1);
 const won = runs.filter((r) => r.won);
 const lost = runs.filter((r) => !r.won);
 const mean = (rs: BotRun[], f: (r: BotRun) => number) => (rs.length ? rs.reduce((s, r) => s + f(r), 0) / rs.length : 0);
