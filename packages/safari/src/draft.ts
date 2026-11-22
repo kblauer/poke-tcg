@@ -59,9 +59,11 @@ export const DRAFT = {
   cardPrice: [60, 90, 120, 160, 200],
   /** Selling refunds this share of the price, rounded down. */
   sellShare: 0.75,
+  /** A shop's first reroll, and how much more each one after it costs in the same shop (the user's, 2026-11-22: a new shop starts again; the step mine). */
   reroll: 20,
-  /** The shop tier: what tiers 2 to 5 cost, 20 cheaper for every battle since the last was bought, never under half. */
-  tierPrice: [200, 300, 400, 500],
+  rerollStep: 10,
+  /** The shop tier: what tiers 2 to 5 cost, 20 cheaper for every battle since the last was bought, never under half (dearer by the tier: the user's, 2026-11-22; the numbers mine). */
+  tierPrice: [200, 300, 450, 600],
   tierDiscount: 20,
   /** Cards a shop shows, by its tier. */
   shopSize: [3, 4, 4, 5, 5],
@@ -120,6 +122,8 @@ export interface Shop {
   frozen: boolean;
   /** Every reroll free (Professor Oak). */
   oak: boolean;
+  /** Rerolls made in this shop: each costs more than the last (absent on a shop saved before 2026-11-22). */
+  rerolls?: number;
 }
 
 /** A merge's or golden copy's result, waiting for the player's pick (PICK). Its parts are already gone. */
@@ -334,8 +338,8 @@ export function tierPrice(state: Pick<SafariState, 'shopTier' | 'sinceTier'>): n
   return Math.max(base / 2, base - DRAFT.tierDiscount * state.sinceTier);
 }
 
-/** What a reroll costs now: nothing with Professor Oak. */
-export const rerollPrice = (state: Pick<SafariState, 'shop'>): number => (!state.shop || state.shop.oak ? 0 : DRAFT.reroll);
+/** What a reroll costs now: more for each one made in this shop, nothing with Professor Oak. */
+export const rerollPrice = (state: Pick<SafariState, 'shop'>): number => (!state.shop || state.shop.oak ? 0 : DRAFT.reroll + DRAFT.rerollStep * (state.shop.rerolls ?? 0));
 
 /** How many cards a shop shows: its tier's. */
 export const shopSize = (state: Pick<SafariState, 'shopTier'>) => DRAFT.shopSize[state.shopTier - 1]!;
@@ -543,7 +547,7 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
   const openShop = () => {
     const kept = state.shop?.frozen ? state.shop.offers.filter((o): o is string => !!o) : [];
     const size = shopSize(state);
-    state.shop = { offers: [...kept, ...rollOffers(rng, pool, state.shopTier, Math.max(0, size - kept.length), kept, wantedCards(state, pool))], frozen: false, oak: state.oakNext };
+    state.shop = { offers: [...kept, ...rollOffers(rng, pool, state.shopTier, Math.max(0, size - kept.length), kept, wantedCards(state, pool))], frozen: false, oak: state.oakNext, rerolls: 0 };
     state.oakNext = false;
     openStep();
   };
@@ -710,6 +714,7 @@ export function applySafariAction(prev: SafariState, action: SafariAction | Safa
       const price = rerollPrice(state);
       if (state.pokedollars < price) return fail('Not enough ₱');
       state.pokedollars -= price;
+      shop.rerolls = (shop.rerolls ?? 0) + 1;
       shop.frozen = false;
       shop.offers = rollOffers(rng, pool, state.shopTier, shopSize(state), [], wantedCards(state, pool));
       return ok();

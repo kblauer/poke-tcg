@@ -4,7 +4,7 @@ import { BOARD_SIZE } from './battle.js';
 import { DRAFT, applySafariAction, createSafari, isLegendary, type SafariAction, type SafariState } from './draft.js';
 import { allUnits } from './species.js';
 import { unitScore } from './units.js';
-import { BLUE_STARTERS, BLUE_TEAM, BLUE_TRAINER, CORE_SIZE, DIFFICULTY_TIER, GYM_LEADERS, MEDIUM_TIERS, OPENING_SIZES, OPPONENT_PAY, arrange, leaderOpponent, opponentChoice, placementScore, rollBoard, rollChampion, rollOpponents, trainerOpponent, type Opponent } from './opponents.js';
+import { BLUE_STARTERS, BLUE_TEAM, BLUE_TRAINER, CORE_SIZE, DIFFICULTY_TIER, EASY_BATTLES, GYM_LEADERS, MEDIUM_TIERS, OPENING_SIZES, OPPONENT_PAY, arrange, leaderOpponent, opponentChoice, placementScore, rollBoard, rollChampion, rollOpponents, trainerOpponent, type Opponent } from './opponents.js';
 
 const units = allUnits();
 const byId = new Map(units.map((u) => [u.id, u]));
@@ -21,8 +21,16 @@ describe('a step\'s opponents', () => {
   const rng = rngFrom(5);
   const steps = Array.from({ length: 3000 }, (_, i) => rollOpponents(rng, units, i % 15, []));
 
-  it('offers 3, 2 or 1 (4:2:1), easiest first, each a different difficulty paying more the harder', () => {
-    const counts = [1, 2, 3].map((n) => steps.filter((s) => s.length === n).length / steps.length);
+  it('offers 3, 2 or 1 (4:2:1), easiest first, each a different difficulty paying more the harder; no easy one after the 6th battle', () => {
+    expect(EASY_BATTLES).toBe(6);
+    const early = steps.filter((_, i) => i % 15 < EASY_BATTLES);
+    const late = steps.filter((_, i) => i % 15 >= EASY_BATTLES);
+    expect(early.some((s) => s.some((o) => o.difficulty === 'easy'))).toBe(true);
+    for (const s of late) {
+      expect(s.length).toBeLessThanOrEqual(2);
+      expect(s.some((o) => o.difficulty === 'easy')).toBe(false);
+    }
+    const counts = [1, 2, 3].map((n) => early.filter((s) => s.length === n).length / early.length);
     expect(counts[2]).toBeCloseTo(4 / 7, 1);
     expect(counts[1]).toBeCloseTo(2 / 7, 1);
     expect(counts[0]).toBeCloseTo(1 / 7, 1);

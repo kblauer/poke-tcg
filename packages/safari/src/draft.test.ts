@@ -149,7 +149,8 @@ describe('the shop', () => {
     expect(tierPrice({ shopTier: 1, sinceTier: 0 })).toBe(200);
     expect(tierPrice({ shopTier: 1, sinceTier: 3 })).toBe(140);
     expect(tierPrice({ shopTier: 1, sinceTier: 20 })).toBe(100);
-    expect(tierPrice({ shopTier: 4, sinceTier: 2 })).toBe(460);
+    expect(tierPrice({ shopTier: 4, sinceTier: 2 })).toBe(560);
+    expect(DRAFT.tierPrice).toEqual([200, 300, 450, 600]);
     expect(tierPrice({ shopTier: 5, sinceTier: 0 })).toBeNull();
     let s = shop(STRONG);
     s.sinceTier = 2;
@@ -159,11 +160,18 @@ describe('the shop', () => {
     expect(refused(s, { type: 'TIER_UP' })).toBe('The shop is at its top tier');
   });
 
-  it('rerolls for ₱20, every one free after Professor Oak', () => {
+  it('rerolls for ₱20, ₱10 more for each one in the same shop, every one free after Professor Oak', () => {
     let s = shop(STRONG);
     expect(rerollPrice(s)).toBe(20);
     s = must(s, { type: 'REROLL' });
     expect(s.pokedollars).toBe(980);
+    expect(rerollPrice(s)).toBe(30);
+    s = must(must(s, { type: 'REROLL' }), { type: 'REROLL' });
+    expect(s.pokedollars).toBe(980 - 30 - 40);
+    expect(rerollPrice(s)).toBe(50);
+    // A shop saved before rerolls were counted starts at the first price.
+    expect(rerollPrice({ shop: { offers: [], frozen: false, oak: false } })).toBe(20);
+    s.pokedollars = 980;
     s.shop!.oak = true;
     expect(rerollPrice(s)).toBe(0);
     s = must(s, { type: 'REROLL' });
@@ -304,7 +312,7 @@ describe('the shop\'s favour for cards held', () => {
   it('shows a held card\'s partners about DRAFT.favour more often', () => {
     const share = (held: string[]) => {
       let s = shop(held);
-      s.pokedollars = 1e6;
+      s.pokedollars = 1e9;
       let seen = 0;
       for (let i = 0; i < 1500; i++) {
         s = must(s, { type: 'REROLL' });
