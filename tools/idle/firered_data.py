@@ -254,7 +254,7 @@ EXTRA_SLOTS = {
     # Only tables the areas' tracks walk (the main road's never change: Mt. Moon's B2F, Seafoam's B4F and Routes 12 to 14's
     # grass aren't walked). Gifts: the Fighting Dojo's Hitmonlee and Hitmonchan (Rock Tunnel, with Machop), Silph Co.'s
     # Lapras (the seas south of Fuchsia), Celadon's Eevee (Routes 7 and 16), Mt. Moon's fossils (Omanyte, Kabuto) and
-    # Pewter's Old Amber (Aerodactyl). Game Corner prizes: Porygon (Route 7, the Power Plant), Dratini (Seafoam's water,
+    # Pewter's Old Amber (Aerodactyl), and Mt. Moon 1F's Clefairy (the user's, 2026-11-22: its own 1% slot too rare). Game Corner prizes: Porygon (Route 7, the Power Plant), Dratini (Seafoam's water,
     # with Horsea, and Route 20). In-game trades: Mr. Mime (Routes 24 and 25, with Abra), Jynx (Seafoam), Farfetch'd
     # (Routes 11 and 15, by Vermilion), Lickitung (Routes 17 and 18). The Sevii Islands' Ponyta (Route 17, the Pokémon
     # Mansion, with Growlithe), LeafGreen's Magmar (Mt. Ember's: the Pokémon Mansion, Red and Blue's) and Snorlax (Routes
@@ -265,7 +265,7 @@ EXTRA_SLOTS = {
     ('ROUTE20', 'water'): [131, 147],
     ('ROUTE7', 'land'): [133, 137],
     ('ROUTE16', 'land'): [133, 143],
-    ('MT_MOON_1F', 'land'): [138, 140, 142],
+    ('MT_MOON_1F', 'land'): [138, 140, 142, 35],
     ('MT_MOON_B1F', 'land'): [138, 140, 142],
     ('POWER_PLANT', 'land'): [137],
     ('SEAFOAM_ISLANDS_B3F', 'water'): [147],
