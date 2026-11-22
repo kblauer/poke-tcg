@@ -30,7 +30,10 @@ export type Mark =
   | { kind: 'heal'; uid: string; amount: number; why: string }
   | { kind: 'miss'; uid: string; why: string }
   | { kind: 'faint'; uid: string }
-  | { kind: 'note'; text: string };
+  /** A change to a Pokémon's attack or HP for the battle (Rally, Intimidate, a synergy, a Trainer card). */
+  | { kind: 'stat'; uid: string; attack?: number; hp?: number; why: string }
+  /** A line of text. `keep`: the board changed with it (a Pokémon joined, moved, left or became another), so it's shown; the others only go to the log. */
+  | { kind: 'note'; text: string; keep?: true };
 
 export interface Frame {
   lines: [ShownFighter[], ShownFighter[]];
@@ -95,20 +98,20 @@ export function playbackFrames(mine: Board, opponent: Board, events: readonly Ba
         line.splice(Math.min(ev.at, line.length), 0, f);
         lines = ev.side === 0 ? [line, lines[1]] : [lines[0], line];
         known.set(ev.uid, f);
-        push({ kind: 'note', text: `${ev.name} ${before ? 'came back' : 'joined'} (${ev.why})` });
+        push({ kind: 'note', text: `${ev.name} ${before ? 'came back' : 'joined'} (${ev.why})`, keep: true });
         break;
       }
       case 'buff':
         change(ev.uid, (f) => ({ ...f, attack: Math.max(0, f.attack + ev.attack) }));
-        push({ kind: 'note', text: `${find(ev.uid)?.name}: ${ev.attack > 0 ? '+' : '−'}${Math.abs(ev.attack)} attack (${ev.why})` });
+        push({ kind: 'stat', uid: ev.uid, attack: ev.attack, why: ev.why });
         break;
       case 'grow':
         change(ev.uid, (f) => ({ ...f, hp: f.hp + ev.hp, maxHp: f.maxHp + ev.hp }));
-        push({ kind: 'note', text: `${find(ev.uid)?.name}: +${ev.hp} HP (${ev.why})` });
+        push({ kind: 'stat', uid: ev.uid, hp: ev.hp, why: ev.why });
         break;
       case 'become':
         change(ev.uid, (f) => ({ ...f, attack: ev.attack, hp: ev.hp, maxHp: ev.hp, abilities: ev.abilities, shield: f.shield || ev.abilities.some((a) => a.k === 'Shield') }));
-        push({ kind: 'note', text: ev.why === 'Transform' ? `${find(ev.uid)?.name} transformed` : `${find(ev.uid)?.name} took keywords (${ev.why})` });
+        push({ kind: 'note', text: ev.why === 'Transform' ? `${find(ev.uid)?.name} transformed` : `${find(ev.uid)?.name} took keywords (${ev.why})`, keep: true });
         break;
       case 'shield':
         change(ev.uid, (f) => ({ ...f, shield: ev.on }));
@@ -148,7 +151,7 @@ export function playbackFrames(mine: Board, opponent: Board, events: readonly Ba
           const line = [...lines[f.side].filter((g) => g.uid !== ev.uid), f];
           lines = f.side === 0 ? [line, lines[1]] : [lines[0], line];
         }
-        push({ kind: 'note', text: `${f?.name} moved to the end of the line (${ev.why})` });
+        push({ kind: 'note', text: `${f?.name} moved to the end of the line (${ev.why})`, keep: true });
         break;
       }
       case 'faint':
@@ -158,7 +161,7 @@ export function playbackFrames(mine: Board, opponent: Board, events: readonly Ba
       case 'leave': {
         const f = find(ev.uid);
         change(ev.uid, (g) => ({ ...g, fainted: true }));
-        push({ kind: 'note', text: `${f?.name} left the battle (${ev.why})` });
+        push({ kind: 'note', text: `${f?.name} left the battle (${ev.why})`, keep: true });
         break;
       }
       case 'pay':

@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useRun } from '../hooks/useRun';
 import { GameLog } from './GameLog';
-import { useNavGameLog } from './NavLog';
+import { NavPageSlot, useNavGameLog, useNavPageClaimed } from './NavLog';
 import { litStatus, PAGE_NAME, PAGES, PlayModes, PokedollarIcon, SETTINGS_PAGE, usePlayLit } from './PageNav';
 import { DeltaFloat } from './run/DeltaFloat';
 import { HpBar } from './run/HpBar';
@@ -42,10 +42,13 @@ function loadSections(): SectionPrefs {
  * pages' icons (their names on hover), Settings last; `open` (toggled by the top bar's ☰), wider, with each
  * page's name beside its icon and Play's modes in an accordion under it (PlayModes, the user's). Either way it takes its own room on the left and the page beside it stays usable.
  * Under them, open, the run's numbers and the logs (NavSections); minimised, the run's HP and ₱ (the bank, EXP and
- * Stardust are in the top bar: TopBarAccount).
+ * Stardust are in the top bar: TopBarAccount). A page that has its own figures and log for the menu (Safari Draft) draws
+ * them there instead (NavPageSlot).
  */
 export function NavRail({ open }: { open: boolean }) {
   const playLit = usePlayLit();
+  // A page with its own section here (Safari Draft: NavLog's useNavPage) has it in the run's place.
+  const claimed = useNavPageClaimed();
   const link = (p: (typeof PAGES)[number] | typeof SETTINGS_PAGE, className = '') => (
     <Link key={p.to} to={p.to} className={`${item} ${className}`} activeOptions={{ exact: p.to === '/' }} data-status={litStatus(p.to, playLit)} title={open ? undefined : p.label} aria-label={p.label}>
       <p.Icon />
@@ -60,7 +63,17 @@ export function NavRail({ open }: { open: boolean }) {
     >
       {PAGES.map((p) => (open && p.to === '/' ? <PlayModes key={p.to} link={link(p, 'w-full')} /> : link(p)))}
       {link(SETTINGS_PAGE)}
-      {open ? <NavSections /> : <RunSummary />}
+      {claimed ? (
+        open ? (
+          <NavPageSlot key="open" kind="open" className="mt-2 flex min-h-0 w-[16.5rem] flex-1 flex-col gap-2 overflow-hidden whitespace-normal border-t border-slate-800 pt-3" />
+        ) : (
+          <NavPageSlot key="mini" kind="mini" className="mt-2 flex flex-col items-center gap-3 border-t border-slate-800 pt-3 text-xs font-semibold" />
+        )
+      ) : open ? (
+        <NavSections />
+      ) : (
+        <RunSummary />
+      )}
     </nav>
   );
 }
@@ -78,7 +91,10 @@ function useRunUnderWay() {
  * numbers (RunStats) and its log, scrolling with the panel; nothing between runs.
  */
 export function PhoneNavRun() {
+  const claimed = useNavPageClaimed();
   const { run, data } = useRunUnderWay();
+  // The page on screen's own section (Safari Draft), in the run's place.
+  if (claimed) return <NavPageSlot kind="phone" className="mt-3 space-y-3 border-t border-slate-700 pt-3" />;
   if (!data) return null;
   return (
     <div className="mt-3 space-y-3 border-t border-slate-700 pt-3">

@@ -343,22 +343,3 @@ export function RunOverDialog({ run, busy, onStart, onWatch }: { run: ClientSafa
   );
 }
 
-/** The run's log, newest first, in a panel down the table's right edge. */
-export function LogPanel({ log, onClose }: { log: string[]; onClose: () => void }) {
-  return (
-    <aside className={`${DIALOG} panel-right absolute bottom-2 right-2 top-2 z-40 flex w-72 max-w-[calc(100%-1rem)] flex-col gap-2 p-3 shadow-2xl shadow-black/60`} data-keep-action>
-      <header className="flex items-center">
-        <h3 className="font-heading text-sm text-slate-50">Run log</h3>
-        <button type="button" className={`${ICON_BUTTON} ml-auto`} onClick={onClose} title="Close">
-          <CloseIcon fontSize="small" />
-        </button>
-      </header>
-      <ol className="min-h-0 flex-1 space-y-0.5 overflow-y-auto text-xs text-slate-300">
-        {[...log].reverse().map((line, i) => (
-          <li key={log.length - i}>{line}</li>
-        ))}
-        {!log.length && <li className="text-slate-500">Nothing yet.</li>}
-      </ol>
-    </aside>
-  );
-}

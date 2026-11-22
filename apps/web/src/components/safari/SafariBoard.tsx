@@ -60,6 +60,20 @@ export function EmptyPlace({ width, label, onClick, lit }: { width: string; labe
   );
 }
 
+/**
+ * Places left empty in a row of 6, taking a card's room and showing nothing: a line shorter than 6 is filled from the
+ * left, so its Pokémon stay above or below the ones across from them (the user's, 2026-11-22).
+ */
+export function PlaceSpacers({ count, width = CARD }: { count: number; width?: string }) {
+  return (
+    <>
+      {Array.from({ length: Math.max(0, count) }, (_, i) => (
+        <div key={`spacer-${i}`} aria-hidden className="shrink-0" style={{ width, aspectRatio: '63 / 88' }} />
+      ))}
+    </>
+  );
+}
+
 const samePlace = (a: Place | null, b: Place) => !!a && a.zone === b.zone && a.at === b.at;
 const placeId = (p: Place) => `${p.zone}-${p.at}`;
 const placeOf = (id: string | number): Place => {
