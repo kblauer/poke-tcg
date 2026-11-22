@@ -17,7 +17,7 @@
 import { BOARD_SIZE } from './battle.js';
 import type { TrainerName } from './effects.js';
 import type { EncounterKind } from './encounters.js';
-import { applySafariAction, cardPrice, cardUnit, createSafari, draftPool, tierPrice, type Card, type DraftPool, type Place, type PokemonCard, type SafariAction, type SafariState, type SafariSystemAction } from './draft.js';
+import { applySafariAction, cardPrice, cardUnit, createSafari, draftPool, rerollPrice, tierPrice, type Card, type DraftPool, type Place, type PokemonCard, type SafariAction, type SafariState, type SafariSystemAction } from './draft.js';
 import { DIFFICULTY_TIER, MEDIUM_TIERS, type Difficulty } from './opponents.js';
 import { TOP_TIER, unitScore, type Unit } from './units.js';
 
@@ -178,7 +178,7 @@ export function botRun(units: readonly Unit[], seed: number): BotRun {
         out.fromSales += state.pokedollars - before.pokedollars;
         continue;
       }
-      if (!rerolled && state.pokedollars >= 20 + cardPrice(1)) {
+      if (!rerolled && state.pokedollars >= rerollPrice(state) + cardPrice(1)) {
         const before = apply({ type: 'REROLL' });
         out.rerolls++;
         out.onRerolls += before.pokedollars - state.pokedollars;

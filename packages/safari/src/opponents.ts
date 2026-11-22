@@ -7,7 +7,8 @@
 //   - a board's strength is a fixed curve by the battle's number (MEDIUM_TIERS: a medium opponent's tier), an easy one a
 //     tier lower, a hard one a tier higher, a gym leader two (hard + 1); good drafting is rewarded, never scaled away.
 //     A board mixes tiers around its target (BOARD_SPREAD) and holds evolved units;
-//   - a step offers 3 opponents, 2 or 1 (OFFER_WEIGHTS 4:2:1, as the Badge Challenge's steps); about 1 step in 4 a gym
+//   - a step offers 3 opponents, 2 or 1 (OFFER_WEIGHTS 4:2:1, as the Badge Challenge's steps), none of them easy after
+//     the 6th battle (EASY_BATTLES, 2026-11-22: 2 or 1 from then); about 1 step in 4 a gym
 //     leader takes the hardest slot (LEADER_CHANCE), each of the 8 at most once a run;
 //   - a gym leader's board is their type's, with their Trainer (GYM_LEADERS);
 //   - Blue's board is his FireRed Champion team, each one's unit (Pidgeot, Alakazam, Rhydon, Gyarados, Arcanine and one of
@@ -51,6 +52,8 @@ export const opponentSize = (battle: number) => OPENING_SIZES[battle] ?? BOARD_S
 /** How many opponents a step offers: 3, 2 or 1, by weight. */
 export const OFFER_WEIGHTS: [count: number, weight: number][] = [[3, 4], [2, 2], [1, 1]];
 export const LEADER_CHANCE = 0.25;
+/** Easy opponents are offered in the first battles only (the user's, 2026-11-22): from this battle (0–14) on, medium and hard. */
+export const EASY_BATTLES = 6;
 /** A board unit's tier against its target: one lower, the same or one higher, by weight (mine). Not at the tiers' ends (rollBoard). */
 const BOARD_SPREAD: [offset: number, weight: number][] = [[-1, 1], [0, 2], [1, 1]];
 /** How often a slot takes the trainer's favourite, where the tier has one (mine). A gym leader's own team: always. */
@@ -239,9 +242,10 @@ export function trainerOpponent(rng: Rng, units: readonly Unit[], name: string, 
  */
 export function rollOpponents(rng: Rng, units: readonly Unit[], battle: number, met: readonly string[]): Opponent[] {
   const medium = MEDIUM_TIERS[Math.min(battle, MEDIUM_TIERS.length - 1)]!;
-  const count = weighted(rng, OFFER_WEIGHTS);
-  const all = ['easy', 'medium', 'hard'] as const;
-  const kinds: Difficulty[] = count === 3 ? [...all] : sample(rng, all, count).sort((a, b) => all.indexOf(a) - all.indexOf(b));
+  // No easy opponent after the 6th battle (the user's, 2026-11-22): a step then offers 2 at most.
+  const all: readonly ('easy' | 'medium' | 'hard')[] = battle < EASY_BATTLES ? ['easy', 'medium', 'hard'] : ['medium', 'hard'];
+  const count = Math.min(weighted(rng, OFFER_WEIGHTS), all.length);
+  const kinds: Difficulty[] = count === all.length ? [...all] : sample(rng, all, count).sort((a, b) => all.indexOf(a) - all.indexOf(b));
   // The first battle always offers an easy opponent (the user's, 2026-11-18), with whatever else was rolled.
   if (battle === 0) kinds[0] = 'easy';
   const leaders = GYM_LEADERS.filter((l) => !met.includes(l.id));
