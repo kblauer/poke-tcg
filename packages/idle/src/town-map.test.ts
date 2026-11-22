@@ -112,8 +112,10 @@ describe('the Town Map', () => {
 
   it("writes a habitat's places with the zones it's in where a place has several (the user's)", () => {
     expect(habitatText(113)).toEqual(['SAFARI ZONE: Center, North']);
-    expect(habitatText(92)).toEqual(['POKéMON TOWER: 3F, 4F, 5F, 6F, 7F']);
+    expect(habitatText(92)).toEqual(['POKéMON TOWER: 3F, 4F, 5F, 6F']);
     expect(habitatText(25)).toContain('VIRIDIAN FOREST');
+    // Only the tables a grind reaches: Mt. Moon's B2F, which no track walks, left out (the user's).
+    expect(habitatText(35).find((t) => t.startsWith('MT. MOON'))).not.toContain('B2F');
     expect(inGeneration(2, () => habitatText(220))).toEqual(['Ice Path: 1F, B1F, B2F, B3F']);
     expect(zoneLabel('MeteorFalls_B1F_1R', 'METEOR FALLS')).toBe('B1F 1R');
     expect(zoneLabel('ShoalCave_LowTideIceRoom', 'SHOAL CAVE')).toBe('Low Tide Ice Room');
