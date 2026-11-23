@@ -109,7 +109,7 @@ const menuItem = 'flex items-center gap-2 rounded px-3 py-2 text-slate-300 hover
 
 /** An icon-only page button (the phone battle screen's menu): a square, the current page lit in yellow. */
 const iconItem =
-  'flex h-11 flex-1 items-center justify-center rounded-md bg-slate-800 text-slate-300 ring-1 ring-slate-700 transition active:scale-95 hover:bg-slate-700 hover:text-slate-50 data-[status=active]:bg-yellow-400/15 data-[status=active]:text-yellow-200 data-[status=active]:ring-yellow-400/60';
+  'flex h-11 min-w-0 flex-1 items-center justify-center rounded-md bg-slate-800 text-slate-300 ring-1 ring-slate-700 transition active:scale-95 hover:bg-slate-700 hover:text-slate-50 data-[status=active]:bg-yellow-400/15 data-[status=active]:text-yellow-200 data-[status=active]:ring-yellow-400/60';
 
 /**
  * The pages as a ☰ menu's buttons (icon and name, the current page in yellow): the phone's site menu (SidePanel), Play's
@@ -126,6 +126,10 @@ export function PageMenu({ onPick, iconsOnly = false }: { onPick: () => void; ic
             <p.Icon />
           </Link>
         ))}
+        {/* Settings last, as in the site menu (the user's: a run's battle covers the top bar, so this is the way there). */}
+        <Link to={SETTINGS_PAGE.to} className={iconItem} onClick={onPick} title={SETTINGS_PAGE.label} aria-label={SETTINGS_PAGE.label}>
+          <SETTINGS_PAGE.Icon />
+        </Link>
       </nav>
     );
   }
