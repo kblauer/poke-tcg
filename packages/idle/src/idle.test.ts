@@ -1031,6 +1031,8 @@ describe('an idle run', () => {
           { ...s, area: route, phase: 'walking', leg: 0, step: 0, loop: { kind: 'pace', leg: 0, from: 0, to: 99_999, dir: 1, resume: { area: 9999, leg: 0, step: 0, beaten: [] } } },
           { ...s, area: route, phase: 'walking', leg: 0, step: 0, loop: { kind: 'fish', spot: 99, resume: { area: route, leg: 0, step: 0, beaten: [] } } },
           { ...segment.state, area: 9999, replay },
+          // A sound run whose kept segment began out of bounds (Victory Road's track shortened at its end, 2026-11-22).
+          { ...segment.state, replay: { ...replay, prev: { ...s, area: route, phase: 'walking', leg: 0, step: 99_999 } } },
         ];
         for (const [k, bad] of stale.entries()) {
           const fixed = repairState(bad);

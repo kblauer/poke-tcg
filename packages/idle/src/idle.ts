@@ -2346,7 +2346,9 @@ export const bankedMoney = (state: Pick<IdleState, 'phase' | 'money'>) => (state
  * A saved run with any index past its region's data put back in bounds (#204: a regenerated data file that shortened a
  * track or dropped an area made simulateSegment and idleView throw, so the account's whole mode failed): its place, the
  * furthest place, the Town Map's reach, a grind's step, a route grind's loop. Anything moved drops the segment kept to
- * play again (its start would hold the old indexes). The run unchanged (the same object) when nothing is out of bounds.
+ * play again (its start would hold the old indexes), as does a kept segment whose start is out of bounds itself (Victory
+ * Road's track ending at the cave's mouth, 2026-11-22: a segment begun on its old last two steps). The run unchanged
+ * (the same object) when nothing is out of bounds.
  */
 export function repairState(saved: IdleState): IdleState {
   return inGeneration(saved.gen, () => repairIn(saved));
@@ -2386,6 +2388,7 @@ function repairIn(saved: IdleState): IdleState {
     const broken = loop.kind === 'pace' ? !legs[loop.leg] || loop.from < 0 || loop.to >= legs[loop.leg]!.track.length || loop.from > loop.to : loop.kind === 'fish' ? !(a as WalkArea).fishing?.[loop.spot] : isTown(a);
     if (broken) ((moved = true), delete state.loop);
   }
+  if (state.replay && repairIn(state.replay.prev) !== state.replay.prev) moved = true;
   if (!moved) return saved;
   delete state.replay;
   return state;
