@@ -10,11 +10,11 @@ const GEN_SETS = [POOL_SETS, GEN2_SETS, GEN3_SETS, GEN4_SETS, GEN5_SETS];
 const setOf = (id: string) => id.replace(/-reverse$/, '').replace(/-[^-]+$/, '');
 
 describe('premade decks', () => {
-  it('are up to 10 a generation, Gen 1 to 5, each id once', () => {
+  it('are up to 15 a generation, Gen 1 to 5, each id once', () => {
     for (let gen = 1; gen <= 5; gen++) {
       const n = PREMADE_DECKS.filter((d) => d.gen === gen).length;
       expect(n, `Gen ${gen}`).toBeGreaterThan(0);
-      expect(n, `Gen ${gen}`).toBeLessThanOrEqual(10);
+      expect(n, `Gen ${gen}`).toBeLessThanOrEqual(15);
     }
     expect(new Set(PREMADE_DECKS.map((d) => d.id)).size).toBe(PREMADE_DECKS.length);
     expect(premadeDeck(PREMADE_DECKS[0]!.id)).toBe(PREMADE_DECKS[0]);

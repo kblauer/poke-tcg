@@ -1,5 +1,5 @@
 // Premade decks (the user's, 2026-11-20; README: Community Decks): well-known decks of each era, listed on the Community
-// Decks tab apart from the decks players publish, to look through and import like theirs. Up to 10 a generation, from
+// Decks tab apart from the decks players publish, to look through and import like theirs. Up to 15 a generation (issue #261), from
 // jklaczpokemon.com's deck pages (Base/Fossil; Base to Neo; EX; DPP and HGSS; Black & White), their cards mapped to the
 // catalog (a card it hasn't swapped for the closest one it has: `notes`).
 import type { DeckList } from './decks.js';

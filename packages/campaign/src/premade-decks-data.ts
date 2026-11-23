@@ -1,4 +1,4 @@
-// Premade decks' lists (premade-decks.ts; the user's, 2026-11-20): up to 10 a generation from jklaczpokemon.com's deck pages,
+// Premade decks' lists (premade-decks.ts; the user's, 2026-11-20): up to 15 a generation (issue #261) from jklaczpokemon.com's deck pages,
 // each card mapped to a catalog id by name (the original print where the page names none). Researched and checked against
 // the catalog (60 cards, the deck rules, every card implemented and from the deck's generation or earlier: premade-decks.test.ts).
 import type { PremadeDeck } from './premade-decks.js';
@@ -268,6 +268,157 @@ export const PREMADE_GEN1: PremadeDeck[] = [
       ['base1-75', 1], // Lass
       ['base1-77', 1], // Pokémon Trader
       ['base1-98', 13], // Fire Energy
+      ['base1-96', 4], // Double Colorless Energy
+    ],
+  },
+  {
+    id: 'g1-hitmonchan-mewtwo-dodrio',
+    gen: 1,
+    name: 'Hitmonchan / Mewtwo / Dodrio',
+    text: 'Haymaker with a Psychic answer: Hitmonchan hits Lickitung and Electabuzz for Weakness, Dodrio retreats into Mewtwo against Mewtwo.',
+    cover: 'base1-7',
+    source: 'https://jklaczpokemon.com/1999-base-fossil/#hitmonchan-mewtwo-dodrio',
+    list: [
+      ['base1-48', 4], // Doduo
+      ['base2-34', 3], // Dodrio
+      ['base1-7', 4], // Hitmonchan
+      ['basep-3', 2], // Mewtwo
+      ['base2-22', 2], // Mr. Mime
+      ['basep-8', 1], // Mew
+      ['base1-88', 4], // Professor Oak
+      ['base1-91', 4], // Bill
+      ['base1-81', 3], // Energy Retrieval
+      ['base1-84', 3], // PlusPower
+      ['base1-93', 3], // Gust of Wind
+      ['base1-92', 3], // Energy Removal
+      ['base1-79', 2], // Super Energy Removal
+      ['base1-74', 2], // Item Finder
+      ['base1-75', 1], // Lass
+      ['base1-85', 1], // Pokémon Center
+      ['base1-71', 1], // Computer Search
+      ['base3-58', 1], // Mr. Fuji
+      ['base1-101', 8], // Psychic Energy
+      ['base1-97', 7], // Fighting Energy
+      ['base1-96', 1], // Double Colorless Energy
+    ],
+  },
+  {
+    id: 'g1-aerodactyl-mewtwo',
+    gen: 1,
+    name: 'Aerodactyl / Mewtwo',
+    text: 'A turn-2 Aerodactyl shuts down evolution decks with Prehistoric Power while Mewtwo, fed by Energy discarded early, does the damage.',
+    cover: 'base3-16',
+    source: 'https://jklaczpokemon.com/base-fossil-decks-2/#aerodactyl-mewtwo',
+    list: [
+      ['basep-3', 3], // Mewtwo
+      ['base2-26', 3], // Scyther
+      ['base2-22', 2], // Mr. Mime
+      ['basep-8', 2], // Mew
+      ['base1-3', 1], // Chansey
+      ['base3-16', 3], // Aerodactyl
+      ['base3-62', 4], // Mysterious Fossil
+      ['base1-88', 4], // Professor Oak
+      ['base1-71', 4], // Computer Search
+      ['base1-74', 3], // Item Finder
+      ['base1-92', 3], // Energy Removal
+      ['base1-79', 3], // Super Energy Removal
+      ['base1-81', 2], // Energy Retrieval
+      ['base1-84', 2], // PlusPower
+      ['base1-93', 2], // Gust of Wind
+      ['base1-78', 2], // Scoop Up
+      ['base3-58', 1], // Mr. Fuji
+      ['base1-101', 12], // Psychic Energy
+      ['base1-96', 4], // Double Colorless Energy
+    ],
+  },
+  {
+    id: 'g1-exeggutor',
+    gen: 1,
+    name: 'Exeggutor',
+    text: 'Piles Energy onto Exeggutor for huge Big Eggsplosions, with Gastly and Mr. Mime to dodge the Energy Removal that rules the format.',
+    cover: 'base2-35',
+    source: 'https://jklaczpokemon.com/base-fossil-decks-2/#exeggutor',
+    notes: 'The page numbers Exeggutor JU 34 (Dodrio); used JU 35.',
+    list: [
+      ['base2-52', 3], // Exeggcute
+      ['base2-35', 3], // Exeggutor
+      ['base3-33', 2], // Gastly
+      ['base2-26', 2], // Scyther
+      ['base2-22', 2], // Mr. Mime
+      ['basep-3', 1], // Mewtwo
+      ['base1-3', 1], // Chansey
+      ['base1-88', 4], // Professor Oak
+      ['base1-91', 4], // Bill
+      ['base1-81', 4], // Energy Retrieval
+      ['base1-75', 3], // Lass
+      ['base1-74', 3], // Item Finder
+      ['base1-92', 3], // Energy Removal
+      ['base1-79', 2], // Super Energy Removal
+      ['base1-93', 2], // Gust of Wind
+      ['base1-77', 2], // Pokémon Trader
+      ['base1-71', 1], // Computer Search
+      ['base1-90', 1], // Super Potion
+      ['base3-58', 1], // Mr. Fuji
+      ['base1-101', 12], // Psychic Energy
+      ['base1-96', 4], // Double Colorless Energy
+    ],
+  },
+  {
+    id: 'g1-wigglytuff-mewtwo',
+    gen: 1,
+    name: 'Wigglytuff / Mewtwo',
+    text: 'Wigglytuff\'s Do the Wave backed by Psychic Pokémon: Mewtwo one-hit KOs Hitmonchan, Gastly moves Energy, Mr. Mime walls.',
+    cover: 'base2-32',
+    source: 'https://jklaczpokemon.com/base-fossil-decks-2/#wigglytuff-mewtwo',
+    list: [
+      ['base2-54', 4], // Jigglypuff
+      ['base2-32', 3], // Wigglytuff
+      ['basep-3', 2], // Mewtwo
+      ['base3-33', 2], // Gastly
+      ['base2-22', 2], // Mr. Mime
+      ['base1-3', 1], // Chansey
+      ['base2-26', 1], // Scyther
+      ['base1-88', 4], // Professor Oak
+      ['base1-91', 4], // Bill
+      ['base1-92', 3], // Energy Removal
+      ['base1-74', 3], // Item Finder
+      ['base1-84', 3], // PlusPower
+      ['base1-71', 2], // Computer Search
+      ['base1-93', 2], // Gust of Wind
+      ['base1-79', 2], // Super Energy Removal
+      ['base1-81', 2], // Energy Retrieval
+      ['base1-75', 2], // Lass
+      ['base1-90', 1], // Super Potion
+      ['base3-58', 1], // Mr. Fuji
+      ['base1-101', 12], // Psychic Energy
+      ['base1-96', 4], // Double Colorless Energy
+    ],
+  },
+  {
+    id: 'g1-magmarbuzz',
+    gen: 1,
+    name: 'Magmarbuzz',
+    text: 'A Haymaker of Magmar and Electabuzz with Scyther and Ditto: fast Basics that Resistance doesn\'t wall.',
+    cover: 'base3-39',
+    source: 'https://jklaczpokemon.com/base-fossil-decks-2/#magmarbuzz',
+    list: [
+      ['base3-39', 4], // Magmar
+      ['base1-20', 3], // Electabuzz
+      ['base2-26', 3], // Scyther
+      ['base3-18', 2], // Ditto
+      ['base1-88', 4], // Professor Oak
+      ['base1-91', 4], // Bill
+      ['base1-81', 4], // Energy Retrieval
+      ['base1-92', 4], // Energy Removal
+      ['base1-79', 3], // Super Energy Removal
+      ['base1-93', 2], // Gust of Wind
+      ['base1-84', 2], // PlusPower
+      ['base1-78', 2], // Scoop Up
+      ['base1-74', 2], // Item Finder
+      ['base3-59', 1], // Energy Search
+      ['base1-75', 1], // Lass
+      ['base1-98', 9], // Fire Energy
+      ['base1-100', 6], // Lightning Energy
       ['base1-96', 4], // Double Colorless Energy
     ],
   },
@@ -595,6 +746,175 @@ export const PREMADE_GEN2: PremadeDeck[] = [
       ['base5-82', 1], // Potion Energy
     ],
   },
+  {
+    id: 'g2-metal-chansey',
+    gen: 2,
+    name: 'Metal Chansey',
+    text: 'Alex Brosseau\'s 2002 World Championships winner: Metal Energy cuts Chansey\'s Double-edge self-damage, Healing Field and Gold Berry heal the rest.',
+    cover: 'base1-3',
+    source: 'https://jklaczpokemon.com/base-to-neo-decks/#metal-chansey',
+    list: [
+      ['neo1-20', 4], // Cleffa
+      ['base1-3', 2], // Chansey
+      ['base2-10', 2], // Scyther
+      ['base3-3', 1], // Ditto
+      ['neo1-26', 1], // Aipom
+      ['neo2-40', 1], // Igglybuff
+      ['neo2-66', 1], // Tyrogue
+      ['neo3-61', 3], // Healing Field
+      ['neo1-93', 4], // Gold Berry
+      ['base1-75', 3], // Lass
+      ['base1-79', 3], // Super Energy Removal
+      ['base1-92', 3], // Energy Removal
+      ['base1-74', 3], // Item Finder
+      ['neo1-85', 3], // Energy Charge
+      ['base1-88', 2], // Professor Oak
+      ['neo1-96', 2], // Professor Elm
+      ['base1-93', 2], // Gust of Wind
+      ['base1-71', 2], // Computer Search
+      ['gym1-111', 1], // Good Manners
+      ['neo1-100', 1], // Double Gust
+      ['base1-78', 1], // Scoop Up
+      ['base5-77', 1], // Nightly Garbage Run
+      ['neo1-108', 2], // Grass Energy
+      ['neo1-19', 4], // Metal Energy
+      ['base1-96', 4], // Double Colorless Energy
+      ['neo1-105', 4], // Recycle Energy
+    ],
+  },
+  {
+    id: 'g2-dark-crobat-sneasel',
+    gen: 2,
+    name: 'Dark Crobat / Sneasel',
+    text: 'Dark Crobat\'s Surprise Bite and Sneasel\'s Beat Up with Hyper Devolution Spray to undo the opponent\'s evolutions.',
+    cover: 'neo4-2',
+    source: 'https://jklaczpokemon.com/base-to-neo-decks/#dark-crobat-sneasel',
+    list: [
+      ['neo1-20', 4], // Cleffa
+      ['neo3-59', 4], // Zubat
+      ['base5-7', 4], // Dark Golbat
+      ['neo4-2', 4], // Dark Crobat
+      ['neo1-25', 4], // Sneasel
+      ['neo1-84', 2], // Ecogym
+      ['base1-75', 4], // Lass
+      ['neo2-73', 4], // Hyper Devolution Spray
+      ['gym1-111', 3], // Good Manners
+      ['base1-74', 3], // Item Finder
+      ['base1-71', 2], // Computer Search
+      ['base1-88', 2], // Professor Oak
+      ['base5-73', 2], // The Boss's Way
+      ['neo1-100', 2], // Double Gust
+      ['base1-79', 1], // Super Energy Removal
+      ['neo1-96', 1], // Professor Elm
+      ['base1-86', 1], // Pokémon Flute
+      ['base5-77', 1], // Nightly Garbage Run
+      ['neo1-104', 4], // Darkness Energy
+      ['base5-17', 4], // Rainbow Energy
+      ['neo1-105', 4], // Recycle Energy
+    ],
+  },
+  {
+    id: 'g2-light-dragonite',
+    gen: 2,
+    name: 'Light Dragonite',
+    text: 'Light Dragonite\'s Miraculous Wind turns off the Darkness and Metal Energy so many Base–Neo decks rely on.',
+    cover: 'neo4-14',
+    source: 'https://jklaczpokemon.com/base-to-neo-decks/#light-dragonite',
+    list: [
+      ['neo1-20', 4], // Cleffa
+      ['base5-53', 3], // Dratini
+      ['neo4-22', 3], // Light Dragonair
+      ['neo4-14', 3], // Light Dragonite
+      ['neo1-22', 1], // Elekid
+      ['neo2-40', 1], // Igglybuff
+      ['base2-10', 1], // Scyther
+      ['neo1-26', 1], // Aipom
+      ['gym1-124', 2], // Narrow Gym
+      ['neo1-93', 4], // Gold Berry
+      ['base1-75', 4], // Lass
+      ['base1-71', 3], // Computer Search
+      ['base1-74', 3], // Item Finder
+      ['base1-92', 2], // Energy Removal
+      ['base1-79', 2], // Super Energy Removal
+      ['base1-88', 2], // Professor Oak
+      ['neo1-96', 2], // Professor Elm
+      ['base1-93', 2], // Gust of Wind
+      ['gym1-111', 2], // Good Manners
+      ['gym2-126', 1], // Warp Point
+      ['base5-77', 1], // Nightly Garbage Run
+      ['neo1-108', 3], // Grass Energy
+      ['base1-96', 4], // Double Colorless Energy
+      ['neo1-19', 4], // Metal Energy
+      ['neo1-105', 2], // Recycle Energy
+    ],
+  },
+  {
+    id: 'g2-paint-lock',
+    gen: 2,
+    name: 'Paint Lock',
+    text: 'Smeargle Paints the opponent Psychic for Murkrow\'s Mean Look while Dark Vileplume and Erika\'s Victreebel stop every way out.',
+    cover: 'basep-32',
+    source: 'https://jklaczpokemon.com/base-to-neo-decks/#paint-lock',
+    list: [
+      ['neo1-20', 4], // Cleffa
+      ['neo1-24', 4], // Murkrow
+      ['base5-63', 3], // Oddish
+      ['base5-36', 2], // Dark Gloom
+      ['base5-13', 3], // Dark Vileplume
+      ['gym1-76', 3], // Erika's Bellsprout
+      ['gym1-48', 2], // Erika's Weepinbell
+      ['gym1-26', 3], // Erika's Victreebel
+      ['basep-32', 2], // Smeargle
+      ['neo1-25', 1], // Sneasel
+      ['neo3-61', 1], // Healing Field
+      ['base1-75', 4], // Lass
+      ['base1-71', 4], // Computer Search
+      ['gym1-114', 3], // Misty's Wrath
+      ['base1-76', 3], // Pokémon Breeder
+      ['base1-88', 2], // Professor Oak
+      ['gym2-126', 2], // Warp Point
+      ['base1-77', 2], // Pokémon Trader
+      ['neo1-104', 4], // Darkness Energy
+      ['base5-17', 4], // Rainbow Energy
+      ['neo1-105', 3], // Recycle Energy
+      ['base1-96', 1], // Double Colorless Energy
+    ],
+  },
+  {
+    id: 'g2-brocks-ninetales-steelix',
+    gen: 2,
+    name: 'Brock\'s Ninetales / Steelix',
+    text: 'Brock\'s Ninetales with Brock\'s Protection Shapeshifts into a Steelix that Energy Removal can\'t touch, then heals it through the game.',
+    cover: 'neo1-15',
+    source: 'https://jklaczpokemon.com/base-to-neo-decks/#brocks-ninetales-steelix',
+    list: [
+      ['neo1-20', 4], // Cleffa
+      ['gym2-37', 3], // Brock's Vulpix
+      ['gym2-3', 2], // Brock's Ninetales
+      ['neo1-15', 4], // Steelix
+      ['base2-10', 2], // Scyther
+      ['neo2-40', 1], // Igglybuff
+      ['neo2-66', 1], // Tyrogue
+      ['neo3-61', 2], // Healing Field
+      ['neo1-93', 4], // Gold Berry
+      ['base1-75', 4], // Lass
+      ['base1-71', 3], // Computer Search
+      ['base1-74', 3], // Item Finder
+      ['gym2-101', 3], // Brock's Protection
+      ['base1-88', 2], // Professor Oak
+      ['neo1-96', 2], // Professor Elm
+      ['neo1-85', 2], // Energy Charge
+      ['base1-93', 2], // Gust of Wind
+      ['base1-79', 2], // Super Energy Removal
+      ['base5-77', 1], // Nightly Garbage Run
+      ['gym1-106', 1], // Brock's Training Method
+      ['base1-90', 1], // Super Potion
+      ['gym2-126', 1], // Warp Point
+      ['neo1-19', 4], // Metal Energy
+      ['neo1-105', 4], // Recycle Energy
+      ['base1-96', 2], // Double Colorless Energy
+    ],
+  },
 ];
 
 export const PREMADE_GEN3: PremadeDeck[] = [
@@ -894,6 +1214,198 @@ export const PREMADE_GEN3: PremadeDeck[] = [
       ['ex1-104', 6], // Grass Energy
       ['ex1-108', 2], // Fire Energy
       ['ex2-93', 4], // Multi Energy
+    ],
+  },
+  {
+    id: 'g3-blastoise-ex-lugia-ex',
+    gen: 3,
+    name: 'Blastoise ex / Lugia ex',
+    text: 'Blastoise ex\'s Energy Rain and Holon\'s Castform power Lugia ex\'s Elemental Blast again and again, Pokémon Retriever bringing the Energy back.',
+    cover: 'ex10-105',
+    source: 'https://jklaczpokemon.com/ex-decks/#blastoise-ex-lugia-ex',
+    list: [
+      ['ex8-105', 1], // Latias ☆
+      ['ex13-44', 3], // Holon's Castform
+      ['ex6-83', 2], // Squirtle
+      ['ex6-104', 2], // Blastoise ex
+      ['ex6-73', 2], // Pidgey
+      ['ex6-45', 1], // Pidgeotto
+      ['ex6-10', 2], // Pidgeot
+      ['ex10-105', 2], // Lugia ex
+      ['ex8-9', 2], // Jirachi
+      ['ex14-95', 1], // Kyogre ex
+      ['ex13-37', 1], // Chimecho δ
+      ['ex14-12', 1], // Tauros
+      ['ex10-34', 1], // Aipom
+      ['ex12-8', 1], // Lapras
+      ['ex11-70', 1], // Holon's Magnemite
+      ['ex12-76', 1], // Power Tree
+      ['ex12-75', 1], // Giant Stump
+      ['ex11-93', 4], // Holon Mentor
+      ['ex13-85', 1], // Holon Adventurer
+      ['ex11-97', 1], // Holon Scientist
+      ['ex7-86', 2], // Rocket's Admin.
+      ['ex10-89', 2], // Professor Elm's Training Method
+      ['ex5-92', 2], // Steven's Advice
+      ['ex11-98', 4], // Holon Transceiver
+      ['ex9-83', 4], // Rare Candy
+      ['ex14-84', 3], // Warp Point
+      ['ex14-85', 3], // Windstorm
+      ['ex7-84', 3], // Pokémon Retriever
+      ['ex7-92', 1], // Swoop! Teleporter
+      ['ex1-106', 5], // Water Energy
+    ],
+  },
+  {
+    id: 'g3-bombtar',
+    gen: 3,
+    name: 'Bombtar',
+    text: 'Electrode ex\'s Extra Energy Bomb and Scramble Energy power Dark Tyranitar\'s big attacks at once.',
+    cover: 'ex7-19',
+    source: 'https://jklaczpokemon.com/ex-decks/#bombtar',
+    list: [
+      ['ex11-73', 2], // Larvitar δ
+      ['ex7-63', 1], // Larvitar
+      ['ex7-41', 3], // Dark Pupitar
+      ['ex7-19', 3], // Dark Tyranitar
+      ['ex7-80', 2], // Voltorb
+      ['ex6-107', 2], // Electrode ex
+      ['ex8-9', 2], // Jirachi
+      ['ex12-8', 1], // Lapras
+      ['ex11-70', 1], // Holon's Magnemite
+      ['ex7-86', 4], // Rocket's Admin.
+      ['ex10-89', 2], // Professor Elm's Training Method
+      ['ex11-93', 2], // Holon Mentor
+      ['ex13-85', 1], // Holon Adventurer
+      ['ex11-97', 1], // Holon Scientist
+      ['ex7-85', 4], // Pow! Hand Extension
+      ['ex11-98', 4], // Holon Transceiver
+      ['ex14-85', 2], // Windstorm
+      ['ex7-92', 2], // Swoop! Teleporter
+      ['ex7-89', 2], // Rocket's Poké Ball
+      ['ex14-74', 2], // Cessation Crystal
+      ['ex6-100', 1], // VS Seeker
+      ['ex7-84', 1], // Pokémon Retriever
+      ['ex1-108', 3], // Fire Energy
+      ['ex16-87', 4], // Darkness Energy
+      ['ex8-95', 4], // Scramble Energy
+      ['ex15-84', 2], // Holon Energy FF
+      ['ex8-94', 2], // Heal Energy
+    ],
+  },
+  {
+    id: 'g3-dragtrode',
+    gen: 3,
+    name: 'Dragtrode',
+    text: 'Dark Dragonite and Dark Electrode flood the board with Darkness Energy for Rocket\'s Sneasel ex\'s Dark Ring.',
+    cover: 'ex7-15',
+    source: 'https://jklaczpokemon.com/ex-decks/#dragtrode',
+    list: [
+      ['ex7-103', 4], // Rocket's Sneasel ex
+      ['ex7-53', 3], // Dratini
+      ['ex7-31', 3], // Dark Dragonair
+      ['ex7-15', 2], // Dark Dragonite
+      ['ex12-68', 1], // Voltorb
+      ['ex6-85', 1], // Voltorb
+      ['ex7-4', 2], // Dark Electrode
+      ['ex7-102', 1], // Rocket's Scyther ex
+      ['ex5-88', 4], // Desert Ruins
+      ['ex7-86', 4], // Rocket's Admin.
+      ['ex11-93', 3], // Holon Mentor
+      ['ex13-85', 1], // Holon Adventurer
+      ['ex11-97', 1], // Holon Scientist
+      ['ex16-83', 2], // Steven's Advice
+      ['ex3-87', 1], // Mr. Briney's Compassion
+      ['ex11-98', 4], // Holon Transceiver
+      ['ex7-89', 4], // Rocket's Poké Ball
+      ['ex14-84', 2], // Warp Point
+      ['ex14-85', 1], // Windstorm
+      ['ex6-100', 1], // VS Seeker
+      ['ex16-87', 4], // Darkness Energy
+      ['ex7-94', 4], // Dark Metal Energy
+      ['ex12-81', 4], // Rainbow Energy
+      ['ex7-95', 3], // R Energy
+    ],
+  },
+  {
+    id: 'g3-scizor-ex-metagross',
+    gen: 3,
+    name: 'Scizor ex / Metagross',
+    text: 'Metal attackers: Scizor ex and Metagross, with Pidgeot\'s Quick Search to find what each turn needs.',
+    cover: 'ex10-108',
+    source: 'https://jklaczpokemon.com/ex-decks/#scizor-ex-metagross',
+    list: [
+      ['ex16-101', 1], // Jolteon ☆
+      ['ex5-54', 3], // Beldum
+      ['ex8-40', 1], // Metang
+      ['ex8-11', 3], // Metagross
+      ['ex10-46', 3], // Scyther
+      ['ex10-108', 2], // Scizor ex
+      ['ex6-73', 2], // Pidgey
+      ['ex6-45', 1], // Pidgeotto
+      ['ex6-10', 2], // Pidgeot
+      ['ex8-9', 1], // Jirachi
+      ['ex14-12', 1], // Tauros
+      ['ex11-70', 1], // Holon's Magnemite
+      ['ex12-75', 1], // Giant Stump
+      ['ex7-86', 4], // Rocket's Admin.
+      ['ex10-89', 3], // Professor Elm's Training Method
+      ['ex11-93', 2], // Holon Mentor
+      ['ex13-85', 1], // Holon Adventurer
+      ['ex11-97', 1], // Holon Scientist
+      ['ex16-83', 1], // Steven's Advice
+      ['ex11-98', 4], // Holon Transceiver
+      ['ex13-90', 4], // Rare Candy
+      ['ex14-85', 3], // Windstorm
+      ['ex14-84', 2], // Warp Point
+      ['ex7-84', 1], // Pokémon Retriever
+      ['ex1-107', 6], // Psychic Energy
+      ['ex16-88', 4], // Metal Energy
+      ['ex16-91', 2], // Warp Energy
+    ],
+  },
+  {
+    id: 'g3-rock-lock',
+    gen: 3,
+    name: 'Rock Lock',
+    text: 'Builds damage with Dark Tyranitar\'s Sand Damage and Dark Ampharos\'s Darkest Impulse, Ancient Technical Machine [Rock] adding to both.',
+    cover: 'ex7-2',
+    source: 'https://jklaczpokemon.com/ex-decks-2/#rock-lock',
+    list: [
+      ['ex11-73', 2], // Larvitar δ
+      ['ex7-63', 1], // Larvitar
+      ['ex7-40', 1], // Dark Pupitar
+      ['ex7-20', 2], // Dark Tyranitar
+      ['ex7-19', 1], // Dark Tyranitar
+      ['ex3-64', 2], // Mareep
+      ['ex7-33', 1], // Dark Flaaffy
+      ['ex7-2', 2], // Dark Ampharos
+      ['ex6-73', 2], // Pidgey
+      ['ex6-45', 1], // Pidgeotto
+      ['ex6-10', 2], // Pidgeot
+      ['ex8-9', 1], // Jirachi
+      ['ex12-8', 1], // Lapras
+      ['ex16-92', 1], // Absol ex
+      ['ex11-70', 1], // Holon's Magnemite
+      ['ex11-71', 1], // Holon's Voltorb
+      ['ex13-44', 1], // Holon's Castform
+      ['ex14-12', 1], // Tauros
+      ['ex7-90', 1], // Rocket's Tricky Gym
+      ['ex2-87', 4], // Lanette's Net Search
+      ['ex6-88', 4], // Celio's Network
+      ['ex7-86', 3], // Rocket's Admin.
+      ['ex3-87', 1], // Mr. Briney's Compassion
+      ['ex13-90', 4], // Rare Candy
+      ['ex5-85', 2], // Ancient Technical Machine [Rock]
+      ['ex14-85', 2], // Windstorm
+      ['ex7-89', 1], // Rocket's Poké Ball
+      ['ex6-100', 1], // VS Seeker
+      ['ex7-92', 1], // Swoop! Teleporter
+      ['ex7-84', 1], // Pokémon Retriever
+      ['ex16-87', 4], // Darkness Energy
+      ['ex14-88', 3], // Double Rainbow Energy
+      ['ex15-89', 3], // Scramble Energy
+      ['ex8-94', 1], // Heal Energy
     ],
   },
 ];
@@ -1206,6 +1718,176 @@ export const PREMADE_GEN4: PremadeDeck[] = [
       ['hgss1-120', 9], // Fighting Energy
       ['hgss1-103', 4], // Double Colorless Energy
       ['hgss1-104', 3], // Rainbow Energy
+    ],
+  },
+  {
+    id: 'g4-gyarados',
+    gen: 4,
+    name: 'Gyarados',
+    text: 'Sableye leads while Supporters fill the discard pile with Magikarp, then Gyarados\'s Tail Revenge hits for 30 for each of them.',
+    cover: 'dp7-19',
+    source: 'https://jklaczpokemon.com/dpp-decks/#gyarados',
+    list: [
+      ['dp7-48', 4], // Sableye
+      ['dp7-65', 4], // Magikarp
+      ['dp7-19', 3], // Gyarados
+      ['dp6-43', 2], // Uxie
+      ['dp6-146', 1], // Uxie
+      ['pl1-47', 2], // Crobat G
+      ['dp6-36', 1], // Regice
+      ['dp6-19', 1], // Azelf
+      ['dp5-49', 1], // Unown Q
+      ['dp7-57', 1], // Combee
+      ['pl1-104', 3], // Broken Time-Space
+      ['dp3-125', 4], // Roseanne's Research
+      ['dp4-98', 3], // Felicity's Drawing
+      ['dp6-131', 2], // Cynthia's Feelings
+      ['dp3-119', 2], // Bebe's Search
+      ['dp6-130', 1], // Buck's Training
+      ['pl1-115', 4], // Pokémon Rescue
+      ['dp1-115', 4], // Super Scoop Up
+      ['pl1-118', 3], // Team Galactic's Invention G-105 Poké Turn
+      ['pl3-140', 3], // VS Seeker
+      ['dp1-109', 3], // PlusPower
+      ['pl4-87', 2], // Expert Belt
+      ['dp7-86', 2], // Luxury Ball
+      ['dp1-129', 2], // Darkness Energy
+      ['dp7-94', 2], // Cyclone Energy
+    ],
+  },
+  {
+    id: 'g4-machamp',
+    gen: 4,
+    name: 'Machamp',
+    text: 'Machamp\'s Take Out one-hit KOs unevolved Pokémon for one Fighting Energy: the counter to the SP decks.',
+    cover: 'dp7-20',
+    source: 'https://jklaczpokemon.com/dpp-decks/#machamp',
+    notes: 'The page numbers Relicanth SF 79 and Fighting Energy DP 126; used SV 79 and DP 128.',
+    list: [
+      ['dp7-64', 4], // Machop
+      ['dp7-41', 4], // Machoke
+      ['dp7-20', 3], // Machamp
+      ['dp7-98', 1], // Machamp
+      ['pl4-32', 3], // Spiritomb
+      ['dp4-60', 2], // Baltoy
+      ['dp4-15', 2], // Claydol
+      ['dp7-61', 1], // Finneon
+      ['dp7-4', 1], // Lumineon
+      ['pl3-79', 1], // Relicanth
+      ['dp6-43', 1], // Uxie
+      ['dp6-19', 1], // Azelf
+      ['dp5-49', 1], // Unown Q
+      ['pl1-104', 3], // Broken Time-Space
+      ['dp3-125', 4], // Roseanne's Research
+      ['dp3-119', 4], // Bebe's Search
+      ['dp6-131', 2], // Cynthia's Feelings
+      ['pl1-109', 1], // Looker's Investigation
+      ['dp7-88', 4], // Poké Blower +
+      ['dp7-86', 1], // Luxury Ball
+      ['dp4-101', 1], // Premier Ball
+      ['dp3-120', 1], // Night Maintenance
+      ['dp1-116', 1], // Warp Point
+      ['dp1-128', 9], // Fighting Energy
+      ['dp5-92', 4], // Call Energy
+    ],
+  },
+  {
+    id: 'g4-dialgachomp',
+    gen: 4,
+    name: 'Dialgachomp',
+    text: 'An SP deck: Dialga G\'s Deafen slows the opponent while Garchomp C LV.X snipes, Dialga G LV.X\'s Time Crystal for Poké-Bodies.',
+    cover: 'pl1-7',
+    source: 'https://jklaczpokemon.com/dpp-decks/#dialgachomp',
+    notes: 'The page numbers the Uxie LV.X LA 143 (Mesprit LV.X); used LA 146.',
+    list: [
+      ['pl1-7', 2], // Dialga G
+      ['pl1-122', 1], // Dialga G LV.X
+      ['pl3-60', 2], // Garchomp C
+      ['pl3-145', 2], // Garchomp C LV.X
+      ['pl1-47', 2], // Crobat G
+      ['dpp-DP41', 1], // Toxicroak G
+      ['pl1-41', 1], // Bronzong G
+      ['pl2-56', 1], // Ambipom G
+      ['dp6-146', 3], // Uxie
+      ['dp6-19', 1], // Azelf
+      ['dp4-57', 1], // Unown G
+      ['dp5-49', 1], // Unown Q
+      ['pl1-105', 4], // Cyrus's Conspiracy
+      ['dp3-125', 4], // Roseanne's Research
+      ['pl1-109', 1], // Looker's Investigation
+      ['dp3-119', 1], // Bebe's Search
+      ['pl2-88', 1], // Aaron's Collection
+      ['pl1-116', 4], // Team Galactic's Invention G-101 Energy Gain
+      ['pl1-118', 4], // Team Galactic's Invention G-105 Poké Turn
+      ['pl1-117', 4], // Team Galactic's Invention G-103 Power Spray
+      ['pl2-96', 3], // Team Galactic's Invention G-109 SP Radar
+      ['dp7-86', 1], // Luxury Ball
+      ['pl4-87', 1], // Expert Belt
+      ['pl3-140', 1], // VS Seeker
+      ['dp1-127', 3], // Psychic Energy
+      ['dp1-130', 1], // Metal Energy
+      ['dp3-130', 4], // Metal Energy
+      ['dp5-92', 4], // Call Energy
+      ['dp7-95', 1], // Warp Energy
+    ],
+  },
+  {
+    id: 'g4-lanturn',
+    gen: 4,
+    name: 'Lanturn / Feraligatr',
+    text: 'Feraligatr\'s Rain Dance floods the board with Water Energy for Lanturn\'s Powerful Spark.',
+    cover: 'hgss2-86',
+    source: 'https://jklaczpokemon.com/hs/#lanturn',
+    list: [
+      ['hgss2-48', 4], // Chinchou
+      ['hgss2-86', 4], // Lanturn
+      ['hgss1-86', 3], // Totodile
+      ['hgss1-38', 1], // Croconaw
+      ['hgss1-108', 3], // Feraligatr
+      ['hgss1-17', 2], // Cleffa
+      ['hgss3-8', 1], // Smeargle
+      ['hgss3-71', 1], // Burned Tower
+      ['hgss1-97', 4], // Pokémon Collector
+      ['col1-83', 4], // Professor Oak's New Theory
+      ['hgss1-100', 3], // Professor Elm's Training Method
+      ['hgss1-92', 2], // Fisherman
+      ['hgss2-77', 2], // Interviewer's Questions
+      ['hgss1-98', 4], // Pokémon Communication
+      ['hgss2-82', 3], // Rare Candy
+      ['hgss1-99', 2], // Pokémon Reversal
+      ['hgss1-117', 11], // Water Energy
+      ['hgss1-118', 4], // Lightning Energy
+      ['hgss1-103', 2], // Double Colorless Energy
+    ],
+  },
+  {
+    id: 'g4-yanmega-magnezone',
+    gen: 4,
+    name: 'Yanmega / Magnezone',
+    text: 'Magnezone\'s Magnetic Draw matches hand sizes for Yanmega\'s free Insight, then Lost Burn takes the last Prizes.',
+    cover: 'hgss4-96',
+    source: 'https://jklaczpokemon.com/hs/#yanmega-magnezone',
+    list: [
+      ['hgss4-84', 4], // Yanma
+      ['hgss4-98', 4], // Yanmega
+      ['hgss4-68', 3], // Magnemite
+      ['hgss4-43', 1], // Magneton
+      ['hgss4-96', 3], // Magnezone
+      ['hgss2-49', 1], // Horsea
+      ['hgss2-85', 1], // Kingdra
+      ['hgss1-17', 1], // Cleffa
+      ['col1-36', 1], // Tyrogue
+      ['hgss1-97', 4], // Pokémon Collector
+      ['col1-83', 4], // Professor Oak's New Theory
+      ['hgss2-78', 3], // Judge
+      ['hgss3-77', 3], // Sage's Training
+      ['hgss2-82', 4], // Rare Candy
+      ['hgss1-98', 4], // Pokémon Communication
+      ['hgss4-87', 3], // Junk Arm
+      ['hgss1-99', 2], // Pokémon Reversal
+      ['hgss1-102', 1], // Switch
+      ['hgss1-118', 11], // Lightning Energy
+      ['hgss1-104', 2], // Rainbow Energy
     ],
   },
 ];
@@ -1551,6 +2233,168 @@ export const PREMADE_GEN5: PremadeDeck[] = [
       ['bw8-123', 1], // Hypnotoxic Laser
       ['bw1-105', 10], // Grass Energy
       ['bw8-127', 4], // Plasma Energy
+    ],
+  },
+  {
+    id: 'g5-plasma',
+    gen: 5,
+    name: 'Plasma',
+    text: 'Team Plasma: Thundurus-EX and Colress Machine power Kyurem\'s Frost Spear and Blizzard Burn, Deoxys-EX adding damage.',
+    cover: 'bw9-31',
+    source: 'https://jklaczpokemon.com/black-and-white-decks/#plasma',
+    list: [
+      ['bw9-53', 4], // Deoxys-EX
+      ['bw9-31', 3], // Kyurem
+      ['bw9-38', 2], // Thundurus-EX
+      ['bw9-67', 1], // Absol
+      ['bw8-108', 1], // Lugia-EX
+      ['bw7-49', 1], // Keldeo-EX
+      ['bw7-137', 1], // Computer Search
+      ['bw8-126', 2], // Virbank City Gym
+      ['bw1-101', 4], // Professor Juniper
+      ['bw3-92', 4], // N
+      ['bw8-118', 3], // Colress
+      ['bw7-134', 1], // Skyla
+      ['bw8-123', 4], // Hypnotoxic Laser
+      ['bw2-95', 4], // Pokémon Catcher
+      ['bw5-102', 3], // Ultra Ball
+      ['bw9-99', 3], // Float Stone
+      ['bw8-119', 3], // Colress Machine
+      ['bw9-105', 1], // Team Plasma Ball
+      ['bw6-116', 1], // Tool Scrapper
+      ['bw2-94', 1], // Max Potion
+      ['bw1-108', 2], // Lightning Energy
+      ['bw1-107', 2], // Water Energy
+      ['bw4-93', 4], // Prism Energy
+      ['bw8-127', 4], // Plasma Energy
+      ['bw4-92', 1], // Double Colorless Energy
+    ],
+  },
+  {
+    id: 'g5-sableye-garbodor',
+    gen: 5,
+    name: 'Sableye / Garbodor',
+    text: 'Sableye\'s Junk Hunt brings back Crushing and Enhanced Hammer to strip the opponent\'s Energy and win by deck-out.',
+    cover: 'bw5-62',
+    source: 'https://jklaczpokemon.com/black-and-white-decks/#sableye-garbodor',
+    list: [
+      ['bw5-62', 4], // Sableye
+      ['bw3-48', 3], // Trubbish
+      ['bw6-54', 2], // Garbodor
+      ['bw9-107', 1], // Life Dew
+      ['bw3-92', 4], // N
+      ['bw1-101', 4], // Professor Juniper
+      ['bw7-134', 4], // Skyla
+      ['bw2-92', 4], // Crushing Hammer
+      ['bw4-89', 4], // Level Ball
+      ['bw9-99', 3], // Float Stone
+      ['bw5-99', 3], // Random Receiver
+      ['bw2-95', 3], // Pokémon Catcher
+      ['bw5-102', 2], // Ultra Ball
+      ['bw5-94', 2], // Enhanced Hammer
+      ['bw3-95', 2], // Super Rod
+      ['bw2-96', 2], // Recycle
+      ['bw8-123', 1], // Hypnotoxic Laser
+      ['bw8-117', 1], // Bicycle
+      ['bw10-89', 1], // Silver Mirror
+      ['bw6-115', 1], // Rescue Scarf
+      ['bw6-116', 1], // Tool Scrapper
+      ['bw7-128', 1], // Energy Search
+      ['bw1-92', 1], // Energy Retrieval
+      ['bw1-111', 6], // Darkness Energy
+    ],
+  },
+  {
+    id: 'g5-flareon',
+    gen: 5,
+    name: 'Flareon / Cofagrigus',
+    text: 'Flareon\'s Vengeance grows with the Pokémon in the discard pile, Cofagrigus\'s Six Feet Under adding to it.',
+    cover: 'bw9-12',
+    source: 'https://jklaczpokemon.com/black-and-white-decks/#flareon',
+    list: [
+      ['bw9-89', 4], // Eevee
+      ['bw9-12', 4], // Flareon
+      ['bw5-51', 4], // Yamask
+      ['bw9-56', 4], // Cofagrigus
+      ['bw10-60', 4], // Jirachi-EX
+      ['bw7-108', 4], // Ditto
+      ['bw7-126', 2], // Audino
+      ['bw9-4', 1], // Exeggcute
+      ['bw7-137', 1], // Computer Search
+      ['bw3-92', 4], // N
+      ['bw1-101', 4], // Professor Juniper
+      ['bw5-102', 4], // Ultra Ball
+      ['bw9-105', 4], // Team Plasma Ball
+      ['bw4-89', 4], // Level Ball
+      ['bw10-88', 3], // Silver Bangle
+      ['bw2-95', 2], // Pokémon Catcher
+      ['bw10-89', 1], // Silver Mirror
+      ['bw9-99', 1], // Float Stone
+      ['bw6-116', 1], // Tool Scrapper
+      ['bw4-92', 4], // Double Colorless Energy
+    ],
+  },
+  {
+    id: 'g5-victini-ex-terrakion-ex',
+    gen: 5,
+    name: 'Victini-EX / Terrakion-EX',
+    text: 'Victini-EX\'s Turbo Energize readies Terrakion-EX on the first turn, Drifblim and Garbodor for the Plasma decks.',
+    cover: 'bw6-71',
+    source: 'https://jklaczpokemon.com/black-and-white-decks/#victini-ex-terrakion-ex',
+    list: [
+      ['bw11-24', 3], // Victini-EX
+      ['bw6-71', 3], // Terrakion-EX
+      ['bw6-50', 2], // Drifloon
+      ['bw6-51', 2], // Drifblim
+      ['bw11-67', 2], // Trubbish
+      ['bw11-68', 2], // Garbodor
+      ['bw10-60', 1], // Jirachi-EX
+      ['bw8-130', 1], // Victory Piece
+      ['bw1-101', 4], // Professor Juniper
+      ['bw5-96', 4], // N
+      ['bw7-134', 2], // Skyla
+      ['bw8-118', 2], // Colress
+      ['bw9-99', 4], // Float Stone
+      ['bw2-95', 4], // Pokémon Catcher
+      ['bw5-102', 4], // Ultra Ball
+      ['bw5-94', 2], // Enhanced Hammer
+      ['bw6-116', 1], // Tool Scrapper
+      ['bw1-92', 1], // Energy Retrieval
+      ['bw1-110', 9], // Fighting Energy
+      ['bw1-106', 7], // Fire Energy
+    ],
+  },
+  {
+    id: 'g5-weavile',
+    gen: 5,
+    name: 'Weavile',
+    text: 'Exeggcute\'s Propagation feeds Weavile\'s Vilify discards turn after turn.',
+    cover: 'bw9-66',
+    source: 'https://jklaczpokemon.com/black-and-white-decks/#weavile',
+    list: [
+      ['bw9-65', 3], // Sneasel
+      ['bw4-69', 1], // Sneasel
+      ['bw9-66', 4], // Weavile
+      ['bw9-4', 4], // Exeggcute
+      ['bw5-62', 4], // Sableye
+      ['bw10-60', 2], // Jirachi-EX
+      ['bw5-63', 1], // Darkrai-EX
+      ['bw7-126', 1], // Audino
+      ['bw8-128', 1], // Dowsing Machine
+      ['bw1-101', 4], // Professor Juniper
+      ['bw3-92', 4], // N
+      ['bw9-101', 1], // Ghetsis
+      ['bw5-102', 4], // Ultra Ball
+      ['bw4-89', 3], // Level Ball
+      ['bw2-95', 3], // Pokémon Catcher
+      ['bw5-93', 3], // Dark Patch
+      ['bw5-99', 2], // Random Receiver
+      ['bw5-94', 1], // Enhanced Hammer
+      ['bw10-88', 1], // Silver Bangle
+      ['bw10-89', 1], // Silver Mirror
+      ['bw6-116', 1], // Tool Scrapper
+      ['bw3-95', 1], // Super Rod
+      ['bw1-111', 10], // Darkness Energy
     ],
   },
 ];
