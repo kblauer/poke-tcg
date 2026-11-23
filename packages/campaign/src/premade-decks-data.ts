@@ -301,7 +301,7 @@ export const PREMADE_GEN1: PremadeDeck[] = [
       ['base1-97', 7], // Fighting Energy
       ['base1-96', 1], // Double Colorless Energy
     ],
-  },
+  },
   {
     id: 'g1-aerodactyl-mewtwo',
     gen: 1,
@@ -330,7 +330,7 @@ export const PREMADE_GEN1: PremadeDeck[] = [
       ['base1-101', 12], // Psychic Energy
       ['base1-96', 4], // Double Colorless Energy
     ],
-  },
+  },
   {
     id: 'g1-exeggutor',
     gen: 1,
@@ -362,7 +362,7 @@ export const PREMADE_GEN1: PremadeDeck[] = [
       ['base1-101', 12], // Psychic Energy
       ['base1-96', 4], // Double Colorless Energy
     ],
-  },
+  },
   {
     id: 'g1-wigglytuff-mewtwo',
     gen: 1,
@@ -393,7 +393,7 @@ export const PREMADE_GEN1: PremadeDeck[] = [
       ['base1-101', 12], // Psychic Energy
       ['base1-96', 4], // Double Colorless Energy
     ],
-  },
+  },
   {
     id: 'g1-magmarbuzz',
     gen: 1,
@@ -781,7 +781,7 @@ export const PREMADE_GEN2: PremadeDeck[] = [
       ['base1-96', 4], // Double Colorless Energy
       ['neo1-105', 4], // Recycle Energy
     ],
-  },
+  },
   {
     id: 'g2-dark-crobat-sneasel',
     gen: 2,
@@ -812,7 +812,7 @@ export const PREMADE_GEN2: PremadeDeck[] = [
       ['base5-17', 4], // Rainbow Energy
       ['neo1-105', 4], // Recycle Energy
     ],
-  },
+  },
   {
     id: 'g2-light-dragonite',
     gen: 2,
@@ -847,7 +847,7 @@ export const PREMADE_GEN2: PremadeDeck[] = [
       ['neo1-19', 4], // Metal Energy
       ['neo1-105', 2], // Recycle Energy
     ],
-  },
+  },
   {
     id: 'g2-paint-lock',
     gen: 2,
@@ -879,7 +879,7 @@ export const PREMADE_GEN2: PremadeDeck[] = [
       ['neo1-105', 3], // Recycle Energy
       ['base1-96', 1], // Double Colorless Energy
     ],
-  },
+  },
   {
     id: 'g2-brocks-ninetales-steelix',
     gen: 2,
@@ -1255,7 +1255,7 @@ export const PREMADE_GEN3: PremadeDeck[] = [
       ['ex7-92', 1], // Swoop! Teleporter
       ['ex1-106', 5], // Water Energy
     ],
-  },
+  },
   {
     id: 'g3-bombtar',
     gen: 3,
@@ -1292,7 +1292,7 @@ export const PREMADE_GEN3: PremadeDeck[] = [
       ['ex15-84', 2], // Holon Energy FF
       ['ex8-94', 2], // Heal Energy
     ],
-  },
+  },
   {
     id: 'g3-dragtrode',
     gen: 3,
@@ -1326,7 +1326,7 @@ export const PREMADE_GEN3: PremadeDeck[] = [
       ['ex12-81', 4], // Rainbow Energy
       ['ex7-95', 3], // R Energy
     ],
-  },
+  },
   {
     id: 'g3-scizor-ex-metagross',
     gen: 3,
@@ -1363,7 +1363,7 @@ export const PREMADE_GEN3: PremadeDeck[] = [
       ['ex16-88', 4], // Metal Energy
       ['ex16-91', 2], // Warp Energy
     ],
-  },
+  },
   {
     id: 'g3-rock-lock',
     gen: 3,
@@ -1754,7 +1754,7 @@ export const PREMADE_GEN4: PremadeDeck[] = [
       ['dp1-129', 2], // Darkness Energy
       ['dp7-94', 2], // Cyclone Energy
     ],
-  },
+  },
   {
     id: 'g4-machamp',
     gen: 4,
@@ -1790,7 +1790,7 @@ export const PREMADE_GEN4: PremadeDeck[] = [
       ['dp1-128', 9], // Fighting Energy
       ['dp5-92', 4], // Call Energy
     ],
-  },
+  },
   {
     id: 'g4-dialgachomp',
     gen: 4,
@@ -1830,7 +1830,7 @@ export const PREMADE_GEN4: PremadeDeck[] = [
       ['dp5-92', 4], // Call Energy
       ['dp7-95', 1], // Warp Energy
     ],
-  },
+  },
   {
     id: 'g4-lanturn',
     gen: 4,
@@ -1859,7 +1859,7 @@ export const PREMADE_GEN4: PremadeDeck[] = [
       ['hgss1-118', 4], // Lightning Energy
       ['hgss1-103', 2], // Double Colorless Energy
     ],
-  },
+  },
   {
     id: 'g4-yanmega-magnezone',
     gen: 4,
@@ -2269,7 +2269,7 @@ export const PREMADE_GEN5: PremadeDeck[] = [
       ['bw8-127', 4], // Plasma Energy
       ['bw4-92', 1], // Double Colorless Energy
     ],
-  },
+  },
   {
     id: 'g5-sableye-garbodor',
     gen: 5,
@@ -2303,7 +2303,7 @@ export const PREMADE_GEN5: PremadeDeck[] = [
       ['bw1-92', 1], // Energy Retrieval
       ['bw1-111', 6], // Darkness Energy
     ],
-  },
+  },
   {
     id: 'g5-flareon',
     gen: 5,
@@ -2333,7 +2333,7 @@ export const PREMADE_GEN5: PremadeDeck[] = [
       ['bw6-116', 1], // Tool Scrapper
       ['bw4-92', 4], // Double Colorless Energy
     ],
-  },
+  },
   {
     id: 'g5-victini-ex-terrakion-ex',
     gen: 5,
@@ -2363,7 +2363,7 @@ export const PREMADE_GEN5: PremadeDeck[] = [
       ['bw1-110', 9], // Fighting Energy
       ['bw1-106', 7], // Fire Energy
     ],
-  },
+  },
   {
     id: 'g5-weavile',
     gen: 5,
