@@ -109,12 +109,17 @@ export interface IdleSettings {
    * Replace the lowest-level Pokémon, or registered and released).
    */
   catchShinies: boolean;
+  /**
+   * The level each upgrade is switched to (the user's, 2026-11-23: a bought tier clicked is switched off, with any after
+   * it, and on again for free; upgrades.ts' activeUpgrades); none set, every tier bought is on.
+   */
+  upgradeLevels: IdleUpgrades;
 }
 
 /** The most balls auto-buy keeps. */
 export const MAX_AUTO_BALLS = 99;
 
-export const DEFAULT_IDLE_SETTINGS: IdleSettings = { autoHeal: true, revives: ['last'], autoCatch: 'new', catchMove: 'basic', stopWhenFull: false, replaceLowest: false, autoEvolve: true, autoGrind: true, autoBalls: 0, alwaysCatch: [], catchShinies: true };
+export const DEFAULT_IDLE_SETTINGS: IdleSettings = { autoHeal: true, revives: ['last'], autoCatch: 'new', catchMove: 'basic', stopWhenFull: false, replaceLowest: false, autoEvolve: true, autoGrind: true, autoBalls: 0, alwaysCatch: [], catchShinies: true, upgradeLevels: {} };
 
 /**
  * The settings a segment plays by, with the player's own throws (the ball button, the user's: `throwAt`, the ticks of

@@ -1,7 +1,7 @@
 // Idle Adventure runs on the server (README: Idle Adventure), as runs.ts and towers.ts do for theirs: loading and saving
 // a run with its version checked (CONFLICT when stale), the time it's played up to (`simulatedAt`), banking its money
 // when it ends, and the account's Pokédex (IdleDex: each species' best IVs and EVs, merged from a segment's notes).
-import { BALLS, bankedMoney, momShare, reachedArea, runEndMiles, UPGRADE_TUNING, type IdleUpgrades, CATCH_UP_CAP_MS, cuts, DEFAULT_IDLE_SETTINGS, generation, idleView, inGeneration, repairState, throwable, throwTick, tickStartMs, TOWN_WAIT_MS, withPending, type DexNote, type IdleAction, type IdleGen, type IdleSettings, type IdleState, type SegmentEvent } from '@poke-tcg/idle';
+import { activeUpgrades, BALLS, bankedMoney, momShare, reachedArea, runEndMiles, UPGRADE_TUNING, type IdleUpgrades, CATCH_UP_CAP_MS, cuts, DEFAULT_IDLE_SETTINGS, generation, idleView, inGeneration, repairState, throwable, throwTick, tickStartMs, TOWN_WAIT_MS, withPending, type DexNote, type IdleAction, type IdleGen, type IdleSettings, type IdleState, type SegmentEvent } from '@poke-tcg/idle';
 import { prisma, type IdleRun, type Prisma } from '@poke-tcg/db';
 import { TRPCError } from '@trpc/server';
 import { asJson } from './games.js';
@@ -19,10 +19,13 @@ export const generationLocked = (gen: IdleGen, beaten: Set<number>) =>
 // (Its indexes put back in bounds should the data have changed under a saved run: repairState.)
 const loaded = (run: IdleRun): LoadedIdleRun => ({ ...run, state: repairState(run.state as unknown as IdleState) });
 
-/** The account's upgrades (issue #270: User.idleUpgrades), as the rules read them. */
+/**
+ * The account's upgrades in effect (issue #270: User.idleUpgrades, the tiers bought, no more than the levels the player
+ * switched them to, IdleSettings.upgradeLevels: activeUpgrades), as the rules read them.
+ */
 export async function idleUpgrades(userId: string, db: Db = prisma): Promise<IdleUpgrades> {
-  const { idleUpgrades: owned } = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { idleUpgrades: true } });
-  return (owned ?? {}) as IdleUpgrades;
+  const { idleUpgrades: owned, idleSettings: saved } = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { idleUpgrades: true, idleSettings: true } });
+  return activeUpgrades(owned as IdleUpgrades, (saved as Partial<IdleSettings> | null)?.upgradeLevels);
 }
 
 /**

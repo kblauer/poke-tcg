@@ -6,7 +6,7 @@ import { catchChance, ballTenths, bestBall } from './catch.js';
 import { applyIdleAction, createIdleRun, DEFAULT_IDLE_SETTINGS, martPrice, simulateSegment, STEP_MS, storeStock, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
 import { createMon } from './mon.js';
 import type { Mon, Stats } from './types.js';
-import { amuletPrize, buyUpgrade, discounted, momShare, nextPrice, restShare, runEndMiles, shinyFactor, starterSlots, UPGRADE_TUNING, UPGRADES, walkSpeed, type IdleUpgrades } from './upgrades.js';
+import { activeUpgrades, randomStarters, sampleStarters, toggledLevel, amuletPrize, buyUpgrade, discounted, momShare, nextPrice, restShare, runEndMiles, shinyFactor, starterSlots, UPGRADE_TUNING, UPGRADES, walkSpeed, type IdleUpgrades } from './upgrades.js';
 
 const MANUAL: IdleSettings = { ...DEFAULT_IDLE_SETTINGS, autoGrind: false };
 const ZERO: Stats = [0, 0, 0, 0, 0, 0];
@@ -27,10 +27,35 @@ describe('the upgrade tree (issue #270)', () => {
     expect(buyUpgrade(owned, 'discount', 10_000)).toEqual({ error: 'Every tier is bought' });
   });
 
+  it("uses a bought tier only while it's switched on, and switches it and those after it off with a click (the user's)", () => {
+    const owned: IdleUpgrades = { discount: 3, shoes: 2 };
+    expect(activeUpgrades(owned, {})).toEqual(owned);
+    // Switched to 1: only the first tier works; never more than bought.
+    expect(activeUpgrades(owned, { discount: 1, shoes: 3 })).toEqual({ discount: 1, shoes: 2 });
+    expect(activeUpgrades(owned, { discount: 0 })).toEqual({ shoes: 2 });
+    // A click on the 2nd tier (index 1) while it's on leaves the 1st on; on the 1st, nothing; on an off tier, on up to it.
+    expect(toggledLevel({ discount: 3 }, 'discount', 1)).toBe(1);
+    expect(toggledLevel({ discount: 1 }, 'discount', 0)).toBe(0);
+    expect(toggledLevel({ discount: 1 }, 'discount', 2)).toBe(3);
+  });
+
+  it('offers three of the starters at random with Randomized starters', () => {
+    expect([randomStarters({}), randomStarters({ randomStarters: 1 })]).toEqual([false, true]);
+    const options = [1, 4, 7, 16, 19, 25, 133];
+    for (let seed = 0; seed < 20; seed++) {
+      let n = seed;
+      const three = sampleStarters(options, 3, () => ((n = (n * 9301 + 49297) % 233280) / 233280));
+      expect(three).toHaveLength(3);
+      expect(new Set(three).size).toBe(3);
+      expect(three.every((id) => options.includes(id))).toBe(true);
+    }
+    expect(sampleStarters([1, 4]).sort()).toEqual([1, 4]);
+  });
+
   it("works out each upgrade's strength by its tier", () => {
     expect([restShare({}, 1), restShare({ expShare: 1 }, 1), restShare({ expShare: 1 }, 2), restShare({ expShare: 2 }, 5)]).toEqual([0.5, 0.75, 0.5, 0.75]);
     expect([starterSlots({}), starterSlots({ starters: 2 })]).toEqual([1, 3]);
-    expect([walkSpeed({}), walkSpeed({ shoes: 1 }), walkSpeed({ shoes: 2 })]).toEqual([1, 1.5, 2]);
+    expect([walkSpeed({}), walkSpeed({ shoes: 1 }), walkSpeed({ shoes: 2 })]).toEqual([1, 1.1, 1.25]);
     expect([shinyFactor({ premier: 1 }), shinyFactor({ premier: 2 })]).toEqual([1, 3]);
     expect([discounted({}, 200), discounted({ discount: 1 }, 200), discounted({ discount: 3 }, 200)]).toEqual([200, 180, 100]);
     expect([amuletPrize({}, 1000), amuletPrize({ amuletCoin: 3 }, 1000)]).toEqual([1000, 1200]);
@@ -68,8 +93,8 @@ describe('the upgrade tree (issue #270)', () => {
       return seg.events.filter((e): e is Extract<SegmentEvent, { t: 'walk' }> => e.t === 'walk');
     };
     expect(walks({})[0]!.ms).toBeUndefined();
-    expect(walks({ shoes: 1 })[0]!.ms).toBe(Math.round(STEP_MS / 1.5));
-    expect(walks({ shoes: 2 })[0]!.ms).toBe(Math.round(STEP_MS / 2));
+    expect(walks({ shoes: 1 })[0]!.ms).toBe(Math.round(STEP_MS / 1.1));
+    expect(walks({ shoes: 2 })[0]!.ms).toBe(Math.round(STEP_MS / 1.25));
   });
 
   it('sells the Premier Ball in every Mart, sure on a shiny, at the discounted prices', () => {

@@ -1,5 +1,5 @@
 import type { AppRouter } from '@poke-tcg/api/router';
-import { generation, areas, areaIndex, ballLineMs, BATTLE_HOLD_MS, CHALLENGE_MS, FADE_MS, FISH_CAST_MS, FISH_DOT_MS, FISH_TEXT_MS, introMs, openingLineMs, playing, STEP_MS, TICK_MS, TOWN_HERE_MS, type CatchUpSummary, type IdleAction, type IdleGen, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type UpgradeId, type WalkArea } from '@poke-tcg/idle';
+import { generation, areas, areaIndex, ballLineMs, BATTLE_HOLD_MS, CHALLENGE_MS, FADE_MS, FISH_CAST_MS, FISH_DOT_MS, FISH_TEXT_MS, introMs, openingLineMs, playing, STEP_MS, TICK_MS, TOWN_HERE_MS, type CatchUpSummary, type IdleAction, type IdleGen, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type IdleUpgrades, type UpgradeId, type WalkArea } from '@poke-tcg/idle';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { inferRouterOutputs } from '@trpc/server';
@@ -54,12 +54,17 @@ export function useIdleActions() {
   const money = useMutation(DEBUG_BUILD ? trpc.idle.debugMoney.mutationOptions({ onSuccess: setRun }) : NO_DEBUG);
   const sureCatch = useMutation(DEBUG_BUILD ? trpc.idle.debugCatch.mutationOptions({ onSuccess: setRun }) : NO_DEBUG);
   // The upgrade tree (issue #270): the account's tree after a purchase.
-  const buyUpgrade = useMutation(trpc.idle.buyUpgrade.mutationOptions({ onSuccess: (upgrades) => queryClient.setQueryData(key, (old) => old && { ...old, upgrades }) }));
+  const upgraded = { onSuccess: (upgrades: { miles: number; owned: IdleUpgrades; mom: number }) => queryClient.setQueryData(key, (old) => old && { ...old, upgrades }) };
+  const buyUpgrade = useMutation(trpc.idle.buyUpgrade.mutationOptions(upgraded));
+  // Debug mode's (the user's): an upgrade for free, and every one taken back.
+  const debugBuyUpgrade = useMutation(DEBUG_BUILD ? trpc.idle.debugBuyUpgrade.mutationOptions(upgraded) : NO_DEBUG);
+  const debugResetUpgrades = useMutation(DEBUG_BUILD ? trpc.idle.debugResetUpgrades.mutationOptions(upgraded) : NO_DEBUG);
   return {
     busy: start.isPending || debugStart.isPending || act.isPending || buyUpgrade.isPending,
     /** A new run: its first starter, and with the Starter slots upgrade the others (`more`). */
     start: (species: number, shiny: boolean, gen: IdleGen, debug = false, more: { species: number; shiny: boolean }[] = []) => (debug ? debugStart : start).mutateAsync({ species, shiny, gen, more }),
-    buyUpgrade: (id: UpgradeId) => buyUpgrade.mutateAsync({ id }),
+    buyUpgrade: (id: UpgradeId, debug = false) => (debug ? debugBuyUpgrade : buyUpgrade).mutateAsync({ id }),
+    resetUpgrades: () => debugResetUpgrades.mutateAsync(),
     act: (run: ClientIdleRun, action: IdleAction) => act.mutateAsync({ runId: run.id, expectedVersion: run.version, action }),
     settings: (s: Partial<IdleSettings>) => settings.mutateAsync(s),
     warp: (run: ClientIdleRun, area: string) => warp.mutateAsync({ runId: run.id, area }),

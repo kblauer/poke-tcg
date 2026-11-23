@@ -4,6 +4,9 @@ import { z } from 'zod';
 
 const uid = z.string().min(1).max(32);
 
+/** The upgrade tree's ids (issue #270), as a literal list for the schemas. */
+const UPGRADE_KEYS = ['randomStarters', 'expShare', 'starters', 'shoes', 'itemfinder', 'premier', 'discount', 'luckyEgg', 'amuletCoin', 'mom'] as const satisfies readonly UpgradeId[];
+
 export const idleActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('GYM') }),
   z.object({ type: z.literal('CONTINUE') }),
@@ -40,6 +43,8 @@ export const idleSettingsSchema = z.object({
   autoBalls: z.number().int().min(0).max(MAX_AUTO_BALLS),
   alwaysCatch: z.array(z.number().int().min(1).max(DEX_SIZE)).max(DEX_SIZE),
   catchShinies: z.boolean(),
+  // Each upgrade's level (0 to its tiers; the rules never use more than the account bought).
+  upgradeLevels: z.object(Object.fromEntries(UPGRADE_KEYS.map((id) => [id, z.number().int().min(0).max(3).optional()])) as Record<UpgradeId, z.ZodOptional<z.ZodNumber>>),
 }) satisfies z.ZodType<IdleSettings>;
 
 /** A new run: its starter (one of the three, or a species the account's Pokédex has caught, from the second run on), shiny if one was caught. */
@@ -60,7 +65,7 @@ export const idleHereInput = z.object({ runId: z.uuid() });
 /** Changes some of the settings (the rest kept). */
 export const idleSettingsInput = idleSettingsSchema.partial();
 /** Buying an upgrade's next tier (issue #270). */
-export const idleBuyUpgradeInput = z.object({ id: z.enum(['expShare', 'starters', 'shoes', 'itemfinder', 'premier', 'discount', 'luckyEgg', 'amuletCoin', 'mom'] satisfies UpgradeId[]) });
+export const idleBuyUpgradeInput = z.object({ id: z.enum(UPGRADE_KEYS) });
 /** Debug: a warp to an area (the run's party and bag kept). */
 export const idleWarpInput = z.object({ runId: z.uuid(), area: z.string().min(1).max(40) });
 /** Debug: every ball thrown in the run catches, or not. */

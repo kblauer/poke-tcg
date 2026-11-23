@@ -8,14 +8,16 @@
 // set by the server on every load):
 // - EXP Share → EXP All: on top of the party's half share (battle.ts's gainExp), the 2nd party Pokémon gets 75%, then all.
 // - Starter slots: a new run starts with 2, then 3, Pokémon (createIdleRun takes that many choices).
-// - Running Shoes → Bike: walking steps 1.5×, then 2× as fast (battles and towns keep their pace).
+// - Running Shoes → Bike: walking steps 1.1×, then 1.25× as fast (battles and towns keep their pace), the Bike ridden.
 // - Itemfinder → Pickup: after a won battle, a chance of an item from the region's mart stock, cheaper ones likelier.
 // - Premier Ball → Shiny Charm: the Premier Ball in every Mart (1×, always catches a shiny); shinies 3× as likely.
+// - Randomized starters (the tree's first, the user's, 2026-11-23): the three starters offered at a run's start are three
+//   at random from the account's starters (the screen's: the API checks any pick against the list as before).
 // - Mart discount, Lucky Egg (more EXP), Amulet Coin (more prize money from a trainer's first win), Send some to Mom (a
 //   share of a run's ending cash added to the next run's starting money, however it ended).
 
 /** An upgrade's id: its line of tiers. */
-export type UpgradeId = 'expShare' | 'starters' | 'shoes' | 'itemfinder' | 'premier' | 'discount' | 'luckyEgg' | 'amuletCoin' | 'mom';
+export type UpgradeId = 'randomStarters' | 'expShare' | 'starters' | 'shoes' | 'itemfinder' | 'premier' | 'discount' | 'luckyEgg' | 'amuletCoin' | 'mom';
 
 /** The account's upgrades: how many tiers of each are bought (none missing). */
 export type IdleUpgrades = Partial<Record<UpgradeId, number>>;
@@ -32,6 +34,7 @@ export const UPGRADE_TUNING = {
   firstCatch: 5,
   /** Each tier's price, by upgrade. */
   prices: {
+    randomStarters: [0],
     expShare: [100, 400],
     starters: [150, 600],
     shoes: [100, 400],
@@ -45,7 +48,7 @@ export const UPGRADE_TUNING = {
   /** A party Pokémon that didn't fight's share of the EXP with EXP Share (the 2nd in the party) and EXP All (all). */
   expShare: 0.75,
   /** Walking speed with Running Shoes, then the Bike. */
-  walkSpeed: [1.5, 2],
+  walkSpeed: [1.1, 1.25],
   /** The chance of an item after a won battle with Itemfinder, then Pickup. */
   findChance: [0.05, 0.15],
   /** How much likelier a shiny is with the Shiny Charm. */
@@ -67,6 +70,7 @@ const T = UPGRADE_TUNING;
 
 /** The tree, in the screen's order. */
 export const UPGRADES: readonly Upgrade[] = [
+  { id: 'randomStarters', tiers: [{ name: 'Randomized starters', text: 'The three starters offered at the start of a run are three at random from the Pokémon you can start with.' }] },
   {
     id: 'expShare',
     tiers: [
@@ -114,6 +118,25 @@ export const upgradeOf = (id: UpgradeId) => UPGRADES.find((u) => u.id === id)!;
 /** How many tiers of an upgrade the account has (0 to its tiers). */
 export const tierOf = (upgrades: IdleUpgrades | undefined, id: UpgradeId) => Math.max(0, Math.min(Math.floor(upgrades?.[id] ?? 0), upgradeOf(id).tiers.length));
 
+/** Every upgrade's id, in the tree's order. */
+export const UPGRADE_IDS: readonly UpgradeId[] = UPGRADES.map((u) => u.id);
+
+/**
+ * The upgrades in effect (the user's, 2026-11-23: a bought tier can be switched off, and on again for free): each one's
+ * tiers bought, but no more than the level the player switched it to (IdleSettings.upgradeLevels; none set, all of them).
+ */
+export function activeUpgrades(owned: IdleUpgrades | undefined, levels: IdleUpgrades | undefined): IdleUpgrades {
+  const out: IdleUpgrades = {};
+  for (const id of UPGRADE_IDS) {
+    const tier = Math.min(tierOf(owned, id), levels?.[id] === undefined ? Infinity : tierOf(levels, id));
+    if (tier > 0) out[id] = tier;
+  }
+  return out;
+}
+
+/** The level a bought tier's click switches an upgrade to (tier `i`, from 0): on, it and the tiers after it off; off, on up to it. */
+export const toggledLevel = (active: IdleUpgrades | undefined, id: UpgradeId, i: number) => (tierOf(active, id) > i ? i : i + 1);
+
 /** The next tier's price, or null when every tier is bought. */
 export const nextPrice = (upgrades: IdleUpgrades | undefined, id: UpgradeId): number | null => UPGRADE_TUNING.prices[id][tierOf(upgrades, id)] ?? null;
 
@@ -129,6 +152,19 @@ export function buyUpgrade(upgrades: IdleUpgrades, id: UpgradeId, balance: numbe
 export function restShare(upgrades: IdleUpgrades | undefined, index: number): number {
   const tier = tierOf(upgrades, 'expShare');
   return tier >= 2 || (tier === 1 && index === 1) ? UPGRADE_TUNING.expShare : 0.5;
+}
+
+/** Whether the starters offered at a run's start are random ones (Randomized starters). */
+export const randomStarters = (upgrades: IdleUpgrades | undefined) => tierOf(upgrades, 'randomStarters') >= 1;
+
+/** `count` of the starters at random (all of them when there are no more), in a random order. */
+export function sampleStarters(options: readonly number[], count = 3, random: () => number = Math.random): number[] {
+  const pool = [...options];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j]!, pool[i]!];
+  }
+  return pool.slice(0, count);
 }
 
 /** How many Pokémon a new run starts with. */

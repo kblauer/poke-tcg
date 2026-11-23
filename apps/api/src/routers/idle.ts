@@ -1,5 +1,5 @@
 import { prisma } from '@poke-tcg/db';
-import { buyUpgrade, starterSlots, START_MONEY, areas, applyIdleAction, areaIndex, generation, generationOf, IDLE_GENERATIONS, inGeneration, regionReady, isBaseForm, isOptional, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, starters, visitStore, withPending, type IdleGen, type IdleSettings, type IdleUpgrades, type Stats } from '@poke-tcg/idle';
+import { buyUpgrade, starterSlots, START_MONEY, areas, applyIdleAction, areaIndex, generation, generationOf, IDLE_GENERATIONS, inGeneration, regionReady, isBaseForm, isOptional, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, starters, visitStore, withPending, type IdleGen, type IdleSettings, type IdleUpgrades, type Stats, type UpgradeId } from '@poke-tcg/idle';
 import { idleBuyUpgradeInput, idleActInput, idleDebugCatchInput, idleDebugNextInput, idleHereInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput, type StartIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
@@ -41,8 +41,9 @@ async function startIdle(userId: string, input: StartIdleInput, debug: boolean) 
     if (locked) throw failed(locked);
     const runs = await tx.idleRun.count({ where: { ownerId: userId } });
     const caught = await caughtSpecies(userId, tx);
-    const account = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { idleUpgrades: true, idleMom: true } });
-    const upgrades = (account.idleUpgrades ?? {}) as IdleUpgrades;
+    const account = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { idleMom: true } });
+    // (The upgrades in effect: a Starter slots tier switched off gives no slot.)
+    const upgrades = await idleUpgrades(userId, tx);
     const picks = [{ species: input.species, shiny: input.shiny }, ...input.more];
     if (picks.length > starterSlots(upgrades)) throw failed(`Only ${starterSlots(upgrades)} starter${starterSlots(upgrades) === 1 ? '' : 's'}`);
     if (new Set(picks.map((p) => p.species)).size !== picks.length) throw failed('Pick different Pokémon');
@@ -61,6 +62,18 @@ async function startIdle(userId: string, input: StartIdleInput, debug: boolean) 
     return tx.idleRun.create({ data: { ownerId: userId, state: asJson(state), version: state.version, seed } });
   });
   return clientIdleRun(withUpgrades({ ...created, state: created.state as never }, await idleUpgrades(userId)));
+}
+
+/**
+ * A tier just bought switches its upgrade fully on (the user's: a tier switched off is on again with the new one):
+ * its level dropped from the settings (IdleSettings.upgradeLevels).
+ */
+async function switchOn(tx: Db, userId: string, id: UpgradeId) {
+  const { idleSettings: saved } = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { idleSettings: true } });
+  const settings = (saved ?? {}) as Partial<IdleSettings>;
+  if (settings.upgradeLevels?.[id] === undefined) return;
+  const { [id]: _, ...levels } = settings.upgradeLevels;
+  await tx.user.update({ where: { id: userId }, data: { idleSettings: asJson({ ...settings, upgradeLevels: levels }) } });
 }
 
 /** The account's upgrade tree (issue #270): its currency, the tiers bought and Mom's money for the next run. */
@@ -252,7 +265,33 @@ export const idleRouter = router({
       const bought = buyUpgrade(now.owned, input.id, now.miles);
       if ('error' in bought) throw failed(bought.error);
       await tx.user.update({ where: { id: ctx.user.id }, data: { idleMiles: { decrement: bought.price }, idleUpgrades: asJson(bought.upgrades) } });
+      await switchOn(tx, ctx.user.id, input.id);
       return { ...now, miles: now.miles - bought.price, owned: bought.upgrades };
+    }),
+  ),
+
+  /**
+   * Debug (refused in production; the user's, 2026-11-23): an upgrade's next tier for free, none bought until asked
+   * (debug mode doesn't unlock them by default), the currency untouched.
+   */
+  debugBuyUpgrade: debugProcedure.input(idleBuyUpgradeInput).mutation(({ ctx, input }) =>
+    prisma.$transaction(async (tx) => {
+      await lockUser(tx, ctx.user.id);
+      const now = await upgradeView(ctx.user.id, tx);
+      const bought = buyUpgrade(now.owned, input.id, Number.MAX_SAFE_INTEGER);
+      if ('error' in bought) throw failed(bought.error);
+      await tx.user.update({ where: { id: ctx.user.id }, data: { idleUpgrades: asJson(bought.upgrades) } });
+      await switchOn(tx, ctx.user.id, input.id);
+      return { ...now, owned: bought.upgrades };
+    }),
+  ),
+
+  /** Debug (refused in production; the user's): every upgrade bought is taken back (the currency and Mom's money kept). */
+  debugResetUpgrades: debugProcedure.mutation(({ ctx }) =>
+    prisma.$transaction(async (tx) => {
+      await lockUser(tx, ctx.user.id);
+      await tx.user.update({ where: { id: ctx.user.id }, data: { idleUpgrades: {} } });
+      return upgradeView(ctx.user.id, tx);
     }),
   ),
 
