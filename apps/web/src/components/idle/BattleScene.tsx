@@ -88,12 +88,22 @@ function Burst({ item, f, x, y }: { item: string; f: number; x: number; y: numbe
   );
 }
 
-/** A Pokémon (or trainer) picture, 64x64, centred at x, y, scaled, blended `tint` sixteenths to a colour (its own shape: a mask). */
-function Pic({ src, x, y, scale = 1, tint, clipBottom, anim }: { src: string; x: number; y: number; scale?: number; tint?: { color: string; level: number }; clipBottom?: number; anim?: string }) {
+/** How far a back picture's last row is drawn on below it (Pic's `fill`): more than its lunge lifts it (idle-lunge-0's 4%). */
+export const FILL_PX = 8;
+
+/**
+ * A Pokémon (or trainer) picture, 64x64, centred at x, y, scaled, blended `tint` sixteenths to a colour (its own shape: a
+ * mask). `fill`: a back picture's last row of art (its straight cut at the menu's edge), drawn on FILL_PX below it so an
+ * attack's lunge shows no gap under it (the user's, 2026-11-22).
+ */
+function Pic({ src, x, y, scale = 1, tint, clipBottom, anim, fill }: { src: string; x: number; y: number; scale?: number; tint?: { color: string; level: number }; clipBottom?: number; anim?: string; fill?: number }) {
   const style: CSSProperties = { left: Math.round(x) - 32, top: Math.round(y) - 32, width: 64, height: 64, transform: scale !== 1 ? `scale(${scale})` : undefined };
   const body = (
     <span className="absolute" style={style}>
       <span className="absolute inset-0" style={{ animation: anim }}>
+      {fill !== undefined && scale === 1 && !(tint && tint.level > 0) && (
+        <span className="absolute inset-x-0" style={{ top: fill + 1, height: FILL_PX, backgroundImage: `url(${src})`, backgroundSize: `64px ${64 * FILL_PX}px`, backgroundPosition: `0 ${-fill * FILL_PX}px`, imageRendering: 'pixelated' }} />
+      )}
       <img src={src} alt="" className="absolute inset-0 h-full w-full" draggable={false} />
       {tint && tint.level > 0 && (
         <span className="absolute inset-0" style={{ background: tint.color, opacity: tint.level / 16, maskImage: `url(${src})`, WebkitMaskImage: `url(${src})`, maskSize: '100% 100%', WebkitMaskSize: '100% 100%' }} />
@@ -401,7 +411,7 @@ export function BattleScene({
       const em = emerging(o);
       flash = Math.max(flash, em.flash);
       const fy = faint ? Math.max(0, frames(faint.at)) * 5 : 0;
-      if (y + fy - 32 < GAME_HEIGHT) parts.push(<Pic key={`me${mon.uid}`} src={monSrc(mon, 0)} x={72} y={y + em.y2 + fy} scale={em.scale} tint={{ color: rgb(BALL_COLOR['poke-ball']!), level: em.tint }} anim={anim(0)} />);
+      if (y + fy - 32 < GAME_HEIGHT) parts.push(<Pic key={`me${mon.uid}`} src={monSrc(mon, 0)} x={72} y={y + em.y2 + fy} scale={em.scale} tint={{ color: rgb(BALL_COLOR['poke-ball']!), level: em.tint }} anim={anim(0)} fill={63 - species(mon.species).pic.backY} />);
       const h = o - OPEN_FRAMES.emerge;
       if (!faint && h >= 0) healthboxes.push(<Healthbox key="hb0" mon={live(0, mon)} player exp={exp[mon.uid]} x={126} y={72} style={{ transform: `translateX(${115 - clamp(h * 5, 0, 115)}px)` }} />);
     }
