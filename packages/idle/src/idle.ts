@@ -17,6 +17,7 @@ import { EXTRA_PERCENT, FISH_BITE_PERCENT, fishBiteE, pickWildE, wildCheckE } fr
 import { abilityOf, autoSlots, basicFor, createMon, familyMovesUpTo, isBaseForm, newUid } from './mon.js';
 import { MAX_LEVEL } from './stats.js';
 import { isMachine, machinePrice, slotMoves } from './tms.js';
+import { amuletPrize, discounted, findChance, premierBalls, shinyFactor, walkSpeed, type IdleUpgrades } from './upgrades.js';
 import type { EncounterSlots, EncounterTable, Mon, Stats } from './types.js';
 
 /** The run's starting money (the game's ₱3000: a placeholder, to balance later). */
@@ -35,6 +36,12 @@ export const PARTY_SIZE = 6;
  * turn (the user's: 10 s; 6 s and 3 s before), a battle's start and end, a fade.
  */
 export const STEP_MS = 267;
+
+/** A step's time on the run: STEP_MS, less with the Running Shoes or the Bike (upgrades.ts' walkSpeed). */
+export const stepMs = (state: Pick<IdleState, 'upgrades'>) => Math.round(STEP_MS / walkSpeed(state.upgrades));
+
+/** A walk or circle event's `ms` when it isn't STEP_MS (older segments, and runs without the upgrade, carry none). */
+const stepField = (ms: number) => (ms === STEP_MS ? {} : { ms });
 export const TICK_MS = 10000;
 /** A battle's own time besides its opening (battle-timing.ts: openingMs) and its ticks: the transition in, the screen held at its end. */
 export const BATTLE_MS = 2400;
@@ -128,6 +135,11 @@ interface EncounterState {
 }
 
 export interface IdleState {
+  /**
+   * The account's upgrades (upgrades.ts, issue #270), not the run's: set by the server whenever the run is loaded, so one
+   * bought mid-run applies from the next segment; the rules read them from here (prices, walking, shinies, finds…).
+   */
+  upgrades?: IdleUpgrades;
   version: number;
   rngState: number;
   /** The area (areas()' index), its leg and the step along it the player stands on. */
@@ -298,10 +310,11 @@ export type IdleResult = { ok: true; state: IdleState } | { ok: false; error: st
 /** What the browser plays back of a segment, in order. Step indexes are along the leg's track (areas()). */
 export type SegmentEvent =
   | { t: 'area'; area: number; leg: number; step: number }
-  | { t: 'walk'; from: number; to: number }
+  /** A step along the track; `ms` its time when the upgrades make walking faster (stepMs; STEP_MS when missing). */
+  | { t: 'walk'; from: number; to: number; ms?: number }
   /** Onto a town's grind loop (a fade), at its step `at`; then `steps` steps round it from `from`. */
   | { t: 'grind'; town: number; at: number }
-  | { t: 'circle'; from: number; steps: number }
+  | { t: 'circle'; from: number; steps: number; ms?: number }
   | { t: 'spotted'; trainer: string }
   /**
    * A cast (the user's: fishing on the map; FireRed's Task_Fishing): at the area's fishing spot `spot` (WalkArea.fishing),
@@ -336,6 +349,8 @@ export type SegmentEvent =
   | { t: 'badge'; badge: string }
   /** An item given (Kanto's Master Ball with the 8th badge). */
   | { t: 'gift'; item: string }
+  /** An item found after a won battle (the Itemfinder and Pickup upgrades: findItem). */
+  | { t: 'found'; item: string }
   | { t: 'whiteout' }
   | { t: 'town'; area: number }
   | { t: 'won' };
@@ -383,13 +398,20 @@ function rivalStarterFor(rng: Rng, id: number): IdleState['rivalStarter'] {
 }
 
 /** A new run in `gen`'s region with its starter at level 5 (a dex species keeps its record's IVs and EVs, its nature re-rolled). */
-export function createIdleRun(choice: StarterChoice, seed: number, gen: IdleGen = 1): IdleState {
-  return inGeneration(gen, () => ({ ...newRun(choice, seed), gen }));
+/**
+ * A new run: its starter, or several (the Starter slots upgrade, upgrades.ts: the API checks how many the account may
+ * have), the first its lead and the one the rival answers; `money` its starting money when not START_MONEY (Send some to
+ * Mom's share of the last run's added to it).
+ */
+export function createIdleRun(choice: StarterChoice | readonly StarterChoice[], seed: number, gen: IdleGen = 1, o: { money?: number } = {}): IdleState {
+  const choices = Array.isArray(choice) ? choice : [choice as StarterChoice];
+  return inGeneration(gen, () => ({ ...newRun(choices, seed, o.money ?? START_MONEY), gen }));
 }
 
-function newRun(choice: StarterChoice, seed: number): IdleState {
+function newRun(choices: readonly StarterChoice[], seed: number, money: number): IdleState {
   const rng = rngFrom(seed);
-  const mon = createMon(rng, { species: choice.species, level: STARTER_LEVEL, ...(choice.ivs && { ivs: choice.ivs }), ...(choice.evs && { evs: choice.evs }), ...(choice.shiny && { shiny: true }) });
+  const choice = choices[0]!;
+  const party = choices.map((c) => createMon(rng, { species: c.species, level: STARTER_LEVEL, ...(c.ivs && { ivs: c.ivs }), ...(c.evs && { evs: c.evs }), ...(c.shiny && { shiny: true }) }));
   const state: IdleState = {
     version: 0,
     rngState: rng.state,
@@ -397,15 +419,15 @@ function newRun(choice: StarterChoice, seed: number): IdleState {
     leg: 0,
     step: 0,
     beaten: [],
-    party: [mon],
+    party,
     bag: { ...START_BAG },
-    money: START_MONEY,
+    money,
     badges: [],
     encounter: { steps: 0, buff: 0, prev: '' },
     phase: 'walking',
     rivalStarter: rivalStarterFor(rng, choice.species),
     totals: { battles: 0, wild: 0, trainers: 0, caught: 0, whiteOuts: 0, steps: 0 },
-    log: [`Set off from ${generation().home} with ${species(choice.species).name}.`],
+    log: [`Set off from ${generation().home} with ${choices.map((c) => species(c.species).name).join(' and ')}.`],
   };
   // Emerald's weather cycles' day, once for the run (the user's): Hoenn's only, so Kanto's and Johto's runs draw as before.
   if (generation().game === 'emerald') state.weatherDay = int(rng, WEATHER_CYCLE_DAYS);
@@ -423,13 +445,23 @@ const leagueTown = () => areaIndex(generation().league.town);
  * The items a town's store sells: its marts' lists (martStock); once the run has reached the Indigo Plateau (the user's),
  * every Kanto store's, balls first, then medicine, then stones, each by price.
  */
-export function storeStock(town: TownArea, state?: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges'>): string[] {
+export function storeStock(town: TownArea, state?: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges' | 'upgrades'>): string[] {
   const badges = state?.badges.length ?? 0;
-  if (!state || reachedArea(state) < leagueTown()) return martStock(town, badges);
+  if (!state || reachedArea(state) < leagueTown()) return withPremier(martStock(town, badges), state);
   const all = [...new Set(areas().filter(isTown).flatMap((t) => martStock(t, badges)))];
   const kind = (item: string) => (BALLS.some(([b]) => b === item) ? 0 : MEDICINE[item] ? 1 : 2);
-  return all.sort((a, b) => kind(a) - kind(b) || itemData(a).price - itemData(b).price);
+  return withPremier(all.sort((a, b) => kind(a) - kind(b) || itemData(a).price - itemData(b).price), state);
 }
+
+/** A store's list with the Premier Ball after its other balls once the upgrade is bought (upgrades.ts: every Mart sells it). */
+function withPremier(stock: string[], state?: Pick<IdleState, 'upgrades'>): string[] {
+  if (!premierBalls(state?.upgrades) || stock.includes('premier-ball')) return stock;
+  const at = stock.reduce((n, item, i) => (BALLS.some(([b]) => b === item) ? i + 1 : n), 0);
+  return [...stock.slice(0, at), 'premier-ball', ...stock.slice(at)];
+}
+
+/** A Mart's price for the run (the Mart discount upgrade's: upgrades.ts). */
+export const martPrice = (state: Pick<IdleState, 'upgrades'>, item: string) => discounted(state.upgrades, isMachine(item) ? machinePrice(item) : itemData(item).price);
 
 /**
  * A town's own marts' lists without Escape Ropes and Repels (agreed), only those with a use here (balls, medicine,
@@ -737,7 +769,7 @@ function autoBuyBalls(state: IdleState, settings: IdleSettings, events: SegmentE
     .filter((b) => stock.includes(b))
     .sort((a, b) => itemData(a).price - itemData(b).price)[0];
   if (!ball) return;
-  const price = itemData(ball).price;
+  const price = martPrice(state, ball);
   const count = Math.min(want, Math.floor(state.money / price));
   if (count <= 0) return;
   state.money -= count * price;
@@ -759,7 +791,7 @@ function autoStones(state: IdleState, stock: string[], events: SegmentEvent[]) {
     if (NO_AUTO_STONE.includes(mon.species)) continue;
     const stone = usableStones(mon).find((s) => stock.includes(s));
     if (!stone) continue;
-    const price = itemData(stone).price;
+    const price = martPrice(state, stone);
     if (state.money < price) continue;
     state.money -= price;
     const into = stoneEvolution(mon, stone)!;
@@ -1039,7 +1071,7 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
         if (!tmShopOpen(state)) return fail(`TMs are sold from ${areaById(generation().tmShop).name} on`);
         if (state.bag[action.item]) return fail('You have it already');
         if (action.count !== 1) return fail('One of each');
-        const cost = machinePrice(action.item);
+        const cost = martPrice(state, action.item);
         if (cost > state.money) return fail('Not enough money');
         state.money -= cost;
         state.bag[action.item] = 1;
@@ -1050,7 +1082,7 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       }
       if (!storeStock(area, state).includes(action.item)) return fail('Not sold here');
       if (!Number.isInteger(action.count) || action.count < 1 || action.count > 99) return fail('Buy 1 to 99');
-      const cost = itemData(action.item).price * action.count;
+      const cost = martPrice(state, action.item) * action.count;
       if (cost > state.money) return fail('Not enough money');
       state.money -= cost;
       state.bag[action.item] = (state.bag[action.item] ?? 0) + action.count;
@@ -1297,7 +1329,7 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
   const before = state.party.map((m) => m.level);
   const t = o.trainer ? generation().trainers[o.trainer] : null;
   const result = simulateBattle(
-    { kind: o.kind, party: state.party, foes: o.foes, foeItems: t?.items ?? [], bag: state.bag, settings: { autoHeal: settings.autoHeal, revives: settings.revives, tryCatch, catchMove: settings.catchMove }, boss: !!o.trainer && /^(leader|elite-four|champion)/.test(o.trainer), badges: state.badges.length, terrain: terrainOf(o.tile), ...(o.kind === 'wild' && settings.throwAt?.length && { throwAt: settings.throwAt }), ...(state.debugCatch && { sureCatch: true }), ...ballMoment(state, caught, o.kind, o.foes[0]!.species, out), ...(o.weather && { weather: o.weather }) },
+    { kind: o.kind, party: state.party, foes: o.foes, foeItems: t?.items ?? [], bag: state.bag, settings: { autoHeal: settings.autoHeal, revives: settings.revives, tryCatch, catchMove: settings.catchMove, ...(state.upgrades && { upgrades: state.upgrades }) }, boss: !!o.trainer && /^(leader|elite-four|champion)/.test(o.trainer), badges: state.badges.length, terrain: terrainOf(o.tile), ...(o.kind === 'wild' && settings.throwAt?.length && { throwAt: settings.throwAt }), ...(state.debugCatch && { sureCatch: true }), ...ballMoment(state, caught, o.kind, o.foes[0]!.species, out), ...(o.weather && { weather: o.weather }) },
     rng,
   );
   out.events.push({
@@ -1372,13 +1404,35 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
     // user's, 2026-11-08: Gen 2 paid 4x Gen 1). Kanto's data marks no double battles.
     const full = t.money * o.foes.at(-1)!.level * (t.double ? 2 : 1);
     const rematch = (state.paid ?? []).includes(o.trainer);
-    const prize = rematch ? Math.floor(full * REMATCH_PRIZE) : full;
+    // The Amulet Coin's more on a first win (upgrades.ts).
+    const prize = rematch ? Math.floor(full * REMATCH_PRIZE) : amuletPrize(state.upgrades, full);
     if (!rematch) (state.paid ??= []).push(o.trainer);
     state.money += prize;
     out.events.push({ t: 'money', amount: prize, total: state.money, why: `${t.class} ${t.name}${rematch ? ', rematch' : ''}` });
   }
   if (result.result === 'lost') return false;
+  if (result.result === 'won') findItem(state, rng, out);
   return true;
+}
+
+/**
+ * The Itemfinder and Pickup upgrades (upgrades.ts): after a won battle, their chance of finding one item the region's
+ * marts sell (the latest town reached's store), cheaper ones likelier (weighted by 1 / price). No draw without them, so a
+ * run without the upgrade plays as before.
+ */
+function findItem(state: IdleState, rng: Rng, out: Segment) {
+  const chance = findChance(state.upgrades);
+  if (chance <= 0 || int(rng, 1000) >= Math.round(chance * 1000)) return;
+  const reached = reachedArea(state);
+  const town = areas().filter((a, i): a is TownArea => isTown(a) && i <= reached && a.marts.length > 0).at(-1);
+  const stock = town ? storeStock(town, state) : [];
+  if (!stock.length) return;
+  const weights = stock.map((item) => 1 / Math.max(1, itemData(item).price));
+  let r = (int(rng, 1_000_000) / 1_000_000) * weights.reduce((a, b) => a + b, 0);
+  const item = stock.find((_, i) => (r -= weights[i]!) < 0) ?? stock.at(-1)!;
+  state.bag[item] = (state.bag[item] ?? 0) + 1;
+  out.events.push({ t: 'found', item });
+  state.log.push(`Found a ${itemData(item).name}!`);
 }
 
 // ---- Grinding on a route (the user's, 2026-10-25) ----
@@ -1728,7 +1782,7 @@ function fishCast(state: IdleState, rng: Rng, settings: PlaySettings, caught: Se
   const [first, odds] = ROD_SLOTS[rod]!;
   const [min, max, id] = pickWild(rng, table, odds, first);
   const level = min + (int(rng, 65536) % (max - min + 1));
-  const wild = opponentMon(createMon(rng, { species: id, level, ...(int(rng, SHINY_ODDS) === 0 && { shiny: true }) }));
+  const wild = opponentMon(createMon(rng, { species: id, level, ...(int(rng, SHINY_ODDS) < shinyFactor(state.upgrades) && { shiny: true }) }));
   // On the water's terrain (a fished Pokémon's battle is on the water, as the game's).
   return battle(state, rng, settings, caught, { kind: 'wild', foes: [wild], tile: '.w', scene: map.scene }, out);
 }
@@ -1750,7 +1804,7 @@ function fishCastE(state: IdleState, rng: Rng, settings: PlaySettings, caught: S
   const feebas = map.name === FEEBAS_MAP && int(rng, 100) <= 49;
   const w = feebas ? pickWildE(rng, FEEBAS_TABLE, [100], 'fishing', lead)! : pickWildE(rng, table, odds, 'fishing', lead, first)!;
   Object.assign(state.encounter, { steps: 0, buff: 0 });
-  const wild = opponentMon(createMon(rng, { species: w.species, level: w.level, ...(w.nature !== undefined && { nature: w.nature }), ...(w.gender && { gender: w.gender }), ...(int(rng, SHINY_ODDS) === 0 && { shiny: true }) }));
+  const wild = opponentMon(createMon(rng, { species: w.species, level: w.level, ...(w.nature !== undefined && { nature: w.nature }), ...(w.gender && { gender: w.gender }), ...(int(rng, SHINY_ODDS) < shinyFactor(state.upgrades) && { shiny: true }) }));
   return battle(state, rng, settings, caught, { kind: 'wild', foes: [wild], tile: '.w', scene: map.scene, weather }, out);
 }
 
@@ -1775,7 +1829,7 @@ function wildStepE(state: IdleState, rng: Rng, settings: PlaySettings, caught: S
   const w = pickWildE(rng, table, kind === 'land' ? LAND_ODDS : WATER_ODDS, kind, lead);
   if (!w) return null;
   Object.assign(enc, { steps: 0, buff: 0 });
-  const wild = opponentMon(createMon(rng, { species: w.species, level: w.level, ...(w.nature !== undefined && { nature: w.nature }), ...(w.gender && { gender: w.gender }), ...(int(rng, SHINY_ODDS) === 0 && { shiny: true }) }));
+  const wild = opponentMon(createMon(rng, { species: w.species, level: w.level, ...(w.nature !== undefined && { nature: w.nature }), ...(w.gender && { gender: w.gender }), ...(int(rng, SHINY_ODDS) < shinyFactor(state.upgrades) && { shiny: true }) }));
   return battle(state, rng, settings, caught, { kind: 'wild', foes: [wild], tile, scene: map.scene, weather }, out);
 }
 
@@ -1797,7 +1851,7 @@ function fishCast4(state: IdleState, rng: Rng, settings: PlaySettings, caught: S
   if (!bite) return null;
   const w = pickWild4(rng, ROD_TABLES[rod]!, tables, lead, timeOfDayOf(state, out.durationMs) ?? 'day');
   if (!w) return null;
-  const wild = opponentMon(createMon(rng, { species: w.species, level: w.level, ...(w.nature !== undefined && { nature: w.nature }), ...(w.gender && { gender: w.gender }), ...(int(rng, SHINY_ODDS) === 0 && { shiny: true }) }));
+  const wild = opponentMon(createMon(rng, { species: w.species, level: w.level, ...(w.nature !== undefined && { nature: w.nature }), ...(w.gender && { gender: w.gender }), ...(int(rng, SHINY_ODDS) < shinyFactor(state.upgrades) && { shiny: true }) }));
   return battle(state, rng, settings, caught, { kind: 'wild', foes: [wild], tile: '.w', scene: map.scene }, out);
 }
 
@@ -1819,7 +1873,7 @@ function wildStep4(state: IdleState, rng: Rng, settings: PlaySettings, caught: S
   const w = pickWild4(rng, kind, tables!, lead, timeOfDayOf(state, out.durationMs) ?? 'day');
   if (!w) return null;
   Object.assign(enc, { steps: 0, buff: 0 });
-  const wild = opponentMon(createMon(rng, { species: w.species, level: w.level, ...(w.nature !== undefined && { nature: w.nature }), ...(w.gender && { gender: w.gender }), ...(int(rng, SHINY_ODDS) === 0 && { shiny: true }) }));
+  const wild = opponentMon(createMon(rng, { species: w.species, level: w.level, ...(w.nature !== undefined && { nature: w.nature }), ...(w.gender && { gender: w.gender }), ...(int(rng, SHINY_ODDS) < shinyFactor(state.upgrades) && { shiny: true }) }));
   return battle(state, rng, settings, caught, { kind: 'wild', foes: [wild], tile, scene: map.scene }, out);
 }
 
@@ -1840,7 +1894,7 @@ function wildStep(state: IdleState, rng: Rng, settings: PlaySettings, caught: Se
   if (!table || !wildCheck(rng, state.encounter, table, tile, state.party[0]!)) return null;
   const [min, max, id] = pickWild(rng, table, kind === 'land' ? LAND_ODDS : WATER_ODDS);
   const level = min + (int(rng, 65536) % (max - min + 1));
-  const wild = opponentMon(createMon(rng, { species: id, level, ...(int(rng, SHINY_ODDS) === 0 && { shiny: true }) }));
+  const wild = opponentMon(createMon(rng, { species: id, level, ...(int(rng, SHINY_ODDS) < shinyFactor(state.upgrades) && { shiny: true }) }));
   return battle(state, rng, settings, caught, { kind: 'wild', foes: [wild], tile, scene: map.scene }, out);
 }
 
@@ -1853,7 +1907,7 @@ function legendBattle(state: IdleState, rng: Rng, settings: PlaySettings, caught
   const legend = a.legend!;
   const leg = a.legs[state.leg]!;
   const tile = leg.track[state.step]![4];
-  const foe = opponentMon(createMon(rng, { species: legend.species, level: legend.level, ...(int(rng, SHINY_ODDS) === 0 && { shiny: true }) }));
+  const foe = opponentMon(createMon(rng, { species: legend.species, level: legend.level, ...(int(rng, SHINY_ODDS) < shinyFactor(state.upgrades) && { shiny: true }) }));
   const won = battle(state, rng, settings, caught, { kind: 'wild', foes: [foe], tile, scene: mapView(leg.maps[legend.map]!).scene }, out);
   const result = (out.events.filter((e) => e.t === 'battle').at(-1) as Extract<SegmentEvent, { t: 'battle' }>).result;
   const name = species(legend.species).name;
@@ -1897,9 +1951,10 @@ function grindSegment(state: IdleState, rng: Rng, settings: PlaySettings, caught
     grind.at = (from + 1) % spot.loop.length;
     state.totals.steps += 1;
     const last = out.events.at(-1);
+    const ms = stepMs(state);
     if (last?.t === 'circle') last.steps += 1;
-    else out.events.push({ t: 'circle', from, steps: 1 });
-    out.durationMs += STEP_MS;
+    else out.events.push({ t: 'circle', from, steps: 1, ...stepField(ms) });
+    out.durationMs += ms;
     const [m, , , , tile] = spot.loop[grind.at]!;
     const won = wildStep(state, rng, settings, caught, tile, mapView(leg.maps[m]!), out, spot.loop[grind.at]!, stepFace(spot.loop[from], spot.loop[grind.at]!));
     if (won === null) continue;
@@ -2081,8 +2136,8 @@ function simulateIn(from: IdleState, idleSettings: IdleSettings, caught: Set<num
       walkedFrom = from;
       state.step += pace.dir;
       state.totals.steps += 1;
-      out.events.push({ t: 'walk', from, to: state.step });
-      out.durationMs += STEP_MS;
+      out.events.push({ t: 'walk', from, to: state.step, ...stepField(stepMs(state)) });
+      out.durationMs += stepMs(state);
     } else if (!seen) {
       if (state.step >= leg.track.length - 1) {
         if (state.leg < a.legs.length - 1) {
@@ -2114,8 +2169,8 @@ function simulateIn(from: IdleState, idleSettings: IdleSettings, caught: Set<num
       state.step += 1;
       state.totals.steps += 1;
       markProgress(state);
-      out.events.push({ t: 'walk', from, to: state.step });
-      out.durationMs += STEP_MS * (leg.track[state.step]![3] & 2 ? 2 : 1) + (leg.track[state.step]![3] & 1 ? FADE_MS : 0);
+      out.events.push({ t: 'walk', from, to: state.step, ...stepField(stepMs(state)) });
+      out.durationMs += stepMs(state) * (leg.track[state.step]![3] & 2 ? 2 : 1) + (leg.track[state.step]![3] & 1 ? FADE_MS : 0);
     }
     const [m, , , , tile] = leg.track[state.step]!;
     const map = mapView(leg.maps[m]!);
@@ -2211,14 +2266,15 @@ function cutIn(saved: IdleState, now: number): IdleState {
     } else if (e.t === 'grind' && state.grind) {
       state.grind.at = e.at;
     } else if (e.t === 'circle' && state.grind) {
-      // Round the town's grind loop, a step each STEP_MS.
-      const steps = Math.min(e.steps, Math.floor((elapsed - t) / STEP_MS));
+      // Round the town's grind loop, a step each STEP_MS (or the event's).
+      const ms = e.ms ?? STEP_MS;
+      const steps = Math.min(e.steps, Math.floor((elapsed - t) / ms));
       state.grind.at = (e.from + steps) % (areas()[state.area] as TownArea).grind!.loop.length;
       state.totals.steps += steps;
-      t += e.steps * STEP_MS;
+      t += e.steps * ms;
     } else if (e.t === 'walk') {
       const flags = (areas()[state.area] as WalkArea).legs[state.leg]!.track[e.to]![3];
-      const d = STEP_MS * (flags & 2 ? 2 : 1) + (flags & 1 ? FADE_MS : 0);
+      const d = (e.ms ?? STEP_MS) * (flags & 2 ? 2 : 1) + (flags & 1 ? FADE_MS : 0);
       if (elapsed < t + d) break;
       state.step = e.to;
       state.totals.steps += 1;

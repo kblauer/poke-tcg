@@ -17,6 +17,7 @@ import { EFFECTS, fixedDamageEffect, type MoveCtx } from './moves.js';
 import { addEvs, calcStats, levelForExp } from './stats.js';
 import { chooseFoeItem, choosePlayerAction, type Action } from './ai.js';
 import type { ItemData, Mon, MoveData, TypeName } from './types.js';
+import { expBonus, restShare, type IdleUpgrades } from './upgrades.js';
 
 export type Side = 0 | 1;
 export type StatusKind = 'sleep' | 'poison' | 'toxic' | 'burn' | 'paralysis' | 'freeze';
@@ -78,6 +79,8 @@ export interface BattleSettings {
   catchMove?: 'basic' | 'slot';
   /** When auto-heal uses Revives (idle.ts's RevivePolicy; none, never). */
   revives?: ('last' | 'any' | 'boss' | 'lead')[];
+  /** The account's upgrades (upgrades.ts): EXP Share's shares and the Lucky Egg's bonus. */
+  upgrades?: IdleUpgrades;
 }
 
 export interface BattleSetup {
@@ -2052,7 +2055,7 @@ export class Battle {
   /** What the special balls see of the wild Pokémon and the battle now (BallSituation): the turn counted from 0. */
   ballSituation(): BallSituation {
     const t = this.active[1];
-    return { types: t.types, level: t.level, turn: Math.max(0, this.tick - 1), night: this.setup.night, cave: this.setup.terrain === 'cave', water: this.gen4 ? this.setup.terrain === 'water' : this.setup.terrain === 'underwater', caught: this.setup.caughtBefore, gen4: this.gen4 };
+    return { types: t.types, level: t.level, turn: Math.max(0, this.tick - 1), night: this.setup.night, cave: this.setup.terrain === 'cave', water: this.gen4 ? this.setup.terrain === 'water' : this.setup.terrain === 'underwater', caught: this.setup.caughtBefore, gen4: this.gen4, shiny: !!t.mon.shiny };
   }
 
   /** The best ball in the bag for the wild Pokémon now (bestBall), never the Master Ball (the user's: it has its own button). */
@@ -2103,11 +2106,12 @@ export class Battle {
     let each = Math.floor(Math.floor((s.baseExp * foe.level) / 7) / faced.length);
     if (each === 0) each = 1;
     if (this.setup.kind === 'trainer') each = Math.floor((each * 150) / 100);
-    // A quarter of the game's (the user's, 2026-10-25: slower, more idle), at least 1.
-    each = Math.max(1, Math.floor(each * EXP_RATE));
-    // The rest of the party gets half each (Gen 6's Exp. Share; agreed with the user, 2026-10-25), fainted ones too.
+    // A quarter of the game's (the user's, 2026-10-25: slower, more idle), at least 1; the Lucky Egg's more (upgrades.ts).
+    each = Math.max(1, Math.floor(each * EXP_RATE * (1 + expBonus(this.setup.settings.upgrades))));
+    // The rest of the party gets half each (Gen 6's Exp. Share; agreed with the user, 2026-10-25), fainted ones too; the
+    // EXP Share and EXP All upgrades more (restShare: by the Pokémon's place in the party).
     const rest = this.party.filter((b) => !faced.includes(b));
-    const gains: [Battler, number][] = [...faced.map((b) => [b, each] as [Battler, number]), ...rest.map((b) => [b, Math.max(1, Math.floor(each / 2))] as [Battler, number])];
+    const gains: [Battler, number][] = [...faced.map((b) => [b, each] as [Battler, number]), ...rest.map((b) => [b, Math.max(1, Math.floor(each * restShare(this.setup.settings.upgrades, this.party.indexOf(b))))] as [Battler, number])];
     for (const [b, gained] of gains) {
       const mon = b.mon;
       if (mon.level >= 100) continue;

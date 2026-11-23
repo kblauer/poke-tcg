@@ -1,9 +1,9 @@
 import { prisma } from '@poke-tcg/db';
-import { areas, applyIdleAction, areaIndex, generation, generationOf, IDLE_GENERATIONS, inGeneration, regionReady, isBaseForm, isOptional, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, starters, visitStore, withPending, type IdleGen, type IdleSettings, type Stats } from '@poke-tcg/idle';
-import { idleActInput, idleDebugCatchInput, idleDebugNextInput, idleHereInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput, type StartIdleInput } from '@poke-tcg/shared';
+import { buyUpgrade, starterSlots, START_MONEY, areas, applyIdleAction, areaIndex, generation, generationOf, IDLE_GENERATIONS, inGeneration, regionReady, isBaseForm, isOptional, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, starters, visitStore, withPending, type IdleGen, type IdleSettings, type IdleUpgrades, type Stats } from '@poke-tcg/idle';
+import { idleBuyUpgradeInput, idleActInput, idleDebugCatchInput, idleDebugNextInput, idleHereInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput, type StartIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
-import { catchUpWindow, caughtSpecies, generationLocked, caughtWithDue, clientIdleRun, dueNotes, idleSettings, latestIdleRun, loadOwnIdleRun, nextWait, restartAt, saveIdleRun, splitNotes, throwError, throwPlayedTo, throwTimeError, withoutDueNotes, type LoadedIdleRun } from '../idle.js';
+import { idleUpgrades, withUpgrades, catchUpWindow, caughtSpecies, generationLocked, caughtWithDue, clientIdleRun, dueNotes, idleSettings, latestIdleRun, loadOwnIdleRun, nextWait, restartAt, saveIdleRun, splitNotes, throwError, throwPlayedTo, throwTimeError, withoutDueNotes, type LoadedIdleRun } from '../idle.js';
 import { lockUser } from '../runs.js';
 import { debugProcedure, protectedProcedure, router } from '../trpc.js';
 
@@ -28,7 +28,9 @@ async function championsBeaten(userId: string, db: Db = prisma): Promise<Set<num
 
 /**
  * Starts a run (one under way at a time): its generation open (`debug`: any, debug mode's), its starter one of that
- * generation's three or (from the second run) a caught base form, at level 5, a dex species with its record's best IVs and EVs.
+ * generation's three or (from the second run) a caught base form, at level 5, a dex species with its record's best IVs and EVs;
+ * with the Starter slots upgrade up to 2 more (`more`, each as the first, all different), and Send some to Mom's money
+ * added to its start (then spent: issue #270).
  */
 async function startIdle(userId: string, input: StartIdleInput, debug: boolean) {
   const created = await prisma.$transaction(async (tx) => {
@@ -39,16 +41,32 @@ async function startIdle(userId: string, input: StartIdleInput, debug: boolean) 
     if (locked) throw failed(locked);
     const runs = await tx.idleRun.count({ where: { ownerId: userId } });
     const caught = await caughtSpecies(userId, tx);
-    // (Only the region's own species: one caught in another region's run isn't its starter, and createIdleRun doesn't know it.)
-    if (!inGeneration(input.gen, () => (runs ? starterOptions(caught.filter((id) => id <= generation().species.length)) : starters()).includes(input.species))) throw failed("That Pokémon can't be picked");
-    // A caught species starts with its record's best IVs and EVs (a starter never caught: random IVs, no EVs).
-    const record = caught.includes(input.species) ? await tx.idleDex.findUnique({ where: { userId_species: { userId, species: input.species } } }) : null;
-    if (input.shiny && !(runs && record?.shiny)) throw failed('No shiny of that Pokémon has been caught');
+    const account = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { idleUpgrades: true, idleMom: true } });
+    const upgrades = (account.idleUpgrades ?? {}) as IdleUpgrades;
+    const picks = [{ species: input.species, shiny: input.shiny }, ...input.more];
+    if (picks.length > starterSlots(upgrades)) throw failed(`Only ${starterSlots(upgrades)} starter${starterSlots(upgrades) === 1 ? '' : 's'}`);
+    if (new Set(picks.map((p) => p.species)).size !== picks.length) throw failed('Pick different Pokémon');
+    const choices = [];
+    for (const pick of picks) {
+      // (Only the region's own species: one caught in another region's run isn't its starter, and createIdleRun doesn't know it.)
+      if (!inGeneration(input.gen, () => (runs ? starterOptions(caught.filter((id) => id <= generation().species.length)) : starters()).includes(pick.species))) throw failed("That Pokémon can't be picked");
+      // A caught species starts with its record's best IVs and EVs (a starter never caught: random IVs, no EVs).
+      const record = caught.includes(pick.species) ? await tx.idleDex.findUnique({ where: { userId_species: { userId, species: pick.species } } }) : null;
+      if (pick.shiny && !(runs && record?.shiny)) throw failed('No shiny of that Pokémon has been caught');
+      choices.push({ species: pick.species, shiny: pick.shiny, ...(record && { ivs: record.bestIv as Stats, evs: record.bestEv as Stats }) });
+    }
     const seed = newSeed();
-    const state = createIdleRun({ species: input.species, shiny: input.shiny, ...(record && { ivs: record.bestIv as Stats, evs: record.bestEv as Stats }) }, seed, input.gen);
+    const state = createIdleRun(choices, seed, input.gen, { money: START_MONEY + account.idleMom });
+    if (account.idleMom) await tx.user.update({ where: { id: userId }, data: { idleMom: 0 } });
     return tx.idleRun.create({ data: { ownerId: userId, state: asJson(state), version: state.version, seed } });
   });
-  return clientIdleRun({ ...created, state: created.state as never });
+  return clientIdleRun(withUpgrades({ ...created, state: created.state as never }, await idleUpgrades(userId)));
+}
+
+/** The account's upgrade tree (issue #270): its currency, the tiers bought and Mom's money for the next run. */
+async function upgradeView(userId: string, db: Db = prisma) {
+  const u = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { idleMiles: true, idleUpgrades: true, idleMom: true } });
+  return { miles: u.idleMiles, owned: (u.idleUpgrades ?? {}) as IdleUpgrades, mom: u.idleMom };
 }
 
 /**
@@ -61,12 +79,13 @@ export const idleRouter = router({
    * locked, if it is; its three, or from the second run on any caught species in its tables too) and its Pokédex.
    */
   overview: protectedProcedure.query(async ({ ctx }) => {
-    const [run, settings, dex, runs, beaten] = await Promise.all([
+    const [run, settings, dex, runs, beaten, upgrades] = await Promise.all([
       latestIdleRun(ctx.user.id),
       idleSettings(ctx.user.id),
       prisma.idleDex.findMany({ where: { userId: ctx.user.id }, orderBy: { species: 'asc' } }),
       prisma.idleRun.count({ where: { ownerId: ctx.user.id } }),
       championsBeaten(ctx.user.id),
+      upgradeView(ctx.user.id),
     ]);
     const caught = dex.filter((d) => d.caught).map((d) => d.species);
     const generations = IDLE_GENERATIONS.filter(regionReady).map((gen) =>
@@ -86,6 +105,7 @@ export const idleRouter = router({
     return {
       run: run && clientIdleRun(run),
       settings,
+      upgrades,
       generations,
       dex: dex.map((d) => ({ species: d.species, seen: d.seen, caught: d.caught, shiny: d.shiny, bestIv: d.bestIv, bestEv: d.bestEv })),
     };
@@ -220,6 +240,21 @@ export const idleRouter = router({
     if (!again) return null;
     return { run: clientIdleRun(run), segment: again.segment, from: replay.from };
   }),
+
+  /**
+   * Buys an upgrade's next tier with the account's currency (issue #270), the user row locked: the tree after it. It
+   * applies to the run under way from its next segment (the run reads the account's upgrades as it's loaded).
+   */
+  buyUpgrade: protectedProcedure.input(idleBuyUpgradeInput).mutation(({ ctx, input }) =>
+    prisma.$transaction(async (tx) => {
+      await lockUser(tx, ctx.user.id);
+      const now = await upgradeView(ctx.user.id, tx);
+      const bought = buyUpgrade(now.owned, input.id, now.miles);
+      if ('error' in bought) throw failed(bought.error);
+      await tx.user.update({ where: { id: ctx.user.id }, data: { idleMiles: { decrement: bought.price }, idleUpgrades: asJson(bought.upgrades) } });
+      return { ...now, miles: now.miles - bought.price, owned: bought.upgrades };
+    }),
+  ),
 
   /** Changes some of the mode's settings (User.idleSettings); they apply from the next battle. */
   settings: protectedProcedure.input(idleSettingsInput).mutation(async ({ ctx, input }) => {

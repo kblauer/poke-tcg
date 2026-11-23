@@ -1,5 +1,5 @@
 import { idleMusic } from '@poke-tcg/campaign';
-import { areas, cuts, dexSpecies, generation, inGeneration, mapView, showGeneration, TICK_MS, type IdleAction, type IdleGen, type WalkArea } from '@poke-tcg/idle';
+import { areas, cuts, dexSpecies, generation, inGeneration, mapView, showGeneration, starterSlots, TICK_MS, type IdleAction, type IdleGen, type WalkArea } from '@poke-tcg/idle';
 import { useEffect, useState } from 'react';
 import type { Dialogue } from '../components/DialogueBox';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
@@ -17,6 +17,7 @@ import { Pokedex } from '../components/idle/Pokedex';
 import { StarterScene } from '../components/idle/StarterScene';
 import { MartScene } from '../components/idle/MartScene';
 import { TownMenu } from '../components/idle/TownMenu';
+import { UpgradeTree } from '../components/idle/UpgradeTree';
 import { useEscape } from '../hooks/useEscape';
 import { placeOf, placeTrack, useIdleActions, useIdleOverview, useIdlePlayback, useTownHere, type ClientIdleRun } from '../hooks/useIdle';
 import { useRun } from '../hooks/useRun';
@@ -28,10 +29,11 @@ import { commas } from '../utils/math';
 import { BUTTON } from '../utils/styles';
 
 // The party is an overlay over the game screen (PartyOverlay, the user's), not a tab.
-type Tab = 'bag' | 'dex' | 'settings' | 'log';
+type Tab = 'bag' | 'dex' | 'upgrades' | 'settings' | 'log';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'bag', label: 'Bag' },
   { id: 'dex', label: 'Pokédex' },
+  { id: 'upgrades', label: 'Upgrades' },
   { id: 'settings', label: 'Settings' },
   { id: 'log', label: 'Log' },
 ];
@@ -62,6 +64,8 @@ export function IdlePage() {
   const [speed, setFast] = useIdleSpeed(debug);
   const soundtrack = useMusicSettings()?.soundtrack ?? 'remastered';
   const [tab, setTab] = useState<Tab>('bag');
+  // A new run's starters picked so far (the Starter slots upgrade, issue #270: up to its slots, then it starts).
+  const [picks, setPicks] = useState<{ species: number; shiny: boolean }[]>([]);
   // The party overlay's open (kept as the scene changes: the map, a battle, a town).
   const [partyOpen, setPartyOpen] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
@@ -143,7 +147,22 @@ export function IdlePage() {
           .then((r) => (acted(r.run, { type: 'BUY', item, count }), true))
           .catch((e: unknown) => (failed(e), false))
       : Promise.resolve(false);
-  const start = (id: number, shiny = false) => picked && actions.start(id, shiny, picked.gen, !!picked.locked).catch(failed);
+  // A new run: with one starter slot at the first pick; with the upgrade's, once the slots are filled (or Start with
+  // these), each species once.
+  const slots = starterSlots(data?.upgrades.owned);
+  const begin = (list: { species: number; shiny: boolean }[]) =>
+    picked &&
+    list.length > 0 &&
+    actions
+      .start(list[0]!.species, list[0]!.shiny, picked.gen, !!picked.locked, list.slice(1))
+      .then(() => setPicks([]))
+      .catch(failed);
+  const start = (id: number, shiny = false) => {
+    if (slots <= 1) return void begin([{ species: id, shiny }]);
+    const next = [...picks.filter((p) => p.species !== id), { species: id, shiny }];
+    if (next.length >= slots) void begin(next);
+    else setPicks(next);
+  };
   const v = run?.view;
   // The party over the game screen (the user's): its button in the screen's top right corner, its slots sliding out; and
   // the Town Map's button in its top left corner, on every scene (the user's, in place of the mode drop-down), and the
@@ -222,7 +241,7 @@ export function IdlePage() {
           {regions.length > 1 && (
             <label className="flex flex-wrap items-center gap-2 text-sm">
               Region
-              <select className="rounded bg-slate-700 px-2 py-1" value={picked?.gen} onChange={(e) => setPickGen(Number(e.target.value) as IdleGen)}>
+              <select className="rounded bg-slate-700 px-2 py-1" value={picked?.gen} onChange={(e) => (setPickGen(Number(e.target.value) as IdleGen), setPicks([]))}>
                 {regions.map((g) => (
                   <option key={g.gen} value={g.gen} disabled={!startable(g)} title={g.locked ?? undefined}>
                     {g.region}
@@ -237,14 +256,35 @@ export function IdlePage() {
               ))}
             </label>
           )}
-          <StarterScene key={picked?.gen} gender={gender} busy={actions.busy} onPick={(id) => void start(id)} dialogue={catchUp} />
+          {slots > 1 && (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span>
+                Pick up to {slots} starters{picks.length > 0 ? `: ${picks.map((p) => `${p.shiny ? '★ ' : ''}${name(p.species)}`).join(', ')}` : '.'}
+              </span>
+              {picks.length > 0 && (
+                <>
+                  <button className={BUTTON} disabled={actions.busy} onClick={() => void begin(picks)}>
+                    Start with {picks.length === 1 ? 'it' : 'these'}
+                  </button>
+                  <button className={BUTTON} disabled={actions.busy} onClick={() => setPicks([])}>
+                    Clear
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          <StarterScene key={picked?.gen} gender={gender} busy={actions.busy} onPick={(id) => start(id)} dialogue={catchUp} />
           {picked && (picked.starters.length > 3 || picked.shinyStarters.length > 0) && (
             <section className="space-y-2">
               <h3 className="text-lg font-semibold">Or start from your Pokédex</h3>
               <p className="text-sm text-slate-400">Any species you've caught, at level 5 with its best IVs and EVs on record.</p>
-              <Pokedex dex={data.dex} gen={picked.gen} starters={picked.starters} shinyStarters={picked.shinyStarters} onPick={(id, shiny) => void start(id, shiny)} busy={actions.busy} />
+              <Pokedex dex={data.dex} gen={picked.gen} starters={picked.starters} shinyStarters={picked.shinyStarters} onPick={(id, shiny) => start(id, shiny)} busy={actions.busy} />
             </section>
           )}
+          <section className="space-y-2">
+            <h3 className="text-lg font-semibold">Upgrades</h3>
+            <UpgradeTree account={data.upgrades} busy={actions.busy} onBuy={(id) => void actions.buyUpgrade(id).catch(failed)} />
+          </section>
           <ReturnToPlay />
         </div>
       ) : v?.phase === 'town' && v.inStore ? (
@@ -302,6 +342,7 @@ export function IdlePage() {
               onAlwaysCatch={(species, on) => void actions.settings({ alwaysCatch: on ? [...settings.alwaysCatch.filter((s) => s !== species), species] : settings.alwaysCatch.filter((s) => s !== species) }).catch(failed)}
             />
           )}
+          {tab === 'upgrades' && <UpgradeTree account={data.upgrades} busy={actions.busy} onBuy={(id) => void actions.buyUpgrade(id).catch(failed)} />}
           {tab === 'settings' && <IdleSettings settings={settings} busy={false} onChange={(s) => void actions.settings(s).catch(failed)} />}
           {tab === 'log' && (
             <ul className="space-y-1 text-sm text-slate-300">

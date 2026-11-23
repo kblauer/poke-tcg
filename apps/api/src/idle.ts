@@ -1,7 +1,7 @@
 // Idle Adventure runs on the server (README: Idle Adventure), as runs.ts and towers.ts do for theirs: loading and saving
 // a run with its version checked (CONFLICT when stale), the time it's played up to (`simulatedAt`), banking its money
 // when it ends, and the account's Pokédex (IdleDex: each species' best IVs and EVs, merged from a segment's notes).
-import { BALLS, bankedMoney, CATCH_UP_CAP_MS, cuts, DEFAULT_IDLE_SETTINGS, generation, idleView, inGeneration, repairState, throwable, throwTick, tickStartMs, TOWN_WAIT_MS, withPending, type DexNote, type IdleAction, type IdleGen, type IdleSettings, type IdleState, type SegmentEvent } from '@poke-tcg/idle';
+import { BALLS, bankedMoney, momShare, reachedArea, runEndMiles, UPGRADE_TUNING, type IdleUpgrades, CATCH_UP_CAP_MS, cuts, DEFAULT_IDLE_SETTINGS, generation, idleView, inGeneration, repairState, throwable, throwTick, tickStartMs, TOWN_WAIT_MS, withPending, type DexNote, type IdleAction, type IdleGen, type IdleSettings, type IdleState, type SegmentEvent } from '@poke-tcg/idle';
 import { prisma, type IdleRun, type Prisma } from '@poke-tcg/db';
 import { TRPCError } from '@trpc/server';
 import { asJson } from './games.js';
@@ -19,22 +19,41 @@ export const generationLocked = (gen: IdleGen, beaten: Set<number>) =>
 // (Its indexes put back in bounds should the data have changed under a saved run: repairState.)
 const loaded = (run: IdleRun): LoadedIdleRun => ({ ...run, state: repairState(run.state as unknown as IdleState) });
 
+/** The account's upgrades (issue #270: User.idleUpgrades), as the rules read them. */
+export async function idleUpgrades(userId: string, db: Db = prisma): Promise<IdleUpgrades> {
+  const { idleUpgrades: owned } = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { idleUpgrades: true } });
+  return (owned ?? {}) as IdleUpgrades;
+}
+
+/**
+ * A run with the account's upgrades in its state (IdleState.upgrades: the account's, not the run's), so one bought mid-run
+ * applies from the next segment; none bought, none set (a run plays as before).
+ */
+export function withUpgrades(run: LoadedIdleRun, upgrades: IdleUpgrades): LoadedIdleRun {
+  const any = Object.values(upgrades).some((n) => (n ?? 0) > 0);
+  if (!any && !run.state.upgrades) return run;
+  const state = { ...run.state };
+  if (any) state.upgrades = upgrades;
+  else delete state.upgrades;
+  return { ...run, state };
+}
+
 type Db = Prisma.TransactionClient | typeof prisma;
 
 /** The run's status column for its state. */
 export const idleStatusOf = (state: IdleState) => (state.phase === 'won' ? 'BEATEN' : state.phase === 'given-up' ? 'GIVEN_UP' : 'ACTIVE');
 
 export async function loadOwnIdleRun(runId: string, userId: string): Promise<LoadedIdleRun> {
-  const run = await prisma.idleRun.findUnique({ where: { id: runId } });
+  const [run, upgrades] = await Promise.all([prisma.idleRun.findUnique({ where: { id: runId } }), idleUpgrades(userId)]);
   // Same error for "missing" and "not yours" so ids can't be probed.
   if (!run || run.ownerId !== userId) throw new TRPCError({ code: 'NOT_FOUND', message: 'Run not found' });
-  return loaded(run);
+  return withUpgrades(loaded(run), upgrades);
 }
 
 /** The account's latest run (under way or over). */
 export async function latestIdleRun(userId: string): Promise<LoadedIdleRun | null> {
-  const run = await prisma.idleRun.findFirst({ where: { ownerId: userId }, orderBy: { createdAt: 'desc' } });
-  return run && loaded(run);
+  const [run, upgrades] = await Promise.all([prisma.idleRun.findFirst({ where: { ownerId: userId }, orderBy: { createdAt: 'desc' } }), idleUpgrades(userId)]);
+  return run && withUpgrades(loaded(run), upgrades);
 }
 
 /** The account's settings for the mode, the defaults filling what's missing. */
@@ -155,9 +174,12 @@ export const throwPlayedTo = (from: number, durationMs: number, now: number) => 
 /**
  * Records a segment's notes in the account's Pokédex (agreed with the user): seen and caught only ever turn on, and
  * each stat's best IV and EV is the highest any of the account's Pokémon of the species ever had (each stat on its own).
+ * Each species caught for the first time pays the upgrade currency's bonus (issue #270: UPGRADE_TUNING.firstCatch);
+ * how many there were is returned.
  */
-export async function recordDex(tx: Prisma.TransactionClient, userId: string, notes: DexNote[]) {
-  if (!notes.length) return;
+export async function recordDex(tx: Prisma.TransactionClient, userId: string, notes: DexNote[]): Promise<number> {
+  if (!notes.length) return 0;
+  let firsts = 0;
   const merged = mergeNotes(notes);
   const existing = new Map((await tx.idleDex.findMany({ where: { userId, species: { in: [...merged.keys()] } } })).map((r) => [r.species, r]));
   for (const [species, e] of merged) {
@@ -169,9 +191,21 @@ export async function recordDex(tx: Prisma.TransactionClient, userId: string, no
       bestIv: maxEach(old?.bestIv ?? [0, 0, 0, 0, 0, 0], e.iv),
       bestEv: maxEach(old?.bestEv ?? [0, 0, 0, 0, 0, 0], e.ev),
     };
+    if (e.caught && !old?.caught) firsts += 1;
     await tx.idleDex.upsert({ where: { userId_species: { userId, species } }, create: { userId, species, ...data }, update: data });
   }
+  if (firsts) await tx.user.update({ where: { id: userId }, data: { idleMiles: { increment: firsts * UPGRADE_TUNING.firstCatch } } });
+  return firsts;
 }
+
+/**
+ * What a run pays as it ends (issue #270): the upgrade currency by how far it got (runEndMiles), and Send some to Mom's
+ * share of its money, kept for the next run (replacing any not yet used).
+ */
+export const runEndPay = (state: IdleState) => ({
+  miles: inGeneration(state.gen ?? 1, () => runEndMiles({ badges: state.badges, reached: reachedArea(state), won: state.phase === 'won' })),
+  mom: momShare(state.upgrades, state.money),
+});
 
 /**
  * Saves a run's new state (CONFLICT if someone else saved since), with its dex notes and its time played up to; when it
@@ -188,7 +222,11 @@ export async function saveIdleRun(run: LoadedIdleRun, state: IdleState, o: { dex
       data: { state: asJson(state), version: state.version, status, ...(bank && { banked: true }), ...(o.simulatedAt && { simulatedAt: o.simulatedAt }) },
     });
     if (count === 0) return false;
-    if (bank && bankedMoney(state) > 0) await tx.user.update({ where: { id: run.ownerId }, data: { bank: { increment: bankedMoney(state) } } });
+    if (bank) {
+      // Its ₱ to the bank (the Champion beaten), the upgrade currency it earned, Mom's share for the next run.
+      const pay = runEndPay(state);
+      await tx.user.update({ where: { id: run.ownerId }, data: { bank: { increment: bankedMoney(state) }, idleMiles: { increment: pay.miles }, idleMom: pay.mom } });
+    }
     await recordDex(tx, run.ownerId, o.dex ?? []);
     return true;
   });

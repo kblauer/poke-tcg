@@ -1,7 +1,7 @@
 import { CATCH_UP_CAP_MS, createIdleRun, cutSegment, DEFAULT_IDLE_SETTINGS, simulateSegment, tickStartMs, TOWN_WAIT_MS, type IdleAction, type IdleSettings, type IdleState, type SegmentEvent } from '@poke-tcg/idle';
 import { describe, expect, it } from 'vitest';
-import { bankedMoney } from '@poke-tcg/idle';
-import { AHEAD_MS, catchUpWindow, caughtWithDue, dueNotes, generationLocked, idleStatusOf, mergeNotes, nextWait, restartAt, splitNotes, THROW_GRACE_MS, throwError, throwPlayedTo, throwTimeError, withoutDueNotes } from './idle.js';
+import { bankedMoney, UPGRADE_TUNING } from '@poke-tcg/idle';
+import { runEndPay, withUpgrades, type LoadedIdleRun, AHEAD_MS, catchUpWindow, caughtWithDue, dueNotes, generationLocked, idleStatusOf, mergeNotes, nextWait, restartAt, splitNotes, THROW_GRACE_MS, throwError, throwPlayedTo, throwTimeError, withoutDueNotes } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
 const SETTINGS: IdleSettings = { ...DEFAULT_IDLE_SETTINGS, autoGrind: false, autoCatch: 'all' };
@@ -136,5 +136,24 @@ describe("the regions' locks", () => {
     // Hoenn, startable now its areas exist (step 4), once a Johto run has beaten the Champion.
     expect(generationLocked(3, new Set([1]))).toBe('Hoenn opens once a Johto run has beaten the Champion');
     expect(generationLocked(3, new Set([1, 2]))).toBeNull();
+  });
+});
+
+describe("the upgrade tree's pay (issue #270)", () => {
+  it("pays the currency by how far a run got, and keeps Mom's share of its money with the upgrade", () => {
+    const run = createIdleRun({ species: 4 }, 3);
+    const ended: IdleState = { ...run, badges: ['boulder', 'cascade'], phase: 'given-up', money: 4000 };
+    const pay = runEndPay(ended);
+    expect(pay.miles).toBeGreaterThanOrEqual(2 * UPGRADE_TUNING.perBadge);
+    expect(pay.mom).toBe(0);
+    expect(runEndPay({ ...ended, upgrades: { mom: 1 } }).mom).toBe(400);
+    expect(runEndPay({ ...ended, phase: 'won' }).miles).toBe(pay.miles + UPGRADE_TUNING.champion);
+  });
+
+  it("puts the account's upgrades in a loaded run, and none when none are bought", () => {
+    const run = { state: createIdleRun({ species: 4 }, 3) } as LoadedIdleRun;
+    expect(withUpgrades(run, {})).toBe(run);
+    expect(withUpgrades(run, { shoes: 1 }).state.upgrades).toEqual({ shoes: 1 });
+    expect(withUpgrades(withUpgrades(run, { shoes: 1 }), { shoes: 0 }).state.upgrades).toBeUndefined();
   });
 });

@@ -1,5 +1,5 @@
 import type { AppRouter } from '@poke-tcg/api/router';
-import { generation, areas, areaIndex, ballLineMs, BATTLE_HOLD_MS, CHALLENGE_MS, FADE_MS, FISH_CAST_MS, FISH_DOT_MS, FISH_TEXT_MS, introMs, openingLineMs, playing, STEP_MS, TICK_MS, TOWN_HERE_MS, type CatchUpSummary, type IdleAction, type IdleGen, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
+import { generation, areas, areaIndex, ballLineMs, BATTLE_HOLD_MS, CHALLENGE_MS, FADE_MS, FISH_CAST_MS, FISH_DOT_MS, FISH_TEXT_MS, introMs, openingLineMs, playing, STEP_MS, TICK_MS, TOWN_HERE_MS, type CatchUpSummary, type IdleAction, type IdleGen, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type UpgradeId, type WalkArea } from '@poke-tcg/idle';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { inferRouterOutputs } from '@trpc/server';
@@ -53,9 +53,13 @@ export function useIdleActions() {
   const warp = useMutation(DEBUG_BUILD ? trpc.idle.debugWarp.mutationOptions({ onSuccess: setRun }) : NO_DEBUG);
   const money = useMutation(DEBUG_BUILD ? trpc.idle.debugMoney.mutationOptions({ onSuccess: setRun }) : NO_DEBUG);
   const sureCatch = useMutation(DEBUG_BUILD ? trpc.idle.debugCatch.mutationOptions({ onSuccess: setRun }) : NO_DEBUG);
+  // The upgrade tree (issue #270): the account's tree after a purchase.
+  const buyUpgrade = useMutation(trpc.idle.buyUpgrade.mutationOptions({ onSuccess: (upgrades) => queryClient.setQueryData(key, (old) => old && { ...old, upgrades }) }));
   return {
-    busy: start.isPending || debugStart.isPending || act.isPending,
-    start: (species: number, shiny: boolean, gen: IdleGen, debug = false) => (debug ? debugStart : start).mutateAsync({ species, shiny, gen }),
+    busy: start.isPending || debugStart.isPending || act.isPending || buyUpgrade.isPending,
+    /** A new run: its first starter, and with the Starter slots upgrade the others (`more`). */
+    start: (species: number, shiny: boolean, gen: IdleGen, debug = false, more: { species: number; shiny: boolean }[] = []) => (debug ? debugStart : start).mutateAsync({ species, shiny, gen, more }),
+    buyUpgrade: (id: UpgradeId) => buyUpgrade.mutateAsync({ id }),
     act: (run: ClientIdleRun, action: IdleAction) => act.mutateAsync({ runId: run.id, expectedVersion: run.version, action }),
     settings: (s: Partial<IdleSettings>) => settings.mutateAsync(s),
     warp: (run: ClientIdleRun, area: string) => warp.mutateAsync({ runId: run.id, area }),
@@ -187,6 +191,8 @@ function noticeOf(e: SegmentEvent, name: (id: number) => string): string | null 
       return `Won the ${e.badge} Badge!`;
     case 'gift':
       return `Got a ${generation().items[e.item]?.name ?? e.item}!`;
+    case 'found':
+      return `Found a ${generation().items[e.item]?.name ?? e.item}!`;
     case 'whiteout':
       return 'Blacked out! Went back to the start.';
     case 'won':
@@ -301,6 +307,8 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
 
     async function walk(e: Extract<SegmentEvent, { t: 'walk' }>, place: Place) {
       const track = placeTrack(place);
+      // A step's time: the event's with the Running Shoes or the Bike (upgrades), else STEP_MS.
+      const stepMs = e.ms ?? STEP_MS;
       // Forward along the track, or back along it (a route grind pacing back and forth: the user's).
       const dir = e.to >= e.from ? 1 : -1;
       for (let i = e.from + dir; dir > 0 ? i <= e.to : i >= e.to; i += dir) {
@@ -309,13 +317,13 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
         if ((dir > 0 && flags & 1) || m !== pm) {
           // As long as the server counts it: the step and the fade.
           update({ fading: true });
-          await wait((STEP_MS + FADE_MS) / 2);
+          await wait((stepMs + FADE_MS) / 2);
           setPlay((old) => ({ ...old, place: { ...place, step: i }, moveMs: 0, fading: false }));
-          await wait((STEP_MS + FADE_MS) / 2);
+          await wait((stepMs + FADE_MS) / 2);
           continue;
         }
         const jump = dir > 0 && (flags & 2) !== 0;
-        const ms = STEP_MS * (jump ? 2 : 1);
+        const ms = stepMs * (jump ? 2 : 1);
         setPlay((old) => ({
           ...old,
           place: { ...place, step: i },
@@ -324,22 +332,22 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
           moveMs: ms / idleSpeed(),
           jump: jump ? { ms: ms / idleSpeed(), stamp: Date.now() } : old.jump,
         }));
-        await wait(STEP_MS * (jump ? 2 : 1));
+        await wait(stepMs * (jump ? 2 : 1));
         // Landed: the jump goes, or the map scene coming back after a battle would play it again.
         if (jump) update({ jump: null });
       }
       place.step = e.to;
     }
 
-    /** Steps round a grind loop (the user's: running in a circle), a step each STEP_MS. */
+    /** Steps round a grind loop (the user's: running in a circle), a step each STEP_MS (or the event's, with the upgrades). */
     async function circle(e: Extract<SegmentEvent, { t: 'circle' }>, place: Place) {
       const loop = placeTrack(place);
       for (let k = 1; k <= e.steps; k++) {
         const i = (e.from + k) % loop.length;
         const [, x, y] = loop[i]!;
         const [, px, py] = loop[(i + loop.length - 1) % loop.length]!;
-        setPlay((old) => ({ ...old, place: { ...place, step: i }, face: faceOf(x - px, y - py, old.face), walkTick: old.walkTick + 1, moveMs: STEP_MS / idleSpeed() }));
-        await wait(STEP_MS);
+        setPlay((old) => ({ ...old, place: { ...place, step: i }, face: faceOf(x - px, y - py, old.face), walkTick: old.walkTick + 1, moveMs: (e.ms ?? STEP_MS) / idleSpeed() }));
+        await wait(e.ms ?? STEP_MS);
         place.step = i;
       }
     }

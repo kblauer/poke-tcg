@@ -1,5 +1,5 @@
 // The Idle Adventure's inputs (README: Idle Adventure): the player's actions and settings, as the idle package's types.
-import { DEX_SIZE, IDLE_GENERATIONS, IDLE_MODES, MAX_AUTO_BALLS, type IdleAction, type IdleGen, type IdleSettings } from '@poke-tcg/idle';
+import { DEX_SIZE, IDLE_GENERATIONS, IDLE_MODES, MAX_AUTO_BALLS, type IdleAction, type IdleGen, type IdleSettings, type UpgradeId } from '@poke-tcg/idle';
 import { z } from 'zod';
 
 const uid = z.string().min(1).max(32);
@@ -44,7 +44,9 @@ export const idleSettingsSchema = z.object({
 
 /** A new run: its starter (one of the three, or a species the account's Pokédex has caught, from the second run on), shiny if one was caught. */
 /** A new run: its starter, shiny or not, and its region (one of IDLE_GENERATIONS: Kanto 1, Johto 2). */
-export const startIdleInput = z.object({ species: z.number().int().min(1).max(DEX_SIZE), shiny: z.boolean().default(false), gen: z.custom<IdleGen>((g) => (IDLE_GENERATIONS as readonly unknown[]).includes(g), 'Unknown region').default(1) });
+const starterInput = z.object({ species: z.number().int().min(1).max(DEX_SIZE), shiny: z.boolean().default(false) });
+/** `more`: the other starters (the Starter slots upgrade, issue #270: up to 2 more, the API checking the account's slots). */
+export const startIdleInput = starterInput.extend({ gen: z.custom<IdleGen>((g) => (IDLE_GENERATIONS as readonly unknown[]).includes(g), 'Unknown region').default(1), more: z.array(starterInput).max(2).default([]) });
 export type StartIdleInput = z.infer<typeof startIdleInput>;
 export const idleRunInput = z.object({ runId: z.uuid(), expectedVersion: z.number().int().min(0) });
 /** Debug: the next segment at once, played back `speed` times faster (debug mode's ×3: idle.debugNext). */
@@ -57,6 +59,8 @@ export const idleThrowInput = idleRunInput.extend({ tick: z.number().int().min(1
 export const idleHereInput = z.object({ runId: z.uuid() });
 /** Changes some of the settings (the rest kept). */
 export const idleSettingsInput = idleSettingsSchema.partial();
+/** Buying an upgrade's next tier (issue #270). */
+export const idleBuyUpgradeInput = z.object({ id: z.enum(['expShare', 'starters', 'shoes', 'itemfinder', 'premier', 'discount', 'luckyEgg', 'amuletCoin', 'mom'] satisfies UpgradeId[]) });
 /** Debug: a warp to an area (the run's party and bag kept). */
 export const idleWarpInput = z.object({ runId: z.uuid(), area: z.string().min(1).max(40) });
 /** Debug: every ball thrown in the run catches, or not. */

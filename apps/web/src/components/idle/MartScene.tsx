@@ -1,4 +1,4 @@
-import { generation, areas, isMachine, machineList, machineMove, machinePrice, mapView, moveData, tmShopOpen, type TownArea } from '@poke-tcg/idle';
+import { generation, areas, isMachine, machineList, machineMove, martPrice, mapView, moveData, tmShopOpen, type TownArea } from '@poke-tcg/idle';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useEscape } from '../../hooks/useEscape';
 import { useDragSteps, useOutsideTap } from './martGestures';
@@ -123,8 +123,6 @@ const caps = (name: string) => name.toUpperCase().replace(/É/g, 'é');
 /** An item's name in the lists: a TM or HM with its move (TM28 DIG). */
 const itemName = (item: string) => caps(generation().items[item]!.name) + (isMachine(item) ? ` ${caps(moveData(machineMove(item)).name)}` : '');
 
-/** An item's price: a TM's or HM's machinePrice (HMs' a placeholder). */
-const priceOf = (item: string) => (isMachine(item) ? machinePrice(item) : generation().items[item]!.price);
 
 /**
  * The town's Poké Mart (the user's: the store moves the player into the town's own mart, and its list is the game's own
@@ -255,6 +253,8 @@ function Arrow({ x, y, up, label, onClick }: { x: number; y: number; up: boolean
  * one already owned OWNED in place of its price, not to be bought again.
  */
 function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { run: ClientIdleRun; player: string; busy: boolean; onBuy: (item: string, count: number) => Promise<boolean>; onClose: () => void; machines?: string[]; children?: ReactNode }) {
+  // An item's price: a TM's or HM's machinePrice (HMs' a placeholder), after the Mart discount upgrade (martPrice).
+  const priceOf = (item: string) => martPrice(run.view, item);
   const phone = useIsPhone();
   const { ref, scale } = useGameScale();
   const pressDialogue = useRef<(() => void) | null>(null);
