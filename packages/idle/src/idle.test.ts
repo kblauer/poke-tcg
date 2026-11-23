@@ -7,7 +7,7 @@ import type { BattleEvent } from './battle.js';
 import { catchTextFrame, FRAME_MS, openingMs } from './battle-timing.js';
 import { townMapPlaces, townMapArea } from './town-map.js';
 import { inGeneration } from './generation.js';
-import { applyIdleAction, atProgress, legendError, rodsOf, starters, BATTLE_HOLD_MS, BATTLE_MS, catchUp, cutSegment, mapGrindPlan, progressOf, reachedArea, repairState, travelError, wildSpots, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, loopMode, modeOf, playing, previousRoute, routeGrindPlan, starterOptions, TICK_MS, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
+import { applyIdleAction, shouldCatch, atProgress, legendError, rodsOf, starters, BATTLE_HOLD_MS, BATTLE_MS, catchUp, cutSegment, mapGrindPlan, progressOf, reachedArea, repairState, travelError, wildSpots, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, loopMode, modeOf, playing, previousRoute, routeGrindPlan, starterOptions, TICK_MS, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
 
@@ -409,6 +409,22 @@ describe('an idle run', () => {
     // Each once: not again while one is in the party.
     expect(new Set(marked.caught).size).toBe(marked.caught.length);
     expect(marked.party).toEqual(expect.arrayContaining(marked.caught));
+  });
+
+  it("always tries for a shiny with Catch shinies on, over auto-catch off and a full party's Stop catching (the user's)", () => {
+    const base = createIdleRun({ species: 4 }, 7);
+    const full = Array.from({ length: 6 }, (_, i) => ({ ...base.party[0]!, uid: `p${i}` }));
+    const pidgey = { ...base.party[0]!, species: 16 };
+    const shiny = { ...pidgey, shiny: true };
+    const strict = { ...MANUAL, autoCatch: 'off' as const, stopWhenFull: true };
+    // Caught before, auto-catch off, a full party that stops catching: only a shiny is tried.
+    expect(shouldCatch({ party: full }, strict, new Set([16]), pidgey)).toBe(false);
+    expect(shouldCatch({ party: full }, strict, new Set([16]), shiny)).toBe(true);
+    expect(shouldCatch({ party: base.party }, { ...MANUAL, autoCatch: 'new' }, new Set([16]), shiny)).toBe(true);
+    // Off: the other rules as before.
+    expect(shouldCatch({ party: full }, { ...strict, catchShinies: false }, new Set([16]), shiny)).toBe(false);
+    expect(shouldCatch({ party: base.party }, { ...MANUAL, catchShinies: false }, new Set(), shiny)).toBe(true);
+    expect(DEFAULT_IDLE_SETTINGS.catchShinies).toBe(true);
   });
 
   it('waits for the player watching to choose where a Pokémon caught with the party full goes, or the settings away', () => {

@@ -96,12 +96,18 @@ export interface IdleSettings {
    * and whatever auto-catch says (a full party's Stop catching still holds).
    */
   alwaysCatch: number[];
+  /**
+   * Catch shinies (the user's, 2026-11-23): a shiny wild Pokémon is always tried, whatever auto-catch, Always catch or a
+   * full party's Stop catching say; a full party's catch then goes as any other (watched, the player chooses; away,
+   * Replace the lowest-level Pokémon, or registered and released).
+   */
+  catchShinies: boolean;
 }
 
 /** The most balls auto-buy keeps. */
 export const MAX_AUTO_BALLS = 99;
 
-export const DEFAULT_IDLE_SETTINGS: IdleSettings = { autoHeal: true, revives: ['last'], autoCatch: 'new', catchMove: 'basic', stopWhenFull: false, replaceLowest: false, autoEvolve: true, autoGrind: true, autoBalls: 0, alwaysCatch: [] };
+export const DEFAULT_IDLE_SETTINGS: IdleSettings = { autoHeal: true, revives: ['last'], autoCatch: 'new', catchMove: 'basic', stopWhenFull: false, replaceLowest: false, autoEvolve: true, autoGrind: true, autoBalls: 0, alwaysCatch: [], catchShinies: true };
 
 /**
  * The settings a segment plays by, with the player's own throws (the ball button, the user's: `throwAt`, the ticks of
@@ -1237,10 +1243,12 @@ const terrainOf = (tile: string): Terrain => {
 };
 
 /**
- * Whether auto-catch tries this wild Pokémon: by the setting and the dex, or marked Always catch with none of it in the
- * party; and not with a full party when catching stops then.
+ * Whether auto-catch tries this wild Pokémon: a shiny with Catch shinies on, whatever else; else by the setting and the
+ * dex, or marked Always catch with none of it in the party; and not with a full party when catching stops then.
  */
-function shouldCatch(state: IdleState, settings: IdleSettings, caught: ReadonlySet<number>, id: number): boolean {
+export function shouldCatch(state: Pick<IdleState, 'party'>, settings: IdleSettings, caught: ReadonlySet<number>, wild: Mon): boolean {
+  if (wild.shiny && settings.catchShinies) return true;
+  const id = wild.species;
   if (state.party.length >= PARTY_SIZE && settings.stopWhenFull) return false;
   if (settings.alwaysCatch?.includes(id) && !state.party.some((m) => m.species === id)) return true;
   if (settings.autoCatch === 'off') return false;
@@ -1285,7 +1293,7 @@ function settleCaught(state: IdleState, mon: Mon, slot: number | null, out: Segm
  * badge, a caught Pokémon kept or released, or a white-out (back to the area's start, its trainers to fight again).
  */
 function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, o: { kind: 'wild' | 'trainer'; foes: Mon[]; trainer?: string; tile: string; scene: string; weather?: IdleMap['weather'] }, out: Segment) {
-  const tryCatch = o.kind === 'wild' && shouldCatch(state, settings, caught, o.foes[0]!.species);
+  const tryCatch = o.kind === 'wild' && shouldCatch(state, settings, caught, o.foes[0]!);
   const before = state.party.map((m) => m.level);
   const t = o.trainer ? generation().trainers[o.trainer] : null;
   const result = simulateBattle(
