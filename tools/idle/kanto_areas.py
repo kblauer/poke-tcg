@@ -704,8 +704,9 @@ AREAS = [
     town('viridian-city-gym', 'Viridian City', 'ViridianCity', ['ViridianCity_Mart_Items'], 'viridian-gym'),
     gym('viridian-gym', 'Viridian Gym', 'viridian-city-gym', 'ViridianCity_Gym', 'leader-giovanni', 'Earth'),
     {'id': 'route-22', 'name': 'Routes 22 and 23', 'kind': 'route', 'legs': [leg(['Route22', 'Route23'], edge('Route22', 'right'), warp('Route23', 0), surf=True)]},
+    # Out by the cave's mouth (warp 6, 48,12; the user's, 2026-11-22: warp 5 is the tile right of it).
     {'id': 'victory-road', 'name': 'Victory Road', 'kind': 'dungeon', 'legs': [
-        leg(['VictoryRoad_1F', 'VictoryRoad_2F', 'VictoryRoad_3F'], warp('VictoryRoad_1F', 1), warp('VictoryRoad_2F', 5), via=('VictoryRoad_3F',)),
+        leg(['VictoryRoad_1F', 'VictoryRoad_2F', 'VictoryRoad_3F'], warp('VictoryRoad_1F', 1), warp('VictoryRoad_2F', 6), via=('VictoryRoad_3F',)),
         leg(['Route23'], warp('Route23', 1), edge('Route23', 'up'), surf=True),
     ]},
     town('indigo-plateau', 'Indigo Plateau', 'IndigoPlateau_Exterior', ['IndigoPlateau_PokemonCenter_1F_Items'], 'lorelei'),
