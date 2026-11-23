@@ -1126,6 +1126,9 @@ const ROD_SLOTS: [first: number, odds: number[]][] = [
   [5, [40, 40, 15, 4, 1]],
 ];
 
+/** A Kanto cast's chance of a bite (FireRed's is 50%: raised by the user, 2026-11-22). */
+export const FISH_BITE_PERCENT = 75;
+
 // Each of a table's extra slots' share of its encounters (encounters-emerald.ts's, Hoenn's too).
 export { EXTRA_PERCENT };
 
@@ -1713,7 +1716,7 @@ function fishCast(state: IdleState, rng: Rng, settings: PlaySettings, caught: Se
   const dots = Math.min(10, int(rng, 10) + 4);
   // Emerald's: a lead with Suction Cups or Sticky Hold bites more often, and its Pokémon by the lead's abilities.
   if (generation().game === 'emerald') return fishCastE(state, rng, settings, caught, spot, map, table, rod, dots, out, weatherAt(state, map, area.fishing![spot]![3], area.fishing![spot]![4]));
-  const bite = int(rng, 2) === 0;
+  const bite = int(rng, 100) < FISH_BITE_PERCENT;
   out.events.push({ t: 'fish', spot, rod, dots, bite });
   out.durationMs += fishMs({ dots });
   if (!bite) return null;
