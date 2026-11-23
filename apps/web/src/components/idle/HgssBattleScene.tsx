@@ -2,6 +2,7 @@ import { expForLevel, FRAME_MS, HGSS_CATCH, HGSS_FOE_SEND, HGSS_INTRO, HGSS_PLAY
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { BattleSegment } from '../../hooks/useIdle';
 import { idleSpeed } from '../../utils/idleSpeed';
+import { FILL_PX } from './BattleScene';
 import { DsText } from './dsFont';
 import { DS_HEIGHT, DS_WIDTH } from './GameScreen';
 import { filled, STATUS, useBarValue } from './Healthbox';
@@ -50,12 +51,16 @@ function Ball({ item, frame, x, y, rot = 0, filter }: { item: string; frame: num
 /**
  * A Pokémon's (or a trainer's) 80x80 picture centred at x, y, scaled from its feet (`feet` pixels below its centre:
  * PokemonSprite_CalcScaledYOffset), blended `tint` sixteenths to a colour (its own shape), cut off below `clip` (sinking).
+ * `fill`: a back picture's last row of art, drawn on FILL_PX below it (BattleScene's Pic: no gap under its lunge).
  */
-function Pic({ src, x, y, scale = 1, feet = 40, tint, clip, anim }: { src: string; x: number; y: number; scale?: number; feet?: number; tint?: { color: string; level: number }; clip?: number; anim?: string }) {
+function Pic({ src, x, y, scale = 1, feet = 40, tint, clip, anim, fill }: { src: string; x: number; y: number; scale?: number; feet?: number; tint?: { color: string; level: number }; clip?: number; anim?: string; fill?: number }) {
   const style: CSSProperties = { left: Math.round(x) - 40, top: Math.round(y) - 40, width: 80, height: 80, transform: scale !== 1 ? `scale(${scale})` : undefined, transformOrigin: `50% ${40 + feet}px` };
   const body = (
     <span className="absolute" style={style}>
       <span className="absolute inset-0" style={{ animation: anim }}>
+        {fill !== undefined && scale === 1 && !(tint && tint.level > 0) && (
+          <span className="absolute inset-x-0" style={{ top: fill + 1, height: FILL_PX, backgroundImage: `url(${src})`, backgroundSize: `80px ${80 * FILL_PX}px`, backgroundPosition: `0 ${-fill * FILL_PX}px`, imageRendering: 'pixelated' }} />
+        )}
         <img src={src} alt="" className="absolute inset-0 h-full w-full" draggable={false} />
         {tint && tint.level > 0 && <span className="absolute inset-0" style={{ background: tint.color, opacity: tint.level / 16, maskImage: `url(${src})`, WebkitMaskImage: `url(${src})`, maskSize: '100% 100%', WebkitMaskSize: '100% 100%' }} />}
       </span>
@@ -390,7 +395,7 @@ export function HgssBattleScene({
     if (o >= 0) {
       const em = emerging(o, 'poke-ball');
       const sink = faint ? frames(faint.at) * 8 : 0;
-      if (sink < 80 - yOff) parts.push(<Pic key={`me${mon.uid}`} src={hgssMonSrc(mon, 0)} x={64} y={y + sink} scale={em.scale} feet={40 - yOff} tint={em.tint} clip={faint ? 112 + 40 : undefined} anim={anim(0)} />);
+      if (sink < 80 - yOff) parts.push(<Pic key={`me${mon.uid}`} src={hgssMonSrc(mon, 0)} x={64} y={y + sink} scale={em.scale} feet={40 - yOff} tint={em.tint} clip={faint ? 112 + 40 : undefined} anim={anim(0)} fill={79 - yOff} />);
       const h = frames(meSend.at) - (opening(meSend.index) ? HGSS_PLAYER_SEND.healthboxAt : flight + HGSS_PLAYER_SEND.white + HGSS_PLAYER_SEND.grow);
       if (!faint && h >= 0) healthboxes.push(<div key="hb0" className="absolute" style={{ left: 0, top: 0, transform: `translateX(${slideIn(h)}px)` }}><HgssHealthbox mon={live(0, mon)} player exp={exp[mon.uid]} x={128} y={84} /></div>);
     }
