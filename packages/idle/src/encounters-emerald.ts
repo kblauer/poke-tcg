@@ -45,11 +45,20 @@ export function wildCheckE(rng: Rng, enc: EncounterStateE, rate: number | null, 
   return int(rng, MAX_RATE) < Math.min(r, MAX_RATE);
 }
 
-/** A Pokémon fished up's bite (field_player_avatar.c's Fishing_CheckForBite): with Suction Cups or Sticky Hold leading, 85%, else (or when that misses) half the time. */
+/**
+ * A cast's chance of a bite in every region (the user's: FireRed's and Emerald's 50%, raised for Kanto 2026-11-22; HGSS's
+ * rod rates, 25/50/75, and Emerald's set to it too 2026-11-23, so no rod bites less than another).
+ */
+export const FISH_BITE_PERCENT = 75;
+
+/**
+ * A Pokémon fished up's bite (field_player_avatar.c's Fishing_CheckForBite): with Suction Cups or Sticky Hold leading,
+ * 85%, else (or when that misses) FISH_BITE_PERCENT (the game's half: the user's).
+ */
 export function fishBiteE(rng: Rng, lead: Mon): boolean {
   const ability = abilityOf(lead);
   if ((ability === 'suction-cups' || ability === 'sticky-hold') && int(rng, 100) > 14) return true;
-  return int(rng, 2) === 0;
+  return int(rng, 100) < FISH_BITE_PERCENT;
 }
 
 /** A wild Pokémon to meet: its species and level, and the nature and gender the lead's ability gives it, if any. */

@@ -87,12 +87,13 @@ describe("Emerald's wild encounters", () => {
     });
   });
 
-  it('bites 85% of casts and half the rest with Suction Cups or Sticky Hold leading, half otherwise', () => {
+  it("bites 85% of casts and 75% of the rest with Suction Cups or Sticky Hold leading, 75% otherwise (the user's)", () => {
     hoenn(() => {
       // Octillery's Suction Cups; Treecko's Overgrow.
       const bites = (lead: number) => count(4000, (s) => fishBiteE(rngFrom(s), mon(lead, 10)));
-      expect(bites(224) / 4000).toBeGreaterThan(0.89);
-      expect(bites(252) / 4000).toBeLessThan(0.55);
+      expect(bites(224) / 4000).toBeGreaterThan(0.94);
+      expect(bites(252) / 4000).toBeGreaterThan(0.72);
+      expect(bites(252) / 4000).toBeLessThan(0.78);
     });
   });
 });
