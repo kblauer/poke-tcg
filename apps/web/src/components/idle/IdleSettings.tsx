@@ -17,7 +17,7 @@ const REVIVES: [RevivePolicy, string][] = [
 export function IdleSettings({ settings, busy, onChange }: { settings: Settings; busy: boolean; onChange: (s: Partial<Settings>) => void }) {
   // The ball count as typed (saved as it changes; the saved settings come back a moment later).
   const [balls, setBalls] = useState(String(settings.autoBalls));
-  const toggle = (key: 'autoHeal' | 'stopWhenFull' | 'replaceLowest' | 'autoEvolve' | 'autoGrind', label: string, note: string) => (
+  const toggle = (key: 'autoHeal' | 'stopWhenFull' | 'replaceLowest' | 'autoEvolve' | 'autoGrind' | 'catchShinies', label: string, note: string) => (
     <label className="flex items-start gap-2 text-sm">
       <input type="checkbox" className="mt-1" checked={settings[key]} disabled={busy} onChange={(e) => onChange({ [key]: e.target.checked })} />
       <span>
@@ -53,12 +53,13 @@ export function IdleSettings({ settings, busy, onChange }: { settings: Settings;
       </label>
       <label className="flex items-center gap-2 text-sm">
         Hit with
-        <select className="rounded bg-slate-700 px-2 py-1 ring-1 ring-slate-600" value={settings.catchMove} disabled={busy || settings.autoCatch === 'off'} onChange={(e) => onChange({ catchMove: e.target.value as Settings['catchMove'] })}>
+        <select className="rounded bg-slate-700 px-2 py-1 ring-1 ring-slate-600" value={settings.catchMove} disabled={busy || (settings.autoCatch === 'off' && !settings.catchShinies)} onChange={(e) => onChange({ catchMove: e.target.value as Settings['catchMove'] })}>
           <option value="basic">The basic move</option>
           <option value="slot">The first slot's move</option>
         </select>
       </label>
       <p className="-mt-2 text-xs text-slate-400">Hits it once, then again by how much that took: up to 30% of its HP, as long as it would survive the next hit; up to 50%, once more; more, not again. Then throws the best ball in the bag every turn, putting it to sleep or paralysing it first whenever such a move is ready. A move that could knock it out isn't used; the first slot's move gives way to the basic move while it cools down, or when it's a status move.</p>
+      {toggle('catchShinies', 'Always catch shinies', "Tries to catch every shiny Pokémon, whatever Auto-catch and Stop catching say. With a full party, it replaces the lowest-level Pokémon if that's ticked below; otherwise it's registered and released. While you're watching, you choose.")}
       <label className="flex items-center gap-2 text-sm">
         Auto-buy balls up to
         <input
