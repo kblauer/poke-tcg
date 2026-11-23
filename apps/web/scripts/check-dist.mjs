@@ -27,7 +27,7 @@ if (!existsSync(join(dist, 'index.html'))) {
 }
 
 /** The debug procedures' names (the API's `debugProcedure`s the site calls) and the debug buttons' words. */
-const DEBUG_STRINGS = ['setFlags', 'addCurrency', 'debugOpen', 'debugSkipBattle', 'debugStart', 'debugWarp', 'debugMoney', 'debugCatch', 'debugNext', 'Skip battle', 'Unlock everything', 'Debug: force'];
+const DEBUG_STRINGS = ['setFlags', 'addCurrency', 'debugOpen', 'debugSkipBattle', 'debugStart', 'debugWarp', 'debugMoney', 'debugCatch', 'debugNext', 'debugBuyUpgrade', 'debugResetUpgrades', 'Reset upgrades', 'Skip battle', 'Unlock everything', 'Debug: force'];
 /**
  * Each region's run maps: a string only they hold (a gym's picture: the Idle Adventure has route pictures of its own;
  * Hoenn's Gym Challenge's Pokémon Center: Hoenn's Idle maps reuse its gyms' pictures, issue #226).

@@ -80,6 +80,7 @@ export function MapScene({
   overhead,
   top: topLayer,
   heights,
+  onMap,
   children,
 }: {
   image: string;
@@ -104,6 +105,8 @@ export function MapScene({
   top?: string;
   /** The map's walking heights (IdleMap.heights: HGSS's maps that aren't flat), or nothing. */
   heights?: MapHeights;
+  /** Drawn on the map in its own pixels, under its top layer (the new-run screen's starter slots). */
+  onMap?: ReactNode;
   children?: ReactNode;
 }) {
   const phone = useIsPhone();
@@ -173,6 +176,7 @@ export function MapScene({
           {/* The grass after the sprites, so it's over the feet of those on its row (FireRed's; HGSS's hides their legs instead). */}
           {!legsHidden && people.map((p) => p.grass && <TallGrass key={p.key} tile={{ x: p.x, y: p.y }} />)}
           {!legsHidden && <GrassTufts tile={tile} grass={grass} map={image} moveMs={moveMs} jump={jump} />}
+          {onMap}
           {/* FireRed's top layer over everyone (treetops, counters' edges), as the run maps draw their Kanto routes' overheads. */}
           {topLayer && <img src={topLayer} alt="" draggable={false} className="pointer-events-none absolute inset-0 max-w-none select-none" style={{ width: width * 16, height: height * 16, zIndex: 899 }} />}
           {/* A bridge over the player walking under it: above every sprite (zIndex: their row). */}
@@ -244,10 +248,10 @@ function FishingSprite({ sprite, right = false, blob = 'surf_blob', surfing, pha
 
 /**
  * The run's area as it plays (README: Idle Adventure): the map of the leg's current step, the player walking its track
- * (Red, or Leaf; surfing on water), its trainers where the game has them, the "!" over one who has seen the player;
+ * (Red, or Leaf; surfing on water; with the Bike upgrade, `bike`, riding it on routes and in dungeons), its trainers where the game has them, the "!" over one who has seen the player;
  * `dialogue` in its text box (a notice, the catch-up's pages).
  */
-export function AreaScene({ playback, gender, dialogue, children }: { playback: Playback; gender: 'male' | 'female'; dialogue?: Dialogue | null; children?: ReactNode }) {
+export function AreaScene({ playback, gender, bike = false, dialogue, children }: { playback: Playback; gender: 'male' | 'female'; bike?: boolean; dialogue?: Dialogue | null; children?: ReactNode }) {
   const place = playback.place;
   const area = place && (areas()[place.area] as WalkArea | undefined);
   if (!place || !area || !('legs' in area)) return <GameScreen className="rounded-lg bg-slate-900 ring-1 ring-slate-700">{() => children}</GameScreen>;
@@ -260,6 +264,8 @@ export function AreaScene({ playback, gender, dialogue, children }: { playback: 
   // Tall grass (MB_TALL_GRASS: the tile's battle terrain).
   const grass = tileCode[1] === 'g';
   const sprites = playerSprites(gender);
+  // With the Bike upgrade (`bike`, the user's), ridden on routes and in dungeons, never in a gym or the League's rooms.
+  const riding = bike && (area.kind === 'route' || area.kind === 'dungeon');
   const people = area.trainers
     .filter((t) => t.leg === place.leg && t.map === m)
     .map((t) => ({ key: t.key, sprite: WATER_SPRITES[t.sprite] && water ? WATER_SPRITES[t.sprite]! : t.sprite, x: t.x, y: t.y, face: t.face, grass: t.grass }));
@@ -277,7 +283,7 @@ export function AreaScene({ playback, gender, dialogue, children }: { playback: 
       width={map.width}
       height={map.height}
       tile={at}
-      player={(fishAt ? fishAt[5] : water) ? sprites.surf : sprites.walk}
+      player={(fishAt ? fishAt[5] : water) ? sprites.surf : riding ? sprites.bike : sprites.walk}
       {...(fishAt && playback.fishing && (sprites.fishSurfing || !fishAt[5]) && { fishing: { sprite: sprites.fish, right: sprites.fishRight, blob: sprites.blob, surfing: !!fishAt[5], ...playback.fishing } })}
       face={face}
       walkTick={playback.walkTick}

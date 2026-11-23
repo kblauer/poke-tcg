@@ -11,5 +11,6 @@ export * from './battle-timing.js';
 export { JOHTO_PICS } from './data/gen2/pics.js';
 export * from './town-map.js';
 export * from './tms.js';
+export * from './upgrades.js';
 export { Battle, Battler, simulateBattle, opponentMon, MEDICINE, EXP_RATE, BATTLE_STATS, abilityName } from './battle.js';
 export type { BattleEvent, BattleOutcome, BattleResult, BattleSetup, BattleSettings, BattlerView, Side, StatusKind, Terrain, Weather, BattleStat } from './battle.js';

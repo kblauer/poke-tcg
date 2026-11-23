@@ -8,11 +8,11 @@ import { dexGen, generation } from '@poke-tcg/idle';
  * Challenge's walking and surfing ones and tools/idle/hoenn_areas.py's fishing ones, FireRed's layout; fishing from the
  * water on Emerald's surf blob in their palette, `blob`, FireRed's surf_blob.png's layout).
  */
-export function playerSprites(gender: 'male' | 'female'): { walk: string; surf: string; fish: string; fishSurfing: boolean; fishRight: boolean; blob: string } {
+export function playerSprites(gender: 'male' | 'female'): { walk: string; bike: string; surf: string; fish: string; fishSurfing: boolean; fishRight: boolean; blob: string } {
   const look = generation().look;
-  if (look === 'hgss') return { ...(gender === 'female' ? { walk: 'hgss/heroine', surf: 'hgss/swimheroine', fish: 'hgss/fish_heroine' } : { walk: 'hgss/hero', surf: 'hgss/swimhero', fish: 'hgss/fish_hero' }), fishSurfing: false, fishRight: true, blob: 'surf_blob' };
+  if (look === 'hgss') return { ...(gender === 'female' ? { walk: 'hgss/heroine', bike: 'hgss/cycleheroine', surf: 'hgss/swimheroine', fish: 'hgss/fish_heroine' } : { walk: 'hgss/hero', bike: 'hgss/cyclehero', surf: 'hgss/swimhero', fish: 'hgss/fish_hero' }), fishSurfing: false, fishRight: true, blob: 'surf_blob' };
   const base = look === 'rse' ? `rse/${gender === 'female' ? 'may' : 'brendan'}` : gender === 'female' ? 'leaf' : 'red';
-  return { walk: base, surf: `${base}_surf`, fish: `${base}_fish`, fishSurfing: true, fishRight: false, blob: look === 'rse' ? `${base}_surf_blob` : 'surf_blob' };
+  return { walk: base, bike: `${base}_bike`, surf: `${base}_surf`, fish: `${base}_fish`, fishSurfing: true, fishRight: false, blob: look === 'rse' ? `${base}_surf_blob` : 'surf_blob' };
 }
 
 /**

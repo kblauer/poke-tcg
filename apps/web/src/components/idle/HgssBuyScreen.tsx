@@ -1,4 +1,4 @@
-import { generation, areas, isMachine, machineMove, machinePrice, mapView, moveData, type TownArea } from '@poke-tcg/idle';
+import { generation, areas, isMachine, machineMove, martPrice, mapView, moveData, type TownArea } from '@poke-tcg/idle';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useEscape } from '../../hooks/useEscape';
 import { useDragSteps, useOutsideTap } from './martGestures';
@@ -24,8 +24,6 @@ const FONT: CSSProperties = { fontFamily: '"Pokemon Emerald", monospace', fontSi
 
 /** An item's name as HGSS's lists print it (mixed case), a TM or HM with its move (TM28 Dig). */
 const itemName = (item: string) => generation().items[item]!.name + (isMachine(item) ? ` ${moveData(machineMove(item)).name}` : '');
-/** An item's price: a TM's or HM's machinePrice (HMs' a placeholder). */
-const priceOf = (item: string) => (isMachine(item) ? machinePrice(item) : generation().items[item]!.price);
 
 /** Text at a pixel position (its letters' top left), or right-aligned to `right`. */
 function Text({ x, right, y, style, children }: { x?: number; right?: number; y: number; style: CSSProperties; children: ReactNode }) {
@@ -84,6 +82,8 @@ const dollars = (n: number) => `₱${n}`;
  * (point, click) or keys (arrows, Enter, Escape).
  */
 export function HgssBuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { run: ClientIdleRun; player: string; busy: boolean; onBuy: (item: string, count: number) => Promise<boolean>; onClose: () => void; machines?: string[]; children?: ReactNode }) {
+  // An item's price: a TM's or HM's machinePrice (HMs' a placeholder), after the Mart discount upgrade (martPrice).
+  const priceOf = (item: string) => martPrice(run.view, item);
   const { ref, scale } = useGameScale();
   const town = areas()[run.view.area] as TownArea;
   const mart = town.mart!;

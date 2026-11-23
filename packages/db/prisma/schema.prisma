@@ -67,6 +67,11 @@ model User {
   /// The Idle Adventure's settings (the idle package's IdleSettings: auto-heal, auto-catch, full-party toggles,
   /// auto-evolve, playback speed); {} is the defaults.
   idleSettings  Json            @default("{}")
+  /// The Idle Adventure's upgrade tree (issue #270): its currency (Poké Miles, a placeholder name), the upgrades bought
+  /// (the idle package's IdleUpgrades: each one's tiers), and Send some to Mom's money for the next run.
+  idleMiles     Int             @default(0)
+  idleUpgrades  Json            @default("{}")
+  idleMom       Int             @default(0)
   decks         Deck[]
   games         Game[]
   runs          Run[]

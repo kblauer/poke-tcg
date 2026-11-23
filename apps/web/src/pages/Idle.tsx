@@ -1,6 +1,6 @@
 import { idleMusic } from '@poke-tcg/campaign';
-import { areas, cuts, dexSpecies, generation, inGeneration, mapView, showGeneration, TICK_MS, type IdleAction, type IdleGen, type WalkArea } from '@poke-tcg/idle';
-import { useEffect, useState } from 'react';
+import { areas, cuts, dexSpecies, generation, inGeneration, mapView, showGeneration, starterSlots, tierOf, activeUpgrades, randomStarters, sampleStarters, toggledLevel, TICK_MS, type IdleAction, type IdleGen, type WalkArea } from '@poke-tcg/idle';
+import { useEffect, useMemo, useState } from 'react';
 import type { Dialogue } from '../components/DialogueBox';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
 import { PageHeader } from '../components/PageHeader';
@@ -17,6 +17,7 @@ import { Pokedex } from '../components/idle/Pokedex';
 import { StarterScene } from '../components/idle/StarterScene';
 import { MartScene } from '../components/idle/MartScene';
 import { TownMenu } from '../components/idle/TownMenu';
+import { UpgradeTree } from '../components/idle/UpgradeTree';
 import { useEscape } from '../hooks/useEscape';
 import { placeOf, placeTrack, useIdleActions, useIdleOverview, useIdlePlayback, useTownHere, type ClientIdleRun } from '../hooks/useIdle';
 import { useRun } from '../hooks/useRun';
@@ -28,10 +29,11 @@ import { commas } from '../utils/math';
 import { BUTTON } from '../utils/styles';
 
 // The party is an overlay over the game screen (PartyOverlay, the user's), not a tab.
-type Tab = 'bag' | 'dex' | 'settings' | 'log';
+type Tab = 'bag' | 'dex' | 'upgrades' | 'settings' | 'log';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'bag', label: 'Bag' },
   { id: 'dex', label: 'Pokédex' },
+  { id: 'upgrades', label: 'Upgrades' },
   { id: 'settings', label: 'Settings' },
   { id: 'log', label: 'Log' },
 ];
@@ -62,6 +64,12 @@ export function IdlePage() {
   const [speed, setFast] = useIdleSpeed(debug);
   const soundtrack = useMusicSettings()?.soundtrack ?? 'remastered';
   const [tab, setTab] = useState<Tab>('bag');
+  // The new-run screen's tabs (the user's: the Pokédex and the upgrades take no more room than one of them).
+  const [startTab, setStartTab] = useState<'dex' | 'upgrades'>('dex');
+  // A new run's starters picked so far (the Starter slots upgrade, issue #270: up to its slots, then it starts).
+  const [picks, setPicks] = useState<{ species: number; shiny: boolean }[]>([]);
+  // Every slot filled: the professor asks whether to start the run with them (the user's), Yes or No.
+  const [confirming, setConfirming] = useState(false);
   // The party overlay's open (kept as the scene changes: the map, a battle, a town).
   const [partyOpen, setPartyOpen] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
@@ -123,6 +131,11 @@ export function IdlePage() {
   // The maps it will show next, fetched ahead (the user's: no map drawing in bit by bit).
   usePreloadMaps(place ? place.area : null);
 
+  // Randomized starters (the user's): three of the region's starters the account can pick, drawn once for the screen (again
+  // for another region or a changed list).
+  const randomOn = randomStarters(activeUpgrades(data?.upgrades.owned, data?.settings.upgradeLevels));
+  const pickable = picked?.starters.join(',') ?? '';
+  const offered = useMemo(() => (randomOn && pickable ? sampleStarters(pickable.split(',').map(Number)) : undefined), [randomOn, pickable]);
   if (overview.error && !data) return <p className={`${PAGE_WIDTH} text-red-400`}>{overview.error.message}</p>;
   if (!data || !settings) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
 
@@ -143,7 +156,52 @@ export function IdlePage() {
           .then((r) => (acted(r.run, { type: 'BUY', item, count }), true))
           .catch((e: unknown) => (failed(e), false))
       : Promise.resolve(false);
-  const start = (id: number, shiny = false) => picked && actions.start(id, shiny, picked.gen, !!picked.locked).catch(failed);
+  // A new run: once every slot is filled the professor asks "Start the run with …?" (the user's), Yes starting it, No taking
+  // the last pick back; or at once with Start with these. Each species once, a pick chosen again taken back (the user's).
+  const slots = starterSlots(activeUpgrades(data?.upgrades.owned, data?.settings.upgradeLevels));
+  const begin = (list: { species: number; shiny: boolean }[]) =>
+    picked &&
+    list.length > 0 &&
+    actions
+      .start(list[0]!.species, list[0]!.shiny, picked.gen, !!picked.locked, list.slice(1))
+      .then(() => (setPicks([]), setConfirming(false)))
+      .catch(failed);
+  const start = (id: number, shiny = false) => {
+    if (picks.some((p) => p.species === id)) return (setConfirming(false), setPicks(picks.filter((p) => p.species !== id)));
+    if (picks.length >= slots) return toasts.push('warning', 'Every slot is filled: click a chosen Pokémon to take it back');
+    const next = [...picks, { species: id, shiny }];
+    setPicks(next);
+    if (next.length >= slots) setConfirming(true);
+  };
+  /** "A", "A and B", "A, B and C": the picks' names for the question. */
+  const listed = (names: string[]) => (names.length < 2 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`);
+  const confirm =
+    confirming && picks.length > 0
+      ? {
+          text: `Start the run with ${listed(picks.map((p) => `${p.shiny ? 'shiny ' : ''}${name(p.species)}`))}?`,
+          onAnswer: (yes: boolean) => (yes ? void begin(picks) : (setConfirming(false), setPicks(picks.slice(0, -1)))),
+        }
+      : null;
+  // The upgrades in effect: the tiers bought, as far as each is switched on (the user's: a bought tier can be switched off).
+  const upgradesOn = activeUpgrades(data?.upgrades.owned, data?.settings.upgradeLevels);
+  // The upgrade tree (issue #270): in debug mode every tier free and a button taking them all back (the user's).
+  const upgradesPanel = data && (
+    <div className="space-y-2">
+      <UpgradeTree
+        account={data.upgrades}
+        active={upgradesOn}
+        busy={actions.busy}
+        free={debug}
+        onBuy={(id) => void actions.buyUpgrade(id, debug).catch(failed)}
+        onToggle={(id, tier) => void actions.settings({ upgradeLevels: { ...data.settings.upgradeLevels, [id]: toggledLevel(upgradesOn, id, tier) } }).catch(failed)}
+      />
+      {DEBUG_BUILD && debug && (
+        <button className={BUTTON} disabled={actions.busy} onClick={() => void actions.resetUpgrades().catch(failed)}>
+          Reset upgrades
+        </button>
+      )}
+    </div>
+  );
   const v = run?.view;
   // The party over the game screen (the user's): its button in the screen's top right corner, its slots sliding out; and
   // the Town Map's button in its top left corner, on every scene (the user's, in place of the mode drop-down), and the
@@ -222,7 +280,7 @@ export function IdlePage() {
           {regions.length > 1 && (
             <label className="flex flex-wrap items-center gap-2 text-sm">
               Region
-              <select className="rounded bg-slate-700 px-2 py-1" value={picked?.gen} onChange={(e) => setPickGen(Number(e.target.value) as IdleGen)}>
+              <select className="rounded bg-slate-700 px-2 py-1" value={picked?.gen} onChange={(e) => (setPickGen(Number(e.target.value) as IdleGen), setPicks([]), setConfirming(false))}>
                 {regions.map((g) => (
                   <option key={g.gen} value={g.gen} disabled={!startable(g)} title={g.locked ?? undefined}>
                     {g.region}
@@ -237,14 +295,48 @@ export function IdlePage() {
               ))}
             </label>
           )}
-          <StarterScene key={picked?.gen} gender={gender} busy={actions.busy} onPick={(id) => void start(id)} dialogue={catchUp} />
-          {picked && (picked.starters.length > 3 || picked.shinyStarters.length > 0) && (
-            <section className="space-y-2">
-              <h3 className="text-lg font-semibold">Or start from your Pokédex</h3>
-              <p className="text-sm text-slate-400">Any species you've caught, at level 5 with its best IVs and EVs on record.</p>
-              <Pokedex dex={data.dex} gen={picked.gen} starters={picked.starters} shinyStarters={picked.shinyStarters} onPick={(id, shiny) => void start(id, shiny)} busy={actions.busy} />
-            </section>
+          {slots > 1 && (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span>
+                Pick up to {slots} starters ({picks.length} of {slots} chosen).
+              </span>
+              {picks.length > 0 && (
+                <>
+                  <button className={BUTTON} disabled={actions.busy} onClick={() => void begin(picks)}>
+                    Start with {picks.length === 1 ? 'it' : 'these'}
+                  </button>
+                  <button className={BUTTON} disabled={actions.busy} onClick={() => setPicks([])}>
+                    Clear
+                  </button>
+                </>
+              )}
+            </div>
           )}
+          <StarterScene key={picked?.gen} gender={gender} busy={actions.busy} onPick={(id) => start(id)} dialogue={catchUp} slots={slots} picks={picks} options={offered} confirm={confirm} />
+          {(() => {
+            // The Pokédex (to start from: any species caught, from the second run) and the upgrades, on tabs (the user's).
+            const fromDex = !!picked && (picked.starters.length > 3 || picked.shinyStarters.length > 0);
+            const shown = fromDex ? startTab : 'upgrades';
+            const tabs: { id: 'dex' | 'upgrades'; label: string }[] = [...(fromDex ? [{ id: 'dex' as const, label: 'Pokédex' }] : []), { id: 'upgrades', label: 'Upgrades' }];
+            return (
+              <section className="space-y-3">
+                <div className="flex flex-wrap gap-1 border-b border-slate-700">
+                  {tabs.map((t) => (
+                    <button key={t.id} className={`rounded-t px-3 py-1.5 text-sm ${shown === t.id ? 'bg-slate-700 font-semibold text-yellow-300' : 'text-slate-400 hover:text-slate-100'}`} onClick={() => setStartTab(t.id)}>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                {shown === 'dex' && picked && (
+                  <>
+                    <p className="text-sm text-slate-400">Any species you've caught, at level 5 with its best IVs and EVs on record.</p>
+                    <Pokedex dex={data.dex} gen={picked.gen} starters={picked.starters} shinyStarters={picked.shinyStarters} onPick={(id, shiny) => start(id, shiny)} busy={actions.busy} />
+                  </>
+                )}
+                {shown === 'upgrades' && upgradesPanel}
+              </section>
+            );
+          })()}
           <ReturnToPlay />
         </div>
       ) : v?.phase === 'town' && v.inStore ? (
@@ -278,7 +370,7 @@ export function IdlePage() {
           {overlays()}
         </BattleScreen>
       ) : (
-        <AreaScene playback={play} gender={gender} dialogue={catchUp ?? (play.notice ? { text: play.notice, choices: [], instant: true, answer: () => {} } : null)}>
+        <AreaScene playback={play} gender={gender} bike={tierOf(active?.view.upgrades, 'shoes') >= 2} dialogue={catchUp ?? (play.notice ? { text: play.notice, choices: [], instant: true, answer: () => {} } : null)}>
           {!play.entering && overlays()}
           {play.entering && <SceneTransition />}
         </AreaScene>
@@ -302,6 +394,7 @@ export function IdlePage() {
               onAlwaysCatch={(species, on) => void actions.settings({ alwaysCatch: on ? [...settings.alwaysCatch.filter((s) => s !== species), species] : settings.alwaysCatch.filter((s) => s !== species) }).catch(failed)}
             />
           )}
+          {tab === 'upgrades' && upgradesPanel}
           {tab === 'settings' && <IdleSettings settings={settings} busy={false} onChange={(s) => void actions.settings(s).catch(failed)} />}
           {tab === 'log' && (
             <ul className="space-y-1 text-sm text-slate-300">

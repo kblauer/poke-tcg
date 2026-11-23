@@ -35,7 +35,12 @@ export interface BallSituation {
   water?: boolean;
   caught?: boolean;
   gen4?: boolean;
+  /** The wild Pokémon is shiny (the Premier Ball always catches one: upgrades.ts). */
+  shiny?: boolean;
 }
+
+/** The Premier Ball's tenths on a shiny: enough that any catch rate at any HP is above 254 (always caught). */
+export const PREMIER_SHINY = 2550;
 
 /** A ball's multiplier in tenths here (Gen 3's and Gen 4's: Net 3x on Water and Bug, Dive 3.5x on water (Gen 4's surfing; Gen 3's only underwater, MAP_TYPE_UNDERWATER: Hoenn's Underwater area), Nest up to 4x below level 40, Repeat 3x on a caught species, Timer up by a tenth a turn to 4x; Gen 4's Dusk 3.5x at night or in a cave, Quick 4x on the first turn). */
 export function ballTenths(ball: string, s: BallSituation): number {
@@ -54,6 +59,9 @@ export function ballTenths(ball: string, s: BallSituation): number {
       return s.gen4 && (s.night || s.cave) ? 35 : 10;
     case 'quick-ball':
       return s.gen4 && s.turn < 1 ? 40 : 10;
+    // The Premier Ball (the upgrade tree's, the user's, 2026-11-23): a Poké Ball, but sure on a shiny (odds above 254).
+    case 'premier-ball':
+      return s.shiny ? PREMIER_SHINY : 10;
     default:
       return BALLS.find(([b]) => b === ball)?.[1] ?? 10;
   }
