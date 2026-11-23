@@ -77,12 +77,33 @@ describe('Neo Genesis Trainers', () => {
       expect(misty(attack(dark, 0)).active!.damage).toBe(20);
     });
 
-    it('Metal Energy (EX rules, agreed): 10 less damage only to a Metal Pokémon, and nothing less from its own attacks', () => {
-      expect(misty(attack(table('charmander', 'onix', { defenderEnergy: ['metal'], energy: ['fire', 'fire'] }), 1)).active!.damage).toBe(30);
-      expect(misty(attack(table('charmander', 'onix', { energy: ['metal', 'fire'] }), 1)).active!.damage).toBe(30);
+    it("Metal Energy (Neo Genesis's, as printed, the user's): 10 less damage to any Pokémon, and 10 less from a non-Metal one's attacks", () => {
+      expect(misty(attack(table('charmander', 'onix', { defenderEnergy: ['metal'], energy: ['fire', 'fire'] }), 1)).active!.damage).toBe(20);
+      expect(misty(attack(table('charmander', 'onix', { energy: ['metal', 'fire'] }), 1)).active!.damage).toBe(20);
       const steel = table('charmander', 'onix', { defenderEnergy: ['metal'], energy: ['fire', 'fire'] });
-      steel.cards[id('onix')] = { ...(steel.cards[id('onix')] as PokemonCardDef), type: 'metal' };
+      steel.cards = { ...steel.cards, [id('onix')]: { ...(steel.cards[id('onix')] as PokemonCardDef), type: 'metal' } };
       expect(misty(attack(steel, 1)).active!.damage).toBe(20);
+      // A Metal attacker has no drawback.
+      const metalAttacker = table('charmander', 'onix', { energy: ['metal', 'fire'] });
+      metalAttacker.cards = { ...metalAttacker.cards, [id('charmander')]: { ...(metalAttacker.cards[id('charmander')] as PokemonCardDef), type: 'metal' } };
+      expect(misty(attack(metalAttacker, 1)).active!.damage).toBe(30);
+      // Double-edge's recoil is 10 less for the drawback and 10 less for the guard: 70 and 60, two of them 60 and 40.
+      const one = attack(table('chansey', 'onix', { energy: ['metal', 'fire', 'fire', 'fire'] }), 1);
+      expect([misty(one).active!.damage, ash(one).active!.damage]).toEqual([70, 60]);
+      const two = attack(table('chansey', 'onix', { energy: ['metal', 'metal', 'fire', 'fire'] }), 1);
+      expect([misty(two).active!.damage, ash(two).active!.damage]).toEqual([60, 40]);
+    });
+
+    it('Metal Energy of the later sets keeps the EX rules: 10 less only to a Metal Pokémon, no drawback', () => {
+      const later = (s: GameState, p: { energy: { defId: string }[] }) => {
+        s.cards = { ...s.cards, 'ex1-94': { ...s.cards[id('metal')]!, id: 'ex1-94' } };
+        p.energy[0]!.defId = 'ex1-94';
+        return s;
+      };
+      let s = table('charmander', 'onix', { defenderEnergy: ['metal'], energy: ['fire', 'fire'] });
+      expect(misty(attack(later(s, misty(s).active!), 1)).active!.damage).toBe(30);
+      s = table('charmander', 'onix', { energy: ['metal', 'fire'] });
+      expect(misty(attack(later(s, ash(s).active!), 1)).active!.damage).toBe(30);
     });
 
     it('Recycle Energy goes back to the hand when it’s discarded from play', () => {
