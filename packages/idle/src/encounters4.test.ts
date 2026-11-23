@@ -99,11 +99,10 @@ describe("HGSS's wild encounters", () => {
     });
   });
 
-  it("bites by the rod's rate, doubled for Sticky Hold or Suction Cups", () => {
-    const table = LAND.goodRod!;
-    const bites = (l: Mon) => tally(10000, (s) => fishBite4(rngFrom(s), table, l)).get(true)! / 10000;
-    expect(bites(lead(MACHOP))).toBeGreaterThan(0.45);
-    expect(bites(lead(MACHOP))).toBeLessThan(0.55);
+  it("bites 75% of casts whatever the rod (the user's), doubled for Sticky Hold or Suction Cups", () => {
+    const bites = (l: Mon) => tally(10000, (s) => fishBite4(rngFrom(s), l)).get(true)! / 10000;
+    expect(bites(lead(MACHOP))).toBeGreaterThan(0.72);
+    expect(bites(lead(MACHOP))).toBeLessThan(0.78);
     expect(bites(lead(88, 30, { abilitySlot: 1 }))).toBe(1); // Grimer's Sticky Hold
   });
 });

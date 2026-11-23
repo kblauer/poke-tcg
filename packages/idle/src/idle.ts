@@ -13,7 +13,7 @@ import { itemData, species } from './data.js';
 import { generation, inGeneration, perGeneration, type IdleGen } from './generation.js';
 import { evolve, leavesShedinja, levelEvolution, SHEDINJA, stoneEvolution, usableStones } from './evolution.js';
 import { fishBite4, pickWild4, ROD_TABLES, timeOfDay, wildCheck4, type TimeOfDay } from './encounters4.js';
-import { EXTRA_PERCENT, fishBiteE, pickWildE, wildCheckE } from './encounters-emerald.js';
+import { EXTRA_PERCENT, FISH_BITE_PERCENT, fishBiteE, pickWildE, wildCheckE } from './encounters-emerald.js';
 import { abilityOf, autoSlots, basicFor, createMon, familyMovesUpTo, isBaseForm, newUid } from './mon.js';
 import { MAX_LEVEL } from './stats.js';
 import { isMachine, machinePrice, slotMoves } from './tms.js';
@@ -1126,11 +1126,8 @@ const ROD_SLOTS: [first: number, odds: number[]][] = [
   [5, [40, 40, 15, 4, 1]],
 ];
 
-/** A Kanto cast's chance of a bite (FireRed's is 50%: raised by the user, 2026-11-22). */
-export const FISH_BITE_PERCENT = 75;
-
 // Each of a table's extra slots' share of its encounters (encounters-emerald.ts's, Hoenn's too).
-export { EXTRA_PERCENT };
+export { EXTRA_PERCENT, FISH_BITE_PERCENT };
 
 /**
  * A wild Pokémon of a table: [min level, max level, dex number]. One of its extra slots EXTRA_PERCENT of the time each,
@@ -1785,7 +1782,7 @@ function fishCast4(state: IdleState, rng: Rng, settings: PlaySettings, caught: S
   if (!rods.length) return null;
   const rod = rods[int(rng, rods.length)]!;
   const lead = state.party[0]!;
-  const bite = fishBite4(rng, tables[ROD_TABLES[rod]!]!, lead);
+  const bite = fishBite4(rng, lead);
   const dots = int(rng, 4) + 1;
   out.events.push({ t: 'fish', spot, rod, dots, bite });
   out.durationMs += fishMs({ dots });

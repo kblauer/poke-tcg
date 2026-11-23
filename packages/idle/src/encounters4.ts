@@ -4,6 +4,7 @@
 // its order.
 import { int, type Rng } from '@poke-tcg/campaign';
 import { species } from './data.js';
+import { FISH_BITE_PERCENT } from './encounters-emerald.js';
 import { abilityOf } from './mon.js';
 import type { EncounterSlots, EncounterTable, Mon, TypeName } from './types.js';
 
@@ -54,10 +55,14 @@ export function wildCheck4(rng: Rng, enc: EncounterState4, rate: number, lead: M
   return int(rng, 100) < m && int(rng, 100) < rate;
 }
 
-/** A Pokémon fished up's bite (FieldSystem_PerformFishEncounterCheck): R(100) < the rod's rate, doubled by a lead with Sticky Hold or Suction Cups, at most 100. */
-export function fishBite4(rng: Rng, table: EncounterSlots, lead: Mon): boolean {
+/**
+ * A Pokémon fished up's bite (FieldSystem_PerformFishEncounterCheck): R(100) < the rate, doubled by a lead with Sticky
+ * Hold or Suction Cups, at most 100. The rate is FISH_BITE_PERCENT for every rod, not the rod's (HGSS's 25/50/75: the
+ * user's, 2026-11-23, as Kanto's and Hoenn's).
+ */
+export function fishBite4(rng: Rng, lead: Mon): boolean {
   const ability = abilityOf(lead);
-  const rate = Math.min(100, ability === 'sticky-hold' || ability === 'suction-cups' ? table.rate * 2 : table.rate);
+  const rate = Math.min(100, ability === 'sticky-hold' || ability === 'suction-cups' ? FISH_BITE_PERCENT * 2 : FISH_BITE_PERCENT);
   return int(rng, 100) < rate;
 }
 
