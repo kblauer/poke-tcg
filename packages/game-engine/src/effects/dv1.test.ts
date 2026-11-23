@@ -64,7 +64,9 @@ describe('Dragon Vault attacks', () => {
 describe('Dragon Vault Abilities', () => {
   it('Grit: 40 more with a Special Condition, before Weakness and Resistance', () => {
     const s = duel('charmander', 'onix');
-    put(s, 'ash', 'active', fraxure, ['fighting', id('metal'), 'fighting']);
+    // A basic Metal Energy (Neo Genesis's Special one has its drawback on a non-Metal Pokémon).
+    s.cards = { ...s.cards, 'basic-metal': { id: 'basic-metal', kind: 'energy', name: 'Metal Energy', imageUrl: null, energyType: 'metal', basic: true } };
+    put(s, 'ash', 'active', fraxure, ['fighting', 'basic-metal', 'fighting']);
     put(s, 'misty', 'active', big('Snorlax'));
     expect(misty(attack(s, 0)).active!.damage).toBe(60);
     ash(s).active!.poison = 1;

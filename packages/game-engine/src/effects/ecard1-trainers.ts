@@ -198,7 +198,7 @@ export const ECARD1_TRAINERS: Record<string, TrainerEffect> = {
   'ecard1-157': BASE1_TRAINERS['base1-95']!,
 };
 
-/** Darkness and Metal Energy: their rules live in the engine (attacks.ts: the EX rules, for every set's, agreed). */
+/** Darkness and Metal Energy: their rules live in the engine (attacks.ts: Darkness the EX rules, agreed; Metal as printed, WOTC_METAL). */
 export const ECARD1_ENERGY: Record<string, EnergyEffect> = {
   'ecard1-158': { onAttach: () => {} },
   'ecard1-159': { onAttach: () => {} },

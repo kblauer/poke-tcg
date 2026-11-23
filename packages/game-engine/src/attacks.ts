@@ -418,6 +418,30 @@ const energyCount = (cards: CardLibrary, p: InPlayPokemon, name: string) =>
     return !e.provides && !e.windless && e.faceDownUntil === undefined && d.name === name && d.kind === 'energy' && d.basic === false;
   }).length;
 
+/**
+ * The WOTC-era Metal Energy cards, as printed (the user's, 2026-11-23; every later print keeps the EX rules): the Pokémon
+ * it's attached to takes 10 less damage whatever its type, and one that isn't Metal does 10 less damage to any Pokémon
+ * it damages, itself included (Double-edge's recoil: 10 less for the drawback, then 10 less again for the guard). Neo
+ * Genesis's and Aquapolis's drawback before Weakness and Resistance, Expedition's after.
+ */
+const WOTC_METAL: Record<string, 'before' | 'after'> = { 'neo1-19': 'before', 'ecard2-143': 'before', 'ecard1-159': 'after' };
+
+/** How many WOTC-era Metal Energy cards are attached to the Pokémon (`when`: only those whose drawback comes then). */
+const wotcMetal = (cards: CardLibrary, p: InPlayPokemon, when?: 'before' | 'after') =>
+  p.energy.filter((e) => {
+    const print = WOTC_METAL[e.defId.replace(/-reverse$/, '')];
+    return !!print && (!when || print === when) && !e.provides && !e.windless && e.faceDownUntil === undefined;
+  }).length;
+
+/** How much less attack damage a Pokémon takes from its Metal Energy: the WOTC-era cards' 10 each on any Pokémon, the later ones' only on a Metal Pokémon. */
+const metalGuard = (cards: CardLibrary, p: InPlayPokemon) => {
+  const old = wotcMetal(cards, p);
+  return 10 * (old + (hasType(inPlayDef(cards, p), 'metal') ? energyCount(cards, p, 'Metal Energy') - old : 0));
+};
+
+/** How much less damage a Pokémon's attacks do from its WOTC-era Metal Energy's drawback (none on a Metal Pokémon). */
+const metalDrawback = (cards: CardLibrary, p: InPlayPokemon, when?: 'before' | 'after') => (hasType(inPlayDef(cards, p), 'metal') ? 0 : 10 * wotcMetal(cards, p, when));
+
 /** Sprout Tower is the Stadium in play. */
 const sproutTower = (state: Pick<GameState, 'stadium' | 'cards'>) => !!state.stadium && lookupCard(state.cards, state.stadium.card.defId).name === 'Sprout Tower';
 
@@ -1573,7 +1597,8 @@ function createContext(
     if (owner === opp && amount > 0) amount += passive(attacker)?.attackMore ?? 0;
     if (owner === opp) amount = intimidated(amount, owner);
     if (amount > 0 && sproutTower(state) && hasType(attackerDef, 'colorless')) amount = Math.max(0, amount - 30);
-    if (hasType(def(state.cards, p), 'metal')) amount = Math.max(0, amount - 10 * energyCount(state.cards, p, 'Metal Energy'));
+    // Metal Energy: the WOTC-era cards' drawback on a non-Metal attacker (to any Pokémon, itself included), then the guard.
+    amount = Math.max(0, amount - metalDrawback(state.cards, attacker) - metalGuard(state.cards, p));
     let damage = unownGuarded(p, barriers(p, armor(p, afterDefender(state.cards, p, amount), owner), owner), owner);
     if (owner === opp && damage > 0 && doubleRainbow()) damage = Math.max(0, damage - 10);
     return (damage >= 30 && passive(p)?.invisibleWall) || magicNumber(p, damage, owner) ? 0 : damage;
@@ -1823,6 +1848,12 @@ function createContext(
       amount = noted('Darkness Energy', amount, amount + dark);
       log(`Darkness Energy: ${dark} more damage.`);
     }
+    // Metal Energy (Neo Genesis's, Aquapolis's) on a non-Metal attacker: 10 less for each, before Weakness and Resistance.
+    const metalLess = metalDrawback(state.cards, attacker, 'before');
+    if (amount > 0 && metalLess) {
+      amount = noted('Metal Energy', amount, Math.max(0, amount - metalLess));
+      log(`Metal Energy: ${metalLess} less damage.`);
+    }
     // PlusPower (Black & White series): 10 more for each played this turn, before Weakness and Resistance.
     const plus = me.plusPowers?.turn === turn ? 10 * me.plusPowers.count : 0;
     if (amount > 0 && plus) {
@@ -1945,6 +1976,12 @@ function createContext(
       damage = noted('PlusPower', damage, damage + 10 * attachedCount(state.cards, attacker, 'PlusPower'));
       damage = noted('Defender', damage, Math.max(0, damage - (swift ? 0 : 20 * attachedCount(state.cards, defender, 'Defender'))));
     }
+    // Metal Energy (Expedition's) on a non-Metal attacker: 10 less for each, after Weakness and Resistance.
+    const metalAfter = metalDrawback(state.cards, attacker, 'after');
+    if (damage > 0 && metalAfter) {
+      damage = noted('Metal Energy', damage, Math.max(0, damage - metalAfter));
+      log(`Metal Energy: ${metalAfter} less damage.`);
+    }
     // Double Rainbow Energy: 10 less damage from the Pokémon it's attached to, after Weakness and Resistance.
     if (damage > 0 && doubleRainbow()) {
       damage = noted('Double Rainbow Energy', damage, Math.max(0, damage - 10));
@@ -1973,11 +2010,12 @@ function createContext(
         damage = noted('Sprout Tower', damage, Math.max(0, damage - 30));
         log(`Sprout Tower reduced the damage to ${defenderDef.name} by 30.`, opp.id);
       }
-      // Metal Energy (the EX rules for every set's, agreed): 10 less for each on a Metal Defending Pokémon, after Weakness and Resistance.
-      const metal = hasType(defenderDef, 'metal') ? energyCount(state.cards, defender, 'Metal Energy') : 0;
+      // Metal Energy (the EX rules for every set's, agreed: 10 less for each on a Metal Defending Pokémon; the WOTC-era
+      // cards' on any, the user's), after Weakness and Resistance.
+      const metal = metalGuard(state.cards, defender);
       if (damage > 0 && metal) {
-        damage = noted('Metal Energy', damage, Math.max(0, damage - 10 * metal));
-        log(`Metal Energy reduced the damage to ${defenderDef.name} by ${10 * metal}.`, opp.id);
+        damage = noted('Metal Energy', damage, Math.max(0, damage - metal));
+        log(`Metal Energy reduced the damage to ${defenderDef.name} by ${metal}.`, opp.id);
       }
       // Psychic Guard: less from a Stage 2 Evolved Pokémon's attack, after Weakness and Resistance.
       const guard = effects?.stage2Guard;

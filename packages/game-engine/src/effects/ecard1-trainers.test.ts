@@ -111,12 +111,13 @@ describe('Expedition Trainers', () => {
     expect(ash(after).discard.map((c) => c.defId)).toContain('ecard1-150');
   });
 
-  it("Expedition's Metal Energy plays by the EX rules (agreed): nothing less from a non-Metal attacker", () => {
+  it("Expedition's Metal Energy plays as printed (the user's, 2026-11-23): a non-Metal attacker does 10 less, after Weakness and Resistance", () => {
     const s = duel('charmander', 'onix');
-    s.cards[metal.id] = metal;
+    s.cards = { ...s.cards, [metal.id]: metal };
     ash(s).active!.energy = [{ uid: 'f', defId: 'fire' }, { uid: 'm', defId: 'ecard1-159' }];
-    expect(misty(attack(s, 1)).active!.damage).toBe(30);
-    s.cards['base1-56'] = { ...(s.cards['base1-56'] as ReturnType<typeof mon>), weakness: { type: F, multiplier: 2 } };
-    expect(misty(attack(s, 1)).active!.damage).toBe(60);
+    expect(misty(attack(s, 1)).active!.damage).toBe(20);
+    s.cards = { ...s.cards, 'base1-56': { ...(s.cards['base1-56'] as ReturnType<typeof mon>), weakness: { type: F, multiplier: 2 } } };
+    // 30 doubled, then 10 less (Neo Genesis's would be 10 less first: 40).
+    expect(misty(attack(s, 1)).active!.damage).toBe(50);
   });
 });
