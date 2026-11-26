@@ -120,7 +120,7 @@ export const idleRouter = router({
       settings,
       upgrades,
       generations,
-      dex: dex.map((d) => ({ species: d.species, seen: d.seen, caught: d.caught, shiny: d.shiny, bestIv: d.bestIv, bestEv: d.bestEv })),
+      dex: dex.map((d) => ({ species: d.species, seen: d.seen, caught: d.caught, shiny: d.shiny, bestIv: d.bestIv, bestEv: d.bestEv, champion: d.champion })),
     };
   }),
 

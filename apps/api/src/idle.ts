@@ -201,6 +201,13 @@ export async function recordDex(tx: Prisma.TransactionClient, userId: string, no
   return firsts;
 }
 
+/** Marks each species in a run's party as a Champion of its region (IdleDex.champion), once. */
+export async function recordChampions(tx: Prisma.TransactionClient, userId: string, state: IdleState) {
+  const gen = state.gen ?? 1;
+  const species = [...new Set(state.party.map((m) => m.species))];
+  await tx.idleDex.updateMany({ where: { userId, species: { in: species }, NOT: { champion: { has: gen } } }, data: { champion: { push: gen } } });
+}
+
 /**
  * What a run pays as it ends (issue #270): the upgrade currency by how far it got (runEndMiles), and Send some to Mom's
  * share of its money, kept for the next run (replacing any not yet used).
@@ -231,6 +238,8 @@ export async function saveIdleRun(run: LoadedIdleRun, state: IdleState, o: { dex
       await tx.user.update({ where: { id: run.ownerId }, data: { bank: { increment: bankedMoney(state) }, idleMiles: { increment: pay.miles }, idleMom: pay.mom } });
     }
     await recordDex(tx, run.ownerId, o.dex ?? []);
+    // The Champion beaten: each species in the party gets the region's Champion Ribbon in the Pokédex (the user's, 2026-11-26).
+    if (bank && status === 'BEATEN') await recordChampions(tx, run.ownerId, state);
     return true;
   });
   if (!saved) throw new TRPCError({ code: 'CONFLICT', message: 'Run changed, refresh and retry' });

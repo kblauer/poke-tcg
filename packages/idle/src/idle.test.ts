@@ -7,7 +7,7 @@ import type { BattleEvent } from './battle.js';
 import { catchTextFrame, FRAME_MS, openingMs } from './battle-timing.js';
 import { townMapPlaces, townMapArea } from './town-map.js';
 import { inGeneration } from './generation.js';
-import { applyIdleAction, shouldCatch, atProgress, legendError, rodsOf, starters, BATTLE_HOLD_MS, BATTLE_MS, catchUp, cutSegment, mapGrindPlan, progressOf, reachedArea, repairState, travelError, wildSpots, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, loopMode, modeOf, playing, previousRoute, routeGrindPlan, starterOptions, TICK_MS, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
+import { applyIdleAction, shouldCatch, atProgress, legendError, rodsOf, starters, BATTLE_HOLD_MS, BATTLE_MS, catchUp, cutSegment, mapGrindPlan, progressOf, reachedArea, repairState, travelError, wildSpots, mapLabel, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, loopMode, modeOf, playing, previousRoute, routeGrindPlan, starterOptions, TICK_MS, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
 
@@ -753,6 +753,23 @@ describe('an idle run', () => {
       expect(atProgress(s)).toBe(false);
       // Continue run: back to Fuchsia City.
       expect(act(s, { type: 'CONTINUE_RUN' })).toMatchObject({ area: index('fuchsia-city'), phase: 'town' });
+    });
+
+    it("names each wild table by everything after its place's name, so no two of a place share one", () => {
+      expect(['PokemonTower_3F', 'SafariZone_East', 'MeteorFalls_B1F_2R', 'MeteorFalls_StevensCave', 'ShoalCave_LowTideInnerRoom', 'SeafloorCavern_Room4', 'IcePathB1f', 'VictoryRoad2f', 'ViridianForest'].map(mapLabel)).toEqual(['3F', 'East', 'B1F Room 2', "Steven's Cave", 'Low Tide Inner Room', 'Room 4', 'B1F', '2F', 'Viridian Forest']);
+    });
+
+    it('never offers two wild tables of one kind with the same name on a Town Map place, in any region', () => {
+      for (const gen of [1, 2, 3] as const) {
+        inGeneration(gen, () => {
+          const seen = new Map<string, string>();
+          for (const [i] of areas().entries()) for (const s of wildSpots(i)) {
+            const key = `${mapView(s.map).section} ${s.fish ? 'f' : s.water ? 'w' : 'l'} ${s.label}`;
+            expect(seen.get(key) ?? s.map, `gen ${gen}: ${key}`).toBe(s.map);
+            seen.set(key, s.map);
+          }
+        });
+      }
     });
 
     it('grind on one wild table picked on the Town Map (a zone, a floor), its tiles only', () => {

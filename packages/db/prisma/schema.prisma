@@ -545,6 +545,9 @@ model IdleDex {
   contestMoves String[] @default([])
   /// The Super Contest ribbons it has won ("cool-normal"…: ribbonId).
   ribbons      String[] @default([])
+  /// The generations (regions) whose Champion a run beat with one of the species in its party: its Champion Ribbons on
+  /// the Pokédex's tile (the user's, 2026-11-26).
+  champion     Int[]    @default([])
   /// Its nature for the Super Contests (0 Hardy … 24 Quirky, the player's choice): the flavour it likes and dislikes when fed.
   contestNature Int     @default(0)
   /// Its held item in the Super Contests (a contest scarf's key, CONTEST_SCARVES; null for none).

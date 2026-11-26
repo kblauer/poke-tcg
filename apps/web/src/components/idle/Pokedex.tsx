@@ -19,6 +19,9 @@ const REGIONS = [
   { name: 'Sinnoh', from: 387, to: 493 },
 ] as const;
 
+/** The Always catch tab's index in place of a region's (the user's, 2026-11-26: left of Kanto, the species marked Always catch). */
+const ALWAYS_CATCH = -1;
+
 /** Which species the grid shows (the user's, 2026-11-15). */
 const FILTERS = [
   { id: 'all', label: 'All', keep: () => true },
@@ -30,6 +33,9 @@ type Filter = (typeof FILTERS)[number]['id'];
 
 const dexNo = (id: number) => String(id).padStart(3, '0');
 
+/** Each region's Champion Ribbon (the Badge Challenge's pictures), by generation. */
+const CHAMPION_RIBBONS: Record<number, string> = { 1: 'champion-ribbon', 2: 'johto-champion-ribbon', 3: 'hoenn-champion-ribbon', 4: 'sinnoh-champion-ribbon' };
+
 /**
  * The account's Pokédex (README: Idle Adventure; agreed with the user): every species either region has, to Arceus
  * (issue #170, step 6), in order with the games' sprites (the shown region's where it has the species: dexSpecies, dexPic),
@@ -40,7 +46,9 @@ const dexNo = (id: number) => String(id).padStart(3, '0');
  * (`starters`: the species allowed; `shinyStarters`: those with a shiny caught, which can start shiny: agreed). A species
  * with a shiny caught has a ★ and its shiny sprite in its entry. A caught entry is the Pokémon for the Super Contests (the
  * user's): its condition, and the Pokéblocks and Poffins to feed it, are in its entry. A seen species' entry shows its
- * habitat, the Town Map with its places flashing (DexHabitat, the user's, 2026-11-06).
+ * habitat, the Town Map with its places flashing (DexHabitat, the user's, 2026-11-06). A species that was in a run's party
+ * as it beat the Champion has a Champion Ribbon in its tile's top right corner (IdleDex.champion, the user's, 2026-11-26). Where species can be marked Always
+ * catch (`onAlwaysCatch`), an Always catch tab before the regions' lists them (the user's, 2026-11-26).
  */
 export function Pokedex({
   dex,
@@ -74,9 +82,10 @@ export function Pokedex({
   // A search looks through every region; an unseen species is found only by its number, never its name.
   const query = search.trim().toLowerCase();
   const matches = (s: Species) => (/^\d+$/.test(query) ? String(s.id).includes(String(Number(query))) : !!byId.get(s.id)?.seen && s.name.toLowerCase().includes(query));
-  const { from, to } = REGIONS[region]!;
+  const marked = onAlwaysCatch ? (alwaysCatch ?? []) : null;
+  const inTab = (s: Species) => (region === ALWAYS_CATCH ? !!marked?.includes(s.id) : s.id >= REGIONS[region]!.from && s.id <= REGIONS[region]!.to);
   const keep = FILTERS.find((f) => f.id === filter)!.keep;
-  const shown = all.filter((s) => (query ? matches(s) : s.id >= from && s.id <= to) && keep(byId.get(s.id)));
+  const shown = all.filter((s) => (query ? matches(s) : inTab(s)) && keep(byId.get(s.id)));
   const caughtIn = (r: (typeof REGIONS)[number]) => dex.filter((d) => d.caught && d.species >= r.from && d.species <= r.to).length;
   const sel = open !== null ? all[open - 1]! : null;
   const entry = sel && <DexEntry sel={sel} rec={byId.get(sel.id)} starters={starters} shinyStarters={shinyStarters} onPick={onPick} busy={busy} alwaysCatch={alwaysCatch} onAlwaysCatch={onAlwaysCatch} />;
@@ -102,6 +111,17 @@ export function Pokedex({
         </div>
       </div>
       <div className="flex flex-wrap gap-1 border-b border-slate-700">
+        {marked && (
+          <button
+            className={`rounded-t px-3 py-1.5 text-sm ${!query && region === ALWAYS_CATCH ? 'bg-slate-700 font-semibold text-yellow-300' : 'text-slate-400 hover:text-slate-100'}`}
+            onClick={() => {
+              setRegion(ALWAYS_CATCH);
+              setSearch('');
+            }}
+          >
+            Always Catch <span className="text-xs font-normal text-slate-500">{marked.length}</span>
+          </button>
+        )}
         {REGIONS.map((r, i) => (
           <button
             key={r.name}
@@ -117,7 +137,7 @@ export function Pokedex({
       </div>
       <div className="md:grid md:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] md:items-start md:gap-3">
         <div className="md:max-h-[75vh] md:overflow-y-auto md:pr-1">
-          {shown.length === 0 && <p className="py-6 text-center text-sm text-slate-400">{query ? 'No species found.' : 'None here yet.'}</p>}
+          {shown.length === 0 && <p className="py-6 text-center text-sm text-slate-400">{query ? 'No species found.' : region === ALWAYS_CATCH && !marked?.length ? "No Pokémon marked Always catch: tick it in a species' entry." : 'None here yet.'}</p>}
           <ul className="grid grid-cols-[repeat(auto-fill,minmax(4.5rem,1fr))] gap-1.5">
             {shown.map((s) => {
               const d = byId.get(s.id);
@@ -125,10 +145,14 @@ export function Pokedex({
               return (
                 <li key={s.id}>
                   <button
-                    className={`flex w-full flex-col items-center rounded p-1 text-[10px] ring-1 transition hover:bg-slate-700 ${open === s.id ? 'bg-slate-700 ring-yellow-300' : pickable ? 'bg-slate-800 ring-emerald-500/60' : 'bg-slate-800 ring-slate-700'}`}
+                    className={`relative flex w-full flex-col items-center rounded p-1 text-[10px] ring-1 transition hover:bg-slate-700 ${open === s.id ? 'bg-slate-700 ring-yellow-300' : pickable ? 'bg-slate-800 ring-emerald-500/60' : 'bg-slate-800 ring-slate-700'}`}
                     onClick={() => setOpen(open === s.id ? null : s.id)}
-                    title={d?.seen ? s.name : '???'}
+                    title={d?.seen ? s.name + (d.champion.length ? ` · Champion of ${d.champion.map((g) => REGIONS[g - 1]?.name ?? `Gen ${g}`).join(', ')}` : '') : '???'}
                   >
+                    {/* A Champion (the user's, 2026-11-26): in a run's party as it beat the Champion; the latest region's ribbon. */}
+                    {!!d?.champion.length && CHAMPION_RIBBONS[Math.max(...d.champion)] && (
+                      <img src={`/items/${CHAMPION_RIBBONS[Math.max(...d.champion)]}.png`} alt="Champion" className="absolute right-0.5 top-0.5 size-5 [image-rendering:pixelated]" draggable={false} />
+                    )}
                     <img
                       src={dexPic(s.id)}
                       alt=""

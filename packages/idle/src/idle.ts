@@ -1507,8 +1507,20 @@ function spotOf(leg: IdleLeg, [m, , , , tile]: TrackStep): string | null {
   return kind && generation().encounters[mapView(map).encounters]?.[kind] ? `${map}:${tile[0]}` : null;
 }
 
-/** A map's short name: its floor or zone (PokemonTower_3F: 3F, SafariZone_East: East), else its name spaced (Viridian Forest). */
-const mapLabel = (map: string) => (map.includes('_') ? map.slice(map.lastIndexOf('_') + 1) : map.replace(/([a-z])([A-Z0-9])/g, '$1 $2'));
+/**
+ * A map's short name: what follows its place's name, its floor or zone (PokemonTower_3F: 3F, SafariZone_East: East), all of
+ * it so two rooms of a place never share one (MeteorFalls_B1F_2R: B1F Room 2, the user's, 2026-11-26), spaced
+ * (ShoalCave_LowTideInnerRoom: Low Tide Inner Room); HGSS's floors (IcePathB1f: B1F), else its name spaced (Viridian Forest).
+ */
+export const mapLabel = (map: string) => {
+  const floor = /^[A-Z][A-Za-z]*?(B?\d+)f$/.exec(map);
+  const rest = map.includes('_') ? map.slice(map.indexOf('_') + 1) : floor ? `${floor[1]}F` : map;
+  return rest
+    .replace(/_(\d+)R$/, '_Room$1')
+    .replace(/_/g, ' ')
+    .replace(/([a-z])([A-Z0-9])/g, '$1 $2')
+    .replace(/^Stevens /, "Steven's ");
+};
 
 /**
  * The wild tables an area's grinds can pace on, in the track's order: each map's land and water Pokémon its track walks
