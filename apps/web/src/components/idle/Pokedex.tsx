@@ -47,7 +47,7 @@ const CHAMPION_RIBBONS: Record<number, string> = { 1: 'champion-ribbon', 2: 'joh
  * with a shiny caught has a ★ and its shiny sprite in its entry. A caught entry is the Pokémon for the Super Contests (the
  * user's): its condition, and the Pokéblocks and Poffins to feed it, are in its entry. A seen species' entry shows its
  * habitat, the Town Map with its places flashing (DexHabitat, the user's, 2026-11-06). A species that was in a run's party
- * as it beat the Champion has a Champion Ribbon in its tile's top right corner (IdleDex.champion, the user's, 2026-11-26). Where species can be marked Always
+ * as it beat the Champion has that region's Champion Ribbon beside its name in its entry (IdleDex.champion, the user's, 2026-11-26). Where species can be marked Always
  * catch (`onAlwaysCatch`), an Always catch tab before the regions' lists them (the user's, 2026-11-26).
  */
 export function Pokedex({
@@ -145,14 +145,10 @@ export function Pokedex({
               return (
                 <li key={s.id}>
                   <button
-                    className={`relative flex w-full flex-col items-center rounded p-1 text-[10px] ring-1 transition hover:bg-slate-700 ${open === s.id ? 'bg-slate-700 ring-yellow-300' : pickable ? 'bg-slate-800 ring-emerald-500/60' : 'bg-slate-800 ring-slate-700'}`}
+                    className={`flex w-full flex-col items-center rounded p-1 text-[10px] ring-1 transition hover:bg-slate-700 ${open === s.id ? 'bg-slate-700 ring-yellow-300' : pickable ? 'bg-slate-800 ring-emerald-500/60' : 'bg-slate-800 ring-slate-700'}`}
                     onClick={() => setOpen(open === s.id ? null : s.id)}
-                    title={d?.seen ? s.name + (d.champion.length ? ` · Champion of ${d.champion.map((g) => REGIONS[g - 1]?.name ?? `Gen ${g}`).join(', ')}` : '') : '???'}
+                    title={d?.seen ? s.name : '???'}
                   >
-                    {/* A Champion (the user's, 2026-11-26): in a run's party as it beat the Champion; the latest region's ribbon. */}
-                    {!!d?.champion.length && CHAMPION_RIBBONS[Math.max(...d.champion)] && (
-                      <img src={`/items/${CHAMPION_RIBBONS[Math.max(...d.champion)]}.png`} alt="Champion" className="absolute right-0.5 top-0.5 size-5 [image-rendering:pixelated]" draggable={false} />
-                    )}
                     <img
                       src={dexPic(s.id)}
                       alt=""
@@ -213,8 +209,12 @@ function DexEntry({
         <img src={dexPic(sel.id)} alt="" className="size-16 [image-rendering:pixelated]" draggable={false} />
         {rec?.shiny && <img src={dexPic(sel.id, true)} alt="Shiny" title="Shiny caught" className="size-16 [image-rendering:pixelated]" draggable={false} />}
         <div>
-          <div className="font-semibold">
+          <div className="flex flex-wrap items-center gap-x-2 font-semibold">
             No. {dexNo(sel.id)} {rec?.seen ? sel.name : '???'}
+            {/* A Champion (the user's, 2026-11-26): in a run's party as it beat the Champion, a ribbon for each region. */}
+            {rec?.champion.map((g) => CHAMPION_RIBBONS[g] && (
+              <img key={g} src={`/items/${CHAMPION_RIBBONS[g]}.png`} alt={`${REGIONS[g - 1]?.name} Champion`} title={`${REGIONS[g - 1]?.name} Champion Ribbon`} className="size-6 [image-rendering:pixelated]" draggable={false} />
+            ))}
           </div>
           {rec?.seen && (
             <div className="mt-1 flex gap-1">
