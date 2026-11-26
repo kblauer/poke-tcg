@@ -1,4 +1,5 @@
 import { generation, isMachine, machineMove, MAX_AUTO_BALLS, moveData, species, type CatchUpSummary, type IdleSettings as Settings, type RevivePolicy } from '@poke-tcg/idle';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useState } from 'react';
 import { commas } from '../../utils/math';
 
@@ -87,20 +88,74 @@ export function IdleSettings({ settings, busy, onChange }: { settings: Settings;
   );
 }
 
-/** The bag's items and how many of each. */
+/** The bag's sections (the user's, 2026-11-26), in order: TMs and HMs, everything used up, and the balls (each game's ball pocket). */
+const BAG_SECTIONS = [
+  { id: 'tms', title: 'TMs', holds: (item: string) => isMachine(item) },
+  { id: 'consumables', title: 'Consumables', holds: (item: string) => !isMachine(item) && !isBall(item) },
+  { id: 'balls', title: 'Balls', holds: (item: string) => isBall(item) },
+] as const;
+type BagSection = (typeof BAG_SECTIONS)[number]['id'];
+
+const isBall = (item: string) => ['poke_balls', 'balls'].includes(generation().items[item]?.pocket ?? '');
+
+/** localStorage: the bag's sections minimised (a convenience: storage failures just show them all). */
+const BAG_FOLDED_KEY = 'poke-tcg.idle-bag-folded';
+
+/**
+ * The bag's items and how many of each, under a small heading for each section, each minimised by clicking it
+ * (remembered per browser), and in the games' item order (TM01 first, the balls best first).
+ */
 export function Bag({ bag }: { bag: Record<string, number> }) {
-  const items = Object.entries(bag).filter(([, n]) => n > 0);
+  const [folded, setFolded] = useState<BagSection[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(BAG_FOLDED_KEY) ?? '[]') as BagSection[];
+    } catch {
+      return [];
+    }
+  });
+  const fold = (id: BagSection) =>
+    setFolded((now) => {
+      const next = now.includes(id) ? now.filter((f) => f !== id) : [...now, id];
+      try {
+        localStorage.setItem(BAG_FOLDED_KEY, JSON.stringify(next));
+      } catch {
+        // Not remembered: fine.
+      }
+      return next;
+    });
+  const order = Object.keys(generation().items);
+  const items = Object.entries(bag)
+    .filter(([, n]) => n > 0)
+    .sort(([a], [b]) => order.indexOf(a) - order.indexOf(b));
   if (!items.length) return <p className="text-sm text-slate-400">The bag is empty.</p>;
   return (
-    <ul className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-1.5 text-sm">
-      {items.map(([item, n]) => (
-        <li key={item} className="flex justify-between rounded bg-slate-800 px-3 py-1.5 ring-1 ring-slate-700">
-          {/* A TM or HM with its move, kept for good (no count). */}
-          <span>{isMachine(item) ? `${generation().items[item]!.name.toUpperCase()} ${moveData(machineMove(item)).name}` : (generation().items[item]?.name ?? item)}</span>
-          {!isMachine(item) && <span className="text-slate-400">×{n}</span>}
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-3">
+      {BAG_SECTIONS.map(({ id, title, holds }) => {
+        const held = items.filter(([item]) => holds(item));
+        if (!held.length) return null;
+        const open = !folded.includes(id);
+        return (
+          <section key={id} className="space-y-1.5">
+            <button className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-slate-400 transition hover:text-slate-100" aria-expanded={open} onClick={() => fold(id)}>
+              <ExpandMoreIcon sx={{ fontSize: 16 }} className={`transition-transform ${open ? '' : '-rotate-90'}`} />
+              {title}
+              <span className="font-normal normal-case text-slate-500">{held.length}</span>
+            </button>
+            {open && (
+              <ul className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-1.5 text-sm">
+                {held.map(([item, n]) => (
+                  <li key={item} className="flex justify-between rounded bg-slate-800 px-3 py-1.5 ring-1 ring-slate-700">
+                    {/* A TM or HM with its move, kept for good (no count). */}
+                    <span>{isMachine(item) ? `${generation().items[item]!.name.toUpperCase()} ${moveData(machineMove(item)).name}` : (generation().items[item]?.name ?? item)}</span>
+                    {!isMachine(item) && <span className="text-slate-400">×{n}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        );
+      })}
+    </div>
   );
 }
 
