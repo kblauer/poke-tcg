@@ -42,8 +42,8 @@ describe("Hoenn's run", () => {
       expect(s.phase, how).toBe('won');
       expect(s.badges, how).toEqual(['Stone', 'Knuckle', 'Dynamo', 'Heat', 'Balance', 'Feather', 'Mind', 'Rain']);
       expect(ms / 3600000, how).toBeLessThan(90);
-      // Only Kanto's 8th badge gives a Master Ball.
-      expect(s.bag['master-ball'], how).toBeUndefined();
+      // The 8th badge gives a Master Ball, never thrown by itself.
+      expect(s.bag['master-ball'], how).toBe(1);
       // The first prize: the class's ₱ a level × its last Pokémon's level (a quarter of Emerald's, as Kanto's are of FireRed's).
       const first = inGeneration(3, () => Object.values(generation().trainers).find((t) => prizes[0]!.why === `${t.class} ${t.name}`))!;
       expect(prizes[0]!.amount, how).toBe(first.money * first.party.at(-1)!.level);
